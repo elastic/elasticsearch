@@ -9,7 +9,13 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.Condition;
+import org.elasticsearch.action.admin.indices.rollover.IncreaseShardsDetails;
+import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -19,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,10 +38,10 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.DocsStats;
@@ -52,14 +59,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -74,40 +85,341 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
     @Before
     public void configureClusterSettings() {
         updateClusterSettings(
-            Settings.builder().putList(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey(), List.of())
+            Settings.builder()
+                .putList(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey(), List.of())
+                // we want to manually trigger the rollovers in this test suite to be able to assert incrementally the changes in shard
+                // configurations
+                .put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "30d")
         );
     }
 
     @After
     public void resetClusterSetting() {
         updateClusterSettings(
-            Settings.builder().putNull(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey())
+            Settings.builder()
+                .putNull(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey())
+                .putNull(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL)
         );
     }
 
     public void testRolloverOnAutoShardCondition() throws Exception {
         final String dataStreamName = "logs-es";
 
-        putComposableIndexTemplate("my-template", null, List.of("logs-*"), Settings.EMPTY);
+        // start with 3 shards
+        putComposableIndexTemplate(
+            "my-template",
+            List.of("logs-*"),
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
         final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
 
-        for (int i = 0; i < 10; i++) {
-            indexDocs(dataStreamName, randomIntBetween(100, 200));
+        indexDocs(dataStreamName, randomIntBetween(100, 200));
+
+        {
+            ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+            String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
+                .index(dataStreamBeforeRollover.getWriteIndex())
+                .shard(0)
+                .primaryShard()
+                .currentNodeId();
+
+            Index firstGenerationIndex = clusterStateBeforeRollover.metadata().dataStreams().get(dataStreamName).getWriteIndex();
+            IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().index(firstGenerationIndex);
+
+            List<ShardStats> shards = new ArrayList<>(firstGenerationMeta.getNumberOfShards());
+            for (int i = 0; i < firstGenerationMeta.getNumberOfShards(); i++) {
+                // the shard stats will yield a write load of 75.0 which will make the auto sharding service recommend an optimal number
+                // of 5 shards
+                shards.add(getShardStats(firstGenerationMeta, i, 75, assignedShardNodeId));
+            }
+
+            for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
+                MockTransportService.getInstance(node.getName())
+                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                        TransportIndicesStatsAction instance = internalCluster().getInstance(
+                            TransportIndicesStatsAction.class,
+                            node.getName()
+                        );
+                        channel.sendResponse(
+                            instance.new NodeResponse(node.getId(), firstGenerationMeta.getNumberOfShards(), shards, List.of())
+                        );
+                    });
+            }
+
+            assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+
+            ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
+            IndexMetadata secondGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+            // we auto sharded up to 5 shards
+            assertThat(secondGenerationMeta.getNumberOfShards(), is(5));
+
+            IndexMetadata index = clusterStateAfterRollover.metadata().index(firstGenerationIndex);
+            Map<String, RolloverInfo> rolloverInfos = index.getRolloverInfos();
+            assertThat(rolloverInfos.size(), is(1));
+            List<Condition<?>> metConditions = rolloverInfos.get(dataStreamName).getMetConditions();
+            assertThat(metConditions.size(), is(1));
+            assertThat(metConditions.get(0).value(), instanceOf(IncreaseShardsDetails.class));
+            IncreaseShardsDetails increaseShardsDetails = (IncreaseShardsDetails) metConditions.get(0).value();
+            assertThat(increaseShardsDetails.type(), is(AutoShardingType.INCREASE_SHARDS));
+            assertThat(increaseShardsDetails.writeLoad(), is(75.0));
+            assertThat(increaseShardsDetails.targetNumberOfShards(), is(5));
         }
 
-        final ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
-        final String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
-            .index(dataStreamBeforeRollover.getWriteIndex())
-            .shard(0)
-            .primaryShard()
-            .currentNodeId();
+        // let's do another rollover now that will not increase the number of shards because the increase shards cooldown has not lapsed,
+        // however the rollover will use the existing/previous auto shard configuration and the new generation index will have 5 shards
+        {
+            ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+            String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
+                .index(dataStreamBeforeRollover.getWriteIndex())
+                .shard(0)
+                .primaryShard()
+                .currentNodeId();
 
-        Index writeIndex = clusterStateBeforeRollover.metadata().dataStreams().get(dataStreamName).getWriteIndex();
-        IndexMetadata indexMeta = clusterStateBeforeRollover.getMetadata().index(writeIndex);
-        ShardId shardId = new ShardId(indexMeta.getIndex(), 0);
-        Path path = createTempDir().resolve("indices").resolve(indexMeta.getIndexUUID()).resolve(String.valueOf(0));
+            IndexMetadata secondGenerationMeta = clusterStateBeforeRollover.metadata().index(dataStreamBeforeRollover.getIndices().get(1));
+            List<ShardStats> shards = new ArrayList<>(secondGenerationMeta.getNumberOfShards());
+            for (int i = 0; i < secondGenerationMeta.getNumberOfShards(); i++) {
+                // the shard stats will yield a write load of 100.0 which will make the auto sharding service recommend an optimal number of
+                // 7 shards
+                shards.add(getShardStats(secondGenerationMeta, i, 100, assignedShardNodeId));
+            }
+
+            for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
+                MockTransportService.getInstance(node.getName())
+                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                        TransportIndicesStatsAction instance = internalCluster().getInstance(
+                            TransportIndicesStatsAction.class,
+                            node.getName()
+                        );
+                        channel.sendResponse(
+                            instance.new NodeResponse(node.getId(), secondGenerationMeta.getNumberOfShards(), shards, List.of())
+                        );
+                    });
+            }
+
+            RolloverResponse response = indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet();
+            assertAcked(response);
+            Map<String, Boolean> conditionStatus = response.getConditionStatus();
+            // empty rollover executed
+            assertThat(conditionStatus.size(), is(0));
+
+            ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
+            IndexMetadata thirdGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+            // we remained on 5 shards due to the increase shards cooldown
+            assertThat(thirdGenerationMeta.getNumberOfShards(), is(5));
+        }
+
+        {
+            try {
+                // eliminate the increase shards cooldown and re-do the rollover should configure the data stream to 7 shards
+                // this time also add a rollover condition that does NOT match so that we test that it's the auto sharding that triggers
+                // indeed the rollover
+                updateClusterSettings(
+                    Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN.getKey(), "0s")
+                );
+
+                ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+                DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+                String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
+                    .index(dataStreamBeforeRollover.getWriteIndex())
+                    .shard(0)
+                    .primaryShard()
+                    .currentNodeId();
+
+                IndexMetadata thirdGenIndex = clusterStateBeforeRollover.metadata().index(dataStreamBeforeRollover.getIndices().get(2));
+                List<ShardStats> shards = new ArrayList<>(thirdGenIndex.getNumberOfShards());
+                for (int i = 0; i < thirdGenIndex.getNumberOfShards(); i++) {
+                    // the shard stats will yield a write load of 100.0 which will make the auto sharding service recommend an optimal
+                    // number of 7 shards
+                    shards.add(getShardStats(thirdGenIndex, i, 100, assignedShardNodeId));
+                }
+
+                for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
+                    MockTransportService.getInstance(node.getName())
+                        .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                            TransportIndicesStatsAction instance = internalCluster().getInstance(
+                                TransportIndicesStatsAction.class,
+                                node.getName()
+                            );
+                            channel.sendResponse(
+                                instance.new NodeResponse(node.getId(), thirdGenIndex.getNumberOfShards(), shards, List.of())
+                            );
+                        });
+                }
+
+                RolloverRequest request = new RolloverRequest(dataStreamName, null);
+                request.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(1_000_000L).build());
+                RolloverResponse response = indicesAdmin().rolloverIndex(request).actionGet();
+                assertAcked(response);
+                Map<String, Boolean> conditionStatus = response.getConditionStatus();
+                assertThat(conditionStatus.size(), is(2));
+                for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
+                    if (entry.getKey().equals(new MaxDocsCondition(1_000_000L).toString())) {
+                        assertThat(entry.getValue(), is(false));
+                    } else {
+                        assertThat(entry.getKey(), containsString(AutoShardingType.INCREASE_SHARDS.toString()));
+                        assertThat(entry.getValue(), is(true));
+                    }
+                }
+
+                ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+                DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
+                IndexMetadata fourthGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+                // we auto-sharded up to 7 shards as there was no cooldown period
+                assertThat(fourthGenerationMeta.getNumberOfShards(), is(7));
+            } finally {
+                // reset increase shards cooldown value
+                updateClusterSettings(
+                    Settings.builder().putNull(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN.getKey())
+                );
+
+            }
+        }
+    }
+
+    public void testReduceShardsOnRollover() throws IOException {
+        final String dataStreamName = "logs-es";
+
+        // start with 3 shards
+        putComposableIndexTemplate(
+            "my-template",
+            List.of("logs-*"),
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+
+        indexDocs(dataStreamName, randomIntBetween(100, 200));
+
+        {
+            // rollover executes but the reduction in shard number will not be executed due to the reduce shards cooldown
+            ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+            String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
+                .index(dataStreamBeforeRollover.getWriteIndex())
+                .shard(0)
+                .primaryShard()
+                .currentNodeId();
+
+            Index firstGenerationIndex = clusterStateBeforeRollover.metadata().dataStreams().get(dataStreamName).getWriteIndex();
+            IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().index(firstGenerationIndex);
+
+            List<ShardStats> shards = new ArrayList<>(firstGenerationMeta.getNumberOfShards());
+            for (int i = 0; i < firstGenerationMeta.getNumberOfShards(); i++) {
+                // the shard stats will yield a write load of 2.0 which will make the auto sharding service recommend an optimal number
+                // of 2 shards
+                shards.add(getShardStats(firstGenerationMeta, i, 2, assignedShardNodeId));
+            }
+
+            for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
+                MockTransportService.getInstance(node.getName())
+                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                        TransportIndicesStatsAction instance = internalCluster().getInstance(
+                            TransportIndicesStatsAction.class,
+                            node.getName()
+                        );
+                        channel.sendResponse(
+                            instance.new NodeResponse(node.getId(), firstGenerationMeta.getNumberOfShards(), shards, List.of())
+                        );
+                    });
+            }
+
+            assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+
+            ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
+            IndexMetadata secondGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+            // we kept the number of shards to 3 as the reduce shards cooldown prevented us reducing the number of shards
+            assertThat(secondGenerationMeta.getNumberOfShards(), is(3));
+        }
+
+        {
+            // temporarily disable reduce shards cooldown and test that a rollover that doesn't match ANOTHER condition will not be
+            // executed just because we need to reduce the number of shards, and then that rollover when a different condition does
+            // indeed match will execute the rollover and the number of shards will be reduced to 2
+            try {
+                updateClusterSettings(
+                    Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN.getKey(), "0s")
+                );
+
+                ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+                DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+                String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
+                    .index(dataStreamBeforeRollover.getWriteIndex())
+                    .shard(0)
+                    .primaryShard()
+                    .currentNodeId();
+
+                IndexMetadata secondGenerationIndex = clusterStateBeforeRollover.metadata()
+                    .index(dataStreamBeforeRollover.getIndices().get(1));
+                List<ShardStats> shards = new ArrayList<>(secondGenerationIndex.getNumberOfShards());
+                for (int i = 0; i < secondGenerationIndex.getNumberOfShards(); i++) {
+                    // the shard stats will yield a write load of 2.0 which will make the auto sharding service recommend an optimal
+                    // number of 2 shards
+                    shards.add(getShardStats(secondGenerationIndex, i, 2, assignedShardNodeId));
+                }
+
+                for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
+                    MockTransportService.getInstance(node.getName())
+                        .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                            TransportIndicesStatsAction instance = internalCluster().getInstance(
+                                TransportIndicesStatsAction.class,
+                                node.getName()
+                            );
+                            channel.sendResponse(
+                                instance.new NodeResponse(node.getId(), secondGenerationIndex.getNumberOfShards(), shards, List.of())
+                            );
+                        });
+                }
+
+                RolloverRequest request = new RolloverRequest(dataStreamName, null);
+                // adding condition that does NOT match
+                request.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(1_000_000L).build());
+                RolloverResponse response = indicesAdmin().rolloverIndex(request).actionGet();
+                assertThat(response.isRolledOver(), is(false));
+                Map<String, Boolean> conditionStatus = response.getConditionStatus();
+                assertThat(conditionStatus.size(), is(1));
+                assertThat(conditionStatus.get(new MaxDocsCondition(1_000_000L).toString()), is(false));
+
+                // let's rollover with a condition that does match and test that the number of shards is reduced to 2
+                indexDocs(dataStreamName, 100);
+                request = new RolloverRequest(dataStreamName, null);
+                // adding condition that does NOT match
+                request.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(1L).build());
+                response = indicesAdmin().rolloverIndex(request).actionGet();
+                assertThat(response.isRolledOver(), is(true));
+                conditionStatus = response.getConditionStatus();
+                assertThat(conditionStatus.size(), is(1));
+                assertThat(conditionStatus.get(new MaxDocsCondition(1L).toString()), is(true));
+
+                ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+                DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
+                IndexMetadata thirdGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+                assertThat(thirdGenerationMeta.getNumberOfShards(), is(2));
+            } finally {
+                // reset increase shards cooldown value
+                updateClusterSettings(
+                    Settings.builder().putNull(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN.getKey())
+                );
+
+            }
+
+        }
+
+    }
+
+    private static ShardStats getShardStats(IndexMetadata indexMeta, int shardIndex, long targetWriteLoad, String assignedShardNodeId) {
+        ShardId shardId = new ShardId(indexMeta.getIndex(), shardIndex);
+        Path path = createTempDir().resolve("indices").resolve(indexMeta.getIndexUUID()).resolve(String.valueOf(shardIndex));
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             shardId,
             true,
@@ -118,44 +430,18 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         shardRouting = shardRouting.initialize(assignedShardNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         CommonStats stats = new CommonStats();
-        stats.docs = new DocsStats();
+        stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
         stats.store = new StoreStats();
-        stats.indexing = new IndexingStats(new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, false, 1, 4, 1));
-        final ShardStats shardStats = new ShardStats(
-            shardRouting,
-            new ShardPath(false, path, path, shardId),
-            stats,
-            null,
-            null,
-            null,
-            false,
-            0
-        );
-
-        for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
-            MockTransportService.getInstance(node.getName())
-                .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                    TransportIndicesStatsAction instance = internalCluster().getInstance(TransportIndicesStatsAction.class, node.getName());
-                    channel.sendResponse(instance.new NodeResponse(node.getId(), 1, List.of(shardStats), List.of()));
-                });
-        }
-
-        assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
-
-        final ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        final DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
-        final IndexMetadata currentWriteIndexMetadata = clusterState.metadata().getIndexSafe(dataStream.getWriteIndex());
-
-        assertThat(currentWriteIndexMetadata.getNumberOfShards(), is(3));
+        stats.indexing = new IndexingStats(new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, false, 1, targetWriteLoad, 1));
+        return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }
 
-    static void putComposableIndexTemplate(String id, @Nullable String mappings, List<String> patterns, @Nullable Settings settings)
-        throws IOException {
+    static void putComposableIndexTemplate(String id, List<String> patterns, @Nullable Settings settings) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, null))
+                .template(new Template(settings, null, null, null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );

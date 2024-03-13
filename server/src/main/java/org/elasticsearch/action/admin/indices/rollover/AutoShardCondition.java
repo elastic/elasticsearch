@@ -109,7 +109,7 @@ public class AutoShardCondition extends Condition<IncreaseShardsDetails> {
         builder.field(AUTO_SHARDING_TYPE.getPreferredName(), value.type());
         builder.field(CURRENT_NUMBER_OF_SHARDS.getPreferredName(), value.currentNumberOfShards());
         builder.field(TARGET_NUMBER_OF_SHARDS.getPreferredName(), value.targetNumberOfShards());
-        builder.field(COOLDOWN_REMAINING.getPreferredName(), value.coolDownRemaining().toHumanReadableString(2));
+        builder.field(COOLDOWN_REMAINING.getPreferredName(), value.coolDownRemaining().getStringRep());
         builder.field(WRITE_LOAD.getPreferredName(), value.writeLoad());
         builder.endObject();
         return builder;

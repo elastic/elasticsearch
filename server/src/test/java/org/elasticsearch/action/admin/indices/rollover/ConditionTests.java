@@ -371,6 +371,40 @@ public class ConditionTests extends ESTestCase {
         );
     }
 
+    public void testAutoShardCondition() {
+        {
+            // condition met
+            AutoShardCondition autoShardCondition = new AutoShardCondition(
+                new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
+            );
+            assertThat(
+                autoShardCondition.evaluate(
+                    new Condition.Stats(1, randomNonNegativeLong(), randomByteSizeValue(), randomByteSizeValue(), 1)
+                ),
+                is(true)
+            );
+        }
+
+        {
+            // condition is not met
+            AutoShardCondition autoShardCondition = new AutoShardCondition(
+                new IncreaseShardsDetails(
+                    AutoShardingType.COOLDOWN_PREVENTED_INCREASE,
+                    1,
+                    3,
+                    TimeValue.timeValueMillis(randomNonNegativeLong()),
+                    3.0
+                )
+            );
+            assertThat(
+                autoShardCondition.evaluate(
+                    new Condition.Stats(1, randomNonNegativeLong(), randomByteSizeValue(), randomByteSizeValue(), 1)
+                ),
+                is(false)
+            );
+        }
+    }
+
     public void testAutoShardCondtionXContent() throws IOException {
         AutoShardCondition autoShardCondition = new AutoShardCondition(
             new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 2.0)

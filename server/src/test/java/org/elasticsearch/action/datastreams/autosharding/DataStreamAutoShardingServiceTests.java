@@ -644,7 +644,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             () -> now
         );
         // to cover the entire cooldown period, the last index before the cooling period is taken into account
-        assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 15.0 : 999.0));
+        assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 5.0 : 999.0));
     }
 
     public void testAutoShardingResultValidation() {
@@ -759,7 +759,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     private IndexWriteLoad getWriteLoad(int numberOfShards, double shardWriteLoad) {
         IndexWriteLoad.Builder builder = IndexWriteLoad.builder(numberOfShards);
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
-            builder.withShardWriteLoad(shardId, shardWriteLoad, randomLongBetween(1, 10));
+            builder.withShardWriteLoad(shardId, shardWriteLoad, 1);
         }
         return builder.build();
     }

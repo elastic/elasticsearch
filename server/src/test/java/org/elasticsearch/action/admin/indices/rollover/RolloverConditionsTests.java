@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -20,6 +22,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.is;
 
 public class RolloverConditionsTests extends AbstractXContentSerializingTestCase<RolloverConditions> {
 
@@ -157,5 +161,14 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         String minAgeCondition = new MinAgeCondition(age).toString();
         assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true)));
         assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true, minAgeCondition, true)));
+
+        AutoShardCondition autoShardCondition = new AutoShardCondition(
+            new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
+        );
+        rolloverConditions = RolloverConditions.newBuilder()
+            .addAutoShardingCondition(new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0))
+            .build();
+        assertThat(rolloverConditions.areConditionsMet(Map.of(autoShardCondition.toString(), true)), is(true));
+        assertThat(rolloverConditions.areConditionsMet(Map.of(autoShardCondition.toString(), false)), is(false));
     }
 }

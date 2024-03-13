@@ -29,6 +29,7 @@ import org.elasticsearch.index.Index;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalDouble;
+import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -380,12 +381,27 @@ public class DataStreamAutoShardingService {
         // assume the current write index load is the highest observed and look back to find the actual maximum
         double maxIndexLoadWithinCoolingPeriod = writeIndexLoad;
         for (IndexWriteLoad writeLoad : writeLoadsWithinCoolingPeriod) {
-            double totalIndexLoad = 0;
+            // the IndexWriteLoad stores _for each shard_ a shard average write load ( calculated using : shard indexing time / shard
+            // uptime ) and its corresponding shard uptime
+            //
+            // to reconstruct the average _index_ write load we recalculate the shard indexing time by multiplying the shard write load
+            // to its uptime, and then, having the indexing time and uptime for each shard we calculate the average _index_ write load using
+            // (indexingTime_shard0 + indexingTime_shard1) / (uptime_shard0 + uptime_shard1)
+            // as {@link org.elasticsearch.index.shard.IndexingStats#add} does
+            double totalShardIndexingTime = 0;
+            long totalShardUptime = 0;
             for (int shardId = 0; shardId < writeLoad.numberOfShards(); shardId++) {
                 final OptionalDouble writeLoadForShard = writeLoad.getWriteLoadForShard(shardId);
-                totalIndexLoad += writeLoadForShard.orElse(0);
+                final OptionalLong uptimeInMillisForShard = writeLoad.getUptimeInMillisForShard(shardId);
+                if (writeLoadForShard.isPresent()) {
+                    assert uptimeInMillisForShard.isPresent();
+                    double shardIndexingTime = writeLoadForShard.getAsDouble() * uptimeInMillisForShard.getAsLong();
+                    long shardUptimeInMillis = uptimeInMillisForShard.getAsLong();
+                    totalShardIndexingTime += shardIndexingTime * shardUptimeInMillis;
+                    totalShardUptime += shardUptimeInMillis;
+                }
             }
-
+            double totalIndexLoad = totalShardUptime == 0 ? 0.0 : (totalShardIndexingTime / totalShardUptime);
             if (totalIndexLoad > maxIndexLoadWithinCoolingPeriod) {
                 maxIndexLoadWithinCoolingPeriod = totalIndexLoad;
             }

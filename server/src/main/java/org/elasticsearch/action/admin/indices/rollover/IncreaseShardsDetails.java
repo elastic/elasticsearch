@@ -8,17 +8,20 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
-import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.COOLDOWN_PREVENTED_INCREASE;
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
 
 /**
  * Our rollover conditions infrastructure need one value that is evaluated to indicate if a condition is met or not.
  * With auto sharding we'd like to include more information as part of the increase shards condition and this class is responsible for
  * encapsulating all the necessary information needed to represent an increase shards condition.
+ *
+ * Note that this exists so that it breaks a potential coupling of {@link AutoShardingResult#toString()} and the user facing
+ * representation of {@link Condition#toString()} and to restrict the allowed {@link AutoShardingType} values.
  */
 public record IncreaseShardsDetails(
     AutoShardingType type,
@@ -29,7 +32,7 @@ public record IncreaseShardsDetails(
 ) {
 
     public IncreaseShardsDetails {
-        if (type.equals(INCREASE_SHARDS) == false && type.equals(COOLDOWN_PREVENTED_INCREASE) == false) {
+        if (type.equals(INCREASE_SHARDS) == false) {
             throw new IllegalArgumentException("invalid increase shards condition type: " + type);
         }
     }

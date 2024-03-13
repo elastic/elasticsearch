@@ -121,9 +121,15 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) {
-        for (String ignoredField : context.getIgnoredFields()) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(ignoredField)));
-            context.doc().add(new StringField(fieldType().name(), ignoredField, Field.Store.YES));
+        if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+            for (String ignoredField : context.getIgnoredFields()) {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(ignoredField)));
+                context.doc().add(new StringField(fieldType().name(), ignoredField, Field.Store.NO));
+            }
+        } else {
+            for (String ignoredField : context.getIgnoredFields()) {
+                context.doc().add(new StringField(fieldType().name(), ignoredField, Field.Store.YES));
+            }
         }
     }
 

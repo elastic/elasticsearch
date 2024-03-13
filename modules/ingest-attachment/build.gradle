@@ -26,7 +26,16 @@ def versions = [
 ]
 
 // exclude commons-logging from test dependencies to avoid jar-hell, we use jcl-over-slf4j here
-configurations.testRuntimeClasspath { exclude module: 'commons-logging' }
+configurations.testRuntimeClasspath {
+  exclude module: 'commons-logging'
+  // The version used by POI potentially conflicts with the one pulled in by :test:framework:
+  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+}
+
+configurations.testCompileClasspath {
+  // The version used by POI potentially conflicts with the one pulled in by :test:framework:
+  resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
+}
 
 dependencies {
   // take over logging for all dependencies
@@ -71,14 +80,6 @@ dependencies {
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi-ooxml-lite:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
-  configurations.testRuntimeClasspath {
-    // The version used by POI potentially conflicts with the one pulled in by :test:framework
-    resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
-  }
-  configurations.testCompileClasspath {
-    // The version used by POI potentially conflicts with the one pulled in by :test:framework
-    resolutionStrategy.force "commons-codec:commons-codec:${versions.commonsCodec}"
-  }
   api "commons-codec:commons-codec:${versions.commonsCodec}"
   api 'org.apache.xmlbeans:xmlbeans:5.1.1'
   api 'org.apache.commons:commons-collections4:4.4'

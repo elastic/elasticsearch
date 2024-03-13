@@ -469,6 +469,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     @AfterClass
+    public static void resetRootLogger(){
+        Loggers.setLevel(LogManager.getLogger(), Level.INFO);
+    }
+
+    @AfterClass
     public static void restoreContentType() {
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }

@@ -597,7 +597,7 @@ end::knn-num-candidates[]
 
 tag::knn-query-vector[]
 Query vector. Must have the same number of dimensions as the vector field you
-are searching against.
+are searching against. Must be either an array of floats or a hex-encoded byte vector.
 end::knn-query-vector[]
 
 tag::knn-similarity[]

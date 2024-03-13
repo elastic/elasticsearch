@@ -10,9 +10,18 @@ package org.elasticsearch.search.vectors;
 
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
-public class KnnVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilderTestCase {
+public class KnnFloatVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilderTestCase {
     @Override
     DenseVectorFieldMapper.ElementType elementType() {
         return DenseVectorFieldMapper.ElementType.FLOAT;
+    }
+
+    @Override
+    KnnVectorQueryBuilder createKnnVectorQueryBuilder(String fieldName, int numCands, Float similarity) {
+        float[] vector = new float[VECTOR_DIMENSION];
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = randomFloat();
+        }
+        return new KnnVectorQueryBuilder(fieldName, vector, numCands, similarity);
     }
 }

@@ -6,10 +6,11 @@ description = 'Tests for requests made through the Node Client request API'
 dependencies {
     api project(":test:framework")
     api project(':server')
-    api project(':x-pack:plugin:core')
+    compileOnly project(path: xpackModule('core'))
 
+    testImplementation(testArtifact(project(xpackModule('core'))))
     // runtime only - since the test source should not explicitly depend
     // upon any types from ES|QL (only xpack core)
-    runtimeOnly project(':x-pack:plugin:ql')
-    runtimeOnly project(':x-pack:plugin:esql')
+    testImplementation project(':x-pack:plugin:ql')
+    testImplementation project(':x-pack:plugin:esql')
 }

@@ -2,7 +2,6 @@ apply plugin: 'elasticsearch.java'
 
 
 dependencies {
-    implementation project(':x-pack:plugin:core')  // TODO: we don't wanna depend on xpack core - move to server :-(
     implementation project(':x-pack:plugin:esql:compute')
     compileOnly project(':x-pack:plugin:esql')
     implementation project(":libs:elasticsearch-x-content")

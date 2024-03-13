@@ -1,18 +1,18 @@
 [[troubleshooting-unbalanced-cluster]]
 == Troubleshooting an unbalanced cluster
 
-Since 8.6 Elasticsearch is balancing shards across data tier to achieve a good compromise between
+Elasticsearch is balancing shards across data tier to achieve a good compromise between:
 * shard count
 * disk usage
 * ingest load forecast for write indices
 
-Please note, elasticsearch does not take into account amount or complexity of search queries when rebalancing shards.
+Elasticsearch does not take into account amount or complexity of search queries when rebalancing shards.
 
 There is no guarantee that individual components are going to be evenly spread across the nodes.
 This might appear as some of the nodes have less shards allocated or using less disk
 as long as they are assigned with the shards with greater ingest load forecast.
 
-You might get a detailed output of assigned workloads per node using <<cat-allocation,cat allocation command>>.
+Use <<cat-allocation,cat allocation command>> to list workloads per node:
 
 [source,console,id=cat-allocation-example]
 --------------------------------------------------
@@ -27,33 +27,35 @@ shards shards.undesired write_load.forecast disk.indices.forecast disk.indices d
      1                0                 0.0                  260b         260b    47.3gb     43.4gb    100.7gb           46 127.0.0.1 127.0.0.1 CSUXak2 himrst
 --------------------------------------------------
 
-Please note that some operations such as node restarting or decommissioning or changing cluster allocation settings
+This response contains following components that influence the balancing
+* `shards` is the current number of shards allocated to the node
+* `shards.undesired` is the number of shards that needs to be moved to other nodes to finish balancing
+* `disk.indices.forecast` expected disk usage according to the projected shard growth
+* `write_load.forecast` project ingest load associated with this node
+
+A cluster is considered balanced when no shard movements are scheduled (all `shards.undesired` are equal to 0).
+At this state it should have spread workload reasonably (eg. some nodes might have fewer shards but more ingest load).
+
+Some operations such as node restarting or decommissioning or changing cluster allocation settings
 are disruptive and might require multiple shards to move or rebalance.
 
 Shard movement order is not deterministic and mostly determined by the source and target node readiness to move a shard.
 While rebalancing is in progress some nodes might appear busier then others.
 
-You might monitor rebalancing progress using the same api:
-* `shards` is the total number of shards allocated to the node.
-* `shards.undesired` is the number of shards that needs to be moved to other nodes to finish balancing.
-
-A cluster is considered balanced when no shard movements are scheduled (all `shards.undesired` are equal to 0).
-
 When shard is allocated to undesired node it utilizes the resources of the current node instead of target.
 This might cause a hotspot (disk or CPU) when multiple shards are residing on the current node that have not been
 moved to their corresponding targets yet.
 
-You might find log entries such as
+If cluster is taking a long time to finish rebalancing you might find following log entries:
 [source,text]
 --------------------------------------------------
 [WARN][o.e.c.r.a.a.DesiredBalanceReconciler] [10%] of assigned shards (10/100) are not on their desired nodes, which exceeds the warn threshold of [10%]
 --------------------------------------------------
-if cluster detects a significant amount (>= 10%) of shards need to be moved.
 This is not concerning as long as the number of such shards is decreasing and this warning appears occasionally,
 for example after rolling restarts or changing allocation settings.
 
 If cluster is experiencing this warning for extended period of time, it is possible that the desired balance diverged
-too far from the current state. Then it is possible to reset the desired balance using the following API call
+too far from the current state. In such case is possible to reset the desired balance using the following API call
 and calculate a new one that would hopefully require less shard movements to get to balanced state.
 
 [source,console,id=delete-desired-balance-request-example]

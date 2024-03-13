@@ -1,0 +1,5 @@
+pr: 106329
+summary: Update delete object to never fail if alias does not exist
+area: Relevance
+type: bug
+issues: []

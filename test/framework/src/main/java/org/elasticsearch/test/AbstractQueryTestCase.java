@@ -500,7 +500,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 );
             }
             context = new SearchExecutionContext(context);
-            Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
+            Query secondLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext()).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
             assertLuceneQuery(secondQuery, secondLuceneQuery, context);
 
@@ -519,7 +519,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
             if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
+                Query thirdLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext()).toQuery(context);
                 assertNotEquals(
                     "modifying the boost doesn't affect the corresponding lucene query",
                     rewrite(firstLuceneQuery),

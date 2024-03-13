@@ -48,7 +48,7 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
     public static final FieldInferenceMetadata EMPTY = new FieldInferenceMetadata(ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
     public static final ParseField INFERENCE_FOR_FIELDS_FIELD = new ParseField("inference_for_fields");
-    public static final ParseField COPY_FROM_FIELDS_FIELD = new ParseField("copy_from_fields");
+    public static final ParseField SOURCE_FIELDS_FIELD = new ParseField("source_fields");
 
     public FieldInferenceMetadata(
         ImmutableOpenMap<String, String> inferenceIdsForFields,
@@ -87,7 +87,7 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(INFERENCE_FOR_FIELDS_FIELD.getPreferredName(), inferenceIdForField);
-        builder.field(COPY_FROM_FIELDS_FIELD.getPreferredName(), sourceFields);
+        builder.field(SOURCE_FIELDS_FIELD.getPreferredName(), sourceFields);
 
         return builder;
     }
@@ -107,7 +107,7 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
                 HashMap::new,
                 v -> v.list().stream().map(Object::toString).collect(Collectors.toSet())
             ),
-            COPY_FROM_FIELDS_FIELD
+            SOURCE_FIELDS_FIELD
         );
     }
 

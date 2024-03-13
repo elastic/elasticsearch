@@ -814,7 +814,7 @@ public class BulkOperationTests extends ESTestCase {
         );
     }
 
-    private BulkOperation newBulkOperation (
+    private BulkOperation newBulkOperation(
         ClusterState state,
         NodeClient client,
         BulkRequest request,

@@ -855,13 +855,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryDone(final RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+        public void onRecoveryDone(
+            final RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
             shardStateAction.shardStarted(
                 shardRouting,
                 primaryTerm,
                 "after " + state.getRecoverySource(),
                 timestampMillisFieldRange,
-                ShardLongFieldRange.UNKNOWN,  /// MP TODO: FIXME - need to add this to the onRecoveryDone interface
+                eventIngestedMillisFieldRange,
                 ActionListener.noop()
             );
         }

@@ -129,7 +129,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
 
         }
 

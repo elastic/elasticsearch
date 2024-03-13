@@ -434,7 +434,11 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             expectThrows(Exception.class, () -> group.recoverReplica(replica, (shard, sourceNode) -> {
                 return new RecoveryTarget(shard, sourceNode, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
-                    public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                    public void onRecoveryDone(
+                        RecoveryState state,
+                        ShardLongFieldRange timestampMillisFieldRange,
+                        ShardLongFieldRange eventIngestedMillisFieldRange
+                    ) {
                         throw new AssertionError("recovery must fail");
                     }
 

@@ -5,13 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.transform.transforms;
 
-public enum OpenAiParseContext {
-    REQUEST,
-    PERSISTENT;
+import org.elasticsearch.ElasticsearchException;
 
-    public static boolean isRequestContext(OpenAiParseContext context) {
-        return context == REQUEST;
+class CannotStartFailedTransformException extends ElasticsearchException {
+    CannotStartFailedTransformException(String msg) {
+        super(msg);
     }
 }

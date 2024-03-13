@@ -42,6 +42,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals("vmlinux", response.getExecutables().get("lHp5_WAgpLy2alrUVab6HA"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106308")
     public void testGetStackTracesFromAPMWithMatchNoDownsampling() throws Exception {
         BoolQueryBuilder query = QueryBuilders.boolQuery();
         query.must().add(QueryBuilders.termQuery("transaction.name", "encodeSha1"));

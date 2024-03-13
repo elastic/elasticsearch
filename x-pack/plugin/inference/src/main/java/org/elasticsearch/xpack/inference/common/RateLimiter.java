@@ -18,6 +18,16 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Implements a throttler using the <a href="https://en.wikipedia.org/wiki/Token_bucket">token bucket algorithm</a>.
+ *
+ * The general approach is to define the rate limiter with size (accumulated tokens limit) which dictates how many
+ * unused tokens can be saved up, and a rate at which the tokens are created. Then when a thread should be rate limited
+ * it can attempt to acquire a certain number of tokens (typically one for each item of work it's going to do). If unused tokens
+ * are available in the bucket already, those will be used. If the number of available tokens covers the desired amount
+ * the thread will not sleep. If the bucket does not contain enough tokens, it will calculate how long the thread needs to sleep
+ * to accumulate the requested amount of tokens.
+ *
+ * By setting the accumulated tokens limit to a value greater than zero, it effectively allows bursts of traffic. If the accumulated
+ * tokens limit is set to zero, it will force the acquiring thread to wait on each call.
  */
 public class RateLimiter {
 

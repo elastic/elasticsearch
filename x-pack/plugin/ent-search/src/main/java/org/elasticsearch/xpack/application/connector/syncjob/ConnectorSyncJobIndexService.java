@@ -103,7 +103,8 @@ public class ConnectorSyncJobIndexService {
                         new ElasticsearchStatusException(
                             "Cannot start a sync for connector ["
                                 + connectorId
-                                + "] with no index attached. Set the [index_name] property in the connector first.",
+                                + "] with no index attached. Set the [index_name] property for the connector "
+                                + "to enable syncing data.",
                             RestStatus.BAD_REQUEST
                         )
                     );

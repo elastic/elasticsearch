@@ -188,7 +188,7 @@ public class ConnectorIndexService {
      * Creates a Connector with default values and specified parameters.
      *
      * @param description The description of the connector.
-     * @param indexName   The name of the index associated with the connector.
+     * @param indexName   The name of the index associated with the connector. It can be null to indicate that index is not attached yet.
      * @param isNative    Flag indicating if the connector is native; defaults to false if null.
      * @param language    The language supported by the connector.
      * @param name        The name of the connector; defaults to an empty string if null.
@@ -694,7 +694,8 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the index name property of a {@link Connector}. Index name can be null to detach an index from connector.
+     * Updates the index name property of a {@link Connector}. Index name can be set to null to indicate that the connector
+     * is not associated with any index.
      *
      * @param request  The request for updating the connector's index name.
      * @param listener The listener for handling responses, including successful updates or errors.

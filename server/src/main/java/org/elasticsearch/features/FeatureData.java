@@ -20,8 +20,6 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.elasticsearch.features.FeatureService.CLUSTER_FEATURES_ADDED_VERSION;
-
 /**
  * Reads and consolidate features exposed by a list {@link FeatureSpecification}, grouping them into historical features and node
  * features for the consumption of {@link FeatureService}
@@ -35,7 +33,7 @@ public class FeatureData {
         this.nodeFeatures = nodeFeatures;
     }
 
-    public static FeatureData createFromSpecifications(List<? extends FeatureSpecification> specs) {
+    public static FeatureData createFromSpecifications(List<? extends FeatureSpecification> specs, Version historicalFeaturesLimitVersion) {
         Map<String, FeatureSpecification> allFeatures = new HashMap<>();
 
         NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>();
@@ -50,7 +48,7 @@ public class FeatureData {
                     );
                 }
 
-                if (hfe.getValue().after(CLUSTER_FEATURES_ADDED_VERSION)) {
+                if (hfe.getValue().after(historicalFeaturesLimitVersion)) {
                     throw new IllegalArgumentException(
                         Strings.format(
                             "Historical feature [%s] declared by [%s] for version [%s] is not a historical version",

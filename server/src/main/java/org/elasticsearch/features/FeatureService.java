@@ -38,7 +38,7 @@ public class FeatureService {
 
     public FeatureService(List<? extends FeatureSpecification> specs) {
 
-        var featureData = FeatureData.createFromSpecifications(specs);
+        var featureData = FeatureData.createFromSpecifications(specs, CLUSTER_FEATURES_ADDED_VERSION);
         nodeFeatures = featureData.getNodeFeatures();
         historicalFeatures = featureData.getHistoricalFeatures();
 

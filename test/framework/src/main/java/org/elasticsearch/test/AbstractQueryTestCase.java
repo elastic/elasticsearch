@@ -894,7 +894,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testCacheability() throws IOException {
         QB queryBuilder = createTestQueryBuilder();
         SearchExecutionContext context = createSearchExecutionContext();
-        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, createQueryRewriteContext());
         assertNotNull(rewriteQuery.toQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }

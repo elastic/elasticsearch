@@ -41,6 +41,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -80,16 +81,16 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
         return new BlobStoreSyncDirectory(
             super.createDirectory(path),
             this::getBlobContainerForCurrentTerm,
-            threadPool.executor(getClusterStateUploadsThreadPool())
+            getClusterStateUploadsThreadPool()
         );
     }
 
-    protected String getClusterStateUploadsThreadPool() {
-        return Stateless.CLUSTER_STATE_READ_WRITE_THREAD_POOL;
+    protected Executor getClusterStateUploadsThreadPool() {
+        return threadPool.executor(Stateless.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
     }
 
-    protected String getClusterStateDownloadsThreadPool() {
-        return Stateless.CLUSTER_STATE_READ_WRITE_THREAD_POOL;
+    protected Executor getClusterStateDownloadsThreadPool() {
+        return threadPool.executor(Stateless.CLUSTER_STATE_READ_WRITE_THREAD_POOL);
     }
 
     private BlobContainer getBlobContainerForCurrentTerm() {
@@ -101,7 +102,7 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
         var persistedState = new StatelessPersistedState(
             this,
             objectStoreService()::getClusterStateBlobContainerForTerm,
-            threadPool.executor(getClusterStateDownloadsThreadPool()),
+            getClusterStateDownloadsThreadPool(),
             getStateStagingPath(),
             getInitialState(settings, localNode, clusterSettings, compatibilityVersions),
             Objects.requireNonNull(electionStrategySupplier.get())

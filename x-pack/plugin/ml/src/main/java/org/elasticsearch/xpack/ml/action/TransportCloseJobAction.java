@@ -209,6 +209,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                                                 // these persistent tasks to disappear.
                                                 persistentTasksService.sendRemoveRequest(
                                                     jobTask.getId(),
+                                                    null,
                                                     ActionListener.wrap(
                                                         r -> logger.trace(
                                                             () -> format("[%s] removed task to close unassigned job", resolvedJobId)
@@ -519,7 +520,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
             if (jobTask != null) {
                 auditor.info(jobId, Messages.JOB_AUDIT_FORCE_CLOSING);
-                persistentTasksService.sendRemoveRequest(jobTask.getId(), new ActionListener<>() {
+                persistentTasksService.sendRemoveRequest(jobTask.getId(), null, new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                         if (counter.incrementAndGet() == numberOfJobs) {
@@ -590,6 +591,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                 PersistentTasksCustomMetadata.PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
                 persistentTasksService.sendRemoveRequest(
                     jobTask.getId(),
+                    null,
                     ActionListener.wrap(r -> logger.trace("[{}] removed persistent task for relocated job", jobId), e -> {
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                             logger.debug("[{}] relocated job task already removed", jobId);

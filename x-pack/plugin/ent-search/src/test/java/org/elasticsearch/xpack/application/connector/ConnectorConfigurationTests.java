@@ -17,10 +17,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationDependency;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationSelectOption;
+import org.elasticsearch.xpack.application.connector.configuration.ConfigurationValidation;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -186,6 +190,87 @@ public class ConnectorConfigurationTests extends ESTestCase {
             parsed = ConnectorConfiguration.fromXContent(parser);
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
+    public void testToMap() {
+        ConnectorConfiguration configField = ConnectorTestUtils.getRandomConnectorConfigurationField();
+        Map<String, Object> configFieldAsMap = configField.toMap();
+
+        if (configField.getCategory() != null) {
+            assertThat(configFieldAsMap.get("category"), equalTo(configField.getCategory()));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("category"));
+        }
+
+        assertThat(configFieldAsMap.get("default_value"), equalTo(configField.getDefaultValue()));
+
+        if (configField.getDependsOn() != null) {
+            List<Map<String, Object>> dependsOnAsList = configField.getDependsOn().stream().map(ConfigurationDependency::toMap).toList();
+            assertThat(configFieldAsMap.get("depends_on"), equalTo(dependsOnAsList));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("depends_on"));
+        }
+
+        if (configField.getDisplay() != null) {
+            assertThat(configFieldAsMap.get("display"), equalTo(configField.getDisplay().toString()));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("display"));
+        }
+
+        assertThat(configFieldAsMap.get("label"), equalTo(configField.getLabel()));
+
+        if (configField.getOptions() != null) {
+            List<Map<String, Object>> optionsAsList = configField.getOptions().stream().map(ConfigurationSelectOption::toMap).toList();
+            assertThat(configFieldAsMap.get("options"), equalTo(optionsAsList));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("options"));
+        }
+
+        if (configField.getOrder() != null) {
+            assertThat(configFieldAsMap.get("order"), equalTo(configField.getOrder()));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("order"));
+        }
+
+        if (configField.getPlaceholder() != null) {
+            assertThat(configFieldAsMap.get("placeholder"), equalTo(configField.getPlaceholder()));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("placeholder"));
+        }
+
+        assertThat(configFieldAsMap.get("required"), equalTo(configField.isRequired()));
+        assertThat(configFieldAsMap.get("sensitive"), equalTo(configField.isSensitive()));
+
+        if (configField.getTooltip() != null) {
+            assertThat(configFieldAsMap.get("tooltip"), equalTo(configField.getTooltip()));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("tooltip"));
+        }
+
+        if (configField.getType() != null) {
+            assertThat(configFieldAsMap.get("type"), equalTo(configField.getType().toString()));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("type"));
+        }
+
+        if (configField.getUiRestrictions() != null) {
+            assertThat(configFieldAsMap.get("ui_restrictions"), equalTo(configField.getUiRestrictions()));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("ui_restrictions"));
+        }
+
+        if (configField.getValidations() != null) {
+            List<Map<String, Object>> validationsAsList = configField.getValidations()
+                .stream()
+                .map(ConfigurationValidation::toMap)
+                .toList();
+            assertThat(configFieldAsMap.get("validations"), equalTo(validationsAsList));
+        } else {
+            assertFalse(configFieldAsMap.containsKey("validations"));
+        }
+
+        assertThat(configFieldAsMap.get("value"), equalTo(configField.getValue()));
+
     }
 
     private void assertTransportSerialization(ConnectorConfiguration testInstance) throws IOException {

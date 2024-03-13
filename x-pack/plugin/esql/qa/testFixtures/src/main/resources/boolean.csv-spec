@@ -232,3 +232,26 @@ emp_no:integer |languages:integer |byte2bool:boolean |short2bool:boolean
 10020          |null              |null              |null
 10030          |3                 |true              |true
 ;
+
+mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+row a = [true, false, false, true]
+| eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3);
+
+a:boolean                  | a1:boolean | a2:boolean
+[true, false, false, true] | false      | [false, true]
+;
+
+mvSliceEmp#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(is_rehired, 0)
+| keep emp_no, is_rehired, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | is_rehired:boolean       | a1:boolean
+10001          | [false,true]             | false
+10002          | [false,false]            | false
+10003          | null                     | null
+10004          | true                     | true
+10005          | [false,false,false,true] | false
+;

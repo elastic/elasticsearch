@@ -7,13 +7,22 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.Aggregator.Factory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -35,6 +44,15 @@ public class AggregationOperator implements Operator {
     private Page output;
     private final List<Aggregator> aggregators;
     private final DriverContext driverContext;
+
+    /**
+     * Nanoseconds this operator has spent running the aggregations.
+     */
+    private long aggregationNanos;
+    /**
+     * Count of pages this operator has processed.
+     */
+    private int pagesProcessed;
 
     public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
 
@@ -72,6 +90,7 @@ public class AggregationOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
+        long start = System.nanoTime();
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
         try {
@@ -80,6 +99,8 @@ public class AggregationOperator implements Operator {
             }
         } finally {
             page.releaseBlocks();
+            aggregationNanos += System.nanoTime() - start;
+            pagesProcessed++;
         }
     }
 
@@ -149,5 +170,102 @@ public class AggregationOperator implements Operator {
         sb.append(this.getClass().getSimpleName()).append("[");
         sb.append("aggregators=").append(aggregators).append("]");
         return sb.toString();
+    }
+
+    @Override
+    public Operator.Status status() {
+        return new Status(aggregationNanos, pagesProcessed);
+    }
+
+    public static class Status implements Operator.Status {
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "agg",
+            Status::new
+        );
+
+        /**
+         * Nanoseconds this operator has spent running the aggregations.
+         */
+        private final long aggregationNanos;
+        /**
+         * Count of pages this operator has processed.
+         */
+        private final int pagesProcessed;
+
+        /**
+         * Build.
+         * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
+         * @param pagesProcessed Count of pages this operator has processed.
+         */
+        public Status(long aggregationNanos, int pagesProcessed) {
+            this.aggregationNanos = aggregationNanos;
+            this.pagesProcessed = pagesProcessed;
+        }
+
+        protected Status(StreamInput in) throws IOException {
+            aggregationNanos = in.readVLong();
+            pagesProcessed = in.readVInt();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(aggregationNanos);
+            out.writeVInt(pagesProcessed);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        /**
+         * Nanoseconds this operator has spent running the aggregations.
+         */
+        public long aggregationNanos() {
+            return aggregationNanos;
+        }
+
+        /**
+         * Count of pages this operator has processed.
+         */
+        public int pagesProcessed() {
+            return pagesProcessed;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("aggregation_nanos", aggregationNanos);
+            if (builder.humanReadable()) {
+                builder.field("aggregation_time", TimeValue.timeValueNanos(aggregationNanos));
+            }
+            builder.field("pages_processed", pagesProcessed);
+            return builder.endObject();
+
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Status status = (Status) o;
+            return aggregationNanos == status.aggregationNanos && pagesProcessed == status.pagesProcessed;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(aggregationNanos, pagesProcessed);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ESQL_TIMINGS;
+        }
     }
 }

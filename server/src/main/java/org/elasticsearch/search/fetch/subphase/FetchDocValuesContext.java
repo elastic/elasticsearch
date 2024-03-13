@@ -26,6 +26,8 @@ public class FetchDocValuesContext {
 
     private final Collection<FieldAndFormat> fields;
 
+    public static final FetchDocValuesContext META_DATA_ONLY = new FetchDocValuesContext(List.of());
+
     /**
      * Create a new FetchDocValuesContext using the provided input list.
      * Field patterns containing wildcards are resolved and unmapped fields are filtered out.
@@ -53,6 +55,10 @@ public class FetchDocValuesContext {
                     + "] index level setting."
             );
         }
+    }
+
+    private FetchDocValuesContext(Collection<FieldAndFormat> fields) {
+        this.fields = fields;
     }
 
     /**

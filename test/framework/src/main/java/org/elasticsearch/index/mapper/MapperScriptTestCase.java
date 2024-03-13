@@ -139,7 +139,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is some text")));
         assertThat(doc.rootDoc().getFields("message_error"), hasSize(0));
-        assertThat(doc.rootDoc().getField("_ignored").stringValue(), equalTo("message_error"));
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(field -> "message_error".equals(field.stringValue())));
     }
 
     public final void testRejectScriptErrors() throws IOException {

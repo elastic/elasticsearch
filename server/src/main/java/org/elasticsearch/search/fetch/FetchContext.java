@@ -9,6 +9,7 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -179,6 +180,9 @@ public class FetchContext {
                 dvContext.fields().add(new FieldAndFormat(name, null));
             }
         }
+        if (dvContext == null) {
+            dvContext = FetchDocValuesContext.META_DATA_ONLY;
+        }
         return dvContext;
     }
 
@@ -266,5 +270,9 @@ public class FetchContext {
         } else {
             return hitContext.source();
         }
+    }
+
+    public IndexSettings indexSettings() {
+        return searchContext.indexShard().indexSettings();
     }
 }

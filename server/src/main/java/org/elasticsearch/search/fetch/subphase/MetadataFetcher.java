@@ -35,15 +35,13 @@ public class MetadataFetcher {
         new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
     );
     private final Map<String, FieldContext> fieldContexts;
-    private final StoredFieldsSpec storedFieldsSpec;
 
     public MetadataFetcher(final Map<String, FieldContext> fieldContexts) {
         this.fieldContexts = fieldContexts;
-        this.storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
     }
 
     public StoredFieldsSpec storedFieldsSpec() {
-        return storedFieldsSpec;
+        return StoredFieldsSpec.NO_REQUIREMENTS;
     }
 
     private record MetadataField(String field, MappedFieldType mappedFieldType, String format) {}

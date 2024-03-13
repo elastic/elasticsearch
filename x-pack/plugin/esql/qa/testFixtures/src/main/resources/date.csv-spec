@@ -182,7 +182,9 @@ string:keyword                                          |datetime:date
 // end::to_datetime-str-result[]
 ;
 
-convertFromUnsignedLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
+convertFromUnsignedLong
+required_feature:esql.convert_warn
+
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
 warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:58: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range

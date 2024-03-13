@@ -2,7 +2,9 @@
 # Tests for GEO_POINT type
 #
 
-convertFromStringQuantize#[skip:-8.11.99, reason:spatial type geo_point only added in 8.12]
+convertFromStringQuantize
+required_feature: esql.geo_point
+
 row wkt = "POINT(42.97109629958868 14.7552534006536)"
 | eval pt = to_geopoint(wkt);
 

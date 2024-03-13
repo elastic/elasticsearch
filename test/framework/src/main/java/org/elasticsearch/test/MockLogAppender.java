@@ -240,10 +240,20 @@ public class MockLogAppender extends AbstractAppender {
         }
     }
 
+    /**
+     * Adds the list of class loggers to this {@link MockLogAppender}.
+     *
+     * Stops ({@link #stop()}) and runs some checks on the {@link MockLogAppender} once the returned object is released.
+     */
     public Releasable capturing(Class<?>... classes) {
         return appendToLoggers(Arrays.stream(classes).map(LogManager::getLogger).toList());
     }
 
+    /**
+     * Same as above except takes string class names of each logger.
+     * @param names
+     * @return
+     */
     public Releasable capturing(String... names) {
         return appendToLoggers(Arrays.stream(names).map(LogManager::getLogger).toList());
     }

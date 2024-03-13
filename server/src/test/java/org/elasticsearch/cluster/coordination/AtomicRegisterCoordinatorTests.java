@@ -45,6 +45,13 @@ import static org.elasticsearch.cluster.coordination.CoordinationStateTests.clus
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.MAX_MISSED_HEARTBEATS;
 
+/**
+ * Tests that the Coordinator code runs correctly relying on atomic register compare-and-swap. Stateless will use implementations of atomic
+ * register CAS in the cloud blob stores.
+ *
+ * StatelessCoordinationTests extends AtomicRegisterCoordinatorTests for testing, inheriting all the tests but using different
+ * {@link ElectionStrategy} implementations, etc.
+ */
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
@@ -86,23 +93,16 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
     public void testAckListenerReceivesNacksIfPublicationTimesOut() {
         // The leader still has access to the register, therefore it acknowledges the state update
+        testAckListenerReceivesNacksIfPublicationTimesOut(true);
     }
 
     @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testClusterCannotFormWithFailingJoinValidation() {
-        // A single node can form a cluster in this case
-    }
-
-    @Override
-    @AwaitsFix(bugUrl = "ES-5645")
-    public void testCannotJoinClusterWithDifferentUUID() {
-        // The cluster2 leader is considered dead since we only run the nodes in cluster 1
-        // therefore the node coming from cluster 2 ends up taking over the old master in cluster 2
-        // TODO: add more checks to avoid forming a mixed cluster between register based and traditional clusters
+    public void testClusterCannotFormWithFailingJoinValidation() throws Exception {
+        // A single node can form a cluster if it is able to join (vote for) its own cluster, so we must disable all nodes from successfully
+        // joining a cluster.
+        clusterCannotFormWithFailingJoinValidation(true);
     }
 
     @Override
@@ -192,6 +192,9 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
         return new AtomicRegisterCoordinatorStrategy();
     }
 
+    /**
+     * Strategy used to inject custom behavior into the {@link AbstractCoordinatorTestCase} test infrastructure.
+     */
     class AtomicRegisterCoordinatorStrategy implements CoordinatorStrategy {
         private final AtomicLong currentTermRef = new AtomicLong();
         private final AtomicReference<Heartbeat> heartBeatRef = new AtomicReference<>();

@@ -8,6 +8,8 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
@@ -93,6 +95,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
+    private final Logger logger = LogManager.getLogger(CoordinatorTests.class);
 
     public void testCanUpdateClusterStateAfterStabilisation() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
@@ -637,6 +640,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testAckListenerReceivesNacksIfPublicationTimesOut() {
+        testAckListenerReceivesNacksIfPublicationTimesOut(false);
+    }
+
+    protected void testAckListenerReceivesNacksIfPublicationTimesOut(boolean expectLeaderAcksSuccessfullyInStateless) {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -651,12 +658,19 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             assertFalse("expected no immediate ack from " + leader, ackCollector.hasAcked(leader));
             assertFalse("expected no immediate ack from " + follower0, ackCollector.hasAcked(follower0));
             assertFalse("expected no immediate ack from " + follower1, ackCollector.hasAcked(follower1));
+
             follower0.heal();
             follower1.heal();
             cluster.stabilise();
             assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
             assertTrue("expected eventual nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
-            assertTrue("expected eventual nack from " + leader, ackCollector.hasAckedUnsuccessfully(leader));
+            if (expectLeaderAcksSuccessfullyInStateless) {
+                // A stateless leader directly updates the cluster state in the remote blob store: it does not require communication with
+                // the other cluster nodes to procceed with an update commit to the cluster state.
+                assertTrue("expected ack from leader, " + leader, ackCollector.hasAckedSuccessfully(leader));
+            } else {
+                assertTrue("expected eventual nack from leader, " + leader, ackCollector.hasAckedUnsuccessfully(leader));
+            }
         }
     }
 
@@ -1271,21 +1285,50 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testClusterCannotFormWithFailingJoinValidation() {
+    public void testClusterCannotFormWithFailingJoinValidation() throws Exception {
+        clusterCannotFormWithFailingJoinValidation(false);
+    }
+
+    /**
+     * Forms a random sized cluster and then disables join validation on either a random majority subset or all cluster nodes. Then checks
+     * that election fails.
+     *
+     * @param failJoinOnAllNodes this controls whether to fail join on all nodes or only a majority subset. The atomic register CAS election
+     *                           strategy will succeed in electing a master if any node can vote (even the master candidate voting for
+     *                           itself).
+     * @throws Exception
+     */
+    protected void clusterCannotFormWithFailingJoinValidation(boolean failJoinOnAllNodes) throws Exception {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
-            // fail join validation on a majority of nodes in the initial configuration
-            randomValueOtherThanMany(
-                nodes -> cluster.initialConfiguration.hasQuorum(
-                    nodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getId).collect(Collectors.toSet())
-                ) == false,
-                () -> randomSubsetOf(cluster.clusterNodes)
-            ).forEach(cn -> cn.extraJoinValidators.add((discoveryNode, clusterState) -> {
+            List<ClusterNode> clusterNodesToFailJoin;
+            if (failJoinOnAllNodes) {
+                // The AtomicRegister strategy succeeds if a master candidate votes for itself, so we must disable all nodes from voting so
+                // that none of them can self-elect.
+                clusterNodesToFailJoin = cluster.clusterNodes;
+            } else {
+                // Fetch a random subset of cluster nodes that form a quorum (majority subset).
+                clusterNodesToFailJoin = randomValueOtherThanMany(
+                    nodes -> cluster.initialConfiguration.hasQuorum(
+                        nodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getId).collect(Collectors.toSet())
+                    ) == false,
+                    () -> randomSubsetOf(cluster.clusterNodes)
+                );
+            }
+
+            // Fail join validation on the set of nodes so that election will fail in the initial configuration.
+            clusterNodesToFailJoin.forEach(cn -> cn.extraJoinValidators.add((discoveryNode, clusterState) -> {
                 throw new IllegalArgumentException("join validation failed");
             }));
+
             cluster.bootstrapIfNecessary();
+
+            // Run the cluster for 10 seconds to give the cluster some time to elect a master.
+            // It's possible stabilisation takes longer, but very unlikely.
             cluster.runFor(10000, "failing join validation");
+
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
 
+            // Now clear the validation failures and allow the cluster to stabilize.
             for (ClusterNode clusterNode : cluster.clusterNodes) {
                 clusterNode.extraJoinValidators.clear();
             }

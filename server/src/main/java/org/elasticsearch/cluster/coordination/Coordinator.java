@@ -504,6 +504,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    /**
+     * Updates {@link #maxTermSeen} if greater.
+     *
+     * Every time a new term is found, either from another node requesting election, or this node trying to run for election, always update
+     * the max term number. The max term may not reflect an actual election, but rather an election attempt by some node in the
+     * cluster.
+     *
+     * @param term
+     */
     private void updateMaxTermSeen(final long term) {
         synchronized (mutex) {
             maxTermSeen = Math.max(maxTermSeen, term);
@@ -549,6 +558,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
+    /**
+     * Broadcasts a request to all 'discoveredNodes' in the cluster to elect 'candidateMasterNode' as the new master.
+     *
+     * @param candidateMasterNode the node running for election
+     * @param term the new proposed master term
+     * @param discoveredNodes all the nodes to which to send the request
+     */
     private void broadcastStartJoinRequest(DiscoveryNode candidateMasterNode, long term, List<DiscoveryNode> discoveredNodes) {
         electionStrategy.onNewElection(candidateMasterNode, term, new ActionListener<>() {
             @Override
@@ -670,6 +686,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         });
     }
 
+    /**
+     * Validates a request to join the new cluster. Runs on the candidate node running for election to master.
+     *
+     * @param joinRequest
+     * @param validateListener
+     */
     private void validateJoinRequest(JoinRequest joinRequest, ActionListener<Void> validateListener) {
 
         // Before letting the node join the cluster, ensure:
@@ -753,6 +775,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         );
     }
 
+    /**
+     * Processes the request to join the cluster. Received by the node running for election to master.
+     *
+     * @param joinRequest
+     * @param joinListener
+     */
     private void processJoinRequest(JoinRequest joinRequest, ActionListener<Void> joinListener) {
         assert Transports.assertNotTransportThread("blocking on coordinator mutex and maybe doing IO to increase term");
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();

@@ -6,12 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.transform.UnzipTransform
-import org.elasticsearch.gradle.internal.GenerateProviderManifest
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
-import org.gradle.api.internal.artifacts.ArtifactAttributes
-
-import java.util.stream.Collectors
 
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'

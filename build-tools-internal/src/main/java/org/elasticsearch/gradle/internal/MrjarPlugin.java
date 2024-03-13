@@ -105,7 +105,7 @@ public class MrjarPlugin implements Plugin<Project> {
             testTask.dependsOn(jarTask);
 
             SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(project);
-            FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
+            FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput();
             FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
             testTask.setClasspath(testRuntime.minus(mainRuntime).plus(project.files(jarTask)));
         });

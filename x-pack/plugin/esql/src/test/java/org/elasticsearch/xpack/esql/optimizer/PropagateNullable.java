@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 
-public class FoldNull extends LogicalPlanOptimizer.FoldNull {
+public class PropagateNullable extends LogicalPlanOptimizer.PropagateNullable {
     @Override
-    public Expression rule(Expression e) {
-        return super.rule(e);
+    public Expression rule(And and) {
+        return super.rule(and);
     }
 }

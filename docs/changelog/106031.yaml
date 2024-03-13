@@ -1,0 +1,13 @@
+pr: 106031
+summary: Deprecate allowing `fields` in scenarios where it is ignored
+area: Mapping
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate allowing `fields` in scenarios where it is ignored
+  area: Mapping
+  details: The following mapped types have always ignored `fields` when using multi-fields.
+    This deprecation makes this clearer and we will completely disallow `fields` for
+    these mapped types in the future.
+  impact: "In the future, `join`, `aggregate_metric_double`, and `constant_keyword`,\
+    \ will all disallow supplying `fields` as a parameter in the mapping."

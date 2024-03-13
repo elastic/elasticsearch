@@ -122,8 +122,8 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());
         assertFalse(mappingLookup.fieldMappers().iterator().hasNext());
         assertEquals(0, mappingLookup.getMatchingFieldNames("*").size());
-        assertNotNull(mappingLookup.getFieldsForModels());
-        assertTrue(mappingLookup.getFieldsForModels().isEmpty());
+        assertNotNull(mappingLookup.getInferenceIdsForFields());
+        assertTrue(mappingLookup.getInferenceIdsForFields().isEmpty());
     }
 
     public void testValidateDoesNotShadow() {
@@ -201,7 +201,7 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(fieldType, mappingLookup.getFieldType("test_field_name"));
 
-        Map<String, Set<String>> fieldsForModels = mappingLookup.getFieldsForModels();
+        Map<String, Set<String>> fieldsForModels = mappingLookup.getInferenceIdsForFields();
         assertNotNull(fieldsForModels);
         assertEquals(1, fieldsForModels.size());
         assertEquals(Collections.singleton("test_field_name"), fieldsForModels.get("test_model_id"));

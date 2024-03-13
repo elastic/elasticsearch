@@ -37,7 +37,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNotNull(names);
         assertThat(names, hasSize(0));
 
-        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        Map<String, Set<String>> fieldsForModels = lookup.getInferenceIdsForFields();
         assertNotNull(fieldsForModels);
         assertTrue(fieldsForModels.isEmpty());
     }
@@ -48,7 +48,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup.get("foo"));
 
-        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        Map<String, Set<String>> fieldsForModels = lookup.getInferenceIdsForFields();
         assertNotNull(fieldsForModels);
         assertTrue(fieldsForModels.isEmpty());
     }
@@ -440,7 +440,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(f2.fieldType(), lookup.get("foo2"));
         assertEquals(f3.fieldType(), lookup.get("foo3"));
 
-        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        Map<String, Set<String>> fieldsForModels = lookup.getInferenceIdsForFields();
         assertNotNull(fieldsForModels);
         assertEquals(2, fieldsForModels.size());
         assertEquals(Set.of("foo1", "foo2"), fieldsForModels.get("bar1"));

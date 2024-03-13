@@ -105,7 +105,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             return this;
         }
 
-        Set<String> modelsForField = queryRewriteContext.getModelsForField(fieldName);
+        Set<String> modelsForField = queryRewriteContext.getInferenceIdsForField(fieldName);
         if (modelsForField.isEmpty()) {
             throw new IllegalArgumentException("Field [" + fieldName + "] is not a semantic_text field type");
         }

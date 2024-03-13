@@ -127,6 +127,11 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
             }
         }
 
+        // return if pagination requested is outside the results
+        if (results.values().size()  - from <= 0) {
+            return SortedTopDocs.EMPTY;
+        }
+
         // sort the results based on rrf score, tiebreaker based on
         // larger individual query score from 1 to n, smaller shard then smaller doc id
         RRFRankDoc[] sortedResults = results.values().toArray(RRFRankDoc[]::new);

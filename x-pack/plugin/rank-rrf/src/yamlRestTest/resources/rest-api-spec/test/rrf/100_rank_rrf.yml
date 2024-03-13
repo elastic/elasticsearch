@@ -222,7 +222,7 @@ setup:
               keyword: keyword
           rank:
             rrf:
-              window_size: 3
+              window_size: 1
               rank_constant: 1
           from : 2
           size : 1
@@ -263,7 +263,7 @@ setup:
           ]
           rank:
             rrf:
-              window_size: 3
+              window_size: 1
               rank_constant: 1
           from : 1
           size : 1
@@ -273,3 +273,40 @@ setup:
   - match: { hits.hits.0._id: "5" }
   - match: { hits.hits.0._rank: 2 }
   - match: { hits.hits.0.fields.keyword.0: "aardvark" }
+
+---
+"Simple rank with sub-searches and pagination - no results if outside range":
+  - skip:
+      version: ' - 8.13.99'
+      reason: 'pagination support for rank added in 8.14'
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          sub_searches: [
+            {
+              "query": {
+                "match": {
+                  "keyword": "aardvark"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "foo"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              window_size: 1
+              rank_constant: 1
+          from : 10
+          size : 1
+
+  - match: { hits.total.value : 2 }
+  - length: { hits.hits : 0}

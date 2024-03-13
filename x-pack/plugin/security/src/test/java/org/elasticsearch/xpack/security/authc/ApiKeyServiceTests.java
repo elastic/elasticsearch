@@ -424,15 +424,12 @@ public class ApiKeyServiceTests extends ESTestCase {
             service.queryApiKeys(new SearchRequest(".security"), false, queryApiKeyResponsePlainActionFuture);
             QueryApiKeyResponse queryApiKeyResponse = queryApiKeyResponsePlainActionFuture.get();
             assertThat(queryApiKeyResponse.getItems().length, is(2));
-            assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getRealm(), is(realm1));
-            assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getRealmType(), is(realm1Type));
-            assertThat(
-                queryApiKeyResponse.getItems()[0].getApiKey().getRealmIdentifier(),
-                is(new RealmConfig.RealmIdentifier(realm1Type, realm1))
-            );
-            assertThat(queryApiKeyResponse.getItems()[1].getApiKey().getRealm(), is(realm2));
-            assertThat(queryApiKeyResponse.getItems()[1].getApiKey().getRealmType(), nullValue());
-            assertThat(queryApiKeyResponse.getItems()[1].getApiKey().getRealmIdentifier(), nullValue());
+            assertThat(queryApiKeyResponse.getItems()[0].getRealm(), is(realm1));
+            assertThat(queryApiKeyResponse.getItems()[0].getRealmType(), is(realm1Type));
+            assertThat(queryApiKeyResponse.getItems()[0].getRealmIdentifier(), is(new RealmConfig.RealmIdentifier(realm1Type, realm1)));
+            assertThat(queryApiKeyResponse.getItems()[1].getRealm(), is(realm2));
+            assertThat(queryApiKeyResponse.getItems()[1].getRealmType(), nullValue());
+            assertThat(queryApiKeyResponse.getItems()[1].getRealmIdentifier(), nullValue());
         }
     }
 

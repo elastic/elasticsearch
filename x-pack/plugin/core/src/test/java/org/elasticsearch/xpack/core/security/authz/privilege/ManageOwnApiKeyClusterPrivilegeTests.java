@@ -260,7 +260,16 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
             .build();
 
-        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, null, randomBoolean());
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            randomBoolean(),
+            randomBoolean()
+        );
         if (randomBoolean()) {
             queryApiKeyRequest.setFilterForCurrentUser();
         }
@@ -279,7 +288,16 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
             .build();
 
         final boolean withLimitedBy = randomBoolean();
-        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, null, withLimitedBy);
+        final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            withLimitedBy,
+            randomBoolean()
+        );
         queryApiKeyRequest.setFilterForCurrentUser();
         assertThat(
             clusterPermission.check(QueryApiKeyAction.NAME, queryApiKeyRequest, AuthenticationTestHelper.builder().apiKey().build(false)),

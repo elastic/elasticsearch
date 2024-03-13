@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -50,14 +51,8 @@ public final class TransportSamlLogoutAction extends HandledTransportAction<Saml
         Realms realms,
         TokenService tokenService
     ) {
-        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(
-            SamlLogoutAction.NAME,
-            transportService,
-            actionFilters,
-            SamlLogoutRequest::new,
-            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
-        );
+        // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.realms = realms;
         this.tokenService = tokenService;
         this.genericExecutor = transportService.getThreadPool().generic();

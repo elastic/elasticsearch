@@ -300,7 +300,7 @@ emp_no:integer | name:keyword
 
 // Note: no matches in MV returned
 in
-required_feature: esql.mv_load
+required_feature: esql.mv_warn
 
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true
@@ -491,7 +491,9 @@ emp_no:integer |positions:keyword                                               
 10005          |null                                                                  |null                                                                  
 ;
 
-lessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+lessThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where job_positions < "C" | keep emp_no, job_positions | sort emp_no;
 warning:Line 1:24: evaluation of [job_positions < \"C\"] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -502,7 +504,9 @@ emp_no:integer |job_positions:keyword
 10068          |Architect
 ;
 
-greaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+greaterThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where job_positions > "C" | keep emp_no, job_positions | sort emp_no | limit 6;
 warning:Line 1:24: evaluation of [job_positions > \"C\"] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -517,7 +521,9 @@ emp_no:integer |job_positions:keyword
 10021          |Support Engineer
 ;
 
-equalToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+equalToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where job_positions == "Accountant" | keep emp_no, job_positions | sort emp_no;
 warning:Line 1:24: evaluation of [job_positions == \"Accountant\"] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -527,7 +533,9 @@ emp_no:integer |job_positions:keyword
 10025          |Accountant
 ;
 
-equalToOrEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+equalToOrEqualToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
 warning:Line 1:24: evaluation of [job_positions] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -538,7 +546,9 @@ emp_no:integer |job_positions:keyword
 10025          |Accountant
 ;
 
-inMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+inMultivalue
+required_feature: esql.mv_warn
+
 from employees | where job_positions in ("Accountant", "Tech Lead") | keep emp_no, job_positions | sort emp_no;
 warning:Line 1:24: evaluation of [job_positions in (\"Accountant\", \"Tech Lead\")] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -549,7 +559,9 @@ emp_no:integer |job_positions:keyword
 10025          |Accountant
 ;
 
-notLessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+notLessThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warning:Line 1:24: evaluation of [not(job_positions < \"C\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions < \"C\"] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -564,7 +576,9 @@ emp_no:integer |job_positions:keyword
 10021          |Support Engineer
 ;
 
-notGreaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+notGreaterThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warning:Line 1:24: evaluation of [not(job_positions > \"C\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions > \"C\"] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -575,7 +589,9 @@ emp_no:integer |job_positions:keyword
 10068          |Architect
 ;
 
-notEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+notEqualToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
 warning:Line 1:24: evaluation of [not(job_positions == \"Accountant\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions == \"Accountant\"] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -775,7 +791,9 @@ beta             | Kubernetes cluster       | beta k8s server
 beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2]
 ;
 
-lengthOfText#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+lengthOfText
+required_feature: esql.mv_warn
+
 from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
 ignoreOrder:true
 warning:Line 1:73: evaluation of [length(description)] failed, treating result as null. Only first 20 failures recorded.
@@ -787,7 +805,9 @@ null                   | 19
 17                     | null
 ;
 
-startsWithText#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+startsWithText
+required_feature: esql.mv_warn
+
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
 ignoreOrder:true
 warning:Line 1:84: evaluation of [starts_with(description, host)] failed, treating result as null. Only first 20 failures recorded.
@@ -799,7 +819,9 @@ false                  | null
 false                  | null
 ;
 
-substringOfText#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+substringOfText
+required_feature: esql.mv_warn
+
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
 ignoreOrder:true
 warning:Line 1:82: evaluation of [substring(description, 0, 5)] failed, treating result as null. Only first 20 failures recorded.
@@ -811,7 +833,9 @@ Gatew                  | null
 Gatew                  | null
 ;
 
-concatOfText#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+concatOfText
+required_feature: esql.mv_warn
+
 from hosts | where host == "epsilon" | eval l1 = concat(host, "/", host_group), l2 = concat(host_group, "/", description) | sort l1 |  keep l1, l2;
 warning:Line 1:86: evaluation of [concat(host_group, \"/\", description)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:86: java.lang.IllegalArgumentException: single-value function encountered multi-value

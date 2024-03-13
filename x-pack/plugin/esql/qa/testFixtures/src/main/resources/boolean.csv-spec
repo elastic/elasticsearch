@@ -62,7 +62,9 @@ avg(salary):double | always_false:boolean
 ;
 
 
-in#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+in
+required_feature: esql.mv_warn
+
 from employees | keep emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
 ignoreOrder:true
 warning:Line 1:63: evaluation of [is_rehired in (still_hired, true)] failed, treating result as null. Only first 20 failures recorded.

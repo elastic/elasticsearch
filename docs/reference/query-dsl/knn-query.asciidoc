@@ -87,8 +87,8 @@ the top `size` results.
 `query_vector`::
 +
 --
-(Required, array of floats) Query vector. Must have the same number of dimensions
-as the vector field you are searching against.
+(Required, array of floats or string) Query vector. Must have the same number of dimensions
+as the vector field you are searching against. Must be either an array of floats or a hex-encoded byte vector.
 --
 
 `num_candidates`::

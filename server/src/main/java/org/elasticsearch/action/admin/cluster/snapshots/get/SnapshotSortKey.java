@@ -153,11 +153,13 @@ public enum SnapshotSortKey {
     };
 
     private final String name;
-    private final Comparator<SnapshotInfo> snapshotInfoComparator;
+    private final Comparator<SnapshotInfo> ascendingSnapshotInfoComparator;
+    private final Comparator<SnapshotInfo> descendingSnapshotInfoComparator;
 
     SnapshotSortKey(String name, Comparator<SnapshotInfo> snapshotInfoComparator) {
         this.name = name;
-        this.snapshotInfoComparator = snapshotInfoComparator.thenComparing(SnapshotInfo::snapshotId);
+        this.ascendingSnapshotInfoComparator = snapshotInfoComparator.thenComparing(SnapshotInfo::snapshotId);
+        this.descendingSnapshotInfoComparator = ascendingSnapshotInfoComparator.reversed();
     }
 
     @Override
@@ -166,10 +168,13 @@ public enum SnapshotSortKey {
     }
 
     /**
-     * @return a {@link Comparator} which can be used to sort {@link SnapshotInfo} items according to this sort key.
+     * @return a {@link Comparator} which sorts {@link SnapshotInfo} instances according to this sort key.
      */
-    public final Comparator<SnapshotInfo> getSnapshotInfoComparator() {
-        return snapshotInfoComparator;
+    public final Comparator<SnapshotInfo> getSnapshotInfoComparator(SortOrder sortOrder) {
+        return switch (sortOrder) {
+            case ASC -> ascendingSnapshotInfoComparator;
+            case DESC -> descendingSnapshotInfoComparator;
+        };
     }
 
     /**

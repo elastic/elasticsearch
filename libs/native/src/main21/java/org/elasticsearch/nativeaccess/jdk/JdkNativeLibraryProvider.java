@@ -10,12 +10,13 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
+import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
 
 import java.util.Map;
 
 public class JdkNativeLibraryProvider extends NativeLibraryProvider {
 
     public JdkNativeLibraryProvider() {
-        super("jdk", Map.of(PosixCLibrary.class, JdkPosixCLibrary::new));
+        super("jdk", Map.of(PosixCLibrary.class, JdkPosixCLibrary::new, SystemdLibrary.class, JdkSystemdLibrary::new));
     }
 }

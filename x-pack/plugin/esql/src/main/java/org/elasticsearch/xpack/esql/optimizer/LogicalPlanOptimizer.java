@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -84,6 +85,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
@@ -120,6 +122,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
+            new PartiallyFoldCase(),
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
@@ -1586,7 +1589,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public static class FoldNull extends OptimizerRules.FoldNull {
-
         @Override
         protected Expression tryReplaceIsNullIsNotNull(Expression e) {
             return e;
@@ -1594,7 +1596,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public static class PropagateNullable extends OptimizerRules.PropagateNullable {
-
         protected Expression nullify(Expression exp, Expression nullExp) {
             if (exp instanceof Coalesce) {
                 List<Expression> newChildren = new ArrayList<>(exp.children());
@@ -1604,6 +1605,27 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 }
             }
             return Literal.of(exp, null);
+        }
+    }
+
+    /**
+     * Fold the arms of {@code CASE} statements.
+     * <pre>{@code
+     * EVAL c=CASE(true, foo, bar)
+     * }</pre>
+     * becomes
+     * <pre>{@code
+     * EVAL c=foo
+     * }</pre>
+     */
+    static class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionRule<Case> {
+        PartiallyFoldCase() {
+            super(DOWN);
+        }
+
+        @Override
+        protected Expression rule(Case c) {
+            return c.partiallyFold();
         }
     }
 }

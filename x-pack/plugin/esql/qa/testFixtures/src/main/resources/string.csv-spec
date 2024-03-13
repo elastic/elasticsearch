@@ -299,7 +299,9 @@ emp_no:integer | name:keyword
 ;
 
 // Note: no matches in MV returned
-in#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+in
+required_feature: esql.mv_load
+
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true
 warning:Line 1:24: evaluation of [job_positions in (\"Internship\", first_name)] failed, treating result as null. Only first 20 failures recorded.

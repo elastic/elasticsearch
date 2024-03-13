@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
@@ -62,6 +63,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.common.notifications.Level.ERROR;
+import static org.elasticsearch.xpack.core.common.notifications.Level.INFO;
 import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
@@ -203,11 +206,17 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(
             response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId),
             failure -> {
-                auditor.error(
+                // If the transform is failed then there is no need to log an error on every node restart as the error had already been
+                // logged when the transform first failed.
+                boolean logErrorAsInfo = failure instanceof CannotStartFailedTransformException;
+                auditor.audit(
+                    logErrorAsInfo ? INFO : ERROR,
                     transformId,
-                    "Failed to start transform. " + "Please stop and attempt to start again. Failure: " + failure.getMessage()
+                    "Failed to start transform. Please stop and attempt to start again. Failure: " + failure.getMessage()
                 );
-                logger.error("Failed to start task [" + transformId + "] in node operation", failure);
+                logger.atLevel(logErrorAsInfo ? Level.INFO : Level.ERROR)
+                    .withThrowable(failure)
+                    .log("[{}] Failed to start task in node operation", transformId);
             }
         );
 

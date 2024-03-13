@@ -173,7 +173,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private Map<ShardId, List<BulkItemRequest>> groupBulkRequestsByShards(ClusterState clusterState) {
         return groupRequestsByShards(
             clusterState,
-            Iterators.zip(bulkRequest.requests.iterator(), BulkItemRequest::new),
+            Iterators.enumerate(bulkRequest.requests.iterator(), BulkItemRequest::new),
             BulkOperation::validateWriteIndex
         );
     }

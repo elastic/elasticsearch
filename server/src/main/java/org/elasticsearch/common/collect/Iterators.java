@@ -228,34 +228,34 @@ public class Iterators {
     }
 
     /**
-     * Zips the elements of an iterator together with their index, using a function to combine the pair together into the final items
+     * Enumerates the elements of an iterator together with their index, using a function to combine the pair together into the final items
      * produced by the iterator.
      * <p>
-     * An example of its usage to zip a list of names together with their positional index in the list:
+     * An example of its usage to enumerate a list of names together with their positional index in the list:
      * </p>
      * <pre><code>
      * Iterator&lt;String&gt; nameIterator = ...;
-     * Iterator&lt;Tuple&lt;Integer, String&gt;&gt; zippedNames = Iterators.zip(nameIterator, Tuple::new);
-     * zippedNames.forEachRemaining(tuple -> System.out.println("Index: " + t.v1() + ", Name: " + t.v2()));
+     * Iterator&lt;Tuple&lt;Integer, String&gt;&gt; enumeratedNames = Iterators.enumerate(nameIterator, Tuple::new);
+     * enumeratedNames.forEachRemaining(tuple -> System.out.println("Index: " + t.v1() + ", Name: " + t.v2()));
      * </code></pre>
      *
      * @param input The iterator to wrap
      * @param fn A function that takes the index for an entry and the entry itself, returning an item that combines them together
-     * @return An iterator that zips elements together with their indices in the underlying collection
+     * @return An iterator that combines elements together with their indices in the underlying collection
      * @param <T> The object type contained in the original iterator
      * @param <U> The object type that results from combining the original entry with its index in the iterator
      */
-    public static <T, U> Iterator<U> zip(Iterator<? extends T> input, BiFunction<Integer, T, ? extends U> fn) {
-        return new ZipIterator<>(Objects.requireNonNull(input), Objects.requireNonNull(fn));
+    public static <T, U> Iterator<U> enumerate(Iterator<? extends T> input, BiFunction<Integer, T, ? extends U> fn) {
+        return new EnumeratingIterator<>(Objects.requireNonNull(input), Objects.requireNonNull(fn));
     }
 
-    private static class ZipIterator<T, U> implements Iterator<U> {
+    private static class EnumeratingIterator<T, U> implements Iterator<U> {
         private final Iterator<? extends T> input;
         private final BiFunction<Integer, T, ? extends U> fn;
 
         private int idx = 0;
 
-        ZipIterator(Iterator<? extends T> input, BiFunction<Integer, T, ? extends U> fn) {
+        EnumeratingIterator(Iterator<? extends T> input, BiFunction<Integer, T, ? extends U> fn) {
             this.input = input;
             this.fn = fn;
         }

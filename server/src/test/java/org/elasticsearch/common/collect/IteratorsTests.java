@@ -218,12 +218,12 @@ public class IteratorsTests extends ESTestCase {
         assertEquals(array.length, index.get());
     }
 
-    public void testZip() {
-        assertEmptyIterator(Iterators.zip(Iterators.concat(), Tuple::new));
+    public void testEnumerate() {
+        assertEmptyIterator(Iterators.enumerate(Iterators.concat(), Tuple::new));
 
         final var array = randomIntegerArray();
         final var index = new AtomicInteger();
-        Iterators.zip(Iterators.forArray(array), Tuple::new).forEachRemaining(t -> {
+        Iterators.enumerate(Iterators.forArray(array), Tuple::new).forEachRemaining(t -> {
             int idx = index.getAndIncrement();
             assertEquals(idx, t.v1().intValue());
             assertEquals(array[idx], t.v2());

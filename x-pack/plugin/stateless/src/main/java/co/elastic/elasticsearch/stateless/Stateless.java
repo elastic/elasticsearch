@@ -221,12 +221,17 @@ public class Stateless extends Plugin
         Setting.Property.NodeScope
     );
 
+    // Thread pool names are defined in the BlobStoreRepository because we need to verify there that no requests are running on other pools.
     public static final String SHARD_READ_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_READ_THREAD_NAME;
     public static final String SHARD_READ_THREAD_POOL_SETTING = "stateless." + SHARD_READ_THREAD_POOL + "_thread_pool";
     public static final String TRANSLOG_THREAD_POOL = BlobStoreRepository.STATELESS_TRANSLOG_THREAD_NAME;
     public static final String TRANSLOG_THREAD_POOL_SETTING = "stateless." + TRANSLOG_THREAD_POOL + "_thread_pool";
     public static final String SHARD_WRITE_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_WRITE_THREAD_NAME;
     public static final String SHARD_WRITE_THREAD_POOL_SETTING = "stateless." + SHARD_WRITE_THREAD_POOL + "_thread_pool";
+    public static final String CLUSTER_STATE_READ_WRITE_THREAD_POOL = BlobStoreRepository.STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME;
+    public static final String CLUSTER_STATE_READ_WRITE_THREAD_POOL_SETTING = "stateless."
+        + CLUSTER_STATE_READ_WRITE_THREAD_POOL
+        + "_thread_pool";
     public static final String GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL = "stateless_get_vbcc_chunk";
     public static final String GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL_SETTING = "stateless."
         + GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL
@@ -556,6 +561,8 @@ public class Stateless extends Plugin
         final int translogMaxThreads;
         final int shardWriteCoreThreads;
         final int shardWriteMaxThreads;
+        final int clusterStateReadWriteCoreThreads;
+        final int clusterStateReadWriteMaxThreads;
         final int getVirtualBatchedCompoundCommitChunkCoreThreads;
         final int getVirtualBatchedCompoundCommitChunkMaxThreads;
 
@@ -565,6 +572,8 @@ public class Stateless extends Plugin
             translogMaxThreads = Math.min(processors * 2, 8);
             shardWriteCoreThreads = 2;
             shardWriteMaxThreads = Math.min(processors * 4, 10);
+            clusterStateReadWriteCoreThreads = 2;
+            clusterStateReadWriteMaxThreads = 4;
             getVirtualBatchedCompoundCommitChunkCoreThreads = 1;
             getVirtualBatchedCompoundCommitChunkMaxThreads = Math.min(processors, 4);
         } else {
@@ -573,6 +582,8 @@ public class Stateless extends Plugin
             translogMaxThreads = 1;
             shardWriteCoreThreads = 0;
             shardWriteMaxThreads = 1;
+            clusterStateReadWriteCoreThreads = 0;
+            clusterStateReadWriteMaxThreads = 1;
             getVirtualBatchedCompoundCommitChunkCoreThreads = 0;
             getVirtualBatchedCompoundCommitChunkMaxThreads = 1;
         }
@@ -601,6 +612,14 @@ public class Stateless extends Plugin
                 TimeValue.timeValueSeconds(30L),
                 true,
                 SHARD_WRITE_THREAD_POOL_SETTING
+            ),
+            new ScalingExecutorBuilder(
+                CLUSTER_STATE_READ_WRITE_THREAD_POOL,
+                clusterStateReadWriteCoreThreads,
+                clusterStateReadWriteMaxThreads,
+                TimeValue.timeValueSeconds(30L),
+                true,
+                CLUSTER_STATE_READ_WRITE_THREAD_POOL_SETTING
             ),
             new ScalingExecutorBuilder(
                 GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,

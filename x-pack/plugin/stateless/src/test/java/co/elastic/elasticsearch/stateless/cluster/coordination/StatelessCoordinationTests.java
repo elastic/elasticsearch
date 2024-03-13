@@ -217,12 +217,12 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                     CompatibilityVersionsUtils.staticCurrent()
                 ) {
                     @Override
-                    protected String getUploadsThreadPool() {
+                    protected String getClusterStateUploadsThreadPool() {
                         return ThreadPool.Names.SAME;
                     }
 
                     @Override
-                    protected String getDownloadsThreadPool() {
+                    protected String getClusterStateDownloadsThreadPool() {
                         return ThreadPool.Names.SAME;
                     }
                 };

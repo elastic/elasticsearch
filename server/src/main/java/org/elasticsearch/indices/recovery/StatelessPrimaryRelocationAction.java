@@ -15,12 +15,19 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class StatelessPrimaryRelocationAction {
+
+    private static final Logger logger = LogManager.getLogger(StatelessPrimaryRelocationAction.class);
 
     public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>(
         "internal:index/shard/recovery/stateless_primary_relocation"
@@ -102,5 +109,79 @@ public class StatelessPrimaryRelocationAction {
         public int hashCode() {
             return Objects.hash(recoveryId, shardId, targetNode, targetAllocationId, clusterStateVersion);
         }
+    }
+
+    public static final String LOGGING_BLOB_STORE_ACCESS_HEADER = StatelessPrimaryRelocationAction.class.getCanonicalName()
+        + "/logging_blob_store_access";
+
+    public static Releasable loggingBlobStoreAccess(ThreadContext threadContext, ShardId shardId, String message) {
+        final var storedContext = threadContext.newStoredContext(List.of(LOGGING_BLOB_STORE_ACCESS_HEADER), List.of());
+        threadContext.putTransient(LOGGING_BLOB_STORE_ACCESS_HEADER, new BlobStoreAccessLogger() {
+            @Override
+            public void onDemandRead(String caller, String blobPath, long start, int len) {
+                logger.info(
+                    "{} [{}][{}]: [{}] demand read [{}] start={} len={}",
+                    shardId,
+                    Thread.currentThread().getName(),
+                    message,
+                    caller,
+                    blobPath,
+                    start,
+                    len
+                );
+            }
+
+            @Override
+            public void onStartRead(String caller, String blobPath, long start, int len) {
+                logger.info(
+                    "{} [{}][{}]: [{}] start read [{}] start={} len={}",
+                    shardId,
+                    Thread.currentThread().getName(),
+                    message,
+                    caller,
+                    blobPath,
+                    start,
+                    len
+                );
+            }
+
+            @Override
+            public void onEndRead(String caller, String blobPath, long start, int len) {
+                logger.info(
+                    "{} [{}][{}]: [{}] end read [{}] start={} len={}",
+                    shardId,
+                    Thread.currentThread().getName(),
+                    message,
+                    caller,
+                    blobPath,
+                    start,
+                    len
+                );
+            }
+        });
+        return storedContext;
+    }
+
+    public interface BlobStoreAccessLogger {
+        void onDemandRead(String caller, String blobPath, long start, int len);
+
+        void onStartRead(String caller, String blobPath, long start, int len);
+
+        void onEndRead(String caller, String blobPath, long start, int len);
+    }
+
+    public static final BlobStoreAccessLogger NO_OP_BLOB_STORE_ACCESS_LOGGER = new BlobStoreAccessLogger() {
+        @Override
+        public void onDemandRead(String caller, String blobPath, long start, int len) {}
+
+        @Override
+        public void onStartRead(String caller, String blobPath, long start, int len) {}
+
+        @Override
+        public void onEndRead(String caller, String blobPath, long start, int len) {}
+    };
+
+    public static BlobStoreAccessLogger getBlobStoreAccessLogger(ThreadContext threadContext) {
+        return Objects.requireNonNullElse(threadContext.getTransient(LOGGING_BLOB_STORE_ACCESS_HEADER), NO_OP_BLOB_STORE_ACCESS_LOGGER);
     }
 }

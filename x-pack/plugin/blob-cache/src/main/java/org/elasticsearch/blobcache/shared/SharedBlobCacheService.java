@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
@@ -291,6 +292,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private static final Logger logger = LogManager.getLogger(SharedBlobCacheService.class);
 
     private final ThreadPool threadPool;
+
+    public ThreadContext getThreadContext() {
+        return threadPool.getThreadContext();
+    }
 
     // executor to run reading from the blobstore on
     private final Executor ioExecutor;

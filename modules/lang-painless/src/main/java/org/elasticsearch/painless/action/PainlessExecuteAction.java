@@ -812,7 +812,11 @@ public class PainlessExecuteAction {
                     String id;
                     SourceToParse sourceToParse;
                     if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                        sourceToParse = new SourceToParse(null, document, xContentType, TimeSeriesRoutingHashFieldMapper.encode(0));
+                        sourceToParse = new SourceToParse(
+                            null,
+                            document,
+                            xContentType,
+                            TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
                     } else {
                         sourceToParse = new SourceToParse("_id", document, xContentType);
                     }

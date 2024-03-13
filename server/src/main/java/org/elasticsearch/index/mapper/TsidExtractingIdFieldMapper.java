@@ -92,7 +92,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                         + "] is in time_series mode"
                 );
             }
-            // In Translog operations, the id has already been generated based on the routing hash while the latter is no longer.
+            // In Translog operations, the id has already been generated based on the routing hash while the latter is no longer available.
             id = context.sourceToParse().id();
         }
         context.id(id);

@@ -107,6 +107,8 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
+    public static final String DUMMY_ENCODED_VALUE = encode(0);
+
     public static int decode(String routingId) {
         byte[] bytes = Base64.getUrlDecoder().decode(routingId);
         return ByteUtils.readIntLE(bytes, 0);

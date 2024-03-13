@@ -293,6 +293,24 @@ public class AugmentationTests extends ScriptTestCase {
         assertEquals("97df3588b5a3f24babc3851b372f0ba71a9dcdded43b14b9d06961bfc1707d9d", execDigest("'foobarbaz'.sha256()"));
     }
 
+    public void testSha512() {
+        assertEquals(
+            "f7fbba6e0636f890e56fbbf3283e524c6fa3204ae298382d624741d0dc663832"
+                + "6e282c41be5e4254d8820772c5518a2c5a8c0c7f7eda19594a7eb539453e1ed7",
+            execDigest("'foo'.sha512()")
+        );
+        assertEquals(
+            "d82c4eb5261cb9c8aa9855edd67d1bd10482f41529858d925094d173fa662aa9"
+                + "1ff39bc5b188615273484021dfb16fd8284cf684ccf0fc795be3aa2fc1e6c181",
+            execDigest("'bar'.sha512()")
+        );
+        assertEquals(
+            "cb377c10b0f5a62c803625a799d9e908be45e767f5d147d4744907cb05597aa4"
+                + "edd329a0af147add0cf4181ed328fa1e7994265826b3ed3d7ef6f067ca99185a",
+            execDigest("'foobarbaz'.sha512()")
+        );
+    }
+
     public void testToEpochMilli() {
         assertEquals(0L, exec("ZonedDateTime.parse('1970-01-01T00:00:00Z').toEpochMilli()"));
         assertEquals(1602097376782L, exec("ZonedDateTime.parse('2020-10-07T19:02:56.782Z').toEpochMilli()"));

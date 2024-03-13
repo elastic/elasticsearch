@@ -544,9 +544,10 @@ public class ShardStateAction {
         final long primaryTerm,
         final String message,
         final ShardLongFieldRange timestampRange,
+        final ShardLongFieldRange eventIngestedRange,
         final ActionListener<Void> listener
     ) {
-        shardStarted(shardRouting, primaryTerm, message, timestampRange, listener, clusterService.state());
+        shardStarted(shardRouting, primaryTerm, message, timestampRange, eventIngestedRange, listener, clusterService.state());
     }
 
     public void shardStarted(
@@ -554,11 +555,19 @@ public class ShardStateAction {
         final long primaryTerm,
         final String message,
         final ShardLongFieldRange timestampRange,
+        final ShardLongFieldRange eventIngestedRange,
         final ActionListener<Void> listener,
         final ClusterState currentState
     ) {
         remoteShardStateUpdateDeduplicator.executeOnce(
-            new StartedShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), primaryTerm, message, timestampRange),
+            new StartedShardEntry(
+                shardRouting.shardId(),
+                shardRouting.allocationId().getId(),
+                primaryTerm,
+                message,
+                timestampRange,
+                eventIngestedRange
+            ),
             listener,
             (req, l) -> sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, req, l)
         );
@@ -809,14 +818,15 @@ public class ShardStateAction {
             final String allocationId,
             final long primaryTerm,
             final String message,
-            final ShardLongFieldRange timestampRange  // TODO: add eventIngestedRange here
+            final ShardLongFieldRange timestampRange,
+            final ShardLongFieldRange eventIngestedRange
         ) {
             this.shardId = shardId;
             this.allocationId = allocationId;
             this.primaryTerm = primaryTerm;
             this.message = message;
             this.timestampRange = timestampRange;
-            this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;  /// MP TODO set from incoming arg (optional?)
+            this.eventIngestedRange = eventIngestedRange;
         }
 
         @Override
@@ -852,12 +862,13 @@ public class ShardStateAction {
                 && shardId.equals(that.shardId)
                 && allocationId.equals(that.allocationId)
                 && message.equals(that.message)
-                && timestampRange.equals(that.timestampRange);  /// MP TODO: add eventIngestedRange here
+                && timestampRange.equals(that.timestampRange)
+                && eventIngestedRange.equals(that.eventIngestedRange);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange);   /// MP TODO: add eventIngestedRange here
+            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);
         }
     }
 

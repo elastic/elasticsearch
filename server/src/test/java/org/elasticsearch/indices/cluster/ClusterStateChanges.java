@@ -487,6 +487,7 @@ public class ClusterStateChanges {
                             e.getKey().allocationId().getId(),
                             e.getValue(),
                             "shard started",
+                            ShardLongFieldRange.UNKNOWN,
                             ShardLongFieldRange.UNKNOWN
                         ),
                         createTestListener()

@@ -601,8 +601,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 namedWriteableRegistry,
                 null,
                 () -> true,
-                scriptService,
-                null
+                scriptService
             );
         }
 

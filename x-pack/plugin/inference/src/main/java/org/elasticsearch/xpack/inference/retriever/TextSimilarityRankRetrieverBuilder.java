@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.inference.retriever;
+package org.elasticsearch.xpack.inference.retriever;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.inference.rank.TextSimilarityRankBuilder;
+import org.elasticsearch.xpack.inference.rank.TextSimilarityRankBuilder;
 
 import java.io.IOException;
 

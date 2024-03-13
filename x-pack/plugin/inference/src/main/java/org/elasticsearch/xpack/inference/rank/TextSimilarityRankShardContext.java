@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.inference.rank;
+package org.elasticsearch.xpack.inference.rank;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;

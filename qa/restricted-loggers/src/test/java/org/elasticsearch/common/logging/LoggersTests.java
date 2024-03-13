@@ -69,19 +69,14 @@ public class LoggersTests extends ESTestCase {
         assertThat(Loggers.RESTRICTED_LOGGERS, hasSize(greaterThan(0)));
 
         for (String restricted : Loggers.RESTRICTED_LOGGERS) {
-            Level rootLevel = LogManager.getRootLogger().getLevel();
+            TestLoggers.runWithLoggersRestored(() -> {
+                // 'org.apache.http' is an example of a restricted logger,
+                // a restricted component logger would be `org.apache.http.client.HttpClient` for instance,
+                // and the parent logger is `org.apache`.
+                Logger restrictedLogger = LogManager.getLogger(restricted);
+                Logger restrictedComponent = LogManager.getLogger(restricted + ".component");
+                Logger parentLogger = LogManager.getLogger(restricted.substring(0, restricted.lastIndexOf('.')));
 
-            // 'org.apache.http' is an example of a restricted logger,
-            // a restricted component logger would be `org.apache.http.client.HttpClient` for instance,
-            // and the parent logger is `org.apache`.
-            Logger restrictedLogger = LogManager.getLogger(restricted);
-            Level restrictedLoggerLevel = restrictedLogger.getLevel();
-            Logger restrictedComponent = LogManager.getLogger(restricted + ".component");
-            Level restrictedComponentLevel = restrictedComponent.getLevel();
-            Logger parentLogger = LogManager.getLogger(restricted.substring(0, restricted.lastIndexOf('.')));
-            Level parentLoggerLevel = parentLogger.getLevel();
-
-            try {
                 Loggers.setLevel(restrictedLogger, Level.INFO);
                 assertHasINFO(restrictedLogger, restrictedComponent);
 
@@ -104,13 +99,7 @@ public class LoggersTests extends ESTestCase {
                 Loggers.setLevel(LogManager.getRootLogger(), Level.DEBUG);
                 assertEquals(Level.DEBUG, LogManager.getRootLogger().getLevel());
                 assertHasINFO(restrictedComponent, restrictedLogger);
-            } finally {
-                // make sure all levels are restored
-                Loggers.setLevel(LogManager.getRootLogger(), rootLevel);
-                Loggers.setLevel(restrictedLogger, restrictedLoggerLevel);
-                Loggers.setLevel(restrictedComponent, restrictedComponentLevel);
-                Loggers.setLevel(parentLogger, parentLoggerLevel);
-            }
+            });
         }
     }
 

@@ -107,8 +107,9 @@ public class CsvTestsDataLoader {
         "languages",
         "clientips",
         "client_cidr",
-        "ages_policy",
-        "heights_policy"
+        "ages",
+        "heights",
+        "airport_city_boundaries"
     );
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
         LANGUAGES_ENRICH,

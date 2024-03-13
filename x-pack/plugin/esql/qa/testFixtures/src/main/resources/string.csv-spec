@@ -300,7 +300,7 @@ emp_no:integer | name:keyword
 
 // Note: no matches in MV returned
 in
-required_feature: esql.mv
+required_feature: esql.mv_load
 
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true

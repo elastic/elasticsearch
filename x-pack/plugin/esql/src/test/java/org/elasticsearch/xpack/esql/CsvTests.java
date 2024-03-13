@@ -94,6 +94,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -148,6 +149,17 @@ public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
     private static final String IGNORED_CSV_FILE_NAMES_PATTERN = "-IT_tests_only";
+
+    private static final Set<NodeFeature> LIVE_FEATURES = new HashSet<>();
+    static {
+        EsqlFeatures features = new EsqlFeatures();
+        LIVE_FEATURES.addAll(features.getFeatures());
+        for (Map.Entry<NodeFeature, Version> e : features.getHistoricalFeatures().entrySet()) {
+            if (Version.CURRENT.onOrAfter(e.getValue())) {
+                LIVE_FEATURES.add(e.getKey());
+            }
+        }
+    }
 
     private final String fileName;
     private final String groupName;
@@ -223,7 +235,7 @@ public class CsvTests extends ESTestCase {
             for (String feature : testCase.requiredFeatures) {
                 assumeTrue(
                     "Test " + testName + " requires " + feature,
-                    new EsqlFeatures().getFeatures().contains(new NodeFeature(feature))
+                    LIVE_FEATURES.contains(new NodeFeature(feature))
                 );
             }
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));

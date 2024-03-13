@@ -517,7 +517,7 @@ public final class MappingLookup {
         }
     }
 
-    public Map<String, Set<String>> getFieldsForModels() {
-        return fieldTypeLookup.getFieldsForModels();
+    public Map<String, String> getInferenceIdsForFields() {
+        return fieldTypeLookup.getInferenceIdsForFields();
     }
 }

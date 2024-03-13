@@ -298,6 +298,12 @@ public class BigArrays {
             out.writeVInt(size);
             out.write(array, 0, size);
         }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            int len = in.readVInt();
+            in.readBytes(array, 0, len);
+        }
     }
 
     private static class ByteArrayAsDoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {

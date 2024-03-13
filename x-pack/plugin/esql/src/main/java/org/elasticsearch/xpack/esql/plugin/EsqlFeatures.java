@@ -14,8 +14,13 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Map;
 
 public class EsqlFeatures implements FeatureSpecification {
+    private static final NodeFeature MV_LOAD = new NodeFeature("esql.mv_load");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0);
+        return Map.ofEntries(
+            Map.entry(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0),
+            Map.entry(MV_LOAD, Version.V_8_12_0)
+        );
     }
 }

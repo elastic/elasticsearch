@@ -218,6 +218,10 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
+            /*
+             * We're intentionally not NodeFeatures here because we expect all
+             * of the features to be supported in this unit test.
+             */
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
             doTest();
         } catch (Throwable th) {

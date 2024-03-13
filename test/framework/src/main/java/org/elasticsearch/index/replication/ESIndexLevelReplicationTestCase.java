@@ -872,7 +872,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     ) {
         for (BulkItemRequest itemRequest : request.items()) {
             if (itemRequest.request() instanceof IndexRequest) {
-                itemRequest.request().process(primary.indexSettings().getIndexRouting());
+                ((IndexRequest) itemRequest.request()).process(primary.indexSettings().getIndexRouting());
             }
         }
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();

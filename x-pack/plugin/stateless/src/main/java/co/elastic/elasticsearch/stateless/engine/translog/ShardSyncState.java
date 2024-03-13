@@ -121,19 +121,15 @@ class ShardSyncState {
         }
     }
 
-    public void markSyncFinished(TranslogReplicator.BlobTranslogFile translogFile, SyncMarker syncMarker) {
+    public void markSyncStarting(long primaryTerm, TranslogReplicator.BlobTranslogFile translogFile) {
         // If the primary term changed this shard will eventually be closed and the listeners will be failed at that point, so we can
         // ignore them here.
-        if (syncMarker.primaryTerm() == currentPrimaryTerm.getAsLong()) {
-            assert syncMarker.location().compareTo(syncedLocation) > 0;
-            // We mark the seqNos of persisted before exposing the synced location. This matches what we do in the TranlogWriter.
-            // Some assertions in TransportVerifyShardBeforeCloseAction depend on the seqNos marked as persisted before the sync is exposed.
-            syncMarker.syncedSeqNos().forEach(persistedSeqNoConsumer::accept);
-            syncedLocation = syncMarker.location();
+        if (primaryTerm == currentPrimaryTerm.getAsLong()) {
             synchronized (referencedTranslogFiles) {
                 if (markedTranslogStartFile > translogFile.generation()) {
                     translogFile.decRef();
                 } else {
+                    assert referencedTranslogFiles.stream().allMatch(t -> t.generation() < translogFile.generation());
                     switch (state.get()) {
                         // Add if the shard is open. Decrement if shard is closed. Ignore is node is closing.
                         case OPEN -> referencedTranslogFiles.add(translogFile);
@@ -145,6 +141,18 @@ class ShardSyncState {
         } else {
             // Just decrement since this was sync was generated in a different primary term
             translogFile.decRef();
+        }
+    }
+
+    public void markSyncFinished(SyncMarker syncMarker) {
+        // If the primary term changed this shard will eventually be closed and the listeners will be failed at that point, so we can
+        // ignore them here.
+        if (syncMarker.primaryTerm() == currentPrimaryTerm.getAsLong()) {
+            assert syncMarker.location().compareTo(syncedLocation) > 0;
+            // We mark the seqNos of persisted before exposing the synced location. This matches what we do in the TranlogWriter.
+            // Some assertions in TransportVerifyShardBeforeCloseAction depend on the seqNos marked as persisted before the sync is exposed.
+            syncMarker.syncedSeqNos().forEach(persistedSeqNoConsumer::accept);
+            syncedLocation = syncMarker.location();
         }
     }
 
@@ -202,11 +210,25 @@ class ShardSyncState {
         }
     }
 
-    public SyncState pollSync() {
+    public SyncState pollSync(long generation) {
+        final int[] referencedTranslogFileOffsets;
+        long estimatedOps = 0;
+        synchronized (referencedTranslogFiles) {
+            referencedTranslogFileOffsets = new int[referencedTranslogFiles.size()];
+
+            int i = 0;
+            for (TranslogReplicator.BlobTranslogFile referencedFile : referencedTranslogFiles) {
+                estimatedOps += referencedFile.checkpoints().get(shardId).totalOps();
+                referencedTranslogFileOffsets[i] = Math.toIntExact(generation - referencedFile.generation());
+                assert referencedTranslogFileOffsets[i] > 0 : generation + " " + referencedFile.generation();
+                ++i;
+            }
+        }
         synchronized (bufferLock) {
             BufferState toReturn = bufferState;
             bufferState = null;
-            return new SyncState(toReturn);
+            estimatedOps += toReturn != null ? toReturn.totalOps() : 0;
+            return new SyncState(estimatedOps, referencedTranslogFileOffsets, toReturn);
         }
     }
 
@@ -253,12 +275,20 @@ class ShardSyncState {
         }
     }
 
-    record SyncState(BufferState buffer) {
+    record SyncState(long estimatedOps, int[] referencedTranslogFileOffsets, BufferState buffer) {
 
         TranslogMetadata metadata(long position, long size) {
             if (size == 0) {
                 assert buffer == null;
-                return new TranslogMetadata(position, 0, SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, 0, -1L);
+                return new TranslogMetadata(
+                    position,
+                    0,
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    SequenceNumbers.NO_OPS_PERFORMED,
+                    0,
+                    -1L,
+                    new TranslogMetadata.Directory(estimatedOps, referencedTranslogFileOffsets)
+                );
             } else {
                 return new TranslogMetadata(
                     position,
@@ -266,7 +296,8 @@ class ShardSyncState {
                     buffer.minSeqNo(),
                     buffer.maxSeqNo(),
                     buffer.totalOps(),
-                    buffer.getShardTranslogGeneration()
+                    buffer.getShardTranslogGeneration(),
+                    new TranslogMetadata.Directory(estimatedOps, referencedTranslogFileOffsets)
                 );
             }
         }

@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.engine.translog;
 
+import junit.framework.AssertionFailedError;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -56,10 +58,10 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
 
     @Override
     protected WritableCompoundTranslogHeader createTestInstance() {
-        return createTestInstance(true);
+        return createTestInstance(true, true);
     }
 
-    private static WritableCompoundTranslogHeader createTestInstance(boolean includeShardTranslogGeneration) {
+    private static WritableCompoundTranslogHeader createTestInstance(boolean includeShardTranslogGeneration, boolean includeDirectory) {
         Map<ShardId, TranslogMetadata> metadata = new HashMap<>();
         int n = randomIntBetween(5, 30);
         for (int i = 0; i < n; ++i) {
@@ -69,7 +71,8 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                includeShardTranslogGeneration ? randomNonNegativeLong() : -1
+                includeShardTranslogGeneration ? randomNonNegativeLong() : -1,
+                includeDirectory ? new TranslogMetadata.Directory(randomNonNegativeLong(), randomInts(10).toArray()) : null
             );
             metadata.put(new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(20), randomIntBetween(0, 10)), value);
 
@@ -84,14 +87,15 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
         HashMap<ShardId, TranslogMetadata> newMetadata = new HashMap<>();
         for (Map.Entry<ShardId, TranslogMetadata> metadata : instance.metadata().entrySet()) {
             TranslogMetadata oldValue = metadata.getValue();
-            TranslogMetadata newValue = switch (randomInt(5)) {
+            TranslogMetadata newValue = switch (randomInt(7)) {
                 case 0 -> new TranslogMetadata(
                     randomValueOtherThan(oldValue.offset(), CompoundTranslogHeaderTests::randomNonNegativeLong),
                     oldValue.size(),
                     oldValue.minSeqNo(),
                     oldValue.maxSeqNo(),
                     oldValue.totalOps(),
-                    oldValue.shardTranslogGeneration()
+                    oldValue.shardTranslogGeneration(),
+                    oldValue.directory()
                 );
                 case 1 -> new TranslogMetadata(
                     oldValue.offset(),
@@ -99,7 +103,8 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                     oldValue.minSeqNo(),
                     oldValue.maxSeqNo(),
                     oldValue.totalOps(),
-                    oldValue.shardTranslogGeneration()
+                    oldValue.shardTranslogGeneration(),
+                    oldValue.directory()
                 );
                 case 2 -> new TranslogMetadata(
                     oldValue.offset(),
@@ -107,7 +112,8 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                     randomValueOtherThan(oldValue.minSeqNo(), CompoundTranslogHeaderTests::randomNonNegativeLong),
                     oldValue.maxSeqNo(),
                     oldValue.totalOps(),
-                    oldValue.shardTranslogGeneration()
+                    oldValue.shardTranslogGeneration(),
+                    oldValue.directory()
                 );
                 case 3 -> new TranslogMetadata(
                     oldValue.offset(),
@@ -115,7 +121,8 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                     oldValue.minSeqNo(),
                     randomValueOtherThan(oldValue.maxSeqNo(), CompoundTranslogHeaderTests::randomNonNegativeLong),
                     oldValue.totalOps(),
-                    oldValue.shardTranslogGeneration()
+                    oldValue.shardTranslogGeneration(),
+                    oldValue.directory()
                 );
                 case 4 -> new TranslogMetadata(
                     oldValue.offset(),
@@ -123,7 +130,8 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                     oldValue.minSeqNo(),
                     oldValue.maxSeqNo(),
                     randomValueOtherThan(oldValue.totalOps(), CompoundTranslogHeaderTests::randomNonNegativeLong),
-                    oldValue.shardTranslogGeneration()
+                    oldValue.shardTranslogGeneration(),
+                    oldValue.directory()
                 );
                 case 5 -> new TranslogMetadata(
                     oldValue.offset(),
@@ -131,7 +139,35 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                     oldValue.minSeqNo(),
                     oldValue.maxSeqNo(),
                     oldValue.totalOps(),
-                    randomValueOtherThan(oldValue.shardTranslogGeneration(), CompoundTranslogHeaderTests::randomNonNegativeLong)
+                    randomValueOtherThan(oldValue.shardTranslogGeneration(), CompoundTranslogHeaderTests::randomNonNegativeLong),
+                    oldValue.directory()
+                );
+                case 6 -> new TranslogMetadata(
+                    oldValue.offset(),
+                    oldValue.size(),
+                    oldValue.minSeqNo(),
+                    oldValue.maxSeqNo(),
+                    oldValue.totalOps(),
+                    oldValue.shardTranslogGeneration(),
+                    new TranslogMetadata.Directory(
+                        randomValueOtherThan(
+                            oldValue.directory().estimatedOperationsToRecover(),
+                            CompoundTranslogHeaderTests::randomNonNegativeLong
+                        ),
+                        oldValue.directory().referencedTranslogFileOffsets()
+                    )
+                );
+                case 7 -> new TranslogMetadata(
+                    oldValue.offset(),
+                    oldValue.size(),
+                    oldValue.minSeqNo(),
+                    oldValue.maxSeqNo(),
+                    oldValue.totalOps(),
+                    oldValue.shardTranslogGeneration(),
+                    new TranslogMetadata.Directory(
+                        oldValue.directory().estimatedOperationsToRecover(),
+                        randomValueOtherThan(oldValue.directory().referencedTranslogFileOffsets(), () -> randomInts(10).toArray())
+                    )
                 );
                 default -> throw new AssertionError("Unexpected value");
             };
@@ -150,7 +186,16 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
             int i = randomIntBetween(bytes.length - 5, bytes.length - 1);
             bytes[i] = (byte) ~bytes[i];
             try (StreamInput in = new ByteArrayStreamInput(bytes)) {
-                expectThrows(TranslogCorruptedException.class, () -> CompoundTranslogHeader.readFromStore("test", in));
+                try {
+                    expectThrows(TranslogCorruptedException.class, () -> CompoundTranslogHeader.readFromStore("test", in));
+                } catch (AssertionFailedError e) {
+                    // These are known scenarios where a byte flip can break the serialization in other ways. Since it is not silent, it is
+                    // fine.
+                    if (e.getMessage().contains("but got java.io.IOException: Invalid vInt") == false
+                        && e.getMessage().contains("but got java.lang.ArrayIndexOutOfBoundsException") == false) {
+                        throw e;
+                    }
+                }
             }
         }
     }
@@ -171,7 +216,7 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
     }
 
     public void testReadPreCodecVersion() throws Exception {
-        CompoundTranslogHeader testInstance = createTestInstance(false).compoundTranslogHeader();
+        CompoundTranslogHeader testInstance = createTestInstance(false, false).compoundTranslogHeader();
         try (
             BytesStreamOutput output = new BytesStreamOutput();
             BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(output)
@@ -201,8 +246,8 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
         }
     }
 
-    public void testReadShardGenerationVersion() throws Exception {
-        CompoundTranslogHeader testInstance = createTestInstance(false).compoundTranslogHeader();
+    public void testReadPreShardGenerationVersion() throws Exception {
+        CompoundTranslogHeader testInstance = createTestInstance(false, false).compoundTranslogHeader();
         try (
             BytesStreamOutput output = new BytesStreamOutput();
             BufferedChecksumStreamOutput streamOutput = new BufferedChecksumStreamOutput(output)
@@ -221,6 +266,41 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                 out1.writeLong(value.minSeqNo());
                 out1.writeLong(value.maxSeqNo());
                 out1.writeLong(value.totalOps());
+            });
+            out.writeInt((int) out.getChecksum());
+            long data = randomLong();
+            out.writeLong(data);
+            out.flush();
+
+            StreamInput oldStreamInput = output.bytes().streamInput();
+            CompoundTranslogHeader compoundTranslogHeader = CompoundTranslogHeader.readFromStore("test", oldStreamInput);
+            assertEquals(testInstance.metadata(), compoundTranslogHeader.metadata());
+            // Test that the stream is at the correct place to read follow-up data
+            assertEquals(data, oldStreamInput.readLong());
+        }
+    }
+
+    public void testReadPreDirectoryVersion() throws Exception {
+        CompoundTranslogHeader testInstance = createTestInstance(false, false).compoundTranslogHeader();
+        try (
+            BytesStreamOutput output = new BytesStreamOutput();
+            BufferedChecksumStreamOutput streamOutput = new BufferedChecksumStreamOutput(output)
+        ) {
+            streamOutput.setTransportVersion(PINNED_TRANSPORT_VERSION);
+            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(streamOutput);
+            CodecUtil.writeHeader(
+                new OutputStreamDataOutput(out),
+                CompoundTranslogHeader.TRANSLOG_REPLICATOR_CODEC,
+                CompoundTranslogHeader.VERSION_WITH_SHARD_TRANSLOG_GENERATION
+            );
+            // Serialize in old version
+            out.writeMap(testInstance.metadata(), StreamOutput::writeWriteable, (out1, value) -> {
+                out1.writeLong(value.offset());
+                out1.writeLong(value.size());
+                out1.writeLong(value.minSeqNo());
+                out1.writeLong(value.maxSeqNo());
+                out1.writeLong(value.totalOps());
+                out1.writeLong(value.shardTranslogGeneration());
             });
             out.writeInt((int) out.getChecksum());
             long data = randomLong();

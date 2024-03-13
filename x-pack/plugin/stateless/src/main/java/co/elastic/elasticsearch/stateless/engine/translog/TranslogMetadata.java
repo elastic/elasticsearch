@@ -22,10 +22,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
-public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSeqNo, long totalOps, long shardTranslogGeneration)
-    implements
-        Writeable {
+public record TranslogMetadata(
+    long offset,
+    long size,
+    long minSeqNo,
+    long maxSeqNo,
+    long totalOps,
+    long shardTranslogGeneration,
+    Directory directory
+) implements Writeable {
 
     public static TranslogMetadata readFromStore(StreamInput streamInput, int version) throws IOException {
         return new TranslogMetadata(
@@ -34,9 +42,9 @@ public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSe
             streamInput.readLong(),
             streamInput.readLong(),
             streamInput.readLong(),
-            version >= CompoundTranslogHeader.VERSION_WITH_SHARD_TRANSLOG_GENERATION ? streamInput.readLong() : -1
+            version >= CompoundTranslogHeader.VERSION_WITH_SHARD_TRANSLOG_GENERATION ? streamInput.readLong() : -1,
+            version >= CompoundTranslogHeader.VERSION_WITH_DIRECTORY ? Directory.readFromStore(streamInput, version) : null
         );
-
     }
 
     @Override
@@ -47,6 +55,7 @@ public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSe
         out.writeLong(maxSeqNo);
         out.writeLong(totalOps);
         out.writeLong(shardTranslogGeneration);
+        directory.writeTo(out);
     }
 
     @Override
@@ -64,6 +73,54 @@ public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSe
             + totalOps
             + ", shardTranslogGeneration="
             + shardTranslogGeneration
+            + ", directory="
+            + directory
             + '}';
+    }
+
+    record Directory(long estimatedOperationsToRecover, int[] referencedTranslogFileOffsets) implements Writeable {
+
+        public static Directory readFromStore(StreamInput streamInput, int version) throws IOException {
+            assert version >= CompoundTranslogHeader.VERSION_WITH_DIRECTORY;
+            return new Directory(streamInput.readVLong(), streamInput.readVIntArray());
+        }
+
+        // Currently referenced files are serialized as vInts offset from the current generation. This means that the average referenced
+        // file will take 1-2 bytes. In a degenerate case with 5 min Lucene commit interval this could lead to 1500 translog files. If every
+        // shard referenced every translog file this would be ~3KB for each referenced file offsets array. With a large number of write
+        // shards this could take quite a bit of space (100 shards == ~300KB). This is unlikely. However, to improve it in the future we can
+        // either compress these arrays (repeated arrays would be highly compressible) or move to a bitset data structure. 1500 translog
+        // files takes 188 bytes to serialize as a bitset. That would be ~18KB for 100 shards.
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(estimatedOperationsToRecover);
+            out.writeVIntArray(referencedTranslogFileOffsets);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Directory directory = (Directory) o;
+            return estimatedOperationsToRecover == directory.estimatedOperationsToRecover
+                && Arrays.equals(referencedTranslogFileOffsets, directory.referencedTranslogFileOffsets);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(estimatedOperationsToRecover);
+            result = 31 * result + Arrays.hashCode(referencedTranslogFileOffsets);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Directory{"
+                + "estimatedOperationsToRecover="
+                + estimatedOperationsToRecover
+                + ", referencedTranslogFileOffsets="
+                + Arrays.toString(referencedTranslogFileOffsets)
+                + '}';
+        }
     }
 }

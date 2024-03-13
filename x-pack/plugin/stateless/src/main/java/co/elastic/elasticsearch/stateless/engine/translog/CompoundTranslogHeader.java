@@ -40,7 +40,8 @@ public record CompoundTranslogHeader(Map<ShardId, TranslogMetadata> metadata) {
     static final TransportVersion PINNED_TRANSPORT_VERSION = TransportVersion.fromId(8_09_00_99);
     static final int VERSION_WITH_TRANSPORT_VERSION = 0;
     static final int VERSION_WITH_SHARD_TRANSLOG_GENERATION = 1;
-    private static final int CURRENT_VERSION = VERSION_WITH_SHARD_TRANSLOG_GENERATION;
+    static final int VERSION_WITH_DIRECTORY = 2;
+    private static final int CURRENT_VERSION = VERSION_WITH_DIRECTORY;
 
     public static CompoundTranslogHeader readFromStore(String name, StreamInput streamInput) throws IOException {
         streamInput.setTransportVersion(PINNED_TRANSPORT_VERSION);

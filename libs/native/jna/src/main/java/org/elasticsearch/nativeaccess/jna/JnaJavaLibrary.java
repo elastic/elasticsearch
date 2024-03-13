@@ -6,7 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.lib;
+package org.elasticsearch.nativeaccess.jna;
 
-/** A marker interface for libraries that can be loaded by {@link org.elasticsearch.nativeaccess.lib.NativeLibraryProvider} */
-public sealed interface NativeLibrary permits JavaLibrary, PosixCLibrary, SystemdLibrary, ZstdLibrary {}
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.nativeaccess.lib.JavaLibrary;
+
+class JnaJavaLibrary implements JavaLibrary {
+    @Override
+    public CloseableByteBuffer newBuffer(int len) {
+        return new JnaCloseableByteBuffer(len);
+    }
+}

@@ -8,5 +8,17 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-/** A marker interface for libraries that can be loaded by {@link org.elasticsearch.nativeaccess.lib.NativeLibraryProvider} */
-public sealed interface NativeLibrary permits JavaLibrary, PosixCLibrary, SystemdLibrary, ZstdLibrary {}
+import java.nio.ByteBuffer;
+
+public non-sealed interface ZstdLibrary extends NativeLibrary {
+
+    long compressBound(int scrLen);
+
+    long compress(ByteBuffer dst, ByteBuffer src, int compressionLevel);
+
+    boolean isError(long code);
+
+    String getErrorName(long code);
+
+    long decompress(ByteBuffer dst, ByteBuffer src);
+}

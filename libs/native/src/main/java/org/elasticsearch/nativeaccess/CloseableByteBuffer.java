@@ -6,7 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.lib;
+package org.elasticsearch.nativeaccess;
 
-/** A marker interface for libraries that can be loaded by {@link org.elasticsearch.nativeaccess.lib.NativeLibraryProvider} */
-public sealed interface NativeLibrary permits JavaLibrary, PosixCLibrary, SystemdLibrary, ZstdLibrary {}
+import java.nio.ByteBuffer;
+
+public interface CloseableByteBuffer extends AutoCloseable {
+    ByteBuffer buffer();
+
+    @Override
+    void close();
+}

@@ -1151,3 +1151,13 @@ FROM sample_data
 @timestamp:date   | client_ip:ip | event_duration:long | message:keyword
 // end::docsNowWhere-result[]
 ;
+
+mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+row a = ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"]
+| eval datetime = TO_DATETIME(a)
+| eval sa = mv_sort(datetime), sd = mv_sort(datetime, "DESC")
+| keep datetime, sa, sd;
+
+datetime:date                                                                       | sa:date                                                                              | sd:date
+["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"]| ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"] | ["1987-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1985-01-01T00:00:00.000Z"]
+;

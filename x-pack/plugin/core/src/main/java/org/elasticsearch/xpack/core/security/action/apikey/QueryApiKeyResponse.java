@@ -74,6 +74,10 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         return foundApiKeysInfo;
     }
 
+    public Object[][] getSortValues() {
+        return sortValues;
+    }
+
     public int getCount() {
         assert sortValues == null || sortValues.length == foundApiKeysInfo.length;
         assert ownerProfileUids == null || ownerProfileUids.length == foundApiKeysInfo.length;

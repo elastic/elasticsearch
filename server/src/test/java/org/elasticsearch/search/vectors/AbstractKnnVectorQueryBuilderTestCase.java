@@ -282,7 +282,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
 
         assertThat(rewritten.getFieldName(), equalTo(knnVectorQueryBuilder.getFieldName()));
         assertThat(rewritten.boost(), equalTo(knnVectorQueryBuilder.boost()));
-        assertThat(rewritten.queryVector(), equalTo(expectedArray));
+        assertThat(rewritten.queryVector().asFloatVector(), equalTo(expectedArray));
         assertThat(rewritten.queryVectorBuilder(), nullValue());
         assertThat(rewritten.getVectorSimilarity(), equalTo(1f));
         assertThat(rewritten.filterQueries(), hasSize(numFilters));

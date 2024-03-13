@@ -672,7 +672,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 "@timestamp": 1609459200000,
                 "dim": "6a841a21",
                 "value": 100
-            }"""), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.encode(0));
+            }"""), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
         Engine.Index index = IndexShard.prepareIndex(
             mapper,
             source,

@@ -26,4 +26,6 @@ public interface NativeAccess {
      * @return true if running as root, or false if unsure
      */
     boolean definitelyRunningAsRoot();
+
+    Systemd systemd();
 }

@@ -18,6 +18,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -58,12 +60,15 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class EnrichIT extends AbstractEsqlIntegTestCase {
 
@@ -120,6 +125,9 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             client = client(randomFrom(clusterService().state().nodes().getCoordinatingOnlyNodes().values()).getName());
         } else {
             client = client();
+        }
+        if (request.profile() == false && randomBoolean()) {
+            request.profile(true);
         }
         if (randomBoolean()) {
             setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 4096)));
@@ -315,6 +323,27 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo(7L));
             assertThat(row.next(), equalTo("Linkin Park"));
+        }
+    }
+
+    public void testProfile() {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.pragmas(randomPragmas());
+        request.query("from listens* | sort timestamp DESC | limit 1 | " + enrichSongCommand() + " | KEEP timestamp, artist");
+        request.profile(true);
+        try (var resp = run(request)) {
+            Iterator<Object> row = resp.values().next();
+            assertThat(row.next(), equalTo(7L));
+            assertThat(row.next(), equalTo("Linkin Park"));
+            EsqlQueryResponse.Profile profile = resp.profile();
+            assertNotNull(profile);
+            List<DriverProfile> drivers = profile.drivers();
+            assertThat(drivers.size(), greaterThanOrEqualTo(2));
+            List<DriverStatus.OperatorStatus> enrichOperators = drivers.stream()
+                .flatMap(d -> d.operators().stream())
+                .filter(status -> status.operator().startsWith("EnrichOperator"))
+                .toList();
+            assertThat(enrichOperators, not(emptyList()));
         }
     }
 

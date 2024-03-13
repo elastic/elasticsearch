@@ -56,6 +56,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.OnScriptError;
@@ -809,13 +810,17 @@ public class PainlessExecuteAction {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    String id;
-                    SourceToParse sourceToParse;
-                    if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                        sourceToParse = new SourceToParse(null, document, xContentType, TimeSeriesRoutingHashFieldMapper.encode(0));
-                    } else {
-                        sourceToParse = new SourceToParse("_id", document, xContentType);
-                    }
+
+                    SourceToParse sourceToParse = (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES)
+                        ? new SourceToParse(
+                            null,
+                            document,
+                            xContentType,
+                            indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+                                ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE
+                                : null
+                        )
+                        : new SourceToParse("_id", document, xContentType);
 
                     DocumentMapper documentMapper = indexService.mapperService().documentMapper();
                     if (documentMapper == null) {

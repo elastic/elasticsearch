@@ -522,7 +522,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 {
                     "@timestamp": %s,
                     "dim": "dim"
-                }""", docIdent)), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.encode(0));
+                }""", docIdent)), XContentType.JSON, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
             return IndexShard.prepareIndex(
                 mapper,
                 source,

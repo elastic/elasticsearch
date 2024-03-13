@@ -696,21 +696,6 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(parse(testCase.expectedId, mapperService(), testCase.source).id(), equalTo(testCase.expectedId));
     }
 
-    public void testProvideWrongId() {
-        String wrongId = testCase.expectedId + "wrong";
-        Exception e = expectThrows(DocumentParsingException.class, () -> parse(wrongId, mapperService(), testCase.source));
-        assertThat(
-            e.getCause().getMessage(),
-            equalTo(
-                "_id must be unset or set to ["
-                    + testCase.expectedId
-                    + "] but was ["
-                    + testCase.expectedId
-                    + "wrong] because [index] is in time_series mode"
-            )
-        );
-    }
-
     public void testEquivalentSources() throws IOException {
         MapperService mapperService = mapperService();
         for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {

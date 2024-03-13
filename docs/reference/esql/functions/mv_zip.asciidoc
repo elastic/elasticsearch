@@ -1,0 +1,38 @@
+[discrete]
+[[esql-mv_zip]]
+=== `MV_ZIP`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/mv_zip.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`mvLeft`::
+Multivalue expression.
+
+`mvRight`::
+Multivalue expression.
+
+`delim`::
+Delimiter. Optional; if omitted, `,` is used as a default delimiter.
+
+*Description*
+
+Combines the values from two multivalued fields with a delimiter that joins them together.
+
+*Supported types*
+
+include::types/mv_zip.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/string.csv-spec[tag=mv_zip]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/string.csv-spec[tag=mv_zip-result]
+|===

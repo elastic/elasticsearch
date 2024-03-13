@@ -62,7 +62,7 @@ public abstract class IndexRouting {
     }
 
     protected final String indexName;
-    protected final int routingNumShards;
+    private final int routingNumShards;
     private final int routingFactor;
 
     private IndexRouting(IndexMetadata metadata) {
@@ -71,7 +71,7 @@ public abstract class IndexRouting {
         this.routingFactor = metadata.getRoutingFactor();
     }
 
-    public void process(IndexRequest indexRequest) {}
+    public abstract void process(IndexRequest indexRequest);
 
     /**
      * Called when indexing a document to generate the shard id that should contain
@@ -82,7 +82,7 @@ public abstract class IndexRouting {
         @Nullable String routing,
         XContentType sourceType,
         BytesReference source,
-        Consumer<String> routingHashRecorder
+        Consumer<String> routingHashSetter
     );
 
     /**
@@ -167,7 +167,7 @@ public abstract class IndexRouting {
             @Nullable String routing,
             XContentType sourceType,
             BytesReference source,
-            Consumer<String> routingHashRecorder
+            Consumer<String> routingHashSetter
         ) {
             if (id == null) {
                 throw new IllegalStateException("id is required and should have been set by process");
@@ -252,14 +252,14 @@ public abstract class IndexRouting {
     public static class ExtractFromSource extends IndexRouting {
         private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
-        private final boolean indexTracksRoutingId;
+        private final boolean trackTimeSeriesRoutingHash;
 
         ExtractFromSource(IndexMetadata metadata) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            indexTracksRoutingId = metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
+            trackTimeSeriesRoutingHash = metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
@@ -270,18 +270,21 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public void process(IndexRequest indexRequest) {}
+
+        @Override
         public int indexShard(
             String id,
             @Nullable String routing,
             XContentType sourceType,
             BytesReference source,
-            Consumer<String> routingHashRecorder
+            Consumer<String> routingHashSetter
         ) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
             int hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
-            if (indexTracksRoutingId) {
-                routingHashRecorder.accept(TimeSeriesRoutingHashFieldMapper.encode(hash));
+            if (trackTimeSeriesRoutingHash) {
+                routingHashSetter.accept(TimeSeriesRoutingHashFieldMapper.encode(hash));
             }
             return hashToShardId(hash);
         }

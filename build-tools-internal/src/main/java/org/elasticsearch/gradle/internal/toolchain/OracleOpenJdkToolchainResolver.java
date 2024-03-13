@@ -26,25 +26,25 @@ import java.util.regex.Pattern;
 
 public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
-    private record JdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash)  {}
+    record JdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash)  {}
 
     private static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
 
-    // for testing reasons we keep that a package private field
-    String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-    JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
-
-    private final List<OperatingSystem> supportedOperatingSystems =
+    private static final List<OperatingSystem> supportedOperatingSystems =
         List.of(OperatingSystem.MAC_OS, OperatingSystem.LINUX, OperatingSystem.WINDOWS);
-    private final List<JdkBuild> builds = List.of(
+
+    // package private so it can be replaced by tests
+    List<JdkBuild> builds = List.of(
         getBundledJdkBuild(),
         // 22 release candidate
         new JdkBuild(JavaLanguageVersion.of(22), "22", "36", "830ec9fcccef480bb3e73fb7ecafe059")
     );
 
     private JdkBuild getBundledJdkBuild() {
+        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
+        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
         Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);

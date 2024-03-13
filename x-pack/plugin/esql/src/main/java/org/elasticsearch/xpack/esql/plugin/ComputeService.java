@@ -592,7 +592,7 @@ public class ComputeService {
         private final DataNodeRequest request;
         private final CancellableTask parentTask;
         private final ExchangeSinkHandler exchangeSink;
-        private final ActionListener<ComputeResponse> listener;
+        private final ActionListener<Void> listener;
         private final List<DriverProfile> driverProfiles;
         private final int maxConcurrentShards;
         private final ExchangeSink blockingSink; // block until we have completed on all shards or the coordinator has enough data
@@ -602,13 +602,14 @@ public class ComputeService {
             CancellableTask parentTask,
             ExchangeSinkHandler exchangeSink,
             int maxConcurrentShards,
-            ActionListener<ComputeResponse> listener
+            List<DriverProfile> driverProfiles,
+            ActionListener<Void> listener
         ) {
             this.request = request;
             this.parentTask = parentTask;
             this.exchangeSink = exchangeSink;
             this.listener = listener;
-            this.driverProfiles = request.configuration().profile() ? Collections.synchronizedList(new ArrayList<>()) : List.of();
+            this.driverProfiles = driverProfiles;
             this.maxConcurrentShards = maxConcurrentShards;
             this.blockingSink = exchangeSink.createExchangeSink();
         }
@@ -649,10 +650,7 @@ public class ComputeService {
                 // don't return until all pages are fetched
                 exchangeSink.addCompletionListener(
                     ContextPreservingActionListener.wrapPreservingContext(
-                        ActionListener.runBefore(
-                            listener.map(nullValue -> new ComputeResponse(driverProfiles)),
-                            () -> exchangeService.finishSinkHandler(request.sessionId(), null)
-                        ),
+                        ActionListener.runBefore(listener, () -> exchangeService.finishSinkHandler(request.sessionId(), null)),
                         transportService.getThreadPool().getThreadContext()
                     )
                 );
@@ -665,17 +663,94 @@ public class ComputeService {
         }
     }
 
+    private void runComputeOnDataNode(
+        CancellableTask task,
+        String externalId,
+        PhysicalPlan reducePlan,
+        DataNodeRequest request,
+        ActionListener<ComputeResponse> listener
+    ) {
+        final List<DriverProfile> collectedProfiles = request.configuration().profile()
+            ? Collections.synchronizedList(new ArrayList<>())
+            : List.of();
+        final var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
+        listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
+        try (RefCountingListener refs = new RefCountingListener(listener.map(i -> new ComputeResponse(collectedProfiles)))) {
+            final AtomicBoolean cancelled = new AtomicBoolean();
+            // run compute with target shards
+            var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
+            DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
+                request,
+                task,
+                internalSink,
+                request.configuration().pragmas().maxConcurrentShardsPerNode(),
+                collectedProfiles,
+                ActionListener.runBefore(cancelOnFailure(task, cancelled, refs.acquire()), responseHeadersCollector::collect)
+            );
+            dataNodeRequestExecutor.start();
+            // run the node-level reduction
+            var externalSink = exchangeService.getSinkHandler(externalId);
+            var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
+            exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1);
+            ActionListener<Void> reductionListener = cancelOnFailure(task, cancelled, refs.acquire());
+            runCompute(
+                task,
+                new ComputeContext(
+                    request.sessionId(),
+                    request.clusterAlias(),
+                    List.of(),
+                    request.configuration(),
+                    exchangeSource,
+                    externalSink
+                ),
+                reducePlan,
+                ActionListener.wrap(driverProfiles -> {
+                    responseHeadersCollector.collect();
+                    if (request.configuration().profile()) {
+                        collectedProfiles.addAll(driverProfiles);
+                    }
+                    // don't return until all pages are fetched
+                    externalSink.addCompletionListener(
+                        ActionListener.runBefore(reductionListener, () -> exchangeService.finishSinkHandler(externalId, null))
+                    );
+                }, e -> {
+                    exchangeService.finishSinkHandler(externalId, e);
+                    reductionListener.onFailure(e);
+                })
+            );
+        } catch (Exception e) {
+            exchangeService.finishSinkHandler(externalId, e);
+            exchangeService.finishSinkHandler(request.sessionId(), e);
+            listener.onFailure(e);
+        }
+    }
+
     private class DataNodeRequestHandler implements TransportRequestHandler<DataNodeRequest> {
         @Override
         public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
-            DataNodeRequestExecutor executor = new DataNodeRequestExecutor(
-                request,
-                (CancellableTask) task,
-                exchangeService.getSinkHandler(request.sessionId()),
-                request.configuration().pragmas().maxConcurrentShardsPerNode(),
-                new ChannelActionListener<>(channel)
+            final ActionListener<ComputeResponse> listener = new ChannelActionListener<>(channel);
+            final ExchangeSinkExec reducePlan;
+            if (request.plan() instanceof ExchangeSinkExec plan) {
+                reducePlan = new ExchangeSinkExec(
+                    plan.source(),
+                    plan.output(),
+                    plan.isIntermediateAgg(),
+                    new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg())
+                );
+            } else {
+                listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));
+                return;
+            }
+            final String sessionId = request.sessionId();
+            request = new DataNodeRequest(
+                sessionId + "[n]", // internal session
+                request.configuration(),
+                request.clusterAlias(),
+                request.shardIds(),
+                request.aliasFilters(),
+                request.plan()
             );
-            executor.start();
+            runComputeOnDataNode((CancellableTask) task, sessionId, reducePlan, request, listener);
         }
     }
 

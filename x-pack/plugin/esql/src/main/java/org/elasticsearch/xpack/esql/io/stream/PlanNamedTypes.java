@@ -512,6 +512,9 @@ public final class PlanNamedTypes {
         final PhysicalPlan child = in.readPhysicalPlanNode();
         final NamedExpression matchField = in.readNamedExpression();
         final String policyName = in.readString();
+        final String matchType = (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_TYPES))
+            ? in.readString()
+            : "match";
         final String policyMatchField = in.readString();
         final Map<String, String> concreteIndices;
         final Enrich.Mode mode;
@@ -526,7 +529,17 @@ public final class PlanNamedTypes {
             }
             concreteIndices = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
         }
-        return new EnrichExec(source, child, mode, matchField, policyName, policyMatchField, concreteIndices, readNamedExpressions(in));
+        return new EnrichExec(
+            source,
+            child,
+            mode,
+            matchType,
+            matchField,
+            policyName,
+            policyMatchField,
+            concreteIndices,
+            readNamedExpressions(in)
+        );
     }
 
     static void writeEnrichExec(PlanStreamOutput out, EnrichExec enrich) throws IOException {
@@ -534,6 +547,9 @@ public final class PlanNamedTypes {
         out.writePhysicalPlanNode(enrich.child());
         out.writeNamedExpression(enrich.matchField());
         out.writeString(enrich.policyName());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_TYPES)) {
+            out.writeString(enrich.matchType());
+        }
         out.writeString(enrich.policyMatchField());
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
             out.writeEnum(enrich.mode());

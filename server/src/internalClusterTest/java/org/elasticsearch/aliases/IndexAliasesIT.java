@@ -8,6 +8,7 @@
 
 package org.elasticsearch.aliases;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -29,7 +30,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -790,17 +790,34 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
     }
 
-    public void testIndicesRemoveNonExistingAliasResponds404() throws Exception {
-        logger.info("--> creating index [test]");
-        createIndex("test");
+    public void testRemoveAliasMustExist() {
+        logger.info("--> creating index [foo_foo]");
+        assertAcked(prepareCreate("foo_foo"));
         ensureGreen();
-        logger.info("--> deleting alias1 which does not exist");
-        try {
-            indicesAdmin().prepareAliases().removeAlias("test", "alias1").get();
-            fail("Expected AliasesNotFoundException");
-        } catch (AliasesNotFoundException e) {
-            assertThat(e.getMessage(), containsString("[alias1] missing"));
-        }
+
+        // no exception if must_exist == false
+        logger.info("--> deleting alias1 which does not exist with must_exist=false");
+        assertAliasesVersionUnchanged(
+            "foo_foo",
+            () -> assertAcked(
+                indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index("foo_foo").alias("alias1").mustExist(false))
+            )
+        );
+
+        // no exception if must_exist == null
+        logger.info("--> deleting alias1 which does not exist with must_exist=null");
+        assertAliasesVersionUnchanged(
+            "foo_foo",
+            () -> assertAcked(indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index("foo_foo").alias("alias1")))
+        );
+
+        // exception if must_exist == true
+        logger.info("--> deleting alias1 which does not exist with must_exist=true");
+        ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            indicesAdmin().prepareAliases().addAliasAction(AliasActions.remove().index("foo_foo").alias("alias1").mustExist(true))
+        );
+        assertEquals("required alias [alias1] does not exist", e.getMessage());
     }
 
     public void testIndicesGetAliases() throws Exception {

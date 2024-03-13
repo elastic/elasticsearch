@@ -114,7 +114,10 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         List<AliasAction> finalActions = new ArrayList<>();
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
+        boolean skippableRemoveAction = false;
         for (AliasActions action : actions) {
+            // Allow REMOVE actions with must_exist==false/null to be skipped without failing
+            skippableRemoveAction |= (action.mustExist() == null || action.mustExist() == false);
             List<String> concreteDataStreams = indexNameExpressionResolver.dataStreamNames(
                 state,
                 request.indicesOptions(),
@@ -234,7 +237,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 }
             }
         }
-        if (finalActions.isEmpty() && false == actions.isEmpty()) {
+        if (finalActions.isEmpty() && false == actions.isEmpty() && false == skippableRemoveAction) {
             throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));
         }
         request.aliasActions().clear();

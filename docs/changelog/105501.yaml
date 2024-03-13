@@ -1,5 +1,5 @@
 pr: 105501
-summary: Introduce TimeSeriesRoutingIdFieldMapper to support non-keyword dimensions
+summary: Support non-keyword dimensions in TSDB
 area: TSDB
 type: enhancement
 issues: []

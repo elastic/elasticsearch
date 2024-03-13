@@ -43,7 +43,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -59,7 +59,7 @@ class BlobStoreSyncDirectory extends FilterDirectory {
     private final AtomicBoolean closed = new AtomicBoolean();
     private SegmentInfos latestCommit;
 
-    BlobStoreSyncDirectory(Directory delegate, Supplier<BlobContainer> blobContainerSupplier, ExecutorService executorService) {
+    BlobStoreSyncDirectory(Directory delegate, Supplier<BlobContainer> blobContainerSupplier, Executor executorService) {
         super(delegate);
         this.blobContainerSupplier = blobContainerSupplier;
         this.taskRunner = new ThrottledTaskRunner("cluster_state_io_runner", 5, executorService);

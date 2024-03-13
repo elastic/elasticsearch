@@ -63,7 +63,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.function.LongFunction;
 
 class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
@@ -71,14 +71,14 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
     private final LongFunction<BlobContainer> blobContainerSupplier;
     private final PersistedClusterStateService persistedClusterStateService;
     private final ThrottledTaskRunner throttledTaskRunner;
-    private final ExecutorService executorService;
+    private final Executor executor;
     private final Path clusterStateReadStagingPath;
     private final StatelessElectionStrategy statelessElectionStrategy;
 
     StatelessPersistedState(
         PersistedClusterStateService persistedClusterStateService,
         LongFunction<BlobContainer> blobContainerSupplier,
-        ExecutorService executorService,
+        Executor executor,
         Path clusterStateReadStagingPath,
         ClusterState lastAcceptedState,
         StatelessElectionStrategy statelessElectionStrategy
@@ -87,8 +87,8 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         this.blobContainerSupplier = blobContainerSupplier;
         this.persistedClusterStateService = persistedClusterStateService;
 
-        this.throttledTaskRunner = new ThrottledTaskRunner("cluster_state_downloader", 5, executorService);
-        this.executorService = executorService;
+        this.throttledTaskRunner = new ThrottledTaskRunner("cluster_state_downloader", 5, executor);
+        this.executor = executor;
         this.clusterStateReadStagingPath = clusterStateReadStagingPath;
         this.statelessElectionStrategy = statelessElectionStrategy;
     }
@@ -144,7 +144,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         SubscribableListener
 
             .<Void>newForked(l -> {
-                try (var refCountingListener = new RefCountingListener(new ThreadedActionListener<>(executorService, l))) {
+                try (var refCountingListener = new RefCountingListener(new ThreadedActionListener<>(executor, l))) {
                     for (String file : files) {
                         throttledTaskRunner.enqueueTask(refCountingListener.acquire().map(r -> {
                             // TODO: retry

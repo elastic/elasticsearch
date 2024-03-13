@@ -68,7 +68,7 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
         );
         assertThat(
             ObjectPath.eval("error.stack_trace", convertedRequest.sourceAsMap()),
-            containsString("at org.elasticsearch.action.bulk.FailureStoreDocumentTests.testFailureStoreDocumentConverstion")
+            containsString("at org.elasticsearch.action.bulk.FailureStoreDocumentConverterTests.testFailureStoreDocumentConverstion")
         );
 
         assertThat(convertedRequest.isWriteToFailureStore(), is(true));

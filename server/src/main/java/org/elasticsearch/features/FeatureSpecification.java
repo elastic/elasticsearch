@@ -20,7 +20,7 @@ import java.util.Set;
  * Code can check if all nodes in a cluster support a feature using {@link FeatureService#clusterHasFeature}.
  * Once all nodes in a cluster support a feature, other nodes are blocked from joining that cluster
  * unless they also support that feature (this is known as the 'feature ratchet').
- * So once a feature is supported by a cluster, it will always support that feature in the future.
+ * So once a feature is supported by a cluster, it will always be supported by that cluster in the future.
  * <p>
  * The feature information in cluster state should not normally be directly accessed.
  * All feature checks should be done through {@code FeatureService} to ensure that Elasticsearch's

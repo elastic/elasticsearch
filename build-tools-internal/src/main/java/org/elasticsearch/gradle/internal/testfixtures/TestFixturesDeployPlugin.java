@@ -29,8 +29,7 @@ public class TestFixturesDeployPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<TestFixtureDeployment> fixtures = project.container(TestFixtureDeployment.class);
         project.getExtensions().add("dockerFixtures", fixtures);
         registerDeployTaskPerFixture(project, fixtures);
-        project.getTasks()
-            .register(DEPLOY_FIXTURE_TASK_NAME, task -> task.dependsOn(project.getTasks().withType(DockerBuildTask.class)));
+        project.getTasks().register(DEPLOY_FIXTURE_TASK_NAME, task -> task.dependsOn(project.getTasks().withType(DockerBuildTask.class)));
     }
 
     private static void registerDeployTaskPerFixture(Project project, NamedDomainObjectContainer<TestFixtureDeployment> fixtures) {

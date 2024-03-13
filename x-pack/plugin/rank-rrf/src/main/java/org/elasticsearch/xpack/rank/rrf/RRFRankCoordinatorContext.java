@@ -62,7 +62,7 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
 
                 for (int qi = 0; qi < queryCount; ++qi) {
                     final int fqi = qi;
-                    queues.add(new PriorityQueue<>(windowSize + from) {
+                    queues.add(new PriorityQueue<>(windowSize) {
                         @Override
                         protected boolean lessThan(RRFRankDoc a, RRFRankDoc b) {
                             float score1 = a.scores[fqi];

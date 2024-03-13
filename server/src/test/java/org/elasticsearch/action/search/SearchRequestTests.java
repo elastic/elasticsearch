@@ -400,7 +400,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "[rank] requires [window_size: 1] be greater than or equal to [(from + size): 2]",
+                "[rank] requires [window_size: 1] be greater than or equal to [size: 2]",
                 validationErrors.validationErrors().get(0)
             );
         }
@@ -437,13 +437,13 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "[rank] requires [window_size: 9] be greater than or equal to [(from + size): 10]",
+                "[rank] requires [window_size: 9] be greater than or equal to [size: 10]",
                 validationErrors.validationErrors().get(0)
             );
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(
-                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(5))
+                new SearchSourceBuilder().rankBuilder(new TestRankBuilder(3))
                     .query(QueryBuilders.termQuery("field", "term"))
                     .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null)))
                     .size(3)
@@ -451,11 +451,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
-            assertEquals(1, validationErrors.validationErrors().size());
-            assertEquals(
-                "[rank] requires [window_size: 5] be greater than or equal to [(from + size): 7]",
-                validationErrors.validationErrors().get(0)
-            );
+            assertEquals(0, validationErrors.validationErrors().size());
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(

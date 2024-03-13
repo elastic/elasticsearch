@@ -81,6 +81,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
@@ -580,14 +583,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 if (resolved.resolved()) {
                     final DataType dataType = resolved.dataType();
-                    DataType[] allowed = new DataType[] { KEYWORD, IP, GEO_POINT, GEO_SHAPE, LONG, INTEGER, FLOAT, DOUBLE };
+                    String matchType = enrich.policy() == null ? "<unknown>" : enrich.policy().getType();
+                    DataType[] allowed = allowedEnrichTypes(matchType);
                     if (Arrays.asList(allowed).contains(dataType) == false) {
-                        String suffix = "only " + Arrays.toString(allowed) + " allowed";
+                        String suffix = "only " + Arrays.toString(allowed) + " allowed for type [" + matchType + "]";
                         resolved = ua.withUnresolvedMessage(
                             "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; " + suffix
                         );
                     }
-                    // TODO: Even if we support the type, we should check if the type matches the enrich policy
                 }
                 return new Enrich(
                     enrich.source(),
@@ -601,6 +604,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             return enrich;
+        }
+
+        private DataType[] allowedEnrichTypes(String matchType) {
+            return switch (matchType) {
+                case MATCH_TYPE -> new DataType[] { KEYWORD, IP };
+                case RANGE_TYPE -> new DataType[] { IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
+                case GEO_MATCH_TYPE -> new DataType[] { GEO_POINT, GEO_SHAPE };
+                default -> new DataType[] { KEYWORD, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME, GEO_POINT, GEO_SHAPE };
+            };
         }
     }
 

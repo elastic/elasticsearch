@@ -24,6 +24,7 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 
@@ -112,19 +113,16 @@ abstract class QueryList {
                 }
                 case BYTES_REF -> {
                     BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-                    if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
-                        yield switch (rangeFieldType.rangeType()) {
-                            case IP -> offset -> {
-                                bytesRefBlock.getBytesRef(offset, scratch);
-                                if (ipBytes.length != scratch.length) {
-                                    // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
-                                    throw new IllegalStateException("Cannot decode IP field from bytes of length " + scratch.length);
-                                }
-                                System.arraycopy(scratch.bytes, scratch.offset, ipBytes, 0, scratch.length);
-                                InetAddress ip = InetAddressPoint.decode(ipBytes);
-                                return ip;
-                            };
-                            default -> offset -> bytesRefBlock.getBytesRef(offset, new BytesRef());
+                    if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType && rangeFieldType.rangeType() == RangeType.IP) {
+                        yield offset -> {
+                            bytesRefBlock.getBytesRef(offset, scratch);
+                            if (ipBytes.length != scratch.length) {
+                                // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
+                                throw new IllegalStateException("Cannot decode IP field from bytes of length " + scratch.length);
+                            }
+                            System.arraycopy(scratch.bytes, scratch.offset, ipBytes, 0, scratch.length);
+                            InetAddress ip = InetAddressPoint.decode(ipBytes);
+                            return ip;
                         };
                     }
                     yield offset -> bytesRefBlock.getBytesRef(offset, new BytesRef());
@@ -139,6 +137,9 @@ abstract class QueryList {
                 }
                 case LONG -> {
                     LongBlock longBlock = (LongBlock) block;
+                    if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType && rangeFieldType.rangeType() == RangeType.DATE) {
+                        yield offset -> rangeFieldType.dateTimeFormatter().formatMillis(longBlock.getLong(offset));
+                    }
                     yield longBlock::getLong;
                 }
                 case NULL -> offset -> null;

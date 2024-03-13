@@ -235,6 +235,24 @@ Tall           | 1.8        | 1.99       | 25
 Very Tall      | 2.0        | 2.1        | 20
 ;
 
+enrichDecadesStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM employees
+| ENRICH decades_policy ON birth_date WITH birth_decade = decade, birth_description = description
+| ENRICH decades_policy ON hire_date WITH hire_decade = decade, hire_description = description
+| STATS count=count(*) BY birth_decade, hire_decade, birth_description, hire_description
+| KEEP birth_decade, hire_decade, birth_description, hire_description, count
+| SORT birth_decade DESC, hire_decade DESC
+;
+
+birth_decade:long | hire_decade:l | birth_description:k | hire_description:k | count:long
+null              | 1990          | null                | Nineties Nostalgia | 6
+null              | 1980          | null                | Radical Eighties   | 4
+1960              | 1990          | Swinging Sixties    | Nineties Nostalgia | 13
+1960              | 1980          | Swinging Sixties    | Radical Eighties   | 21
+1950              | 1990          | Nifty Fifties       | Nineties Nostalgia | 22
+1950              | 1980          | Nifty Fifties       | Radical Eighties   | 34
+;
+
 spatialEnrichmentKeywordMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 FROM airports
 | WHERE abbrev == "CPH"

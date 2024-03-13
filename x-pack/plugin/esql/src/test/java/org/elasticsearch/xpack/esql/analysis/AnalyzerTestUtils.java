@@ -101,6 +101,7 @@ public final class AnalyzerTestUtils {
         loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "client_cidr", "client_cidr", "client_cidr", "mapping-client_cidr.json");
         loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "ages_policy", "age_range", "ages", "mapping-ages.json");
         loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "heights_policy", "height_range", "heights", "mapping-heights.json");
+        loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "decades_policy", "date_range", "decades", "mapping-decades.json");
         loadEnrichPolicyResolution(
             enrichResolution,
             GEO_MATCH_TYPE,

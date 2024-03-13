@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InputType;
@@ -170,5 +171,28 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SemanticQueryBuilder builder = new SemanticQueryBuilder("foo", "bar");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.toQuery(context));
         assertThat(e.getMessage(), equalTo("Query builder must be rewritten first"));
+    }
+
+    public void testIllegalValues() {
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SemanticQueryBuilder(null, "query"));
+            assertThat(e.getMessage(), equalTo("[semantic_query] requires a fieldName"));
+        }
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SemanticQueryBuilder("fieldName", null));
+            assertThat(e.getMessage(), equalTo("[semantic_query] requires a query value"));
+        }
+    }
+
+    public void testToXContent() throws IOException {
+        QueryBuilder queryBuilder = new SemanticQueryBuilder("foo", "bar");
+        checkGeneratedJson("""
+            {
+              "semantic_query": {
+                "foo": {
+                  "query": "bar"
+                }
+              }
+            }""", queryBuilder);
     }
 }

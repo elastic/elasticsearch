@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -134,7 +135,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         // If during re-assignment the source index was deleted, then we need to break out.
         // Returning NO_NODE_FOUND just keeps the persistent task until the source index appears again (which would never happen)
         // So let's return a node and then in the node operation we would just fail and stop this persistent task
-        var indexShardRouting = clusterState.routingTable().shardRoutingTable(params.shardId().getIndexName(), params.shardId().id());
+        var indexShardRouting = findShardRoutingTable(shardId, clusterState);
         if (indexShardRouting == null) {
             var node = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
             return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
@@ -173,6 +174,14 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                 markAsFailed(downsampleShardTask, e);
             })
         );
+    }
+
+    private static IndexShardRoutingTable findShardRoutingTable(ShardId shardId, ClusterState clusterState) {
+        var indexRoutingTable = clusterState.routingTable().index(shardId.getIndexName());
+        if (indexRoutingTable != null) {
+            return indexRoutingTable.shard(shardId.getId());
+        }
+        return null;
     }
 
     static void realNodeOperation(

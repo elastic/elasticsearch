@@ -450,8 +450,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                     .from(4)
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
-            assertNotNull(validationErrors);
-            assertEquals(0, validationErrors.validationErrors().size());
+            assertNull(validationErrors);
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(

@@ -62,7 +62,7 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
 
                 for (int qi = 0; qi < queryCount; ++qi) {
                     final int fqi = qi;
-                    queues.add(new PriorityQueue<>(windowSize) {
+                    queues.add(new PriorityQueue<>(from + windowSize) {
                         @Override
                         protected boolean lessThan(RRFRankDoc a, RRFRankDoc b) {
                             float score1 = a.scores[fqi];
@@ -151,6 +151,7 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
             }
             return rrf1.doc < rrf2.doc ? -1 : 1;
         });
+        // trim results to size
         RRFRankDoc[] topResults = new RRFRankDoc[Math.min(size, sortedResults.length - from)];
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[from + rank];

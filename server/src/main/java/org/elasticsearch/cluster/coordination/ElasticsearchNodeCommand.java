@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.indices.rollover.AutoShardCondition;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
@@ -90,12 +89,6 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                     throw new UnsupportedOperationException("Unexpected token for Condition: " + parser.currentToken());
                 }
                 parser.nextToken();
-                if (parser.currentToken().isValue() == false
-                    && parser.currentToken().equals(XContentParser.Token.START_OBJECT)
-                    && name.equals(AutoShardCondition.NAME)) {
-                    return (T) AutoShardCondition.fromXContent(parser);
-                }
-
                 assert parser.currentToken().isValue() : parser.currentToken();
                 if (parser.currentToken().isValue() == false) {
                     throw new UnsupportedOperationException("Unexpected token for Condition: " + parser.currentToken());

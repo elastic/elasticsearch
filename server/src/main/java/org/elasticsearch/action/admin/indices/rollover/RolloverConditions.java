@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.DECREASE_SHARDS;
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
 
 /**
@@ -420,16 +421,8 @@ public class RolloverConditions implements Writeable, ToXContentObject {
          * Adds an auto sharding increase shards condition, ignores it otherwise.
          */
         public Builder addAutoShardingCondition(AutoShardingResult autoShardingResult) {
-            if (autoShardingResult.type().equals(INCREASE_SHARDS)) {
-                AutoShardCondition autoShardCondition = new AutoShardCondition(
-                    new IncreaseShardsDetails(
-                        autoShardingResult.type(),
-                        autoShardingResult.currentNumberOfShards(),
-                        autoShardingResult.targetNumberOfShards(),
-                        autoShardingResult.coolDownRemaining(),
-                        autoShardingResult.writeLoad()
-                    )
-                );
+            if (autoShardingResult.type().equals(INCREASE_SHARDS) || autoShardingResult.type().equals(DECREASE_SHARDS)) {
+                AutoShardCondition autoShardCondition = new AutoShardCondition(autoShardingResult);
                 this.conditions.put(autoShardCondition.name, autoShardCondition);
             }
             return this;

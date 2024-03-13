@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -58,6 +59,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -251,10 +253,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     rolloverAutoSharding = dataStreamAutoShardingService.calculate(clusterState, dataStream, writeLoad);
                     logger.debug("data stream auto sharding result is [{}]", rolloverAutoSharding);
 
-                    RolloverConditions conditionsIncludingImplicit = RolloverConditions.newBuilder(rolloverRequest.getConditions())
-                        .addAutoShardingCondition(rolloverAutoSharding)
-                        .build();
-                    rolloverRequest.setConditions(conditionsIncludingImplicit);
+                    if (rolloverAutoSharding.type().equals(AutoShardingType.INCREASE_SHARDS)) {
+                        RolloverConditions conditionsIncludingImplicit = RolloverConditions.newBuilder(rolloverRequest.getConditions())
+                            .addAutoShardingCondition(rolloverAutoSharding)
+                            .build();
+                        rolloverRequest.setConditions(conditionsIncludingImplicit);
+                    }
                 }
 
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
@@ -432,9 +436,21 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             );
 
             if (rolloverRequest.getConditions().areConditionsMet(postConditionResults)) {
+                Map<String, Boolean> resultsIncludingDecreaseShards = new HashMap<>(postConditionResults);
+                if (rolloverTask.autoShardingResult != null
+                    && rolloverTask.autoShardingResult.type().equals(AutoShardingType.DECREASE_SHARDS)) {
+                    // if we're executing a rollover ("regular" conditions are met) and we're also decreasing the number of shards we'll
+                    // include the decrease_shards autosharding condition in the response and rollover info/met conditions
+                    RolloverConditions conditionsIncludingDecreaseShards = RolloverConditions.newBuilder(rolloverRequest.getConditions())
+                        .addAutoShardingCondition(rolloverTask.autoShardingResult)
+                        .build();
+                    rolloverRequest.setConditions(conditionsIncludingDecreaseShards);
+                    resultsIncludingDecreaseShards.put(new AutoShardCondition(rolloverTask.autoShardingResult).toString(), true);
+                }
+
                 final List<Condition<?>> metConditions = rolloverRequest.getConditionValues()
                     .stream()
-                    .filter(condition -> postConditionResults.get(condition.toString()))
+                    .filter(condition -> resultsIncludingDecreaseShards.get(condition.toString()))
                     .toList();
 
                 final IndexAbstraction rolloverTargetAbstraction = currentState.metadata()
@@ -480,7 +496,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     // things like date resolution
                                     sourceIndexName,
                                     rolloverIndexName,
-                                    postConditionResults,
+                                    resultsIncludingDecreaseShards,
                                     false,
                                     true,
                                     true,

@@ -163,7 +163,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true, minAgeCondition, true)));
 
         AutoShardCondition autoShardCondition = new AutoShardCondition(
-            new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
+            new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
         );
         rolloverConditions = RolloverConditions.newBuilder()
             .addAutoShardingCondition(new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0))

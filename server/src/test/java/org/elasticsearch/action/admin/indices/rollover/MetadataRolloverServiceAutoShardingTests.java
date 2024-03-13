@@ -96,14 +96,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                 long before = testThreadPool.absoluteTimeInMillis();
                 switch (type) {
                     case INCREASE_SHARDS -> {
-                        IncreaseShardsDetails increaseShardsDetails = new IncreaseShardsDetails(
-                            INCREASE_SHARDS,
-                            3,
-                            5,
-                            TimeValue.ZERO,
-                            64.33
-                        );
-                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(increaseShardsDetails));
+                        AutoShardingResult autoShardingResult = new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33);
+                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(autoShardingResult));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                             clusterState,
                             dataStream.getName(),
@@ -172,7 +166,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         }
                     }
                     case COOLDOWN_PREVENTED_INCREASE -> {
-                        IncreaseShardsDetails increaseShardsDetails = new IncreaseShardsDetails(
+                        AutoShardingResult autoShardingResult = new AutoShardingResult(
                             COOLDOWN_PREVENTED_INCREASE,
                             3,
                             5,
@@ -184,7 +178,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
-                            List.of(new AutoShardCondition(increaseShardsDetails)),
+                            List.of(),
                             Instant.now(),
                             randomBoolean(),
                             false,
@@ -192,14 +186,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10), 64.33)
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
-                        assertRolloverResult(
-                            dataStream,
-                            rolloverResult,
-                            before,
-                            testThreadPool.absoluteTimeInMillis(),
-                            List.of(new AutoShardCondition(increaseShardsDetails)),
-                            3
-                        );
+                        assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
                     }
                     case COOLDOWN_PREVENTED_DECREASE -> {
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
@@ -306,14 +293,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                 long before = testThreadPool.absoluteTimeInMillis();
                 switch (type) {
                     case INCREASE_SHARDS -> {
-                        IncreaseShardsDetails increaseShardsDetails = new IncreaseShardsDetails(
-                            INCREASE_SHARDS,
-                            3,
-                            5,
-                            TimeValue.ZERO,
-                            64.33
-                        );
-                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(increaseShardsDetails));
+                        AutoShardingResult autoShardingResult = new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33);
+                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(autoShardingResult));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                             clusterState,
                             dataStream.getName(),
@@ -382,7 +363,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         }
                     }
                     case COOLDOWN_PREVENTED_INCREASE -> {
-                        IncreaseShardsDetails increaseShardsDetails = new IncreaseShardsDetails(
+                        AutoShardingResult autoShardingResult = new AutoShardingResult(
                             COOLDOWN_PREVENTED_INCREASE,
                             3,
                             5,
@@ -394,7 +375,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             dataStream.getName(),
                             null,
                             new CreateIndexRequest("_na_"),
-                            List.of(new AutoShardCondition(increaseShardsDetails)),
+                            List.of(),
                             Instant.now(),
                             randomBoolean(),
                             false,
@@ -402,14 +383,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10), 64.33)
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
-                        assertRolloverResult(
-                            dataStream,
-                            rolloverResult,
-                            before,
-                            testThreadPool.absoluteTimeInMillis(),
-                            List.of(new AutoShardCondition(increaseShardsDetails)),
-                            3
-                        );
+                        assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
                     }
                     case COOLDOWN_PREVENTED_DECREASE -> {
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(

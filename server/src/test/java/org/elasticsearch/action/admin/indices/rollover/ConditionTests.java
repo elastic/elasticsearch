@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -353,18 +354,17 @@ public class ConditionTests extends ESTestCase {
             condition -> new MinPrimaryShardDocsCondition(condition.value),
             condition -> new MinPrimaryShardDocsCondition(randomNonNegativeLong())
         );
-        AutoShardCondition autoShardCondition = new AutoShardCondition(
-            new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
-        );
+        AutoShardingResult autoShardingResult = new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0);
+        AutoShardCondition autoShardCondition = new AutoShardCondition(autoShardingResult);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             autoShardCondition,
-            condition -> new AutoShardCondition(condition.value),
+            condition -> new AutoShardCondition(autoShardingResult),
             condition -> new AutoShardCondition(
-                new IncreaseShardsDetails(
-                    AutoShardingType.COOLDOWN_PREVENTED_INCREASE,
+                new AutoShardingResult(
+                    AutoShardingType.DECREASE_SHARDS,
                     randomNonNegativeInt(),
                     randomNonNegativeInt(),
-                    TimeValue.timeValueMillis(randomNonNegativeLong()),
+                    TimeValue.ZERO,
                     5.0
                 )
             )
@@ -372,59 +372,42 @@ public class ConditionTests extends ESTestCase {
     }
 
     public void testAutoShardCondition() {
-        {
-            // condition met
-            AutoShardCondition autoShardCondition = new AutoShardCondition(
-                new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
-            );
-            assertThat(
-                autoShardCondition.evaluate(
-                    new Condition.Stats(1, randomNonNegativeLong(), randomByteSizeValue(), randomByteSizeValue(), 1)
-                ),
-                is(true)
-            );
-        }
-
-        {
-            // condition is not met
-            AutoShardCondition autoShardCondition = new AutoShardCondition(
-                new IncreaseShardsDetails(
-                    AutoShardingType.COOLDOWN_PREVENTED_INCREASE,
-                    1,
-                    3,
-                    TimeValue.timeValueMillis(randomNonNegativeLong()),
-                    3.0
-                )
-            );
-            assertThat(
-                autoShardCondition.evaluate(
-                    new Condition.Stats(1, randomNonNegativeLong(), randomByteSizeValue(), randomByteSizeValue(), 1)
-                ),
-                is(false)
-            );
-        }
+        AutoShardCondition autoShardCondition = new AutoShardCondition(
+            randomBoolean()
+                ? new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
+                : new AutoShardingResult(AutoShardingType.DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.3)
+        );
+        assertThat(
+            autoShardCondition.evaluate(new Condition.Stats(1, randomNonNegativeLong(), randomByteSizeValue(), randomByteSizeValue(), 1))
+                .matched(),
+            is(true)
+        );
     }
 
     public void testAutoShardCondtionXContent() throws IOException {
         AutoShardCondition autoShardCondition = new AutoShardCondition(
-            new IncreaseShardsDetails(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 2.0)
+            new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 2.0)
         );
-        {
 
-            AutoShardCondition parsedCondition = AutoShardCondition.fromXContent(createParser(JsonXContent.jsonXContent, """
-                {
-                        "type": "INCREASE_SHARDS",
-                        "cool_down_remaining": "0s",
-                        "current_number_of_shards": 1,
-                        "target_number_of_shards": 3,
-                         "write_load": 2.0
-                    }
-                """));
-            assertThat(parsedCondition.value, is(autoShardCondition.value));
+        {
+            assertThat(
+                AutoShardCondition.toCSVRep(autoShardCondition.autoShardingResult()),
+                is("type=INCREASE_SHARDS,current_number_of_shards=1,target_number_of_shards=3," + "write_load=2.0")
+            );
         }
 
         {
-            // let's test the met_conditions parsing that is part of the rollover_info
+            assertThat(
+                new AutoShardCondition(
+                    AutoShardCondition.fromCSVRep(
+                        "type=INCREASE_SHARDS,current_number_of_shards=1,target_number_of_shards=3," + "write_load=2.0"
+                    )
+                ),
+                is(autoShardCondition)
+            );
+        }
+
+        {
             long time = System.currentTimeMillis();
             RolloverInfo info = new RolloverInfo("logs-nginx", List.of(autoShardCondition), time);
 
@@ -433,13 +416,7 @@ public class ConditionTests extends ESTestCase {
                     JsonXContent.jsonXContent,
                     "{\n"
                         + " \"met_conditions\": {\n"
-                        + "    \"auto_sharding\": {\n"
-                        + "        \"type\": \"INCREASE_SHARDS\",\n"
-                        + "        \"cool_down_remaining\": \"0s\",\n"
-                        + "        \"current_number_of_shards\": 1,\n"
-                        + "        \"target_number_of_shards\": 3,\n"
-                        + "         \"write_load\": 2.0\n"
-                        + "    }\n"
+                        + " \"auto_sharding\": \"type=INCREASE_SHARDS,current_number_of_shards=1,target_number_of_shards=3,write_load=2.0\""
                         + " },\n"
                         + " \"time\": "
                         + time

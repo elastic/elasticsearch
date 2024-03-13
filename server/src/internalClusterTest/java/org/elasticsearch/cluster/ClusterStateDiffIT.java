@@ -587,7 +587,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
                         break;
                     case 3:
-                        builder.fieldsForModels(randomFieldsForModels());
+                        builder.fieldInferenceMetadata(randomFieldsForModels());
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");

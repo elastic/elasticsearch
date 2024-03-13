@@ -18,7 +18,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -152,7 +151,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -1697,20 +1695,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest) {
-        Index[] indices = indexNameExpressionResolver.concreteIndices(clusterService.state(), indicesRequest);
-        Map<String, Set<String>> modelsForFields = new HashMap<>();
-        for (Index index : indices) {
-            Map<String, Set<String>> fieldsForModels = indexService(index).getMetadata().getFieldsForModels();
-            for (Map.Entry<String, Set<String>> entry : fieldsForModels.entrySet()) {
-                for (String fieldName : entry.getValue()) {
-                    Set<String> models = modelsForFields.computeIfAbsent(fieldName, v -> new HashSet<>());
-                    models.add(entry.getKey());
-                }
-            }
-        }
-
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, modelsForFields);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
+        return new QueryRewriteContext(parserConfig, client, nowInMillis);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

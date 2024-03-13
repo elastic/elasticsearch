@@ -28,8 +28,6 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -103,9 +101,7 @@ public class MockNode extends Node {
             ResponseCollectorService responseCollectorService,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer,
-            ModelRegistry modelRegistry,
-            InferenceServiceRegistry inferenceServiceRegistry
+            Tracer tracer
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
@@ -119,9 +115,7 @@ public class MockNode extends Node {
                     responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
-                    tracer,
-                    modelRegistry,
-                    inferenceServiceRegistry
+                    tracer
                 );
             }
             return new MockSearchService(

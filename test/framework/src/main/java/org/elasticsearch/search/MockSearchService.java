@@ -15,8 +15,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.Plugin;
@@ -99,9 +97,7 @@ public class MockSearchService extends SearchService {
             responseCollectorService,
             circuitBreakerService,
             executorSelector,
-            tracer,
-            null,
-            null
+            tracer
         );
     }
 

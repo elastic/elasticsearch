@@ -12,9 +12,17 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
 import java.util.Map;
+import java.util.Set;
 
 public class EsqlFeatures implements FeatureSpecification {
     private static final NodeFeature MV_LOAD = new NodeFeature("esql.mv_load");
+
+    private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(AGG_VALUES);
+    }
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {

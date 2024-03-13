@@ -758,21 +758,25 @@ warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [1002000
 x:long
 ;
 
-valuesLong#[skip:-8.13.99, reason:Added in 8.14]
+valuesLong
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS l=VALUES(languages.long)
+| STATS l=MV_SORT(VALUES(languages.long))
 ;
 
    l:long
-[2, 5, 4, 1, 3]
+[1, 2, 3, 4, 5]
 ;
 
-valuesLongGrouped#[skip:-8.13.99, reason:Added in 8.14]
+valuesLongGrouped
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS l=VALUES(languages.long) BY first_letter
+| STATS l=MV_SORT(VALUES(languages.long)) BY first_letter
 | SORT first_letter
 ;
 
@@ -783,47 +787,53 @@ valuesLongGrouped#[skip:-8.13.99, reason:Added in 8.14]
         2 | G
         1 | K
         4 | P
-   [2, 1] | S
+   [1, 2] | S
         4 | T
 ;
 
-valuesLongGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+valuesLongGroupedByOrdinals
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS l=VALUES(languages.long) BY job_positions
+| STATS l=MV_SORT(VALUES(languages.long)) BY job_positions
 | SORT job_positions
 ;
 
       l:long | job_positions:keyword
            2 | Accountant
            5 | Head Human Resources
-      [2, 1] | Internship
+      [1, 2] | Internship
            2 | Junior Developer
            3 | Principal Support Engineer
            2 | Purchase Manager
            5 | Reporting Analyst
-      [2, 1] | Senior Python Developer
-      [5, 3] | Senior Team Lead
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
            5 | Support Engineer
-      [5, 3] | Tech Lead
-      [4, 1] | null
+      [3, 5] | Tech Lead
+      [1, 4] | null
 ;
 
-valuesInt#[skip:-8.13.99, reason:Added in 8.14]
+valuesInt
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS l=VALUES(languages)
+| STATS l=MV_SORT(VALUES(languages))
 ;
 
    l:integer
-[2, 5, 4, 1, 3]
+[1, 2, 3, 4, 5]
 ;
 
-valuesIntGrouped#[skip:-8.13.99, reason:Added in 8.14]
+valuesIntGrouped
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS l=VALUES(languages) BY first_letter
+| STATS l=MV_SORT(VALUES(languages)) BY first_letter
 | SORT first_letter
 ;
 
@@ -834,47 +844,53 @@ l:integer | first_letter:keyword
         2 | G
         1 | K
         4 | P
-   [2, 1] | S
+   [1, 2] | S
         4 | T
 ;
 
-valuesIntGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+valuesIntGroupedByOrdinals
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS l=VALUES(languages) BY job_positions
+| STATS l=MV_SORT(VALUES(languages)) BY job_positions
 | SORT job_positions
 ;
 
    l:integer | job_positions:keyword
            2 | Accountant
            5 | Head Human Resources
-      [2, 1] | Internship
+      [1, 2] | Internship
            2 | Junior Developer
            3 | Principal Support Engineer
            2 | Purchase Manager
            5 | Reporting Analyst
-      [2, 1] | Senior Python Developer
-      [5, 3] | Senior Team Lead
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
            5 | Support Engineer
-      [5, 3] | Tech Lead
-      [4, 1] | null
+      [3, 5] | Tech Lead
+      [1, 4] | null
 ;
 
-valuesShort#[skip:-8.13.99, reason:Added in 8.14]
+valuesShort
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS l=VALUES(languages.short)
+| STATS l=MV_SORT(VALUES(languages.short))
 ;
 
    l:integer
-[2, 5, 4, 1, 3]
+[1, 2, 3, 4, 5]
 ;
 
-valuesShortGrouped#[skip:-8.13.99, reason:Added in 8.14]
+valuesShortGrouped
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS l=VALUES(languages.short) BY first_letter
+| STATS l=MV_SORT(VALUES(languages.short)) BY first_letter
 | SORT first_letter
 ;
 
@@ -885,28 +901,30 @@ l:integer | first_letter:keyword
         2 | G
         1 | K
         4 | P
-   [2, 1] | S
+   [1, 2] | S
         4 | T
 ;
 
-valuesShortGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+valuesShortGroupedByOrdinals
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS l=VALUES(languages.short) BY job_positions
+| STATS l=MV_SORT(VALUES(languages.short)) BY job_positions
 | SORT job_positions
 ;
 
    l:integer | job_positions:keyword
            2 | Accountant
            5 | Head Human Resources
-      [2, 1] | Internship
+      [1, 2] | Internship
            2 | Junior Developer
            3 | Principal Support Engineer
            2 | Purchase Manager
            5 | Reporting Analyst
-      [2, 1] | Senior Python Developer
-      [5, 3] | Senior Team Lead
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
            5 | Support Engineer
-      [5, 3] | Tech Lead
-      [4, 1] | null
+      [3, 5] | Tech Lead
+      [1, 4] | null
 ;

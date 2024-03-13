@@ -1075,7 +1075,9 @@ a:keyword           | upper:keyword         | lower:keyword
 π/2 + a + B + Λ ºC  | Π/2 + A + B + Λ ºC    | π/2 + a + b + λ ºc
 ;
 
-values#[skip:-8.13.99, reason:Added in 8.14]
+values
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
 | STATS first_name=VALUES(first_name)
@@ -1085,7 +1087,9 @@ values#[skip:-8.13.99, reason:Added in 8.14]
 [Georgi, Bezalel, Parto, Chirstian, Kyoichi, Anneke, Tzvetan, Saniya, Sumant]
 ;
 
-valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
+valuesGrouped
+required_feature: esql.agg_values
+
 // tag::values-grouped[]
   FROM employees
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)

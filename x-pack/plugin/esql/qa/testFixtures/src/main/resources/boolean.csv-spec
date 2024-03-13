@@ -279,21 +279,25 @@ emp_no:integer | is_rehired:boolean       | a1:boolean
 10005          | [false,false,false,true] | false
 ;
 
-values#[skip:-8.13.99, reason:Added in 8.14]
+values
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS still_hired=VALUES(still_hired)
+| STATS still_hired=MV_SORT(VALUES(still_hired))
 ;
 
    still_hired:boolean
 [false, true]
 ;
 
-valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
+valuesGrouped
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS still_hired=VALUES(still_hired) BY first_letter
+| STATS still_hired=MV_SORT(VALUES(still_hired)) BY first_letter
 | SORT first_letter
 ;
 
@@ -308,10 +312,12 @@ still_hired:boolean | first_letter:keyword
                true | T
 ;
 
-valuesGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+valuesGroupedByOrdinals
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS still_hired=VALUES(still_hired) BY job_positions
+| STATS still_hired=MV_SORT(VALUES(still_hired)) BY job_positions
 | SORT job_positions
 ;
 

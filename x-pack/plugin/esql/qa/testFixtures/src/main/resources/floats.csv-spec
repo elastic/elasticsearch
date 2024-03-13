@@ -466,21 +466,25 @@ emp_no:integer | salary_change:double    | sa:double               | sd:double
 10009          | null                    | null                    | null
 ;
 
-values#[skip:-8.13.99, reason:Added in 8.14]
+values
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS h=VALUES(height)
+| STATS h=MV_SORT(VALUES(height))
 ;
 
    h:double
-[2.03, 2.08, 1.83, 1.78, 2.05, 1.56, 1.7, 2.1, 1.85]
+[1.56, 1.7, 1.78, 1.83, 1.85, 2.03, 2.05, 2.08, 2.1]
 ;
 
-valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
+valuesGrouped
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS h=VALUES(height) BY first_letter
+| STATS h=MV_SORT(VALUES(height)) BY first_letter
 | SORT first_letter
 ;
 
@@ -491,28 +495,30 @@ valuesGrouped#[skip:-8.13.99, reason:Added in 8.14]
        2.03 | G
        2.05 | K
        1.83 | P
-[2.1, 1.85] | S
+[1.85, 2.1] | S
        1.70 | T
 ;
 
-valuesGroupedByOrdinals#[skip:-8.13.99, reason:Added in 8.14]
+valuesGroupedByOrdinals
+required_feature: esql.agg_values
+
   FROM employees
 | WHERE emp_no <= 10009
-| STATS h=VALUES(height) BY job_positions
+| STATS h=MV_SORT(VALUES(height)) BY job_positions
 | SORT job_positions
 ;
 
          h:double | job_positions:keyword
              2.03 | Accountant
              1.78 | Head Human Resources
-      [2.1, 1.85] | Internship
+      [1.85, 2.1] | Internship
               2.1 | Junior Developer
              1.56 | Principal Support Engineer
               2.1 | Purchase Manager
              1.78 | Reporting Analyst
-[2.03, 2.1, 1.85] | Senior Python Developer
-     [2.08, 1.56] | Senior Team Lead
+[1.85, 2.03, 2.1] | Senior Python Developer
+     [1.56, 2.08] | Senior Team Lead
              1.78 | Support Engineer
-     [1.78, 1.56] | Tech Lead
-[1.83, 2.05, 1.7] | null
+     [1.56, 1.78] | Tech Lead
+[1.7, 1.83, 2.05] | null
 ;

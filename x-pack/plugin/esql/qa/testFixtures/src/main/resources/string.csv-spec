@@ -698,6 +698,29 @@ ROW a=[10, 9, 8]
 // end::mv_concat-to_string-result[]
 ;
 
+mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+row a = ["Mon", "Tues", "Wed", "Thu", "Fri"] | eval sa = mv_sort(a), sd = mv_sort(a, "DESC");
+
+a:keyword                            | sa:keyword                 | sd:keyword
+["Mon", "Tues", "Wed", "Thu", "Fri"] | [Fri, Mon, Thu, Tues, Wed] | [Wed, Tues, Thu, Mon, Fri]
+;
+
+mvSortEmp#[skip:-8.13.99, reason:newly added in 8.14]
+FROM employees
+| eval sd = mv_sort(job_positions, "DESC"), sa = mv_sort(job_positions)
+| sort emp_no
+| keep emp_no, job_positions, sa, sd
+| limit 5
+;
+
+emp_no:integer | job_positions:keyword                                                  | sa:keyword                                                             | sd:keyword
+10001          | [Accountant, Senior Python Developer]                                  | [Accountant, Senior Python Developer]                                  | [Senior Python Developer, Accountant]
+10002          | Senior Team Lead                                                       | Senior Team Lead                                                       | Senior Team Lead
+10003          | null                                                                   | null                                                                   | null
+10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead] | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead] | [Tech Lead, Support Engineer, Reporting Analyst, Head Human Resources]
+10005          | null                                                                   | null                                                                   | null
+;
+
 mvSliceEmp#[skip:-8.13.99, reason:newly added in 8.14]
 from employees
 | eval a1 = mv_slice(salary_change.keyword, 0, 1)

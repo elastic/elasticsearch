@@ -108,9 +108,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (inferenceResultsSupplier != null && inferenceResults == null) {
-            throw new IllegalStateException(
-                "Inference results supplier is set, but inference results is null. Missing a rewriteAndFetch?"
-            );
+            throw new IllegalStateException("Inference results supplier is set, but inference results is null. Missing a rewriteAndFetch?");
         }
         out.writeString(fieldName);
         out.writeString(query);

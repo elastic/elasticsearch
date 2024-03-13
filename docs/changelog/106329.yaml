@@ -1,5 +1,5 @@
 pr: 106329
-summary: Update delete object to never fail if alias does not exist
+summary: Fix Search Applications bug where deleting an alias before deleting an application intermittently caused errors
 area: Relevance
 type: bug
 issues: []

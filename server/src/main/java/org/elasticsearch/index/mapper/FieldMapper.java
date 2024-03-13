@@ -678,6 +678,10 @@ public abstract class FieldMapper extends Mapper {
             this.value = value;
         }
 
+        public boolean isSet() {
+            return isSet;
+        }
+
         public boolean isConfigured() {
             return isSet && Objects.equals(value, getDefaultValue()) == false;
         }

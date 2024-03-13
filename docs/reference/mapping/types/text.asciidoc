@@ -174,6 +174,8 @@ a <<keyword-synthetic-source, `keyword`>> sub-field that supports synthetic
 `_source` or if the `text` field sets `store` to `true`. Either way, it may
 not have <<copy-to,`copy_to`>>.
 
+`store` will be set to `true` by default if synthetic source is enabled and there is no suitable <<keyword-synthetic-source, `keyword`>> sub-field.
+
 If using a sub-`keyword` field then the values are sorted in the same way as
 a `keyword` field's values are sorted. By default, that means sorted with
 duplicates removed. So:

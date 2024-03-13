@@ -36,7 +36,9 @@ public class SourceLoaderTests extends MapperServiceTestCase {
     public void testUnsupported() throws IOException {
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createDocumentMapper(syntheticSourceMapping(b -> b.startObject("txt").field("type", "text").endObject()))
+            () -> createDocumentMapper(
+                syntheticSourceMapping(b -> b.startObject("txt").field("type", "text").field("store", "false").endObject())
+            )
         );
         assertThat(
             e.getMessage(),

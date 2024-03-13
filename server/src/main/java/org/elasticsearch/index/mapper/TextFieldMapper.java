@@ -387,13 +387,9 @@ public final class TextFieldMapper extends FieldMapper {
             if (fieldType.stored()) {
                 return null;
             }
-            for (Mapper sub : multiFields) {
-                if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
-                    KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
-                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
-                        return kwd.fieldType();
-                    }
-                }
+            var kwd = getKeywordFieldMapperForSyntheticSource(multiFields);
+            if (kwd != null) {
+                return kwd.fieldType();
             }
             return null;
         }
@@ -460,6 +456,20 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
+
+            // If synthetic source is used we need to either store this field
+            // to recreate the source or use keyword multi-fields for that.
+            // So if there are no suitable multi-fields we will default to
+            // storing the field without requiring users to explicitly set 'store'.
+            //
+            // If 'store' parameter was explicitly provided we'll let it pass and
+            // fail in TextFieldMapper#syntheticFieldLoader later if needed.
+            if (store.isSet() == false
+                && context.isSourceSynthetic()
+                && TextFieldMapper.getKeywordFieldMapperForSyntheticSource(multiFields) == null) {
+                store.setValue(true);
+            }
+
             FieldType fieldType = TextParams.buildFieldType(
                 index,
                 store,
@@ -1454,15 +1464,12 @@ public final class TextFieldMapper extends FieldMapper {
                 }
             };
         }
-        for (Mapper sub : this) {
-            if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
-                KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
-                if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
 
-                    return kwd.syntheticFieldLoader(simpleName());
-                }
-            }
+        var kwd = getKeywordFieldMapperForSyntheticSource(this);
+        if (kwd != null) {
+            return kwd.syntheticFieldLoader(simpleName());
         }
+
         throw new IllegalArgumentException(
             String.format(
                 Locale.ROOT,
@@ -1472,5 +1479,18 @@ public final class TextFieldMapper extends FieldMapper {
                 typeName()
             )
         );
+    }
+
+    private static KeywordFieldMapper getKeywordFieldMapperForSyntheticSource(Iterable<? extends Mapper> multiFields) {
+        for (Mapper sub : multiFields) {
+            if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
+                if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                    return kwd;
+                }
+            }
+        }
+
+        return null;
     }
 }

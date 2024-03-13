@@ -1119,6 +1119,7 @@ public class TextFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
         boolean storeTextField = randomBoolean();
+        boolean explicitlyStoreTextField = randomBoolean();
         boolean storedKeywordField = storeTextField || randomBoolean();
         boolean indexText = randomBoolean();
         Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
@@ -1138,7 +1139,10 @@ public class TextFieldMapperTests extends MapperTestCase {
                         delegate.expectedForSyntheticSource(),
                         delegate.expectedForBlockLoader(),
                         b -> {
-                            b.field("type", "text").field("store", true);
+                            b.field("type", "text");
+                            if (explicitlyStoreTextField) {
+                                b.field("store", true);
+                            }
                             if (indexText == false) {
                                 b.field("index", false);
                             }
@@ -1174,30 +1178,42 @@ public class TextFieldMapperTests extends MapperTestCase {
                     "field [field] of type [text] doesn't support synthetic source unless it is stored or"
                         + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
                 );
-                return List.of(
-                    new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("l");
-                            b.field("type", "long");
-                            b.endObject();
-                        }
+                return List.of(new SyntheticSourceInvalidExample(err, b -> {
+                    b.field("type", "text");
+                    b.field("store", "false");
+                }), new SyntheticSourceInvalidExample(err, b -> {
+                    b.field("type", "text");
+                    b.field("store", "false");
+                    b.startObject("fields");
+                    {
+                        b.startObject("l");
+                        b.field("type", "long");
                         b.endObject();
-                    }),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("kwd");
-                            b.field("type", "keyword");
-                            b.field("normalizer", "lowercase");
-                            b.endObject();
-                        }
+                    }
+                    b.endObject();
+                }), new SyntheticSourceInvalidExample(err, b -> {
+                    b.field("type", "text");
+                    b.field("store", "false");
+                    b.startObject("fields");
+                    {
+                        b.startObject("kwd");
+                        b.field("type", "keyword");
+                        b.field("normalizer", "lowercase");
                         b.endObject();
-                    })
-                );
+                    }
+                    b.endObject();
+                }), new SyntheticSourceInvalidExample(err, b -> {
+                    b.field("type", "text");
+                    b.field("store", "false");
+                    b.startObject("fields");
+                    {
+                        b.startObject("kwd");
+                        b.field("type", "keyword");
+                        b.field("doc_values", "false");
+                        b.endObject();
+                    }
+                    b.endObject();
+                }));
             }
         };
     }

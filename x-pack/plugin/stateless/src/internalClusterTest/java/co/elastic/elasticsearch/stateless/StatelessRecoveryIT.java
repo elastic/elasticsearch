@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.RegisterCommitRequest;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
+import co.elastic.elasticsearch.stateless.recovery.metering.RecoveryMetricsCollector;
 
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -96,9 +97,12 @@ import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
@@ -173,7 +177,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.concatLists(
-            List.of(MockRepository.Plugin.class, InternalSettingsPlugin.class, ShutdownPlugin.class),
+            List.of(MockRepository.Plugin.class, InternalSettingsPlugin.class, ShutdownPlugin.class, TestTelemetryPlugin.class),
             super.nodePlugins()
         );
     }
@@ -2226,5 +2230,95 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         } finally {
             indexNodeATransportService.clearAllRules();
         }
+    }
+
+    public void testRecoveryMetricPublicationWhileRecoveringIndexShard() throws Exception {
+
+        var indexingNode1 = startIndexNode();
+        var indexingNode2 = startIndexNode();
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        // ensure that index shard is allocated on `indexingNode1` and not on `indexingNode2`
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2))
+        );
+
+        int numDocsRound1 = randomIntBetween(100, 1000);
+        indexDocs(indexName, numDocsRound1);
+        refresh(indexName);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        // trigger primary relocation from `indexingNode1` to `indexingNode2`
+        // hence start recovery of the shard on a new node
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode1))
+        );
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC);
+            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThan(0L));
+            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
+            assertThat(metric.attributes().get("shardId"), equalTo(0));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+        });
+    }
+
+    public void testRecoveryMetricPublicationWhileRecoveringSearchShard() throws Exception {
+
+        startIndexNode();
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(100, 1000);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        // no search shard exist yet
+        ensureYellow(indexName);
+
+        var searchNode1 = startSearchNode();
+        ensureGreen(indexName);
+        // sanity check
+        assertBusy(() -> assertHitCount(prepareSearch(indexName), numDocs));
+
+        var searchNode2 = startSearchNode();
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, searchNode2)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        // initiate recovery on `searchNode2`
+        internalCluster().stopNode(searchNode1);
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC);
+            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThan(0L));
+            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
+            assertThat(metric.attributes().get("shardId"), equalTo(0));
+            assertThat(metric.attributes().get("primary"), equalTo(false));
+        });
     }
 }

@@ -416,7 +416,9 @@ row a = [1, 2, 2, 3] | eval da = mv_dedupe(a);
 [1, 2, 2, 3] | [1, 2, 3]
 ;
 
-mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+mvSort
+required_feature: esql.mv_sort
+
 // tag::mv_sort[]
 ROW a = [4, 2, -3, 2]
 | EVAL sa = mv_sort(a), sd = mv_sort(a, "DESC")
@@ -429,7 +431,9 @@ a:integer     | sa:integer    | sd:integer
 // end::mv_sort-result[]
 ;
 
-mvSortEmpInt#[skip:-8.13.99, reason:newly added in 8.14]
+mvSortEmpInt
+required_feature: esql.mv_sort
+
 FROM employees
 | eval sd = mv_sort(salary_change.int, "DESC"), sa = mv_sort(salary_change.int)
 | sort emp_no
@@ -449,7 +453,9 @@ emp_no:integer | salary_change.int:integer | sa:integer    | sd:integer
 10009          | null                      | null          | null
 ;
 
-mvSortEmpLong#[skip:-8.13.99, reason:newly added in 8.14]
+mvSortEmpLong
+required_feature: esql.mv_sort
+
 FROM employees
 | eval sd = mv_sort(salary_change.long, "DESC"), sa = mv_sort(salary_change.long)
 | sort emp_no
@@ -469,7 +475,9 @@ emp_no:integer | salary_change.long:long | sa:long        | sd:long
 10009          | null                    | null           | null
 ;
 
-mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+mvSlice
+required_feature: esql.mv_sort
+
 // tag::mv_slice_positive[]
 row a = [1, 2, 2, 3]
 | eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3)
@@ -481,7 +489,9 @@ a:integer    | a1:integer | a2:integer
 // end::mv_slice_positive-result[]
 ;
 
-mvSliceNegativeOffset#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceNegativeOffset
+required_feature: esql.mv_sort
+
 // tag::mv_slice_negative[]
 row a = [1, 2, 2, 3]
 | eval a1 = mv_slice(a, -2), a2 = mv_slice(a, -3, -1)
@@ -493,7 +503,9 @@ a:integer    | a1:integer | a2:integer
 // end::mv_slice_negative-result[]
 ;
 
-mvSliceSingle#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceSingle
+required_feature: esql.mv_sort
+
 row a = 1
 | eval a1 = mv_slice(a, 0);
 
@@ -501,7 +513,9 @@ a:integer | a1:integer
 1         | 1
 ;
 
-mvSliceOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceOutOfBound
+required_feature: esql.mv_sort
+
 row a = [1, 2, 2, 3]
 | eval a1 = mv_slice(a, 4), a2 = mv_slice(a, 2, 6), a3 = mv_slice(a, 4, 6);
 
@@ -509,7 +523,9 @@ a:integer    | a1:integer | a2:integer | a3:integer
 [1, 2, 2, 3] | null          | [2, 3]     | null
 ;
 
-mvSliceEmpInt#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpInt
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, 0, 1)
 | keep emp_no, salary_change.int, a1
@@ -524,7 +540,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | [-2, 13]
 ;
 
-mvSliceEmpIntSingle#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntSingle
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, 1)
 | keep emp_no, salary_change.int, a1
@@ -539,7 +557,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | 13
 ;
 
-mvSliceEmpIntEndOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntEndOutOfBound
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, 1, 4)
 | keep emp_no, salary_change.int, a1
@@ -554,7 +574,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | 13
 ;
 
-mvSliceEmpIntOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntOutOfBound
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, 2, 4)
 | keep emp_no, salary_change.int, a1
@@ -569,7 +591,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | null
 ;
 
-mvSliceEmpIntStartOutOfBoundNegative#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntStartOutOfBoundNegative
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, -5, -2)
 | keep emp_no, salary_change.int, a1
@@ -584,7 +608,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | -2
 ;
 
-mvSliceEmpIntOutOfBoundNegative#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntOutOfBoundNegative
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, -5, -3)
 | keep emp_no, salary_change.int, a1
@@ -599,7 +625,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | null
 ;
 
-mvSliceEmpLong#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpLong
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.long, 0, 1)
 | keep emp_no, salary_change.long, a1

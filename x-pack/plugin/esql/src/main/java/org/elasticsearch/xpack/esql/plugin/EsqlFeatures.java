@@ -12,8 +12,26 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
 import java.util.Map;
+import java.util.Set;
 
 public class EsqlFeatures implements FeatureSpecification {
+    /**
+     * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
+     * Added in #106095.
+     */
+    private static final NodeFeature MV_SORT = new NodeFeature("esql.mv_sort");
+
+    /**
+     * When we disabled some broken optimizations around {@code nullable}.
+     * Fixed in #105691.
+     */
+    private static final NodeFeature DISABLE_NULLABLE_OPTS = new NodeFeature("esql.disable_nullable_opts");
+
+    /**
+     * Introduction of {@code ST_X} and {@code ST_Y}. Added in #105768.
+     */
+    private static final NodeFeature ST_X_Y = new NodeFeature("esql.st_x_y");
+
     /**
      * When we added the warnings for multivalued fields emitting {@code null}
      * when they touched multivalued fields. Added in #102417.
@@ -41,6 +59,11 @@ public class EsqlFeatures implements FeatureSpecification {
     // * Support for loading {@code geo_point} fields.
     // */
     // private static final NodeFeature GEO_SHAPE_SUPPORT = new NodeFeature("esql.geo_shape");
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y);
+    }
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {

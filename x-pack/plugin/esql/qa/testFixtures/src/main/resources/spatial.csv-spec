@@ -71,7 +71,9 @@ c:geo_point
 POINT(39.58327988510707 20.619513023697994)
 ;
 
-centroidFromString4#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
+centroidFromString4
+required_feature: esql.st_x_y
+
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -82,7 +84,9 @@ c:geo_point                                 | x:double          | y:double
 POINT(39.58327988510707 20.619513023697994) | 39.58327988510707 | 20.619513023697994
 ;
 
-stXFromString#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
+stXFromString
+required_feature: esql.st_x_y
+
 // tag::st_x_y[]
 ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
 | EVAL x =  ST_X(point), y = ST_Y(point)
@@ -113,7 +117,9 @@ WIIT            |  Bandar Lampung  |  POINT(105.2667 -5.45)   |  Indonesia      
 ZAH             |  Zāhedān         |  POINT(60.8628 29.4964)  |  Iran             |  POINT(60.900708564915 29.4752941956573)    |  Zahedan Int'l                |  9            |  mid 
 ;
 
-stXFromAirportsSupportsNull#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
+stXFromAirportsSupportsNull
+required_feature: esql.st_x_y
+
 FROM airports
 | EVAL x = FLOOR(ABS(ST_X(city_location))/200), y = FLOOR(ABS(ST_Y(city_location))/100)
 | STATS c = count(*) BY x, y
@@ -437,7 +443,9 @@ c:cartesian_point
 POINT(3949.163965353159 1078.2645465797348)
 ;
 
-stXFromCartesianString#[skip:-8.13.99, reason:st_x and st_y added in 8.14]
+stXFromCartesianString
+required_feature: esql.st_x_y
+
 ROW point = TO_CARTESIANPOINT("POINT(4297.10986328125 -1475.530029296875)")
 | EVAL x =  ST_X(point), y = ST_Y(point)
 ;

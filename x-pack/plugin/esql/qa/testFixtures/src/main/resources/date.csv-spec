@@ -1154,7 +1154,9 @@ FROM sample_data
 // end::docsNowWhere-result[]
 ;
 
-mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+mvSort
+required_feature: esql.mv_sort
+
 row a = ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"]
 | eval datetime = TO_DATETIME(a)
 | eval sa = mv_sort(datetime), sd = mv_sort(datetime, "DESC")

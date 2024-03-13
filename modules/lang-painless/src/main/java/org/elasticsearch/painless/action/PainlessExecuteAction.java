@@ -816,7 +816,8 @@ public class PainlessExecuteAction {
                             null,
                             document,
                             xContentType,
-                            TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
+                            TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE
+                        );
                     } else {
                         sourceToParse = new SourceToParse("_id", document, xContentType);
                     }

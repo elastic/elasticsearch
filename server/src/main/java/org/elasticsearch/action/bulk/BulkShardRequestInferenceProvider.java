@@ -77,8 +77,8 @@ public class BulkShardRequestInferenceProvider {
     ) {
         Set<String> inferenceIds = new HashSet<>();
         shardIds.stream().map(ShardId::getIndex).collect(Collectors.toSet()).stream().forEach(index -> {
-            var fieldsForModels = clusterState.metadata().index(index).getFieldsForModels();
-            inferenceIds.addAll(fieldsForModels.keySet());
+            var fieldsForInferenceIds = clusterState.metadata().index(index).getFieldInferenceMetadata().getFieldsForInferenceIds();
+            inferenceIds.addAll(fieldsForInferenceIds.keySet());
         });
         final Map<String, InferenceProvider> inferenceProviderMap = new ConcurrentHashMap<>();
         Runnable onModelLoadingComplete = () -> listener.onResponse(
@@ -135,11 +135,11 @@ public class BulkShardRequestInferenceProvider {
         BiConsumer<BulkItemRequest, Exception> onBulkItemFailure
     ) {
 
-        Map<String, Set<String>> fieldsForModels = clusterState.metadata()
+        Map<String, Set<String>> fieldsForInferenceIds = clusterState.metadata()
             .index(bulkShardRequest.shardId().getIndex())
-            .getFieldsForModels();
+            .getFieldInferenceMetadata().getFieldsForInferenceIds();
         // No inference fields? Terminate early
-        if (fieldsForModels.isEmpty()) {
+        if (fieldsForInferenceIds.isEmpty()) {
             listener.onResponse(bulkShardRequest);
             return;
         }
@@ -177,7 +177,7 @@ public class BulkShardRequestInferenceProvider {
                 if (bulkItemRequest != null) {
                     performInferenceOnBulkItemRequest(
                         bulkItemRequest,
-                        fieldsForModels,
+                        fieldsForInferenceIds,
                         i,
                         onBulkItemFailureWithIndex,
                         bulkItemReqRef.acquire()

@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.store.Directory;
@@ -79,16 +80,16 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
         return new BlobStoreSyncDirectory(
             super.createDirectory(path),
             this::getBlobContainerForCurrentTerm,
-            threadPool.executor(getUploadsThreadPool())
+            threadPool.executor(getClusterStateUploadsThreadPool())
         );
     }
 
-    protected String getUploadsThreadPool() {
-        return ThreadPool.Names.SNAPSHOT;
+    protected String getClusterStateUploadsThreadPool() {
+        return Stateless.CLUSTER_STATE_READ_WRITE_THREAD_POOL;
     }
 
-    protected String getDownloadsThreadPool() {
-        return ThreadPool.Names.SNAPSHOT;
+    protected String getClusterStateDownloadsThreadPool() {
+        return Stateless.CLUSTER_STATE_READ_WRITE_THREAD_POOL;
     }
 
     private BlobContainer getBlobContainerForCurrentTerm() {
@@ -100,7 +101,7 @@ public class StatelessPersistedClusterStateService extends PersistedClusterState
         var persistedState = new StatelessPersistedState(
             this,
             objectStoreService()::getClusterStateBlobContainerForTerm,
-            threadPool.executor(getDownloadsThreadPool()),
+            threadPool.executor(getClusterStateDownloadsThreadPool()),
             getStateStagingPath(),
             getInitialState(settings, localNode, clusterSettings, compatibilityVersions),
             Objects.requireNonNull(electionStrategySupplier.get())

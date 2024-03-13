@@ -106,6 +106,9 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
             builder.endObject();
         }
         builder.endArray();
+        if (aggregations != null) {
+            aggregations.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }

@@ -14,46 +14,43 @@ as long as they are assigned with the shards with greater ingest load forecast.
 
 You might get a detailed output of assigned workloads per node using <<cat-allocation,cat allocation command>>.
 
+[source,console,id=cat-allocation-example]
+--------------------------------------------------
+GET /_cat/allocation
+--------------------------------------------------
+
+The API returns the following response:
+
+[source,text]
+--------------------------------------------------
+shards shards.undesired write_load.forecast disk.indices.forecast disk.indices disk.used disk.avail disk.total disk.percent host      ip        node    node.role
+     1                0                 0.0                  260b         260b    47.3gb     43.4gb    100.7gb           46 127.0.0.1 127.0.0.1 CSUXak2 himrst
+--------------------------------------------------
+
 Please note that some operations such as node restarting or decommissioning or changing cluster allocation settings
 are disruptive and might require multiple shards to move or rebalance.
 
 Shard movement order is not deterministic and mostly determined by the source and target node readiness to move a shard.
 While rebalancing is in progress some nodes might appear busier then others.
 
-You might monitor rebalancing progress using <<get-desired-balance,desired balance api>>.
+You might monitor rebalancing progress using the same api:
+* `shards` is the total number of shards allocated to the node.
+* `shards.undesired` is the number of shards that needs to be moved to other nodes to finish balancing.
 
-[source,console,id=get-desired-balance-request-example]
---------------------------------------------------
-GET /_internal/desired_balance
---------------------------------------------------
-
-The API returns the following response:
-
-[source,js]
---------------------------------------------------
-...
-  "cluster_balance_stats" : {
-    "shard_count": 42,                        <1>
-    "undesired_shard_allocation_count": 3,    <2>
-...
---------------------------------------------------
-
-<1> The total number of shards in cluster.
-<2> The number of shards that needs to be moved to finish balancing.
+A cluster is considered balanced when no shard movements are scheduled (all `shards.undesired` are equal to 0).
 
 When shard is allocated to undesired node it utilizes the resources of the current node instead of target.
 This might cause a hotspot (disk or CPU) when multiple shards are residing on the current node that have not been
 moved to their corresponding targets yet.
 
 You might find log entries such as
-[source,console]
+[source,text]
 --------------------------------------------------
-[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]
+[WARN][o.e.c.r.a.a.DesiredBalanceReconciler] [10%] of assigned shards (10/100) are not on their desired nodes, which exceeds the warn threshold of [10%]
 --------------------------------------------------
 if cluster detects a significant amount (>= 10%) of shards need to be moved.
 This is not concerning as long as the number of such shards is decreasing and this warning appears occasionally,
 for example after rolling restarts or changing allocation settings.
-
 
 If cluster is experiencing this warning for extended period of time, it is possible that the desired balance diverged
 too far from the current state. Then it is possible to reset the desired balance using the following API call
@@ -63,7 +60,6 @@ and calculate a new one that would hopefully require less shard movements to get
 --------------------------------------------------
 DELETE /_internal/desired_balance
 --------------------------------------------------
-
 
 If cluster is getting into this state repeatedly without node restarts nor changes in allocation settings,
 it is possible to increase the <<shards-rebalancing-heuristics,cluster.routing.allocation.balance.threshold>> in order

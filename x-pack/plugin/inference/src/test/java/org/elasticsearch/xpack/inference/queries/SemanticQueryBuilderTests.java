@@ -7,7 +7,12 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -28,13 +33,16 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_RESULTS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -43,8 +51,18 @@ import static org.hamcrest.Matchers.notNullValue;
 // TODO: Add dense vector tests
 
 public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQueryBuilder> {
-
     private static final String SEMANTIC_TEXT_SPARSE_FIELD = "semantic_sparse";
+    private static final float TOKEN_WEIGHT = 0.5f;
+    private static final int QUERY_TOKEN_LENGTH = 4;
+
+    private Integer queryTokenCount;
+
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        queryTokenCount = null;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -69,7 +87,13 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected SemanticQueryBuilder doCreateTestQueryBuilder() {
-        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_SPARSE_FIELD, randomAlphaOfLength(4));
+        queryTokenCount = randomIntBetween(1, 5);
+        List<String> queryTokens = new ArrayList<>(queryTokenCount);
+        for (int i = 0; i < queryTokenCount; i++) {
+            queryTokens.add(randomAlphaOfLength(QUERY_TOKEN_LENGTH));
+        }
+
+        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_SPARSE_FIELD, String.join(" ", queryTokens));
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -82,10 +106,34 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected void doAssertLuceneQuery(SemanticQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+        assertThat(queryTokenCount, notNullValue());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
 
-        // TODO: Extend assertion
+        ESToParentBlockJoinQuery nestedQuery = (ESToParentBlockJoinQuery) query;
+        assertThat(nestedQuery.getPath(), equalTo(SEMANTIC_TEXT_SPARSE_FIELD));
+        assertThat(nestedQuery.getScoreMode(), equalTo(ScoreMode.Total));
+        assertThat(nestedQuery.getChildQuery(), instanceOf(BooleanQuery.class));
+
+        assertSparseVectorBooleanQuery((BooleanQuery) nestedQuery.getChildQuery());
+    }
+
+    private void assertSparseVectorBooleanQuery(BooleanQuery booleanQuery) {
+        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(1));
+        assertThat(booleanQuery.clauses().size(), equalTo(queryTokenCount));
+
+        for (BooleanClause booleanClause : booleanQuery.clauses()) {
+            assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+            assertThat(booleanClause.getQuery(), instanceOf(BoostQuery.class));
+
+            BoostQuery boostQuery = (BoostQuery) booleanClause.getQuery();
+            assertThat(boostQuery.getBoost(), equalTo(TOKEN_WEIGHT));
+            assertThat(boostQuery.getQuery(), instanceOf(TermQuery.class));
+
+            TermQuery termQuery = (TermQuery) boostQuery.getQuery();
+            assertThat(termQuery.getTerm().field(), equalTo(SEMANTIC_TEXT_SPARSE_FIELD + "." + INFERENCE_CHUNKS_RESULTS));
+            assertThat(termQuery.getTerm().text().length(), equalTo(QUERY_TOKEN_LENGTH));
+        }
     }
 
     @Override
@@ -104,7 +152,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(input.size(), equalTo(1));
 
         List<TextExpansionResults.WeightedToken> weightedTokens = Arrays.stream(input.get(0).split("\\s+"))
-            .map(s -> new TextExpansionResults.WeightedToken(s, 0.5f))
+            .map(s -> new TextExpansionResults.WeightedToken(s, TOKEN_WEIGHT))
             .toList();
         TextExpansionResults textExpansionResults = new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
         InferenceAction.Response response = new InferenceAction.Response(SparseEmbeddingResults.of(List.of(textExpansionResults)));

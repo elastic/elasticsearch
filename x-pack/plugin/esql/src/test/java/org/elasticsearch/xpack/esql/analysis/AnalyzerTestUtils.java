@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -98,6 +99,16 @@ public final class AnalyzerTestUtils {
         EnrichResolution enrichResolution = new EnrichResolution();
         loadEnrichPolicyResolution(enrichResolution, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
         loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "client_cidr", "client_cidr", "client_cidr", "mapping-client_cidr.json");
+        loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "ages_policy", "age_range", "ages", "mapping-ages.json");
+        loadEnrichPolicyResolution(enrichResolution, RANGE_TYPE, "heights_policy", "height_range", "heights", "mapping-heights.json");
+        loadEnrichPolicyResolution(
+            enrichResolution,
+            GEO_MATCH_TYPE,
+            "city_boundaries",
+            "city_boundary",
+            "airport_city_boundaries",
+            "mapping-airport_city_boundaries.json"
+        );
         return enrichResolution;
     }
 

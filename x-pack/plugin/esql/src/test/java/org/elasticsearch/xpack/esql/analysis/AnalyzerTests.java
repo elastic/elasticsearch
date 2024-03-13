@@ -1496,6 +1496,28 @@ public class AnalyzerTests extends ESTestCase {
             | ENRICH client_cidr ON client_ip WITH env
             | KEEP client_ip, env
             """, "sample_data", "mapping-sample_data.json"), "client_ip", "env");
+
+        assertProjection(analyze("""
+            FROM employees
+            | WHERE birth_date > "1960-01-01"
+            | EVAL birth_year = DATE_EXTRACT("year", birth_date)
+            | EVAL age = 2022 - birth_year
+            | ENRICH ages_policy ON age WITH age_group = description
+            | KEEP first_name, last_name, age, age_group
+            """, "employees", "mapping-default.json"), "first_name", "last_name", "age", "age_group");
+
+        assertProjection(analyze("""
+            FROM employees
+            | ENRICH heights_policy ON height WITH height_group = description
+            | KEEP first_name, last_name, height, height_group
+            """, "employees", "mapping-default.json"), "first_name", "last_name", "height", "height_group");
+
+        assertProjection(analyze("""
+            FROM airports
+            | WHERE abbrev == "CPH"
+            | ENRICH city_boundaries ON city_location WITH airport, region
+            | KEEP abbrev, airport, region
+            """, "airports", "mapping-airports.json"), "abbrev", "airport", "region");
     }
 
     public void testEnrichExcludesPolicyKey() {

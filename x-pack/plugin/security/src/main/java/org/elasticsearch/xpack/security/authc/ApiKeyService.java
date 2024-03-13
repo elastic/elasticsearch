@@ -1897,7 +1897,7 @@ public class ApiKeyService {
      * @param apiKeyName API key name
      * @param apiKeyIds API key ids
      * @param withLimitedBy whether to parse and return the limited by role descriptors
-     * @param listener listener for {@link GetApiKeyResponse}
+     * @param listener listener receiving the requested collection of {@link ApiKey}
      */
     public void getApiKeys(
         String[] realmNames,
@@ -1906,7 +1906,7 @@ public class ApiKeyService {
         String[] apiKeyIds,
         boolean withLimitedBy,
         boolean activeOnly,
-        ActionListener<GetApiKeyResponse> listener
+        ActionListener<Collection<ApiKey>> listener
     ) {
         ensureEnabled();
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
@@ -1918,7 +1918,7 @@ public class ApiKeyService {
             activeOnly,
             hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
             ActionListener.wrap(apiKeyInfos -> {
-                if (apiKeyInfos.isEmpty()) {
+                if (apiKeyInfos.isEmpty() && logger.isDebugEnabled()) {
                     logger.debug(
                         "No API keys found for realms {}, user [{}], API key name [{}], API key IDs {}, and active_only flag [{}]",
                         Arrays.toString(realmNames),
@@ -1927,10 +1927,8 @@ public class ApiKeyService {
                         Arrays.toString(apiKeyIds),
                         activeOnly
                     );
-                    listener.onResponse(GetApiKeyResponse.emptyResponse());
-                } else {
-                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
                 }
+                listener.onResponse(apiKeyInfos);
             }, listener::onFailure)
         );
     }

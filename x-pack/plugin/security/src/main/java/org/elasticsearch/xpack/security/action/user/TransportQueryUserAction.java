@@ -57,12 +57,7 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
         super(ActionTypes.QUERY_USER_ACTION.name(), actionFilters, transportService.getTaskManager());
         this.usersStore = usersStore;
         this.profileService = profileService;
-        this.nativeRealmRef = realms.getRealmRefs()
-            .values()
-            .stream()
-            .filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType()))
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException("native realm realm ref not found"));
+        this.nativeRealmRef = realms.getNativeRealmRef();
     }
 
     @Override

@@ -181,11 +181,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected abstract Expression build(Source source, List<Expression> args);
 
-    protected final Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
+    protected Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsFields());
     }
 
-    protected final Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
+    protected Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsDeepCopiedFields());
     }
 

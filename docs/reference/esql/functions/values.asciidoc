@@ -12,7 +12,7 @@ VALUES(expression)
 ----
 
 `expression`::
-Expression of any type except `geo_point` or `cartesian_point`.
+Expression of any type except `geo_point`, `cartesian_point`, or `geo_shape`.
 
 *Description*
 

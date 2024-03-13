@@ -553,7 +553,6 @@ public class AggregatorImplementer {
             ClassName blockType = blockType(elementType());
             builder.beginControlFlow("if ($L.areAllValuesNull())", name + "Uncast");
             {
-                // TODO is it right to bail on all null here?
                 builder.addStatement("return");
                 builder.endControlFlow();
             }

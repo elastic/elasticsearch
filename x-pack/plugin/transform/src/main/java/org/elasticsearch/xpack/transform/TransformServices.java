@@ -40,7 +40,7 @@ public final class TransformServices {
         this.checkpointService = Objects.requireNonNull(checkpointService);
         this.auditor = Objects.requireNonNull(auditor);
         this.scheduler = Objects.requireNonNull(scheduler);
-        this.retryableActions = retryableActions;
+        this.retryableActions = Objects.requireNonNull(retryableActions);
     }
 
     public TransformConfigManager getConfigManager() {

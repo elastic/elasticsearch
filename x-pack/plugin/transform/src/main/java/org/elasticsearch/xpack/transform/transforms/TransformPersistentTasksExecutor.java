@@ -415,7 +415,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     newState,
                     ActionListener.wrap(
                         rr -> logger.debug("[{}] marked as retrying in TransformState.", task.getTransformId()),
-                        ee -> logger.warn(() -> format("[%s] failed to persist state.", task.getTransformId()), ee)
+                        ee -> logger.atWarn().withThrowable(ee).log("[{}] failed to persist state.", task.getTransformId())
                     )
                 );
             }

@@ -25,48 +25,49 @@ import java.util.Map;
 
 public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     private static List<?> oldHits;
+    private static final String INDEX_NAME = "exists-index";
 
     public IgnoredFieldMixedClusterUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
     @SuppressWarnings("unchecked")
-    public void testIgnoredMetaField() throws IOException {
+    public void testIgnoredMetaFieldExistsQuery() throws IOException {
         if (isOldCluster()) {
-            assertRestStatus(client().performRequest(createNewIndex("test")), RestStatus.OK);
-            assertRestStatus(client().performRequest(indexDocument("1", "foofoo")), RestStatus.CREATED);
-            assertRestStatus(client().performRequest(indexDocument("2", "barbar")), RestStatus.CREATED);
-            assertRestStatus(client().performRequest(indexDocument("3", "fooooo")), RestStatus.CREATED);
-            assertRestStatus(client().performRequest(indexDocument("4", "barbaz")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(createNewIndex(INDEX_NAME)), RestStatus.OK);
+            assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "1", "foofoo")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "2", "barbar")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "3", "fooooo")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "4", "barbaz")), RestStatus.CREATED);
             final List<Map<String, Object>> allDocs = (List<Map<String, Object>>) XContentMapValues.extractValue(
                 "hits.hits",
-                entityAsMap(matchAll())
+                entityAsMap(matchAll(INDEX_NAME))
             );
             assertThat(allDocs.size(), Matchers.equalTo(4));
             allDocs.forEach(doc -> assertThat((List<String>) doc.get("_ignored"), Matchers.contains("keyword")));
-            oldHits = (List<?>) XContentMapValues.extractValue("hits.hits", entityAsMap(existsQuery()));
+            oldHits = (List<?>) XContentMapValues.extractValue("hits.hits", entityAsMap(existsQuery(INDEX_NAME)));
             assertThat(oldHits.size(), Matchers.equalTo(4));
         } else if (isUpgradedCluster()) {
-            assertRestStatus(client().performRequest(indexDocument("5", "foobar")), RestStatus.CREATED);
-            assertRestStatus(client().performRequest(indexDocument("6", "bazfoo")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "5", "foobar")), RestStatus.CREATED);
+            assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "6", "bazfoo")), RestStatus.CREATED);
             final List<Map<String, Object>> allDocs = (List<Map<String, Object>>) XContentMapValues.extractValue(
                 "hits.hits",
-                entityAsMap(existsQuery())
+                entityAsMap(matchAll(INDEX_NAME))
             );
             assertThat(allDocs.size(), Matchers.equalTo(6));
             allDocs.forEach(doc -> assertThat((List<String>) doc.get("_ignored"), Matchers.contains("keyword")));
-            final List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", entityAsMap(existsQuery()));
+            final List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", entityAsMap(existsQuery(INDEX_NAME)));
             assertThat(hits.size(), Matchers.equalTo(6));
-            assertThat(oldHits, Matchers.containsInAnyOrder(hits));
+            assertThat(hits.containsAll(oldHits), Matchers.equalTo(true));
         }
     }
 
-    private static Response matchAll() throws IOException {
-        return client().performRequest(new Request("POST", "/test/_search"));
+    private static Response matchAll(final String index) throws IOException {
+        return client().performRequest(new Request("POST", "/" + index + "/_search"));
     }
 
-    private static Response existsQuery() throws IOException {
-        final Request request = new Request("POST", "/test/_search");
+    private static Response existsQuery(final String index) throws IOException {
+        final Request request = new Request("POST", "/" + index + "/_search");
         final String format = Strings.format("""
             {
               "query": {
@@ -79,8 +80,8 @@ public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgra
         return client().performRequest(request);
     }
 
-    private static Request createNewIndex(final String indexName) throws IOException {
-        final Request createIndex = new Request("PUT", "/" + indexName);
+    private static Request createNewIndex(final String index) throws IOException {
+        final Request createIndex = new Request("PUT", "/" + index);
         final XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("mappings")
@@ -96,8 +97,8 @@ public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgra
         return createIndex;
     }
 
-    private static Request indexDocument(final String id, final String keywordValue) throws IOException {
-        final Request indexRequest = new Request("POST", "/test/_doc/");
+    private static Request indexDocument(final String index, final String id, final String keywordValue) throws IOException {
+        final Request indexRequest = new Request("POST", "/" + index + "/_doc/");
         final XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .field("id", id)

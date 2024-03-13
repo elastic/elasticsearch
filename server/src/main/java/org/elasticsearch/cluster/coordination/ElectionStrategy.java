@@ -105,10 +105,17 @@ public abstract class ElectionStrategy {
         listener.onResponse(null);
     }
 
-    public boolean nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
+    // Whether a node may win elections
+    public record NodeEligibility(boolean mayWin, String reason) {}
+
+    public static final NodeEligibility NODE_MAY_WIN_ELECTION = new NodeEligibility(true, null);
+    public static final NodeEligibility NODE_MAY_NOT_WIN_ELECTION = new NodeEligibility(false, null);
+
+    public NodeEligibility nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
         final String nodeId = node.getId();
-        return lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
+        final boolean nodeMayWin = lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
             || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
             || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId));
+        return nodeMayWin ? NODE_MAY_WIN_ELECTION : NODE_MAY_NOT_WIN_ELECTION;
     }
 }

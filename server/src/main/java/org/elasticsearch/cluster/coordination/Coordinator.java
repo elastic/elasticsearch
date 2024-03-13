@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper.Clus
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
+import org.elasticsearch.cluster.coordination.ElectionStrategy.NodeEligibility;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.coordination.JoinHelper.InitialJoinAccumulator;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -537,8 +538,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             // The preVoteCollector is only active while we are candidate, but it does not call this method with synchronisation, so we have
             // to check our mode again here.
             if (mode == Mode.CANDIDATE) {
-                if (localNodeMayWinElection(getLastAcceptedState(), electionStrategy) == false) {
-                    logger.trace("skip election as local node may not win it: {}", getLastAcceptedState().coordinationMetadata());
+                final var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
+                if (nodeEligibility.mayWin() == false) {
+                    if (nodeEligibility.reason() == null) {
+                        logger.trace("skip election as local node may not win it: {}", getLastAcceptedState().coordinationMetadata());
+                    } else {
+                        logger.info(
+                            "skip election as local node may not win it ({}): {}",
+                            nodeEligibility.reason(),
+                            getLastAcceptedState().coordinationMetadata()
+                        );
+                    }
                     return;
                 }
 
@@ -584,7 +594,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         becomeCandidate("after abdicating to " + newMaster);
     }
 
-    private static boolean localNodeMayWinElection(ClusterState lastAcceptedState, ElectionStrategy electionStrategy) {
+    private static NodeEligibility localNodeMayWinElection(ClusterState lastAcceptedState, ElectionStrategy electionStrategy) {
         final DiscoveryNode localNode = lastAcceptedState.nodes().getLocalNode();
         assert localNode != null;
         return electionStrategy.nodeMayWinElection(lastAcceptedState, localNode);
@@ -1263,7 +1273,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             metadataBuilder.coordinationMetadata(coordinationMetadata);
 
             coordinationState.get().setInitialState(ClusterState.builder(currentState).metadata(metadataBuilder).build());
-            assert localNodeMayWinElection(getLastAcceptedState(), electionStrategy)
+            assert localNodeMayWinElection(getLastAcceptedState(), electionStrategy).mayWin()
                 : "initial state does not allow local node to win election: " + getLastAcceptedState().coordinationMetadata();
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
@@ -1747,9 +1757,20 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 synchronized (mutex) {
                     if (mode == Mode.CANDIDATE) {
                         final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
-
-                        if (localNodeMayWinElection(lastAcceptedState, electionStrategy) == false) {
-                            logger.trace("skip prevoting as local node may not win election: {}", lastAcceptedState.coordinationMetadata());
+                        final var nodeEligibility = localNodeMayWinElection(lastAcceptedState, electionStrategy);
+                        if (nodeEligibility.mayWin() == false) {
+                            if (nodeEligibility.reason() == null) {
+                                logger.trace(
+                                    "skip prevoting as local node may not win election: {}",
+                                    lastAcceptedState.coordinationMetadata()
+                                );
+                            } else {
+                                logger.info(
+                                    "skip prevoting as local node may not win election ({}): {}",
+                                    nodeEligibility.reason(),
+                                    lastAcceptedState.coordinationMetadata()
+                                );
+                            }
                             return;
                         }
 
@@ -1963,10 +1984,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                                         // if necessary, abdicate to another node or improve the voting configuration
                                         boolean attemptReconfiguration = true;
                                         final ClusterState state = getLastAcceptedState(); // committed state
-                                        if (localNodeMayWinElection(state, electionStrategy) == false) {
+                                        if (localNodeMayWinElection(state, electionStrategy).mayWin() == false) {
                                             final List<DiscoveryNode> masterCandidates = completedNodes().stream()
                                                 .filter(DiscoveryNode::isMasterNode)
-                                                .filter(node -> electionStrategy.nodeMayWinElection(state, node))
+                                                .filter(node -> electionStrategy.nodeMayWinElection(state, node).mayWin())
                                                 .filter(node -> {
                                                     // check if master candidate would be able to get an election quorum if we were to
                                                     // abdicate to it. Assume that every node that completed the publication can provide

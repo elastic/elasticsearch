@@ -139,6 +139,11 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
 
     @Override
     public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        if (minDocCount() == 0) {
+            // if minDocCount os zero, we collect the zero buckets looking into all segments in the index. to avoid
+            // looking into the same segment for each thread we disable concurrency
+            return false;
+        }
         /*
          * we parallelize only if the cardinality of the field is lower than shard size, this is to minimize precision issues.
          * When ordered by term, we still take cardinality into account to avoid overhead that concurrency may cause against

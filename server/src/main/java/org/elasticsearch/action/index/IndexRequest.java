@@ -881,7 +881,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source);
+        return indexRouting.indexShard(id, routing, contentType, source, this::routing);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

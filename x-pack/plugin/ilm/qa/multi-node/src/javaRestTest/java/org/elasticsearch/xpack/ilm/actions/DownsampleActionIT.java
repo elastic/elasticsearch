@@ -327,7 +327,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), backingIndexName).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -374,7 +374,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), backingIndexName).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -465,7 +465,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), firstBackingIndex).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -547,7 +547,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), firstBackingIndex).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 

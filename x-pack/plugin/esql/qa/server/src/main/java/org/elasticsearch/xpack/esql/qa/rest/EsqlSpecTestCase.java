@@ -132,6 +132,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) {
+        for (String feature : testCase.requiredFeatures) {
+            assumeTrue("Test " + testName + " requires " + feature, clusterHasFeature(feature));
+        }
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
     }
 

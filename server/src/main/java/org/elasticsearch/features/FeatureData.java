@@ -20,6 +20,8 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.elasticsearch.features.FeatureService.CLUSTER_FEATURES_ADDED_VERSION;
+
 /**
  * Reads and consolidate features exposed by a list {@link FeatureSpecification}, grouping them into historical features and node
  * features for the consumption of {@link FeatureService}
@@ -47,9 +49,7 @@ public class FeatureData {
                         Strings.format("Duplicate feature - [%s] is declared by both [%s] and [%s]", hfe.getKey().id(), existing, spec)
                     );
                 }
-
-                // FIXME
-                if (hfe.getValue().after(Version.CURRENT)) {
+                if (hfe.getValue().after(CLUSTER_FEATURES_ADDED_VERSION)) {
                     throw new IllegalArgumentException(
                         Strings.format(
                             "Historical feature [%s] declared by [%s] for version [%s] is not a historical version",

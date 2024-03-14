@@ -51,7 +51,7 @@ When a shard is allocated to an undesired node it uses the resources of the curr
 This might cause a hotspot (disk or CPU) when multiple shards reside on the current node that have not been
 moved to their corresponding targets yet.
 
-If cluster is taking a long time to finish rebalancing you might find following log entries:
+If a cluster takes a long time to finish rebalancing you might find the following log entries:
 [source,text]
 --------------------------------------------------
 [WARN][o.e.c.r.a.a.DesiredBalanceReconciler] [10%] of assigned shards (10/100) are not on their desired nodes, which exceeds the warn threshold of [10%]

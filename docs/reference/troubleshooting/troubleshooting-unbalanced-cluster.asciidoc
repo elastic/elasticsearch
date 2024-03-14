@@ -5,7 +5,7 @@ Elasticsearch balances shards across data tiers to achieve a good compromise bet
 
 * shard count
 * disk usage
-* ingest load forecast for write indices
+* write load (for indices in data streams)
 
 Elasticsearch does not take into account the amount or complexity of search queries when rebalancing shards.
 

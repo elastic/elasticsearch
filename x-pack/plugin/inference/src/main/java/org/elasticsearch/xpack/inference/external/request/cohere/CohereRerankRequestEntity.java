@@ -8,68 +8,65 @@
 package org.elasticsearch.xpack.inference.external.request.cohere;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.invalidInputTypeMessage;
+public record CohereRerankRequestEntity(
+    String query,
+    List<String> documents,
+    CohereRerankTaskSettings taskSettings,
+    @Nullable String model,
+    @Nullable Integer topNDocumentsOnly,
+    @Nullable Integer maxChunksPerDoc
+) implements ToXContentObject {
 
-public record CohereRerankRequestEntity(List<String> input, CohereRerankTaskSettings taskSettings, @Nullable String model)
-    implements
-        ToXContentObject {
-
-    private static final String SEARCH_DOCUMENT = "search_document";
-    private static final String SEARCH_QUERY = "search_query";
-    private static final String CLUSTERING = "clustering";
-    private static final String CLASSIFICATION = "classification";
-
-    private static final String TEXTS_FIELD = "texts";
-
-    static final String INPUT_TYPE_FIELD = "input_type";
+    private static final String DOCUMENTS_FIELD = "documents";
+    private static final String QUERY_FIELD = "query";
+    private static final String RETURN_DOCUMENTS_FIELD = "return_documents";
+    private static final String TOP_N_FIELD = "top_n";
+    private static final String MAX_CHUNKS_PER_DOC = "max_chunks_per_doc";
+    private static final String COHERE_MODEL_ID_FIELD = "model";
 
     public CohereRerankRequestEntity {
-        Objects.requireNonNull(input);
+        Objects.requireNonNull(query);
+        Objects.requireNonNull(documents);
         Objects.requireNonNull(taskSettings);
+    }
+
+    public CohereRerankRequestEntity(String query, List<String> input, CohereRerankTaskSettings taskSettings, String model) {
+        this(query, input, taskSettings, model, null, null);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TEXTS_FIELD, input);
+
+        builder.field(QUERY_FIELD, query);
+        builder.field(DOCUMENTS_FIELD, documents);
+
+        if (taskSettings.getDoesReturnDocuments() != null) {
+            builder.field(RETURN_DOCUMENTS_FIELD, taskSettings.getDoesReturnDocuments());
+        }
+
         if (model != null) {
-            builder.field(CohereServiceSettings.OLD_MODEL_ID_FIELD, model);
+            builder.field(COHERE_MODEL_ID_FIELD, model);
         }
 
-        if (taskSettings.getInputType() != null) {
-            builder.field(INPUT_TYPE_FIELD, covertToString(taskSettings.getInputType()));
+        if (topNDocumentsOnly != null) {
+            builder.field(TOP_N_FIELD, topNDocumentsOnly);
         }
 
-        if (taskSettings.getTruncation() != null) {
-            builder.field(CohereServiceFields.TRUNCATE, taskSettings.getTruncation());
+        if (maxChunksPerDoc != null) {
+            builder.field(MAX_CHUNKS_PER_DOC, maxChunksPerDoc);
         }
 
         builder.endObject();
         return builder;
     }
 
-    // default for testing
-    static String covertToString(InputType inputType) {
-        return switch (inputType) {
-            case INGEST -> SEARCH_DOCUMENT;
-            case SEARCH -> SEARCH_QUERY;
-            case CLASSIFICATION -> CLASSIFICATION;
-            case CLUSTERING -> CLUSTERING;
-            default -> {
-                assert false : invalidInputTypeMessage(inputType);
-                yield null;
-            }
-        };
-    }
 }

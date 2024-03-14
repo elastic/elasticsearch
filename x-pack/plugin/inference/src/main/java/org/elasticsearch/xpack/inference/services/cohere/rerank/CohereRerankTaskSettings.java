@@ -21,31 +21,23 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields.TRUNCATE;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 
 /**
- * Defines the task settings for the cohere text embeddings service.
+ * Defines the task settings for the cohere rerank service.
  *
  * <p>
- * <a href="https://docs.cohere.com/reference/embed">See api docs for details.</a>
+ * <a href="https://docs.cohere.com/reference/rerank-1">See api docs for details.</a>
  * </p>
  */
 public class CohereRerankTaskSettings implements TaskSettings {
 
-    public static final String NAME = "cohere_embeddings_task_settings";
+    public static final String NAME = "cohere_rerank_task_settings";
     public static final CohereRerankTaskSettings EMPTY_SETTINGS = new CohereRerankTaskSettings(null, null);
-    static final String INPUT_TYPE = "input_type";
-    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
-        InputType.INGEST,
-        InputType.SEARCH,
-        InputType.CLASSIFICATION,
-        InputType.CLUSTERING
-    );
+    static final String RETURN_DOCUMENTS = "return_documents";
 
     public static CohereRerankTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
@@ -54,67 +46,45 @@ public class CohereRerankTaskSettings implements TaskSettings {
 
         ValidationException validationException = new ValidationException();
 
-        InputType inputType = extractOptionalEnum(
-            map,
-            INPUT_TYPE,
-            ModelConfigurations.TASK_SETTINGS,
-            InputType::fromString,
-            VALID_REQUEST_VALUES,
-            validationException
-        );
-        CohereTruncation truncation = extractOptionalEnum(
-            map,
-            TRUNCATE,
-            ModelConfigurations.TASK_SETTINGS,
-            CohereTruncation::fromString,
-            EnumSet.allOf(CohereTruncation.class),
-            validationException
-        );
+        Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, ModelConfigurations.TASK_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CohereRerankTaskSettings(inputType, truncation);
+        return of(returnDocuments);
     }
 
     /**
      * Creates a new {@link CohereRerankTaskSettings} by preferring non-null fields from the provided parameters.
-     * For the input type, preference is given to requestInputType if it is not null and not UNSPECIFIED.
-     * Then preference is given to the requestTaskSettings and finally to originalSettings even if the value is null.
+     * For returnDocuments, preference is given to requestTaskSettings if it is not null. Otherwise, preference is given to true.
      *
      * Similarly, for the truncation field preference is given to requestTaskSettings if it is not null and then to
      * originalSettings.
      * @param originalSettings the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
-     * @param requestInputType the input type passed in the request parameters
+     * @param returnDocuments if the response should include the text of each document, else the response will only include index, and
+     *                        relevance score
      * @return a constructed {@link CohereRerankTaskSettings}
      */
     public static CohereRerankTaskSettings of(
         CohereRerankTaskSettings originalSettings,
         CohereRerankTaskSettings requestTaskSettings,
-        InputType requestInputType
+        Boolean returnDocuments
     ) {
-        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings, requestInputType);
+        Boolean doesReturnDocuments;
+        if (requestTaskSettings != null && requestTaskSettings.getDoesReturnDocuments() != null) {
+            doesReturnDocuments = requestTaskSettings.getDoesReturnDocuments();
+        } else {
+            doesReturnDocuments = returnDocuments || (originalSettings != null && originalSettings.getDoesReturnDocuments());
+        }
         var truncationToUse = getValidTruncation(originalSettings, requestTaskSettings);
 
-        return new CohereRerankTaskSettings(inputTypeToUse, truncationToUse);
+        return new CohereRerankTaskSettings(doesReturnDocuments, truncationToUse);
     }
 
-    private static InputType getValidInputType(
-        CohereRerankTaskSettings originalSettings,
-        CohereRerankTaskSettings requestTaskSettings,
-        InputType requestInputType
-    ) {
-        InputType inputTypeToUse = originalSettings.inputType;
-
-        if (VALID_REQUEST_VALUES.contains(requestInputType)) {
-            inputTypeToUse = requestInputType;
-        } else if (requestTaskSettings.inputType != null) {
-            inputTypeToUse = requestTaskSettings.inputType;
-        }
-
-        return inputTypeToUse;
+    public static CohereRerankTaskSettings of(Boolean returnDocuments) {
+        return new CohereRerankTaskSettings(returnDocuments, null);
     }
 
     private static CohereTruncation getValidTruncation(
@@ -124,43 +94,30 @@ public class CohereRerankTaskSettings implements TaskSettings {
         return requestTaskSettings.getTruncation() == null ? originalSettings.truncation : requestTaskSettings.getTruncation();
     }
 
-    private final InputType inputType;
+    private final Boolean returnDocuments;
     private final CohereTruncation truncation;
 
     public CohereRerankTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(CohereTruncation.class));
+        this(in.readBoolean(), in.readOptionalEnum(CohereTruncation.class));
     }
 
-    public CohereRerankTaskSettings(@Nullable InputType inputType, @Nullable CohereTruncation truncation) {
-        validateInputType(inputType);
-        this.inputType = inputType;
+    public CohereRerankTaskSettings(@Nullable Boolean doReturnDocuments, @Nullable CohereTruncation truncation) {
+        this.returnDocuments = doReturnDocuments;
         this.truncation = truncation;
-    }
-
-    private static void validateInputType(InputType inputType) {
-        if (inputType == null) {
-            return;
-        }
-
-        assert VALID_REQUEST_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (inputType != null) {
-            builder.field(INPUT_TYPE, inputType);
-        }
-
-        if (truncation != null) {
-            builder.field(TRUNCATE, truncation);
+        if (returnDocuments != null) {
+            builder.field(RETURN_DOCUMENTS, returnDocuments);
         }
         builder.endObject();
         return builder;
     }
 
-    public InputType getInputType() {
-        return inputType;
+    public Boolean getDoesReturnDocuments() {
+        return returnDocuments;
     }
 
     public CohereTruncation getTruncation() {
@@ -174,12 +131,11 @@ public class CohereRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersions.ML_INFERENCE_COHERE_RERANK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalEnum(inputType);
         out.writeOptionalEnum(truncation);
     }
 
@@ -188,12 +144,12 @@ public class CohereRerankTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CohereRerankTaskSettings that = (CohereRerankTaskSettings) o;
-        return Objects.equals(inputType, that.inputType) && Objects.equals(truncation, that.truncation);
+        return Objects.equals(returnDocuments, that.returnDocuments) && Objects.equals(truncation, that.truncation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inputType, truncation);
+        return Objects.hash(returnDocuments, truncation);
     }
 
     public static String invalidInputTypeMessage(InputType inputType) {

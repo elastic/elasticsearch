@@ -161,10 +161,7 @@ abstract class QueryList {
 
             this.field = field;
             this.searchExecutionContext = searchExecutionContext;
-            if (block.elementType() != BYTES_REF) {
-                throw new EsqlIllegalArgumentException("can't read Geometry values from [" + block.elementType() + "] block");
-            }
-            this.blockValueReader = blockToGeometry((BytesRefBlock) block);
+            this.blockValueReader = blockToGeometry(block);
             this.shapeQuery = shapeQuery();
         }
 
@@ -180,10 +177,14 @@ abstract class QueryList {
             };
         }
 
-        private IntFunction<Geometry> blockToGeometry(BytesRefBlock bytesRefBlock) {
-            return offset -> {
-                var wkb = bytesRefBlock.getBytesRef(offset, scratch);
-                return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+        private IntFunction<Geometry> blockToGeometry(Block block) {
+            return switch (block.elementType()) {
+                case BYTES_REF -> offset -> {
+                    var wkb = ((BytesRefBlock) block).getBytesRef(offset, scratch);
+                    return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+                };
+                case NULL -> offset -> null;
+                default -> throw new EsqlIllegalArgumentException("can't read Geometry values from [" + block.elementType() + "] block");
             };
         }
 

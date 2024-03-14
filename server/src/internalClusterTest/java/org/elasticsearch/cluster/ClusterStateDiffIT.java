@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadataTests;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -62,6 +61,7 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
+import static org.elasticsearch.cluster.metadata.IndexMetadataTests.randomFieldInferenceMetadata;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
@@ -587,17 +587,13 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
                         break;
                     case 3:
-                        builder.fieldInferenceMetadata(IndexMetadataTests.randomFieldInferenceMetadata(true));
+                        builder.fieldInferenceMetadata(randomFieldInferenceMetadata(true));
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
                 }
                 return builder.build();
             }
-
-            /**
-             * Generates a random fieldsForModels map
-             */
         });
     }
 

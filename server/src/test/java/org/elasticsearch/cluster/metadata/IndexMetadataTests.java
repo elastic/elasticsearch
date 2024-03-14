@@ -578,7 +578,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     private static FieldInferenceMetadata.FieldInference randomFieldInference() {
-        return new FieldInferenceMetadata.FieldInference(randomAlphaOfLength(5), randomSet(0, 5, () -> randomIdentifier()));
+        return new FieldInferenceMetadata.FieldInference(randomIdentifier(), randomSet(0, 5, ESTestCase::randomIdentifier));
     }
 
     private IndexMetadataStats randomIndexStats(int numberOfShards) {

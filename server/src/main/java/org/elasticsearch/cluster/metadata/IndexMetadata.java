@@ -540,7 +540,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String KEY_SHARD_SIZE_FORECAST = "shard_size_forecast";
 
-    public static final String KEY_FIELD_INFERENCE_METADATA = "field_inference_metadata";
+    public static final String KEY_FIELD_INFERENCE = "field_inference";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -2423,7 +2423,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             if (indexMetadata.fieldInferenceMetadata.isEmpty() == false) {
-                builder.field(KEY_FIELD_INFERENCE_METADATA, indexMetadata.fieldInferenceMetadata);
+                builder.field(KEY_FIELD_INFERENCE, indexMetadata.fieldInferenceMetadata);
             }
 
             builder.endObject();
@@ -2503,7 +2503,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));
                             break;
-                        case KEY_FIELD_INFERENCE_METADATA:
+                        case KEY_FIELD_INFERENCE:
                             builder.fieldInferenceMetadata(FieldInferenceMetadata.fromXContent(parser));
                             break;
                         default:

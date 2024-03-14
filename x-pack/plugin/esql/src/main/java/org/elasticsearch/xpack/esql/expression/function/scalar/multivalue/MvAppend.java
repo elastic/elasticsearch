@@ -18,7 +18,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -33,6 +35,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 /**
@@ -56,36 +60,70 @@ public class MvAppend extends ScalarFunction implements OptionalArgument, Evalua
             "keyword",
             "long",
             "text",
-            "unsigned_long",
             "version" },
-        description = "Appends values to create a multi-value."
+        description = "Appends values of two multi-value fields."
     )
-    public MvAppend(Source source, Expression field1, Expression field2) {
+    public MvAppend(
+        Source source,
+        @Param(
+            name = "v1",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" }
+        ) Expression field1,
+        @Param(
+            name = "v2",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" }
+        ) Expression field2
+    ) {
         super(source, Arrays.asList(field1, field2));
         this.field1 = field1;
         this.field2 = field2;
     }
 
-    @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        for (int position = 0; position < children().size(); position++) {
-            if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
-                continue;
-            }
-            TypeResolution resolution = TypeResolutions.isType(
-                children().get(position),
-                t -> t == dataType,
-                sourceText(),
-                TypeResolutions.ParamOrdinal.fromIndex(position),
-                dataType.typeName()
-            );
-            if (resolution.unresolved()) {
-                return resolution;
-            }
+
+        TypeResolution resolution = isType(field1, EsqlDataTypes::isRepresentable, sourceText(), FIRST, "representable");
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        dataType = field1.dataType();
+        resolution = TypeResolutions.isType(
+            field2,
+            t -> t == dataType,
+            sourceText(),
+            TypeResolutions.ParamOrdinal.fromIndex(1),
+            dataType.typeName()
+        );
+        if (resolution.unresolved()) {
+            return resolution;
         }
         return TypeResolution.TYPE_RESOLVED;
     }
@@ -99,32 +137,12 @@ public class MvAppend extends ScalarFunction implements OptionalArgument, Evalua
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        return switch (PlannerUtils.toSortableElementType(dataType)) {
-            case BOOLEAN -> new MvAppendBooleanEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field1),
-                toEvaluator.apply(field2)
-            );
-            case BYTES_REF -> new MvAppendBytesRefEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field1),
-                toEvaluator.apply(field2)
-            );
-            case DOUBLE -> new MvAppendDoubleEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field1),
-                toEvaluator.apply(field2)
-            );
-            case INT -> new MvAppendIntEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field1),
-                toEvaluator.apply(field2)
-            );
-            case LONG -> new MvAppendLongEvaluator.Factory(
-                source(),
-                toEvaluator.apply(field1),
-                toEvaluator.apply(field2)
-            );
+        return switch (PlannerUtils.toElementType(dataType())) {
+            case BOOLEAN -> new MvAppendBooleanEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
+            case BYTES_REF -> new MvAppendBytesRefEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
+            case DOUBLE -> new MvAppendDoubleEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
+            case INT -> new MvAppendIntEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
+            case LONG -> new MvAppendLongEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };

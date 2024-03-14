@@ -1,0 +1,17 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v1 | v2 | result
+boolean | boolean | boolean
+cartesian_point | cartesian_point | cartesian_point
+cartesian_shape | cartesian_shape | cartesian_shape
+datetime | datetime | datetime
+double | double | double
+geo_point | geo_point | geo_point
+geo_shape | geo_shape | geo_shape
+integer | integer | integer
+ip | ip | ip
+keyword | keyword | keyword
+long | long | long
+text | text | text
+version | version | version
+|===

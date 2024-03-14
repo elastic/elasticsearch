@@ -45,6 +45,7 @@ max                      |"double|integer|long max(field:double|integer|long)"  
 median                   |"double|integer|long median(field:double|integer|long)"                                        |field                     |"double|integer|long"                 | ""                                                 |"double|integer|long"                    | "The value that is greater than half of all values and less than half of all values."                      | false                | false | true
 median_absolute_deviation|"double|integer|long median_absolute_deviation(field:double|integer|long)"                     |field                     |"double|integer|long"                 | ""                                                 |"double|integer|long"                    | "The median absolute deviation, a measure of variability."                      | false                | false | true
 min                      |"double|integer|long min(field:double|integer|long)"                                           |field                     |"double|integer|long"                 | ""                                                 |"double|integer|long"                    | "The minimum value of a numeric field."                      | false                | false | true
+mv_append                |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(v1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, v2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"      |[v1, v2]                        	|["boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version", "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"]                 | ["", ""]                            |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"                    	| "Appends values of two multi-value fields."                      	| [false, false]                | false 			| false
 mv_avg                   |"double mv_avg(field:double|integer|long|unsigned_long)"                                        |field                     |"double|integer|long|unsigned_long"                 | ""                                                 |double                    | "Converts a multivalued field into a single valued field containing the average of all of the values."                      | false                | false | false
 mv_concat                |"keyword mv_concat(v:text|keyword, delim:text|keyword)" |[v, delim]               |["text|keyword", "text|keyword"] |["values to join", "delimiter"]      |keyword              | "Reduce a multivalued string field to a single valued field by concatenating all values." | [false, false]       | false | false
 mv_count                 |"integer mv_count(v:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)" |v      | "boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version" | "" | integer | "Reduce a multivalued field to a single valued field containing the count of values."       | false                | false | false
@@ -146,6 +147,7 @@ double e()
 "double|integer|long median(field:double|integer|long)"
 "double|integer|long median_absolute_deviation(field:double|integer|long)"
 "double|integer|long min(field:double|integer|long)"
+"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_append(v1:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, v2:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version)"      
 "double mv_avg(field:double|integer|long|unsigned_long)"
 "keyword mv_concat(v:text|keyword, delim:text|keyword)"
 "integer mv_count(v:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|unsigned_long|version)"
@@ -228,5 +230,5 @@ countFunctions#[skip:-8.13.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-94     | 94     | 94
+95     | 95     | 95
 ;

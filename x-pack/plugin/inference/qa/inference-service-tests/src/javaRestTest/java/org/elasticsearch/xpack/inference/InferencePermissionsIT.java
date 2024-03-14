@@ -48,7 +48,7 @@ public class InferencePermissionsIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        // use the privileged users here but not int the tests
+        // use the privileged users here but not in the tests
         String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }

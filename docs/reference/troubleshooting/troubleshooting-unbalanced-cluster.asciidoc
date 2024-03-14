@@ -38,7 +38,7 @@ This response contains the following information that influences balancing:
 * `disk.indices.forecast` is the expected disk usage according to projected shard growth
 * `write_load.forecast` is the projected ingest load associated with this node
 
-A cluster is considered balanced when no shard movements are scheduled (all `shards.undesired` are equal to 0).
+A cluster is considered balanced when all shards are in their desired locations, which means that no further shard movements are planned (all `shards.undesired` values are equal to 0).
 At this state it should have spread workload reasonably. For example, some nodes might have fewer shards but more ingest load.
 
 Some operations such as node restarting, decommissioning, or changing cluster allocation settings

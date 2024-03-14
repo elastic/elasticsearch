@@ -7,7 +7,7 @@ PUT _inference/text_embedding/cohere_embeddings <1>
     "service": "cohere",
     "service_settings": {
         "api_key": "<api_key>", <2>
-        "model_id": "embed-english-light-v3.0", <3>
+        "model_id": "embed-english-v3.0", <3>
         "embedding_type": "int8"
     },
     "task_settings": {

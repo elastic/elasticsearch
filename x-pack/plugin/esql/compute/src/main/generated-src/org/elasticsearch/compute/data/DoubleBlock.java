@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,10 +50,19 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     }
 
     private static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return DoubleVector.readFrom(in.blockFactory(), in).asBlock();
-        }
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> DoubleBlock.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> DoubleVector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> DoubleArrayBlock.readArrayBlock(in.blockFactory(), in);
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
+            }
+        };
+    }
+
+    private static DoubleBlock readValues(BlockStreamInput in) throws IOException {
         final int positions = in.readVInt();
         try (DoubleBlock.Builder builder = in.blockFactory().newDoubleBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -74,22 +84,31 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         DoubleVector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof DoubleArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        out.writeDouble(getDouble(getFirstValueIndex(pos) + valueIndex));
-                    }
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            DoubleBlock.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues(DoubleBlock block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    out.writeDouble(block.getDouble(block.getFirstValueIndex(pos) + valueIndex));
                 }
             }
         }

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
@@ -47,6 +46,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
@@ -340,7 +340,7 @@ public class Node implements Closeable {
                     nodeEnvironment.nodeDataPaths()
                 );
                 assert nodeMetadata != null;
-                assert nodeMetadata.nodeVersion().equals(Version.CURRENT);
+                assert nodeMetadata.nodeVersion().equals(BuildVersion.current());
                 assert nodeMetadata.nodeId().equals(localNodeFactory.getNode().getId());
             } catch (IOException e) {
                 assert false : e;

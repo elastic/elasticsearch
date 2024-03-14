@@ -67,7 +67,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ASYNC
     }
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s %6$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
@@ -132,6 +132,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) {
+        for (String feature : testCase.requiredFeatures) {
+            assumeTrue("Test " + testName + " requires " + feature, clusterHasFeature(feature));
+        }
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
     }
 

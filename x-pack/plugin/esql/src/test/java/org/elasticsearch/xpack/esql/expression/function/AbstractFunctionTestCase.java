@@ -181,11 +181,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected abstract Expression build(Source source, List<Expression> args);
 
-    protected final Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
+    protected Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsFields());
     }
 
-    protected final Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
+    protected Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsDeepCopiedFields());
     }
 
@@ -446,7 +446,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     // TODO cranky time
 
-    public final void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
+    public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         List<Object> simpleData = testCase.getDataValues();

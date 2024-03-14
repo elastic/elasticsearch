@@ -268,7 +268,8 @@ public class SearchEngine extends Engine {
                     if (directory.updateCommit(latestCommit)) {
                         // if this index has been recently searched, and this commit hasn't been superseded, then
                         // prefetch the new commit files
-                        if (engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime < SEARCH_IDLE_TIME) {
+                        // todo: disabled pre-fetching new commits, see https://github.com/elastic/elasticsearch-serverless/issues/1006
+                        if (false && engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime < SEARCH_IDLE_TIME) {
                             directory.downloadCommit(
                                 latestCommit,
                                 new ThreadedActionListener<>(

@@ -30,8 +30,8 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 
-// A subset of ES|QL test scenarios exercised through the xpack core
-// transport request API (rather than through the ES|QL request API).
+// A subset of test scenarios exercised through the xpack core ES|QL
+// transport API (rather than through the ES|QL request API).
 // Tests here have no static dependencies on types from the ES|QL plugin.
 public class CoreEsqlActionIT extends ESIntegTestCase {
 

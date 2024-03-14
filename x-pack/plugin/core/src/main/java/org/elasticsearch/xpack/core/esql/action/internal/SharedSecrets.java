@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 
 /**
- * For shared secret access to ES|QL internal only. Do not use.
+ * For secret access to ES|QL internals only. Do not use.
  * TODO qualify export when ES|QL is modularized
  */
 public class SharedSecrets {

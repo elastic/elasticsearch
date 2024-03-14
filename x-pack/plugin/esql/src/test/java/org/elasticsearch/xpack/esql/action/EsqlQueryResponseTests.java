@@ -517,7 +517,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         esqlQueryResponse.close();
     }
 
-    public void testValuesAndColumns() {
+    // Tests for response::column
+    public void testColumns() {
         var intBlk1 = blockFactory.newIntArrayVector(new int[] { 10, 20 }, 2).asBlock();
         var intBlk2 = blockFactory.newIntArrayVector(new int[] { 30, 40, 50 }, 3).asBlock();
         var longBlk1 = blockFactory.newLongArrayVector(new long[] { 100L, 200L }, 2).asBlock();
@@ -542,7 +543,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
-    public void testValuesAndColumnsWithNull() {
+    public void testColumnsWithNull() {
         IntBlock blk1, blk2, blk3;
         try (
             var bb1 = blockFactory.newIntBlockBuilder(2);
@@ -562,7 +563,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
-    public void testValuesAndColumnsWithMultiValue() {
+    public void testColumnsWithMultiValue() {
         IntBlock blk1, blk2, blk3;
         try (
             var bb1 = blockFactory.newIntBlockBuilder(2);

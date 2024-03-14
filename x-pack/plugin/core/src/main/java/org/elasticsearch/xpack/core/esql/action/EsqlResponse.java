@@ -11,7 +11,7 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Response to an ES|QL request.
+ * An ES|QL Response.
  *
  * <p> Iterator based access to values of type T has the following properties:
  * <ol>
@@ -22,6 +22,7 @@ import java.util.List;
  */
 public interface EsqlResponse {
 
+    /** Returns the column info. */
     List<? extends ColumnInfo> columns();
 
     /**
@@ -31,8 +32,6 @@ public interface EsqlResponse {
      */
     Iterator<Iterator<Object>> rows();
 
-    /**
-     * Returns an iterator over the values in the given column.
-     */
+    /** Returns an iterator over the values in the given column. */
     Iterator<Object> column(int columnIndex);
 }

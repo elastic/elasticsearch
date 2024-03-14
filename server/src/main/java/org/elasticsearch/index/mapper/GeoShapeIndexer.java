@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
-import org.apache.lucene.document.XLatLonShape;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.GeoLineDecomposer;
@@ -244,8 +243,7 @@ public class GeoShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            // TODO: Remove usage of XLatLonShape (and remove thoses classes) once Lucene releases a bugfix
-            addFields(XLatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(polygon)));
+            addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(polygon)));
             return null;
         }
 
@@ -299,8 +297,7 @@ public class GeoShapeIndexer {
                     GeoEncodingUtils.decodeLatitude(maxLat),
                     GeoEncodingUtils.decodeLatitude(minLat)
                 );
-                // TODO: Remove usage of XLatLonShape (and remove thoses classes) once Lucene releases a bugfix
-                addFields(XLatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(qRectangle)));
+                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(qRectangle)));
             }
             return null;
         }

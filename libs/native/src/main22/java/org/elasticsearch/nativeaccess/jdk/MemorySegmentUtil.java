@@ -12,7 +12,9 @@ import java.lang.foreign.MemorySegment;
 
 public class MemorySegmentUtil {
 
-    static String getString(MemorySegment segment) {
-        return segment.getString(0);
+    static String getString(MemorySegment segment, long offset) {
+        return segment.getString(offset);
     }
+
+    private MemorySegmentUtil() {}
 }

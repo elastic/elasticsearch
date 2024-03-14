@@ -64,8 +64,16 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     ) {
         // Our type is always boolean, so figure out the evaluator type from the inputs
         DataType commonType = EsqlDataTypeRegistry.INSTANCE.commonType(left().dataType(), right().dataType());
-        var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
-        var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
+        EvalOperator.ExpressionEvaluator.Factory lhs;
+        EvalOperator.ExpressionEvaluator.Factory rhs;
+
+        if (commonType.isNumeric()) {
+            lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
+            rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
+        } else {
+            lhs = toEvaluator.apply(left());
+            rhs = toEvaluator.apply(right());
+        }
 
         if (evaluatorMap.containsKey(commonType) == false) {
             throw new EsqlIllegalArgumentException("Unsupported type " + left().dataType());

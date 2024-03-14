@@ -136,7 +136,7 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 Object::equals,
                 lhsSuppliers,
                 rhsSuppliers,
-                (l, r) -> "EqualsKeywordsEvaluator",
+                (lhsType, rhsType) -> "EqualsKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
                 suppliers,
                 DataTypes.BOOLEAN,

@@ -51,6 +51,9 @@ public class TransformMessages {
         "Failed to parse transform statistics for transform [{0}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CHECKPOINT = "Failed to load transform checkpoint for transform [{0}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_STATE = "Failed to load transform state for transform [{0}]";
+
+    public static final String TRANSFORM_CANNOT_START_WITHOUT_PERMISSIONS = "Cannot start transform [{0}] because user lacks required "
+        + "permissions, see privileges_check_failed issue for more details";
     public static final String TRANSFORM_CONFIGURATION_BAD_FUNCTION_COUNT = "Transform configuration must specify exactly 1 function";
     public static final String TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY = "Pivot transform configuration must specify at least 1 group_by";
     public static final String TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION =

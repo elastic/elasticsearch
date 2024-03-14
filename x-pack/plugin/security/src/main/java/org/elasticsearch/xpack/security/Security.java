@@ -290,6 +290,7 @@ import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenSt
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
@@ -580,6 +581,7 @@ public class Security extends Plugin
     private final SetOnce<Realms> realms = new SetOnce<>();
     private final SetOnce<Client> client = new SetOnce<>();
     private final SetOnce<List<ReloadableSecurityComponent>> reloadableComponents = new SetOnce<>();
+    private final SetOnce<AuthorizationDenialMessages> authorizationDenialMessages = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -1005,6 +1007,9 @@ public class Security extends Plugin
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
+        if (authorizationDenialMessages.get() == null) {
+            authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
+        }
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1019,7 +1024,8 @@ public class Security extends Plugin
             getLicenseState(),
             expressionResolver,
             operatorPrivilegesService.get(),
-            restrictedIndices
+            restrictedIndices,
+            authorizationDenialMessages.get()
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -2096,6 +2102,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, createApiKeyRequestBuilderFactory, CreateApiKeyRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, hasPrivilegesRequestBuilderFactory, HasPrivilegesRequestBuilderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, authorizationDenialMessages, AuthorizationDenialMessages.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

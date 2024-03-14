@@ -139,7 +139,6 @@ public class AuthorizationService {
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
-
     private final AuthorizationDenialMessages authorizationDenialMessages;
 
     public AuthorizationService(
@@ -156,7 +155,8 @@ public class AuthorizationService {
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
-        RestrictedIndices restrictedIndices
+        RestrictedIndices restrictedIndices,
+        AuthorizationDenialMessages authorizationDenialMessages
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -180,7 +180,42 @@ public class AuthorizationService {
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
-        this.authorizationDenialMessages = new AuthorizationDenialMessages();
+        this.authorizationDenialMessages = authorizationDenialMessages;
+    }
+
+    public AuthorizationService(
+        Settings settings,
+        CompositeRolesStore rolesStore,
+        FieldPermissionsCache fieldPermissionsCache,
+        ClusterService clusterService,
+        AuditTrailService auditTrailService,
+        AuthenticationFailureHandler authcFailureHandler,
+        ThreadPool threadPool,
+        AnonymousUser anonymousUser,
+        @Nullable AuthorizationEngine authorizationEngine,
+        Set<RequestInterceptor> requestInterceptors,
+        XPackLicenseState licenseState,
+        IndexNameExpressionResolver resolver,
+        OperatorPrivilegesService operatorPrivilegesService,
+        RestrictedIndices restrictedIndices
+    ) {
+        this(
+            settings,
+            rolesStore,
+            fieldPermissionsCache,
+            clusterService,
+            auditTrailService,
+            authcFailureHandler,
+            threadPool,
+            anonymousUser,
+            authorizationEngine,
+            requestInterceptors,
+            licenseState,
+            resolver,
+            operatorPrivilegesService,
+            restrictedIndices,
+            new AuthorizationDenialMessages.Default()
+        );
     }
 
     public void checkPrivileges(

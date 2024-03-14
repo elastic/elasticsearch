@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 
 public class AuthorizationDenialMessagesTests extends ESTestCase {
 
-    private final AuthorizationDenialMessages denialMessages = new AuthorizationDenialMessages();
+    private final AuthorizationDenialMessages.Default denialMessages = new AuthorizationDenialMessages.Default();
 
     public void testNoRolesDescriptionIfSubjectIsNotAUser() {
         final Authentication authentication = randomFrom(

@@ -20,6 +20,8 @@ String expression. If `null`, the function returns `null`.
 Returns a boolean that indicates whether a keyword string ends with another
 string.
 
+include::types/ends_with.asciidoc[]
+
 *Example*
 
 [source.merge.styled,esql]

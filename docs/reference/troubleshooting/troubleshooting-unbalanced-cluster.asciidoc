@@ -47,7 +47,7 @@ are disruptive and might require multiple shards to move or rebalance.
 Shard movement order is not deterministic and mostly determined by the source and target node readiness to move a shard.
 While rebalancing is in progress some nodes might appear busier then others.
 
-When shard is allocated to undesired node it utilizes the resources of the current node instead of target.
+When a shard is allocated to an undesired node it uses the resources of the current node instead of target.
 This might cause a hotspot (disk or CPU) when multiple shards are residing on the current node that have not been
 moved to their corresponding targets yet.
 

@@ -24,6 +24,11 @@ public interface InferenceRequest {
     ExecutableRequestCreator getRequestCreator();
 
     /**
+     * Returns the query associated with this request. Used for Rerank tasks.
+     */
+    String getQuery();
+
+    /**
      * Returns the text input associated with this request.
      */
     List<String> getInput();

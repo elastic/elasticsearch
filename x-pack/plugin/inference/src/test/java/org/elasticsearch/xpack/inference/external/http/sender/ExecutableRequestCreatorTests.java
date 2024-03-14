@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 public class ExecutableRequestCreatorTests {
     public static ExecutableRequestCreator createMock() {
         var mockCreator = mock(ExecutableRequestCreator.class);
-        when(mockCreator.create(anyList(), any(), any(), any(), any())).thenReturn(() -> {});
+        when(mockCreator.create(null, anyList(), any(), any(), any(), any())).thenReturn(() -> {});
 
         return mockCreator;
     }
@@ -47,7 +47,7 @@ public class ExecutableRequestCreatorTests {
                 mock(ResponseHandler.class),
                 listener
             );
-        }).when(mockCreator).create(anyList(), any(), any(), any(), any());
+        }).when(mockCreator).create(null, anyList(), any(), any(), any(), any());
 
         return mockCreator;
     }

@@ -262,6 +262,29 @@ public class ServiceUtils {
         return null;
     }
 
+    public static Boolean extractOptionalBoolean(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        String booleanString = extractOptionalString(map, settingName, scope, validationException);
+        if (booleanString == null) {
+            return null;
+        }
+
+        if (booleanString.equalsIgnoreCase(Boolean.TRUE.toString())) {
+            return true;
+        } else if (booleanString.equalsIgnoreCase(Boolean.FALSE.toString())) {
+            return false;
+        } else {
+            validationException.addValidationError(
+                invalidValue(settingName, scope, booleanString, new String[] { Boolean.TRUE.toString(), Boolean.FALSE.toString() })
+            );
+            return null;
+        }
+    }
+
     private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {
         if (validValues.contains(enumValue) == false) {
             throw new IllegalArgumentException(Strings.format("Enum value [%s] is not one of the acceptable values", enumValue.toString()));

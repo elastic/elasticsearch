@@ -29,7 +29,7 @@ public class CohereRerankExecutableRequestCreator implements ExecutableRequestCr
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new CohereResponseHandler("cohere text embedding", CohereEmbeddingsResponseEntity::fromResponse);
+        return new CohereResponseHandler("cohere rerank", CohereEmbeddingsResponseEntity::fromResponse);
     }
 
     private final CohereAccount account;
@@ -42,13 +42,14 @@ public class CohereRerankExecutableRequestCreator implements ExecutableRequestCr
 
     @Override
     public Runnable create(
+        String query,
         List<String> input,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereRerankRequest request = new CohereRerankRequest(account, input, model);
+        CohereRerankRequest request = new CohereRerankRequest(account, query, input, model);
 
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }

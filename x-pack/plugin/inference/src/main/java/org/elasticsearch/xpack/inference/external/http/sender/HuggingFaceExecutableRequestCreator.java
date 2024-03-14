@@ -42,6 +42,7 @@ public class HuggingFaceExecutableRequestCreator implements ExecutableRequestCre
 
     @Override
     public Runnable create(
+        String query,
         List<String> input,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,

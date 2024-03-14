@@ -21,6 +21,11 @@ class NoopTask implements RejectableTask {
     }
 
     @Override
+    public String getQuery() {
+        return null;
+    }
+
+    @Override
     public List<String> getInput() {
         return null;
     }

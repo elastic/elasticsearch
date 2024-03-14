@@ -12,63 +12,41 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-
 public class CohereRerankServiceSettings implements ServiceSettings {
-    public static final String NAME = "cohere_embeddings_service_settings";
-
-    static final String EMBEDDING_TYPE = "embedding_type";
+    public static final String NAME = "cohere_rerank_service_settings";
 
     public static CohereRerankServiceSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = CohereServiceSettings.fromMap(map, logDeprecations);
-        CohereRerankType embeddingTypes = extractOptionalEnum(
-            map,
-            EMBEDDING_TYPE,
-            ModelConfigurations.SERVICE_SETTINGS,
-            CohereRerankType::fromString,
-            EnumSet.allOf(CohereRerankType.class),
-            validationException
-        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new CohereRerankServiceSettings(commonServiceSettings, embeddingTypes);
+        return new CohereRerankServiceSettings(commonServiceSettings);
     }
 
     private final CohereServiceSettings commonSettings;
-    private final CohereRerankType embeddingType;
 
-    public CohereRerankServiceSettings(CohereServiceSettings commonSettings, @Nullable CohereRerankType embeddingType) {
+    public CohereRerankServiceSettings(CohereServiceSettings commonSettings) {
         this.commonSettings = commonSettings;
-        this.embeddingType = embeddingType;
     }
 
     public CohereRerankServiceSettings(StreamInput in) throws IOException {
         commonSettings = new CohereServiceSettings(in);
-        embeddingType = in.readOptionalEnum(CohereRerankType.class);
     }
 
     public CohereServiceSettings getCommonSettings() {
         return commonSettings;
-    }
-
-    public CohereRerankType getEmbeddingType() {
-        return embeddingType;
     }
 
     @Override
@@ -81,7 +59,6 @@ public class CohereRerankServiceSettings implements ServiceSettings {
         builder.startObject();
 
         commonSettings.toXContentFragment(builder);
-        builder.field(EMBEDDING_TYPE, embeddingType);
 
         builder.endObject();
         return builder;
@@ -94,13 +71,12 @@ public class CohereRerankServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersions.ML_INFERENCE_COHERE_RERANK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
-        out.writeOptionalEnum(embeddingType);
     }
 
     @Override
@@ -108,11 +84,11 @@ public class CohereRerankServiceSettings implements ServiceSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CohereRerankServiceSettings that = (CohereRerankServiceSettings) o;
-        return Objects.equals(commonSettings, that.commonSettings) && Objects.equals(embeddingType, that.embeddingType);
+        return Objects.equals(commonSettings, that.commonSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(commonSettings, embeddingType);
+        return Objects.hash(commonSettings);
     }
 }

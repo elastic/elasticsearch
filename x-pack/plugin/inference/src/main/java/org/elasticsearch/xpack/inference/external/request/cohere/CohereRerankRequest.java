@@ -31,16 +31,18 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
 public class CohereRerankRequest implements Request {
 
     private final CohereAccount account;
+    private final String query;
     private final List<String> input;
     private final URI uri;
     private final CohereRerankTaskSettings taskSettings;
     private final String model;
     private final String inferenceEntityId;
 
-    public CohereRerankRequest(CohereAccount account, List<String> input, CohereRerankModel model) {
+    public CohereRerankRequest(CohereAccount account, String query, List<String> input, CohereRerankModel model) {
         Objects.requireNonNull(model);
 
         this.account = Objects.requireNonNull(account);
+        this.query = Objects.requireNonNull(query);
         this.input = Objects.requireNonNull(input);
         uri = buildUri(this.account.url(), "Cohere", CohereRerankRequest::buildDefaultUri);
         taskSettings = model.getTaskSettings();
@@ -53,7 +55,7 @@ public class CohereRerankRequest implements Request {
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new CohereRerankRequestEntity(input, taskSettings, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new CohereRerankRequestEntity(query, input, taskSettings, model)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -76,7 +78,7 @@ public class CohereRerankRequest implements Request {
 
     @Override
     public Request truncate() {
-        return this;
+        return this; // TODO?
     }
 
     @Override
@@ -88,7 +90,7 @@ public class CohereRerankRequest implements Request {
     static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(CohereUtils.HOST)
-            .setPathSegments(CohereUtils.VERSION_1, CohereUtils.EMBEDDINGS_PATH)
+            .setPathSegments(CohereUtils.VERSION_1, CohereUtils.RERANK_PATH)
             .build();
     }
 }

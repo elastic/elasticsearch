@@ -37,8 +37,8 @@ public class CohereActionCreator implements CohereActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings, InputType inputType) {
-        var overriddenModel = CohereRerankModel.of(model, taskSettings, inputType);
+    public ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings, Boolean doReturnDocuments) {
+        var overriddenModel = CohereRerankModel.of(model, taskSettings, doReturnDocuments);
 
         return new CohereRerankAction(sender, overriddenModel);
     }

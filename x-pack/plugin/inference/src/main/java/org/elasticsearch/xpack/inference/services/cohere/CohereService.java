@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
 import java.util.List;
 import java.util.Map;
@@ -122,6 +123,15 @@ public class CohereService extends SenderService {
                 taskSettings,
                 secretSettings,
                 context
+            );
+            case RERANK -> new CohereRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                secretSettings,
+                logDeprecations
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };

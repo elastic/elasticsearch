@@ -86,6 +86,11 @@ class RequestTask implements RejectableTask {
     }
 
     @Override
+    public String getQuery() {
+        return null;
+    }
+
+    @Override
     public ActionListener<InferenceServiceResults> getListener() {
         return listener;
     }

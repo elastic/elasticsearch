@@ -17,5 +17,5 @@ import java.util.Map;
 public interface CohereActionVisitor {
     ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType);
 
-    ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings, InputType inputType);
+    ExecutableAction create(CohereRerankModel model, Map<String, Object> taskSettings, Boolean doReturnDocuments);
 }

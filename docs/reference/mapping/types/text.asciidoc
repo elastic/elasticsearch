@@ -133,8 +133,10 @@ The following parameters are accepted by `text` fields:
 <<mapping-store,`store`>>::
 
     Whether the field value should be stored and retrievable separately from
-    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
-    (default).
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`. Defaults to
+    `false` if <<synthetic-source,synthetic `_source`>> is disabled and to `true` if
+    synthetic source is enabled and there is no <<keyword-synthetic-source, `keyword`>>
+    sub-field that supports synthetic `_source`.
 
 <<search-analyzer,`search_analyzer`>>::
 
@@ -173,8 +175,6 @@ of official GA features.
 a <<keyword-synthetic-source, `keyword`>> sub-field that supports synthetic
 `_source` or if the `text` field sets `store` to `true`. Either way, it may
 not have <<copy-to,`copy_to`>>.
-
-`store` will be set to `true` by default if synthetic source is enabled and there is no suitable <<keyword-synthetic-source, `keyword`>> sub-field.
 
 If using a sub-`keyword` field then the values are sorted in the same way as
 a `keyword` field's values are sorted. By default, that means sorted with

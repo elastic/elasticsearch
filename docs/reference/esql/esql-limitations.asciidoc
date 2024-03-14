@@ -74,6 +74,18 @@ values, with the exception of nested fields. Nested fields are not returned at
 all.
 
 [discrete]
+==== Limitations on supported types
+
+Some <<mapping-types,field types>> are not supported in all contexts:
+
+* Spatial types are not supported in the <<esql-sort,SORT>> processing command.
+  Specifying a column of one of these types as a sort parameter will result in an error:
+** `geo_point`
+** `geo_shape`
+** `cartesian_point`
+** `cartesian_shape`
+
+[discrete]
 [[esql-_source-availability]]
 === _source availability
 

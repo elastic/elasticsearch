@@ -23,7 +23,7 @@
 // end::string_list[]
 
 include::concat.asciidoc[]
-include::left.asciidoc[]
+include::layout/left.asciidoc[]
 include::length.asciidoc[]
 include::ltrim.asciidoc[]
 include::replace.asciidoc[]

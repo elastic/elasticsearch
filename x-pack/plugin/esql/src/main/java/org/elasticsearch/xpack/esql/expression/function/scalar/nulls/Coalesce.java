@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -43,7 +44,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = { "boolean", "text", "integer", "keyword", "long" },
-        description = "Returns the first of its arguments that is not null."
+        description = "Returns the first of its arguments that is not null.",
+        examples = { @Example(file = "null", tag = "coalesce") }
     )
     public Coalesce(
         Source source,

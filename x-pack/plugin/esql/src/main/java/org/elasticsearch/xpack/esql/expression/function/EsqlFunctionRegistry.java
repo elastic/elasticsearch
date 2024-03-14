@@ -222,8 +222,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Split.class, Split::new, "split") } };
     }
 
-    @Override
-    protected String normalize(String name) {
+    @Override protected String normalize(String name) {
         return normalizeName(name);
     }
 
@@ -231,16 +230,11 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(String name, String[] type, String description, boolean optional) {}
+    public record ArgSignature(String name, String[] type, String description, boolean optional) {
+    }
 
-    public record FunctionDescription(
-        String name,
-        List<ArgSignature> args,
-        String[] returnType,
-        String description,
-        boolean variadic,
-        boolean isAggregation
-    ) {
+    public record FunctionDescription(String name, List<ArgSignature> args, String[] returnType, String description, boolean variadic,
+                                      boolean isAggregation) {
         public String fullSignature() {
             StringBuilder builder = new StringBuilder();
             builder.append(ShowFunctions.withPipes(returnType));
@@ -266,10 +260,19 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             return builder.toString();
         }
 
+        /**
+         * The name of every argument.
+         */
         public List<String> argNames() {
-            return args.stream().map(ArgSignature::name).collect(Collectors.toList());
+            return args.stream().map(ArgSignature::name).toList();
         }
 
+        /**
+         * The description of every argument.
+         */
+        public List<String> argDescriptions() {
+            return args.stream().map(ArgSignature::description).toList();
+        }
     }
 
     public static FunctionDescription description(FunctionDefinition def) {
@@ -278,7 +281,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             return new FunctionDescription(def.name(), List.of(), null, null, false, false);
         }
         Constructor<?> constructor = constructors[0];
-        FunctionInfo functionInfo = constructor.getAnnotation(FunctionInfo.class);
+        FunctionInfo functionInfo = functionInfo(def);
         String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
         String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
         var params = constructor.getParameters(); // no multiple c'tors supported
@@ -301,4 +304,12 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
     }
 
+    public static FunctionInfo functionInfo(FunctionDefinition def) {
+        var constructors = def.clazz().getConstructors();
+        if (constructors.length == 0) {
+            return null;
+        }
+        Constructor<?> constructor = constructors[0];
+        return constructor.getAnnotation(FunctionInfo.class);
+    }
 }

@@ -440,7 +440,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         .build();
                     rolloverRequest.setConditions(conditionsIncludingDecreaseShards);
                     resultsIncludingDecreaseShards.put(
-                        new AutoShardCondition(rolloverTask.autoShardingResult.targetNumberOfShards()).toString(),
+                        new OptimalShardCountCondition(rolloverTask.autoShardingResult.targetNumberOfShards()).toString(),
                         true
                     );
                 }

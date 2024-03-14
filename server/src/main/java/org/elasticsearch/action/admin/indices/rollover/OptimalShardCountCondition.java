@@ -22,15 +22,15 @@ import java.io.IOException;
  * configured for the index abstraction as part of rollover.
  * It's more of a marker condition, when present the condition is met, more than a condition we evaluate against stats.
  */
-public class AutoShardCondition extends Condition<Integer> {
-    public static final String NAME = "auto_sharding";
+public class OptimalShardCountCondition extends Condition<Integer> {
+    public static final String NAME = "optimal_shard_count";
 
-    public AutoShardCondition(int optimalShards) {
+    public OptimalShardCountCondition(int optimalShards) {
         super(NAME, Type.AUTOMATIC);
         this.value = optimalShards;
     }
 
-    public AutoShardCondition(StreamInput in) throws IOException {
+    public OptimalShardCountCondition(StreamInput in) throws IOException {
         super(NAME, Type.AUTOMATIC);
         this.value = in.readVInt();
     }
@@ -55,9 +55,9 @@ public class AutoShardCondition extends Condition<Integer> {
         return builder.field(NAME, value);
     }
 
-    public static AutoShardCondition fromXContent(XContentParser parser) throws IOException {
+    public static OptimalShardCountCondition fromXContent(XContentParser parser) throws IOException {
         if (parser.nextToken() == XContentParser.Token.VALUE_NUMBER) {
-            return new AutoShardCondition(parser.intValue());
+            return new OptimalShardCountCondition(parser.intValue());
         } else {
             throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }

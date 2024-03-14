@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.action.admin.indices.rollover.AutoShardCondition;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -20,6 +19,7 @@ import org.elasticsearch.action.admin.indices.rollover.MinDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MinSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.OptimalShardCountCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -112,7 +112,7 @@ public class IndicesModule extends AbstractModule {
             new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardSizeCondition.NAME, MaxPrimaryShardSizeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxPrimaryShardDocsCondition.NAME, MaxPrimaryShardDocsCondition::new),
-            new NamedWriteableRegistry.Entry(Condition.class, AutoShardCondition.NAME, AutoShardCondition::new)
+            new NamedWriteableRegistry.Entry(Condition.class, OptimalShardCountCondition.NAME, OptimalShardCountCondition::new)
         );
     }
 
@@ -170,8 +170,8 @@ public class IndicesModule extends AbstractModule {
             ),
             new NamedXContentRegistry.Entry(
                 Condition.class,
-                new ParseField(AutoShardCondition.NAME),
-                (p, c) -> AutoShardCondition.fromXContent(p)
+                new ParseField(OptimalShardCountCondition.NAME),
+                (p, c) -> OptimalShardCountCondition.fromXContent(p)
             )
         );
     }

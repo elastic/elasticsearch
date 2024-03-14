@@ -162,7 +162,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true)));
         assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true, minAgeCondition, true)));
 
-        AutoShardCondition autoShardCondition = new AutoShardCondition(3);
+        OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(3);
         rolloverConditions = RolloverConditions.newBuilder()
             .addAutoShardingCondition(
                 randomBoolean()
@@ -170,8 +170,8 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
                     : new AutoShardingResult(AutoShardingType.DECREASE_SHARDS, 7, 3, TimeValue.ZERO, 0.8)
             )
             .build();
-        assertThat(rolloverConditions.areConditionsMet(Map.of(autoShardCondition.toString(), true)), is(true));
-        assertThat(rolloverConditions.areConditionsMet(Map.of(autoShardCondition.toString(), false)), is(false));
+        assertThat(rolloverConditions.areConditionsMet(Map.of(optimalShardCountCondition.toString(), true)), is(true));
+        assertThat(rolloverConditions.areConditionsMet(Map.of(optimalShardCountCondition.toString(), false)), is(false));
 
         // the rollover condition must be INCREASE or DECREASE_SHARDS, any other type should be ignored
         rolloverConditions = RolloverConditions.newBuilder()

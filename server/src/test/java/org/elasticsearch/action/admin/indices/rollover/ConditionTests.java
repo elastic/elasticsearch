@@ -352,26 +352,27 @@ public class ConditionTests extends ESTestCase {
             condition -> new MinPrimaryShardDocsCondition(condition.value),
             condition -> new MinPrimaryShardDocsCondition(randomNonNegativeLong())
         );
-        AutoShardCondition autoShardCondition = new AutoShardCondition(3);
+        OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(3);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            autoShardCondition,
-            condition -> new AutoShardCondition(3),
-            condition -> new AutoShardCondition(2)
+            optimalShardCountCondition,
+            condition -> new OptimalShardCountCondition(3),
+            condition -> new OptimalShardCountCondition(2)
         );
     }
 
     public void testAutoShardCondition() {
-        AutoShardCondition autoShardCondition = new AutoShardCondition(randomNonNegativeInt());
+        OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(randomNonNegativeInt());
         assertThat(
-            autoShardCondition.evaluate(new Condition.Stats(1, randomNonNegativeLong(), randomByteSizeValue(), randomByteSizeValue(), 1))
-                .matched(),
+            optimalShardCountCondition.evaluate(
+                new Condition.Stats(1, randomNonNegativeLong(), randomByteSizeValue(), randomByteSizeValue(), 1)
+            ).matched(),
             is(true)
         );
     }
 
     public void testParseAutoShardConditionFromRolloverInfo() throws IOException {
         long time = System.currentTimeMillis();
-        RolloverInfo info = new RolloverInfo("logs-nginx", List.of(new AutoShardCondition(3)), time);
+        RolloverInfo info = new RolloverInfo("logs-nginx", List.of(new OptimalShardCountCondition(3)), time);
 
         RolloverInfo parsedInfo = RolloverInfo.parse(
             createParser(

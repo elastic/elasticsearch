@@ -14,20 +14,20 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class AutoShardConditionTests extends AbstractWireSerializingTestCase<AutoShardCondition> {
+public class OptimalShardCountConditionTests extends AbstractWireSerializingTestCase<OptimalShardCountCondition> {
 
     @Override
-    protected Writeable.Reader<AutoShardCondition> instanceReader() {
-        return AutoShardCondition::new;
+    protected Writeable.Reader<OptimalShardCountCondition> instanceReader() {
+        return OptimalShardCountCondition::new;
     }
 
     @Override
-    protected AutoShardCondition createTestInstance() {
-        return new AutoShardCondition(randomNonNegativeInt());
+    protected OptimalShardCountCondition createTestInstance() {
+        return new OptimalShardCountCondition(randomNonNegativeInt());
     }
 
     @Override
-    protected AutoShardCondition mutateInstance(AutoShardCondition instance) throws IOException {
-        return new AutoShardCondition(randomValueOtherThan(instance.value, ESTestCase::randomNonNegativeInt));
+    protected OptimalShardCountCondition mutateInstance(OptimalShardCountCondition instance) throws IOException {
+        return new OptimalShardCountCondition(randomValueOtherThan(instance.value, ESTestCase::randomNonNegativeInt));
     }
 }

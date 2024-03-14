@@ -96,7 +96,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                 long before = testThreadPool.absoluteTimeInMillis();
                 switch (type) {
                     case INCREASE_SHARDS -> {
-                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(5));
+                        List<Condition<?>> metConditions = List.of(new OptimalShardCountCondition(5));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                             clusterState,
                             dataStream.getName(),
@@ -115,7 +115,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         {
                             // we have another condition that matched, so the rollover will be executed and the new number of shards
                             // will be 1
-                            List<Condition<?>> metConditions = List.of(new MaxDocsCondition(2L), new AutoShardCondition(1));
+                            List<Condition<?>> metConditions = List.of(new MaxDocsCondition(2L), new OptimalShardCountCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                                 clusterState,
                                 dataStream.getName(),
@@ -141,7 +141,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         {
                             // even if the decrease shards recommendation is not a rollover condition, an empty POST _rollover request will
                             // configure the decrease shards recommendation
-                            List<Condition<?>> metConditions = List.of(new AutoShardCondition(1));
+                            List<Condition<?>> metConditions = List.of(new OptimalShardCountCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                                 clusterState,
                                 dataStream.getName(),
@@ -292,7 +292,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                 long before = testThreadPool.absoluteTimeInMillis();
                 switch (type) {
                     case INCREASE_SHARDS -> {
-                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(3));
+                        List<Condition<?>> metConditions = List.of(new OptimalShardCountCondition(3));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                             clusterState,
                             dataStream.getName(),
@@ -311,7 +311,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         {
                             // we have another condition that matched, so the rollover will be executed and the new number of shards
                             // will be 1
-                            List<Condition<?>> metConditions = List.of(new MaxDocsCondition(2L), new AutoShardCondition(1));
+                            List<Condition<?>> metConditions = List.of(new MaxDocsCondition(2L), new OptimalShardCountCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                                 clusterState,
                                 dataStream.getName(),
@@ -337,7 +337,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         {
                             // even if the decrease shards recommendation is not a rollover condition, an empty POST _rollover request will
                             // configure the decrease shards recommendation
-                            List<Condition<?>> metConditions = List.of(new AutoShardCondition(1));
+                            List<Condition<?>> metConditions = List.of(new OptimalShardCountCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                                 clusterState,
                                 dataStream.getName(),

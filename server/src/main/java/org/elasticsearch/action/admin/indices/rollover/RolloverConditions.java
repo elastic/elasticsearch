@@ -422,8 +422,10 @@ public class RolloverConditions implements Writeable, ToXContentObject {
          */
         public Builder addAutoShardingCondition(AutoShardingResult autoShardingResult) {
             if (autoShardingResult.type().equals(INCREASE_SHARDS) || autoShardingResult.type().equals(DECREASE_SHARDS)) {
-                AutoShardCondition autoShardCondition = new AutoShardCondition(autoShardingResult.targetNumberOfShards());
-                this.conditions.put(autoShardCondition.name, autoShardCondition);
+                OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(
+                    autoShardingResult.targetNumberOfShards()
+                );
+                this.conditions.put(optimalShardCountCondition.name, optimalShardCountCondition);
             }
             return this;
         }

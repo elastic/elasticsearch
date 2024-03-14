@@ -9,9 +9,9 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.rollover.AutoShardCondition;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.OptimalShardCountCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -258,7 +258,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     if (entry.getKey().equals(new MaxDocsCondition(1_000_000L).toString())) {
                         assertThat(entry.getValue(), is(false));
                     } else {
-                        assertThat(entry.getKey(), is(new AutoShardCondition(7).toString()));
+                        assertThat(entry.getKey(), is(new OptimalShardCountCondition(7).toString()));
                         assertThat(entry.getValue(), is(true));
                     }
                 }
@@ -396,7 +396,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     if (entry.getKey().equals(new MaxDocsCondition(1L).toString())) {
                         assertThat(conditionStatus.get(new MaxDocsCondition(1L).toString()), is(true));
                     } else {
-                        assertThat(conditionStatus.get(new AutoShardCondition(2).toString()), is(true));
+                        assertThat(conditionStatus.get(new OptimalShardCountCondition(2).toString()), is(true));
                     }
                 }
 

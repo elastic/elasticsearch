@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -139,6 +141,7 @@ public class Verifier {
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
+            checkForSortOnSpatialTypes(p, failures);
         });
         checkRemoteEnrich(plan, failures);
 
@@ -379,6 +382,19 @@ public class Verifier {
             );
         }
         return null;
+    }
+
+    /**
+     * Makes sure that spatial types do not appear in sorting contexts.
+     * This check is a simplification of a similar check in the SQL verifier.
+     */
+    private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachDown(OrderBy.class, o -> o.order().forEach(agg -> agg.forEachUp(FieldAttribute.class, fa -> {
+            DataType dataType = fa.field().getDataType();
+            if (EsqlDataTypes.isSpatial(dataType)) {
+                localFailures.add(fail(fa, "can't sort on " + dataType.typeName()));
+            }
+        })));
     }
 
     /**

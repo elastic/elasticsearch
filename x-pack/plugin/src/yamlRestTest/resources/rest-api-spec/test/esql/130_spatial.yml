@@ -136,7 +136,7 @@ cartesian_point:
 ---
 cartesian_point unsortable:
   - do:
-      catch: /can't sort on geo_point or point field without using specific sorting feature, like geo_distance/
+      catch: /can't sort on cartesian_point/
       esql.query:
         body:
           query: 'from cartesian_points | sort location'
@@ -212,7 +212,7 @@ cartesian_shape:
 ---
 cartesian_shape unsortable:
   - do:
-      catch: /can't sort on shape field without using specific sorting feature, like cartesian_distance/
+      catch: /can't sort on cartesian_shape/
       esql.query:
         body:
           query: 'from cartesian_shapes | sort shape'

@@ -52,7 +52,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
@@ -290,62 +289,62 @@ public class MetadataRolloverService {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
         }
 
-        AtomicReference<DataStreamAutoShardingEvent> newAutoShardingEvent = new AtomicReference<>(dataStream.getAutoShardingEvent());
-        if (autoShardingResult != null) {
-            switch (autoShardingResult.type()) {
-                case NO_CHANGE_REQUIRED -> {
+        DataStreamAutoShardingEvent newAutoShardingEvent = autoShardingResult != null ? switch (autoShardingResult.type()) {
+            case NO_CHANGE_REQUIRED -> {
+                logger.info(
+                    "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
+                    dataStreamName,
+                    autoShardingResult
+                );
+                // the auto sharding recommendation hasn't changed on this rollover
+                Settings settingsWithAutoSharding = Settings.builder()
+                    .put(createIndexRequest.settings())
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), autoShardingResult.targetNumberOfShards())
+                    .build();
+                createIndexRequest.settings(settingsWithAutoSharding);
+                yield dataStream.getAutoShardingEvent();
+            }
+            case INCREASE_SHARDS, DECREASE_SHARDS -> {
+                logger.info("Auto sharding data stream [{}] to [{}]", dataStreamName, autoShardingResult);
+                Settings settingsWithAutoSharding = Settings.builder()
+                    .put(createIndexRequest.settings())
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), autoShardingResult.targetNumberOfShards())
+                    .build();
+                createIndexRequest.settings(settingsWithAutoSharding);
+                yield new DataStreamAutoShardingEvent(
+                    dataStream.getWriteIndex().getName(),
+                    autoShardingResult.targetNumberOfShards(),
+                    now.toEpochMilli()
+                );
+            }
+            case COOLDOWN_PREVENTED_INCREASE, COOLDOWN_PREVENTED_DECREASE -> {
+                // we're in the cooldown period for this particular recommendation so perhaps use a previous autosharding
+                // recommendation (or the value configured in the backing index template otherwise)
+                if (dataStream.getAutoShardingEvent() != null) {
                     logger.info(
                         "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
                         dataStreamName,
-                        autoShardingResult
+                        dataStream.getAutoShardingEvent()
                     );
                     // the auto sharding recommendation hasn't changed on this rollover
                     Settings settingsWithAutoSharding = Settings.builder()
                         .put(createIndexRequest.settings())
-                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), autoShardingResult.targetNumberOfShards())
-                        .build();
-                    createIndexRequest.settings(settingsWithAutoSharding);
-                }
-                case INCREASE_SHARDS, DECREASE_SHARDS -> {
-                    logger.info("Auto sharding data stream [{}] to [{}]", dataStreamName, autoShardingResult);
-                    Settings settingsWithAutoSharding = Settings.builder()
-                        .put(createIndexRequest.settings())
-                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), autoShardingResult.targetNumberOfShards())
-                        .build();
-                    createIndexRequest.settings(settingsWithAutoSharding);
-                    newAutoShardingEvent.set(
-                        new DataStreamAutoShardingEvent(
-                            dataStream.getWriteIndex().getName(),
-                            autoShardingResult.targetNumberOfShards(),
-                            now.toEpochMilli()
+                        .put(
+                            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(),
+                            dataStream.getAutoShardingEvent().targetNumberOfShards()
                         )
-                    );
+                        .build();
+                    createIndexRequest.settings(settingsWithAutoSharding);
                 }
-                case COOLDOWN_PREVENTED_INCREASE, COOLDOWN_PREVENTED_DECREASE -> {
-                    // we're in the cooldown period for this particular recommendation so perhaps use a previous autosharding
-                    // recommendation (or the value configured in the backing index template otherwise)
-                    if (dataStream.getAutoShardingEvent() != null) {
-                        logger.info(
-                            "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
-                            dataStreamName,
-                            dataStream.getAutoShardingEvent()
-                        );
-                        // the auto sharding recommendation hasn't changed on this rollover
-                        Settings settingsWithAutoSharding = Settings.builder()
-                            .put(createIndexRequest.settings())
-                            .put(
-                                IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(),
-                                dataStream.getAutoShardingEvent().targetNumberOfShards()
-                            )
-                            .build();
-                        createIndexRequest.settings(settingsWithAutoSharding);
-                    }
-                }
-                // data sharding might not be available due to the feature not being available/enabled or due to cluster level excludes
-                // being configured. the index template will dictate the number of shards as usual
-                case NOT_APPLICABLE -> logger.debug("auto sharding is not applicable for data stream [{}]", dataStreamName);
+                yield dataStream.getAutoShardingEvent();
             }
-        }
+            // data sharding might not be available due to the feature not being available/enabled or due to cluster level excludes
+            // being configured. the index template will dictate the number of shards as usual
+            case NOT_APPLICABLE -> {
+                logger.debug("auto sharding is not applicable for data stream [{}]", dataStreamName);
+                yield dataStream.getAutoShardingEvent();
+            }
+        } : dataStream.getAutoShardingEvent();
 
         var createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
             dataStreamName,
@@ -369,7 +368,7 @@ public class MetadataRolloverService {
                         indexMetadata.getIndex(),
                         newGeneration,
                         metadata.isTimeSeriesTemplate(templateV2),
-                        newAutoShardingEvent.get()
+                        newAutoShardingEvent
                     )
                 );
             },

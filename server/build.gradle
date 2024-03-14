@@ -311,8 +311,7 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.cli.LoggingAwareMultiCommand',
 
     // We temporarily need to have modified versions of the lucene Tessellator and LatLonShape classes while we wait for a bugfix
-    'org.apache.lucene.document.XLatLonShape',
-    'org.apache.lucene.geo.XTessellator'
+    'org.apache.lucene.document.XLatLonShape'
 
 }
 

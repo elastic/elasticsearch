@@ -28,7 +28,7 @@ import org.apache.lucene.geo.Line;
 import org.apache.lucene.geo.Point;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.geo.Rectangle;
-import org.apache.lucene.geo.XTessellator;
+import org.apache.lucene.geo.Tessellator;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -748,7 +748,7 @@ public class XLatLonShapeTests extends LuceneTestCase {
                     lons[i] = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(polygon.getPolyLon(i)));
                 }
                 polygon = new Polygon(lats, lons);
-                XTessellator.tessellate(polygon);
+                Tessellator.tessellate(polygon);
                 break;
             } catch (Exception e) {
                 // invalid polygon, try a new one

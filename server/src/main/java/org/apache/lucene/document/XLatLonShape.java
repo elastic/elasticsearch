@@ -19,7 +19,7 @@
 package org.apache.lucene.document;
 
 import org.apache.lucene.geo.Polygon;
-import org.apache.lucene.geo.XTessellator;
+import org.apache.lucene.geo.Tessellator;
 import org.apache.lucene.util.BytesRef;
 
 import java.util.ArrayList;
@@ -41,9 +41,9 @@ public class XLatLonShape {
     /** create indexable fields for polygon geometry */
     public static Field[] createIndexableFields(String fieldName, Polygon polygon) {
         // the lionshare of the indexing is done by the tessellator
-        List<XTessellator.Triangle> tessellation = XTessellator.tessellate(polygon);
+        List<Tessellator.Triangle> tessellation = Tessellator.tessellate(polygon);
         List<Triangle> fields = new ArrayList<>();
-        for (XTessellator.Triangle t : tessellation) {
+        for (Tessellator.Triangle t : tessellation) {
             fields.add(new Triangle(fieldName, t));
         }
         return fields.toArray(new Field[fields.size()]);
@@ -52,7 +52,7 @@ public class XLatLonShape {
     public static class Triangle extends Field {
 
         /** xtor from a given Tessellated Triangle object */
-        Triangle(String name, XTessellator.Triangle t) {
+        Triangle(String name, Tessellator.Triangle t) {
             super(name, TYPE);
             setTriangleValue(
                 t.getEncodedX(0),

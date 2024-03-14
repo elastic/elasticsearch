@@ -244,7 +244,7 @@ public class GeoShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            // TODO: Remove usage of XLatLonShape and XTessellator (and remove thoses classes) once Lucene releases a bugfix
+            // TODO: Remove usage of XLatLonShape (and remove thoses classes) once Lucene releases a bugfix
             addFields(XLatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(polygon)));
             return null;
         }
@@ -299,7 +299,7 @@ public class GeoShapeIndexer {
                     GeoEncodingUtils.decodeLatitude(maxLat),
                     GeoEncodingUtils.decodeLatitude(minLat)
                 );
-                // TODO: Remove usage of XLatLonShape and XTessellator (and remove thoses classes) once Lucene releases a bugfix
+                // TODO: Remove usage of XLatLonShape (and remove thoses classes) once Lucene releases a bugfix
                 addFields(XLatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(qRectangle)));
             }
             return null;

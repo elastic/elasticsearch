@@ -42,7 +42,7 @@ A cluster is considered balanced when no shard movements are scheduled (all `sha
 At this state it should have spread workload reasonably. For example, some nodes might have fewer shards but more ingest load.
 
 Some operations such as node restarting, decommissioning, or changing cluster allocation settings
-are disruptive and might require multiple shards to move or rebalance.
+are disruptive and might require multiple shards to move in order to rebalance the cluster.
 
 Shard movement order is not deterministic and mostly determined by the source and target node readiness to move a shard.
 While rebalancing is in progress some nodes might appear busier then others.

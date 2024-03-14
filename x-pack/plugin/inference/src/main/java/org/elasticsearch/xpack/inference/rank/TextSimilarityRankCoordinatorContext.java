@@ -8,12 +8,18 @@
 package org.elasticsearch.xpack.inference.rank;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankContext;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import static org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
@@ -23,13 +29,16 @@ public class TextSimilarityRankCoordinatorContext extends RankCoordinatorContext
     public TextSimilarityRankCoordinatorContext(int size, int from, int windowSize) {
         super(size, from, windowSize);
     }
-//
-//    public TextSimilarityRankCoordinatorContext(RankContext rankContext) {
-//        super(rankContext);
-//    }
+
+    public TextSimilarityRankCoordinatorContext(RankContext rankContext) {
+        super(rankContext);
+    }
 
     @Override
     public SortedTopDocs rank(List<QuerySearchResult> querySearchResults, TopDocsStats topDocsStats) {
+        // DFS: collect global term stats from shards, for 100% accuracy
+
+        // Top K trimming happens here (end of query phase)
         // QSR: one per shard, has shard index + metadata
         // fetch phase organizes docs per shard
         // topResults: combined top K from all shards
@@ -51,16 +60,21 @@ public class TextSimilarityRankCoordinatorContext extends RankCoordinatorContext
     }
 
     public void rank(List<TextSimilarityRankDoc> docs) {
-        //this.rankContext.getClient().execute()
+        // TODO: get inference entity ID from reranker config; get text from document sources
+        var req = new InferenceAction.Request(TaskType.SPARSE_EMBEDDING, "my-elser-model",
+            List.of("these are not the droids you're looking for", "move along"), Map.of(), InputType.SEARCH);
 
-//        getClient().execute(
-//            DeleteDataStreamAction.INSTANCE,
-//            deleteReq,
-//            listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
-//        );
+        this.rankContext.getClient().execute(InferenceAction.INSTANCE, req, new ActionListener<>() {
+            @Override
+            public void onResponse(InferenceAction.Response response) {
+                System.out.println(response);
+            }
 
-
-        //rankContext.getClient().execute()
+            @Override
+            public void onFailure(Exception e) {
+                System.out.println(e);
+            }
+        });
 
         docs.forEach(doc -> doc.score = (float) Math.random());
         docs.sort((o1, o2) -> (int) Math.signum(o2.score - o1.score));

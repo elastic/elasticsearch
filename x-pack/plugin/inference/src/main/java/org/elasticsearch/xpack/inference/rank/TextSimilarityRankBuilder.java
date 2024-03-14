@@ -13,12 +13,19 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankContext;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+
+// RankBuilder is passed to shards in the query phase
+// NEW: also in fetch (or rank) phase -> access to request context, rank builder in it
+// NEW: rankRankShardContext, rankRankCoordinatorContext
+// Rank phase -> 1. extract field for inference (rankRankShardContext), 2. run inference (rankRankCoordinatorContext)
+// Top K trimming at query phase
 
 public class TextSimilarityRankBuilder extends RankBuilder {
 
@@ -64,12 +71,17 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public RankShardContext buildRankShardContext(List<Query> queries, int from) {
-        return new TextSimilarityRankShardContext(queries, from, windowSize());
+        return new TextSimilarityRankShardContext(queries, from, windowSize()); // end of query phase
     }
 
     @Override
     public RankCoordinatorContext buildRankCoordinatorContext(int size, int from) {
-        return new TextSimilarityRankCoordinatorContext(size, from, windowSize());
+        return new TextSimilarityRankCoordinatorContext(size, from, windowSize()); // end of query phase
+    }
+
+    @Override
+    public RankCoordinatorContext buildRankCoordinatorContext(RankContext rankContext) {
+        return new TextSimilarityRankCoordinatorContext(rankContext);
     }
 
     @Override

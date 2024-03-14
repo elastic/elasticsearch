@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankContext;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -102,6 +103,11 @@ public class RRFRankBuilder extends RankBuilder {
     @Override
     public RankCoordinatorContext buildRankCoordinatorContext(int size, int from) {
         return new RRFRankCoordinatorContext(size, from, windowSize(), rankConstant);
+    }
+
+    @Override
+    public RankCoordinatorContext buildRankCoordinatorContext(RankContext rankContext) {
+        return null;
     }
 
     @Override

@@ -136,7 +136,8 @@ public class BulkShardRequestInferenceProvider {
 
         Map<String, Set<String>> fieldsForInferenceIds = clusterState.metadata()
             .index(bulkShardRequest.shardId().getIndex())
-            .getFieldInferenceMetadata().getFieldsForInferenceIds();
+            .getFieldInferenceMetadata()
+            .getFieldsForInferenceIds();
         // No inference fields? Terminate early
         if (fieldsForInferenceIds.isEmpty()) {
             listener.onResponse(bulkShardRequest);

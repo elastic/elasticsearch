@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -32,7 +31,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.junit.Before;
 
@@ -68,11 +66,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(InferencePlugin.class);
-    }
-
-    @Override
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return InferenceNamedWriteablesProvider.getNamedWriteables();
     }
 
     @Override

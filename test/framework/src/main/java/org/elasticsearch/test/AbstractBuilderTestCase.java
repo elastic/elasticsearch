@@ -320,10 +320,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         throw new UnsupportedOperationException("this test can't simulate method [" + method.getName() + "]");
     }
 
-    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Collections.emptyList();
-    }
-
     /**
      * @return a new {@link SearchExecutionContext} with the provided searcher
      */
@@ -449,7 +445,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
-            entries.addAll(testCase.getNamedWriteables());
+            pluginsService.forEach(plugin -> entries.addAll(plugin.getNamedWriteables()));
             namedWriteableRegistry = new NamedWriteableRegistry(entries);
             parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(
                 new NamedXContentRegistry(

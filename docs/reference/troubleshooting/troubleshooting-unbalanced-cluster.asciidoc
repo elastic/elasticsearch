@@ -9,7 +9,7 @@ Elasticsearch balances shards across data tiers to achieve a good compromise bet
 
 Elasticsearch does not take into account the amount or complexity of search queries when rebalancing shards.
 
-There is no guarantee that individual components are going to be evenly spread across the nodes.
+There is no guarantee that individual components will be evenly spread across the nodes.
 This might appear as some of the nodes have less shards allocated or using less disk
 as long as they are assigned with the shards with greater ingest load forecast.
 

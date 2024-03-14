@@ -247,9 +247,19 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     rolloverAutoSharding = dataStreamAutoShardingService.calculate(clusterState, dataStream, writeLoad);
                     logger.debug("auto sharding result for data stream [{}] is [{}]", dataStream.getName(), rolloverAutoSharding);
 
+                    // if auto sharding recommends increasing the number of shards we want to trigger a rollover even if there are no
+                    // other "regular" conditions matching (we want to aggressively increse the number of shards) so we're adding the
+                    // automatic {@link OptimalShardCountCondition} to the rollover request conditions so it gets evaluated and triggers
+                    // the rollover operation (having this condition met will also provide a useful paper trail as it'll get stored in
+                    // the {@link org.elasticsearch.action.admin.indices.rollover.RolloverInfo#metConditions} )
+
+                    // NOTE that the {@link AutoShardingType#DECREASE_SHARDS} recommendation is treated differently (i.e. added to the
+                    // conditions later only if other "regular" rollover conditions match: see {@link RolloverTask#executeTask}) because we
+                    // do NOT want to trigger a rollover **just** to reduce the number of shards, but we will reduce the number of shards
+                    // when the rollover will naturally occur.
                     if (rolloverAutoSharding.type().equals(AutoShardingType.INCREASE_SHARDS)) {
                         RolloverConditions conditionsIncludingImplicit = RolloverConditions.newBuilder(rolloverRequest.getConditions())
-                            .addAutoShardingCondition(rolloverAutoSharding)
+                            .addOptimalShardCountCondition(rolloverAutoSharding)
                             .build();
                         rolloverRequest.setConditions(conditionsIncludingImplicit);
                     }
@@ -434,9 +444,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 if (rolloverTask.autoShardingResult != null
                     && rolloverTask.autoShardingResult.type().equals(AutoShardingType.DECREASE_SHARDS)) {
                     // if we're executing a rollover ("regular" conditions are met) and we're also decreasing the number of shards we'll
-                    // include the decrease_shards autosharding condition in the response and rollover info/met conditions
+                    // include the decrease_shards optimal shard count condition in the response and {@link RolloverInfo#metConditions}
                     RolloverConditions conditionsIncludingDecreaseShards = RolloverConditions.newBuilder(rolloverRequest.getConditions())
-                        .addAutoShardingCondition(rolloverTask.autoShardingResult)
+                        .addOptimalShardCountCondition(rolloverTask.autoShardingResult)
                         .build();
                     rolloverRequest.setConditions(conditionsIncludingDecreaseShards);
                     resultsIncludingDecreaseShards.put(

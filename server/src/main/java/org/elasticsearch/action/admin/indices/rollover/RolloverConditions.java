@@ -418,9 +418,9 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         }
 
         /**
-         * Adds an auto sharding increase shards condition, ignores it otherwise.
+         * Adds an optimal shard count condition if the autosharding result is of type INCREASE or DECREASE_SHARDS, ignores it otherwise.
          */
-        public Builder addAutoShardingCondition(AutoShardingResult autoShardingResult) {
+        public Builder addOptimalShardCountCondition(AutoShardingResult autoShardingResult) {
             if (autoShardingResult.type().equals(INCREASE_SHARDS) || autoShardingResult.type().equals(DECREASE_SHARDS)) {
                 OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(
                     autoShardingResult.targetNumberOfShards()

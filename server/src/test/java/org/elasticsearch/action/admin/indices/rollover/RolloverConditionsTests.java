@@ -164,7 +164,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
 
         OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(3);
         rolloverConditions = RolloverConditions.newBuilder()
-            .addAutoShardingCondition(
+            .addOptimalShardCountCondition(
                 randomBoolean()
                     ? new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
                     : new AutoShardingResult(AutoShardingType.DECREASE_SHARDS, 7, 3, TimeValue.ZERO, 0.8)
@@ -175,7 +175,7 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
 
         // the rollover condition must be INCREASE or DECREASE_SHARDS, any other type should be ignored
         rolloverConditions = RolloverConditions.newBuilder()
-            .addAutoShardingCondition(
+            .addOptimalShardCountCondition(
                 new AutoShardingResult(
                     randomFrom(
                         AutoShardingType.COOLDOWN_PREVENTED_INCREASE,

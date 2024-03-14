@@ -1,0 +1,5 @@
+pr: 106380
+summary: Upgrade mime4j on the 7.17 line
+area: Ingest Node
+type: upgrade
+issues: []

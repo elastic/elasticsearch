@@ -108,10 +108,19 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
 
     @Override
     public Diff<FieldInferenceMetadata> diff(FieldInferenceMetadata previousState) {
+        if (previousState == null) {
+            previousState = EMPTY;
+        }
         return new FieldInferenceMetadataDiff(previousState, this);
     }
 
     static class FieldInferenceMetadataDiff implements Diff<FieldInferenceMetadata> {
+
+        public static final FieldInferenceMetadataDiff EMPTY = new FieldInferenceMetadataDiff(
+            FieldInferenceMetadata.EMPTY,
+            FieldInferenceMetadata.EMPTY
+        );
+
         private final Diff<ImmutableOpenMap<String, FieldInference>> fieldInferenceMapDiff;
 
         private static final DiffableUtils.DiffableValueReader<String, FieldInference> FIELD_INFERENCE_DIFF_VALUE_READER =

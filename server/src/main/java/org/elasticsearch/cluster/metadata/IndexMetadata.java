@@ -1596,7 +1596,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
                 fieldInferenceMetadata = in.readOptionalWriteable(FieldInferenceMetadata.FieldInferenceMetadataDiff::new);
             } else {
-                fieldInferenceMetadata = null;
+                fieldInferenceMetadata = FieldInferenceMetadata.FieldInferenceMetadataDiff.EMPTY;
             }
         }
 

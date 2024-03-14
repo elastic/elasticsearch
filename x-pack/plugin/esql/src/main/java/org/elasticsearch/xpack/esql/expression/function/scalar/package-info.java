@@ -73,7 +73,7 @@
  *     </li>
  *     <li>
  *         Add your function to {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
- *         This links it into the language and {@code SHOW FUNCTIONS}. Also add your function to
+ *         This links it into the language and {@code META FUNCTIONS}. Also add your function to
  *         {@link org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes}. This makes your function
  *         serializable over the wire. Mostly you can copy existing implementations for both.
  *     </li>

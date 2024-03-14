@@ -1037,8 +1037,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testShowFunctions() {
-        try (EsqlQueryResponse results = run("show functions")) {
+    public void testMetaFunctions() {
+        try (EsqlQueryResponse results = run("meta functions")) {
             assertThat(
                 results.columns(),
                 equalTo(

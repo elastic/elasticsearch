@@ -281,9 +281,8 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, rename(c));
     }
 
-    public void testShowFunctionsOrInfo() {
-        String showCommand = randomFrom("show functions", "show info");
-        Counters c = esql(showCommand + " |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c");
+    public void testShowInfo() {
+        Counters c = esql("show info |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));

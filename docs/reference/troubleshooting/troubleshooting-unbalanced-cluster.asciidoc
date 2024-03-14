@@ -8,9 +8,10 @@ Elasticsearch balances shards across data tiers to achieve a good compromise bet
 * write load (for indices in data streams)
 
 Elasticsearch does not take into account the amount or complexity of search queries when rebalancing shards.
+This is indirectly achieved by balancing shard count and disk usage.
 
 There is no guarantee that individual components will be evenly spread across the nodes.
-This could happen if some nodes have fewer shards, or are using less disk space, 
+This could happen if some nodes have fewer shards, or are using less disk space,
 but are assigned shards with higher write loads.
 
 Use the <<cat-allocation,cat allocation command>> to list workloads per node:
@@ -38,8 +39,8 @@ This response contains the following information that influences balancing:
 * `disk.indices.forecast` is the expected disk usage according to projected shard growth
 * `write_load.forecast` is the projected total write load associated with this node
 
-A cluster is considered balanced when all shards are in their desired locations, which means that no further shard movements are planned (all `shards.undesired` values are equal to 0).
-At this state it should have spread workload reasonably. For example, some nodes might have fewer shards but more ingest load.
+A cluster is considered balanced when all shards are in their desired locations,
+which means that no further shard movements are planned (all `shards.undesired` values are equal to 0).
 
 Some operations such as node restarting, decommissioning, or changing cluster allocation settings
 are disruptive and might require multiple shards to move in order to rebalance the cluster.
@@ -59,16 +60,15 @@ If a cluster takes a long time to finish rebalancing you might find the followin
 This is not concerning as long as the number of such shards is decreasing and this warning appears occasionally,
 for example after rolling restarts or changing allocation settings.
 
-If the cluster has this warning for an extended period of time, it is possible that the desired balance has diverged
-too far from the current state. If so, reset the desired balance to calculate a 
-new one that requires fewer shard movements to get to balanced state. Reset the desired balance 
-using the following API call:
+If the cluster has this warning repeatedly for an extended period of time (multiple hours),
+it is possible that the desired balance is diverging too far from the current state.
+
+If so, increase the <<shards-rebalancing-heuristics,`cluster.routing.allocation.balance.threshold`>>
+to reduce the sensitivity of the algorithm that tries to level up the shard count and disk usage within the cluster.
+
+And reset the desired balance using the following API call:
 
 [source,console,id=delete-desired-balance-request-example]
 --------------------------------------------------
 DELETE /_internal/desired_balance
 --------------------------------------------------
-
-If the cluster gets into this state repeatedly, without node restarts or changes in allocation settings,
-increase the <<shards-rebalancing-heuristics,`cluster.routing.allocation.balance.threshold`>>.
-This will reduce the sensitivity of the algorithm that tries to level up the shard count and disk usage within the cluster.

@@ -31,7 +31,7 @@ shards shards.undesired write_load.forecast disk.indices.forecast disk.indices d
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/ s/46/\\d+/]
 // TESTRESPONSE[s/CSUXak2 himrst/.+/ non_json]
 
-This response contains following components that influence the balancing
+This response contains the following information that influences balancing:
 
 * `shards` is the current number of shards allocated to the node
 * `shards.undesired` is the number of shards that needs to be moved to other nodes to finish balancing

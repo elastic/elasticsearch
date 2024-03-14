@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -92,7 +93,7 @@ public class BulkOperationTests extends ESTestCase {
 
     public void testNoInference() {
 
-        Map<String, Set<String>> fieldsForModels = Map.of();
+        FieldInferenceMetadata fieldInferenceMetadata = FieldInferenceMetadata.EMPTY;
         ModelRegistry modelRegistry = createModelRegistry(
             Map.of(INFERENCE_SERVICE_1_ID, SERVICE_1_ID, INFERENCE_SERVICE_2_ID, SERVICE_2_ID)
         );
@@ -116,7 +117,7 @@ public class BulkOperationTests extends ESTestCase {
         ActionListener<BulkResponse> bulkOperationListener = mock(ActionListener.class);
         BulkShardRequest bulkShardRequest = runBulkOperation(
             originalSource,
-            fieldsForModels,
+            fieldInferenceMetadata,
             modelRegistry,
             inferenceServiceRegistry,
             true,
@@ -158,7 +159,7 @@ public class BulkOperationTests extends ESTestCase {
 
     public void testFailedBulkShardRequest() {
 
-        Map<String, Set<String>> fieldsForModels = Map.of();
+        FieldInferenceMetadata fieldInferenceMetadata = FieldInferenceMetadata.EMPTY;
         ModelRegistry modelRegistry = createModelRegistry(Map.of());
         InferenceServiceRegistry inferenceServiceRegistry = createInferenceServiceRegistry(Map.of());
 
@@ -176,7 +177,7 @@ public class BulkOperationTests extends ESTestCase {
 
         runBulkOperation(
             originalSource,
-            fieldsForModels,
+            fieldInferenceMetadata,
             modelRegistry,
             inferenceServiceRegistry,
             bulkOperationListener,
@@ -206,11 +207,15 @@ public class BulkOperationTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testInference() {
 
-        Map<String, Set<String>> fieldsForModels = Map.of(
-            INFERENCE_SERVICE_1_ID,
-            Set.of(FIRST_INFERENCE_FIELD_SERVICE_1, SECOND_INFERENCE_FIELD_SERVICE_1),
-            INFERENCE_SERVICE_2_ID,
-            Set.of(INFERENCE_FIELD_SERVICE_2)
+        FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(
+            Map.of(
+                FIRST_INFERENCE_FIELD_SERVICE_1,
+                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()),
+                SECOND_INFERENCE_FIELD_SERVICE_1,
+                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()),
+                INFERENCE_FIELD_SERVICE_2,
+                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_2_ID, Set.of())
+            )
         );
 
         ModelRegistry modelRegistry = createModelRegistry(
@@ -244,7 +249,7 @@ public class BulkOperationTests extends ESTestCase {
         ActionListener<BulkResponse> bulkOperationListener = mock(ActionListener.class);
         BulkShardRequest bulkShardRequest = runBulkOperation(
             originalSource,
-            fieldsForModels,
+            fieldInferenceMetadata,
             modelRegistry,
             inferenceServiceRegistry,
             true,
@@ -279,7 +284,9 @@ public class BulkOperationTests extends ESTestCase {
 
     public void testFailedInference() {
 
-        Map<String, Set<String>> fieldsForModels = Map.of(INFERENCE_SERVICE_1_ID, Set.of(FIRST_INFERENCE_FIELD_SERVICE_1));
+        FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(
+            Map.of(FIRST_INFERENCE_FIELD_SERVICE_1, new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()))
+        );
 
         ModelRegistry modelRegistry = createModelRegistry(Map.of(INFERENCE_SERVICE_1_ID, SERVICE_1_ID));
 
@@ -298,7 +305,7 @@ public class BulkOperationTests extends ESTestCase {
         ArgumentCaptor<BulkResponse> bulkResponseCaptor = ArgumentCaptor.forClass(BulkResponse.class);
         @SuppressWarnings("unchecked")
         ActionListener<BulkResponse> bulkOperationListener = mock(ActionListener.class);
-        runBulkOperation(originalSource, fieldsForModels, modelRegistry, inferenceServiceRegistry, false, bulkOperationListener);
+        runBulkOperation(originalSource, fieldInferenceMetadata, modelRegistry, inferenceServiceRegistry, false, bulkOperationListener);
 
         verify(bulkOperationListener).onResponse(bulkResponseCaptor.capture());
         BulkResponse bulkResponse = bulkResponseCaptor.getValue();
@@ -313,7 +320,9 @@ public class BulkOperationTests extends ESTestCase {
 
     public void testInferenceFailsForIncorrectRootObject() {
 
-        Map<String, Set<String>> fieldsForModels = Map.of(INFERENCE_SERVICE_1_ID, Set.of(FIRST_INFERENCE_FIELD_SERVICE_1));
+        FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(
+            Map.of(FIRST_INFERENCE_FIELD_SERVICE_1, new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()))
+        );
 
         ModelRegistry modelRegistry = createModelRegistry(Map.of(INFERENCE_SERVICE_1_ID, SERVICE_1_ID));
 
@@ -331,7 +340,7 @@ public class BulkOperationTests extends ESTestCase {
         ArgumentCaptor<BulkResponse> bulkResponseCaptor = ArgumentCaptor.forClass(BulkResponse.class);
         @SuppressWarnings("unchecked")
         ActionListener<BulkResponse> bulkOperationListener = mock(ActionListener.class);
-        runBulkOperation(originalSource, fieldsForModels, modelRegistry, inferenceServiceRegistry, false, bulkOperationListener);
+        runBulkOperation(originalSource, fieldInferenceMetadata, modelRegistry, inferenceServiceRegistry, false, bulkOperationListener);
 
         verify(bulkOperationListener).onResponse(bulkResponseCaptor.capture());
         BulkResponse bulkResponse = bulkResponseCaptor.getValue();
@@ -343,11 +352,15 @@ public class BulkOperationTests extends ESTestCase {
 
     public void testInferenceIdNotFound() {
 
-        Map<String, Set<String>> fieldsForModels = Map.of(
-            INFERENCE_SERVICE_1_ID,
-            Set.of(FIRST_INFERENCE_FIELD_SERVICE_1, SECOND_INFERENCE_FIELD_SERVICE_1),
-            INFERENCE_SERVICE_2_ID,
-            Set.of(INFERENCE_FIELD_SERVICE_2)
+        FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(
+            Map.of(
+                FIRST_INFERENCE_FIELD_SERVICE_1,
+                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()),
+                SECOND_INFERENCE_FIELD_SERVICE_1,
+                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()),
+                INFERENCE_FIELD_SERVICE_2,
+                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_2_ID, Set.of())
+            )
         );
 
         ModelRegistry modelRegistry = createModelRegistry(Map.of(INFERENCE_SERVICE_1_ID, SERVICE_1_ID));
@@ -368,7 +381,7 @@ public class BulkOperationTests extends ESTestCase {
         ActionListener<BulkResponse> bulkOperationListener = mock(ActionListener.class);
         doAnswer(invocation -> null).when(bulkOperationListener).onResponse(bulkResponseCaptor.capture());
 
-        runBulkOperation(originalSource, fieldsForModels, modelRegistry, inferenceServiceRegistry, false, bulkOperationListener);
+        runBulkOperation(originalSource, fieldInferenceMetadata, modelRegistry, inferenceServiceRegistry, false, bulkOperationListener);
 
         verify(bulkOperationListener).onResponse(bulkResponseCaptor.capture());
         BulkResponse bulkResponse = bulkResponseCaptor.getValue();
@@ -444,7 +457,7 @@ public class BulkOperationTests extends ESTestCase {
 
     private static BulkShardRequest runBulkOperation(
         Map<String, Object> docSource,
-        Map<String, Set<String>> fieldsForModels,
+        FieldInferenceMetadata fieldInferenceMetadata,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry inferenceServiceRegistry,
         boolean expectTransportShardBulkActionToExecute,
@@ -452,7 +465,7 @@ public class BulkOperationTests extends ESTestCase {
     ) {
         return runBulkOperation(
             docSource,
-            fieldsForModels,
+            fieldInferenceMetadata,
             modelRegistry,
             inferenceServiceRegistry,
             bulkOperationListener,
@@ -463,7 +476,7 @@ public class BulkOperationTests extends ESTestCase {
 
     private static BulkShardRequest runBulkOperation(
         Map<String, Object> docSource,
-        Map<String, Set<String>> fieldsForModels,
+        FieldInferenceMetadata fieldInferenceMetadata,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry inferenceServiceRegistry,
         ActionListener<BulkResponse> bulkOperationListener,
@@ -472,7 +485,7 @@ public class BulkOperationTests extends ESTestCase {
     ) {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(INDEX_NAME)
-            .fieldInferenceMetadata(fieldsForModels)
+            .fieldInferenceMetadata(fieldInferenceMetadata)
             .settings(settings)
             .numberOfShards(1)
             .numberOfReplicas(0)

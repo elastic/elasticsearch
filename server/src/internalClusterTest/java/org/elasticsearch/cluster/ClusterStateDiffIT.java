@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataTests;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
@@ -54,7 +55,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -587,7 +587,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
                         break;
                     case 3:
-                        builder.fieldInferenceMetadata(randomFieldsForModels());
+                        builder.fieldInferenceMetadata(IndexMetadataTests.randomFieldInferenceMetadata(true));
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
@@ -598,22 +598,6 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             /**
              * Generates a random fieldsForModels map
              */
-            private Map<String, Set<String>> randomFieldsForModels() {
-                if (randomBoolean()) {
-                    return null;
-                }
-
-                Map<String, Set<String>> fieldsForModels = new HashMap<>();
-                for (int i = 0; i < randomIntBetween(0, 5); i++) {
-                    Set<String> fields = new HashSet<>();
-                    for (int j = 0; j < randomIntBetween(1, 4); j++) {
-                        fields.add(randomAlphaOfLengthBetween(4, 10));
-                    }
-                    fieldsForModels.put(randomAlphaOfLengthBetween(4, 10), fields);
-                }
-
-                return fieldsForModels;
-            }
         });
     }
 

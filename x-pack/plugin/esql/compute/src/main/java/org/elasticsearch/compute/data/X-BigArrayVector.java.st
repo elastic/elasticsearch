@@ -8,8 +8,12 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.$Array$;
 import org.elasticsearch.core.Releasable;
+
+import java.io.IOException;
 
 /**
  * Vector implementation that defers to an enclosed {@link $if(boolean)$Bit$else$$Type$$endif$Array}.
@@ -25,6 +29,32 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
     public $Type$BigArrayVector($Array$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static $Type$BigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+$if(boolean)$
+        $Array$ values = new BitArray(blockFactory.bigArrays(), true, in);
+$else$
+        $Array$ values = blockFactory.bigArrays().new$Type$Array(positions, false);
+$endif$
+        boolean success = false;
+        try {
+$if(boolean)$$else$
+            values.fillWith(in);
+$endif$
+            $Type$BigArrayVector vector = new $Type$BigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
     }
 
     @Override

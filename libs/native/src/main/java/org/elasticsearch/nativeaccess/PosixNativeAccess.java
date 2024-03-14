@@ -16,7 +16,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     protected final PosixCLibrary libc;
 
     PosixNativeAccess(String name, NativeLibraryProvider libraryProvider) {
-        super(name);
+        super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
     }
 

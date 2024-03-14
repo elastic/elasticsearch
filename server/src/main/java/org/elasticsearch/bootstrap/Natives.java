@@ -10,8 +10,11 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ReferenceDocs;
 
+import java.lang.invoke.MethodHandles;
 import java.nio.file.Path;
+import java.util.Locale;
 
 /**
  * The Natives class is a wrapper class that checks if the classes necessary for calling native methods are available on
@@ -31,12 +34,19 @@ final class Natives {
         try {
             // load one of the main JNA classes to see if the classes are available. this does not ensure that all native
             // libraries are available, only the ones necessary by JNA to function
-            Class.forName("com.sun.jna.Native");
+            MethodHandles.publicLookup().ensureInitialized(com.sun.jna.Native.class);
             v = true;
-        } catch (ClassNotFoundException e) {
-            logger.warn("JNA not found. native methods will be disabled.", e);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
         } catch (UnsatisfiedLinkError e) {
-            logger.warn("unable to load JNA native support library, native methods will be disabled.", e);
+            logger.warn(
+                String.format(
+                    Locale.ROOT,
+                    "unable to load JNA native support library, native methods will be disabled. See %s",
+                    ReferenceDocs.EXECUTABLE_JNA_TMPDIR
+                ),
+                e
+            );
         }
         JNA_AVAILABLE = v;
     }

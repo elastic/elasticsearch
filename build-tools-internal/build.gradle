@@ -119,6 +119,10 @@ gradlePlugin {
       id = 'elasticsearch.java-doc'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin'
     }
+    javaBase {
+      id = 'elasticsearch.java-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin'
+    }
     java {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'

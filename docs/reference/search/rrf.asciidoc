@@ -32,28 +32,20 @@ return score
 ==== Reciprocal rank fusion API
 
 You can use RRF as part of a <<search-search, search>> to combine and rank
-documents using result sets from a combination of
-<<request-body-search-query, query>>,
-<<request-body-sub-searches, sub searches>>, and/or
-<<search-api-knn, knn searches>>. A minimum of 2 results sets
-is required for ranking from the specified sources.
+documents using separate sets of top documents (result sets) from a
+combination of <<retriever, child retrievers>> using an
+<<rrf-retriever, RRF retriever>>. A minimum of *two* child retrievers is
+required for ranking.
 
-The `rrf` parameter is an optional object defined as part of a search request's
-<<request-body-rank, rank parameter>>. The `rrf` object contains the following
-parameters:
+An RRF retriever is an optional object defined as part of a search request's
+<<request-body-retriever, retriever parameter>>. The RRF retriever object contains
+the following parameters:
 
-`rank_constant`::
-(Optional, integer) This value determines how much influence documents in individual
-result sets per query have over the final ranked result set. A higher value indicates
-that lower ranked documents have more influence. This value must be greater than or
-equal to `1`. Defaults to `60`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
-`window_size`::
-(Optional, integer) This value determines the size of the individual result sets per
-query. A higher value will improve result relevance at the cost of performance. The final
-ranked result set is pruned down to the search request's <<search-size-param, size>>.
-`window_size` must be greater than or equal to `size` and greater than or equal to `1`.
-Defaults to `100`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
 
 An example request using RRF:
 
@@ -61,19 +53,27 @@ An example request using RRF:
 ----
 GET example-index/_search
 {
-    "query": {
-        "term": {
-            "text": "shoes"
-        }
-    },
-    "knn": {
-        "field": "vector",
-        "query_vector": [1.25, 2, 3.5],
-        "k": 50,
-        "num_candidates": 100
-    },
-    "rank": {
-        "rrf": {
+    "retriever": {
+        "rrf": { <3>
+            "retrievers": [
+                {
+                    "standard": { <2>
+                        "query": {
+                            "term": {
+                                "text": "shoes"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": { <1>
+                        "field": "vector",
+                        "query_vector": [1.25, 2, 3.5],
+                        "k": 50,
+                        "num_candidates": 100
+                    }
+                }
+            ],
             "window_size": 50,
             "rank_constant": 20
         }
@@ -82,10 +82,17 @@ GET example-index/_search
 ----
 // TEST[skip:example fragment]
 
-In the above example, we first execute the kNN search to get its global top 50 results.
-Then we execute the query to get its global top 50 results. Afterwards, on a coordinating
-node, we combine the knn search results with the query results and rank them based on the
-RRF method to get the final top 10 results.
+In the above example, we execute the `knn` and `standard` retrievers
+independently of each other. Then we use the `rrf` retriever to combine
+the results.
+
+<1> First, we execute the kNN search specified by the `knn` retriever to
+get its global top 50 results.
+<2> Second, we execute the query specified by the `standard` retriever to get
+its global top 50 results.
+<3> Then, on a coordinating node, we combine the kNN search top documents with
+the query top documents and rank them based on the RRF formula using parameters from
+the `rrf` retriever to get the combined top documents using the default `size` of `10`.
 
 Note that if `k` from a knn search is larger than `window_size`, the results are
 truncated to `window_size`. If `k` is smaller than `window_size`, the results are
@@ -94,13 +101,12 @@ truncated to `window_size`. If `k` is smaller than `window_size`, the results ar
 [[rrf-supported-features]]
 ==== Reciprocal rank fusion supported features
 
-RRF does support:
+The `rrf` retriever supports:
 
-* <<request-body-sub-searches, sub searches>>
 * <<search-aggregations, aggregations>>
 * <<search-from-param, from>>
 
-RRF does not currently support:
+The `rrf` retriever does not currently support:
 
 * <<search-api-scroll-query-param, scroll>>
 * <<search-api-pit, point in time>>
@@ -112,42 +118,48 @@ RRF does not currently support:
 * <<request-body-search-explain, explain>>
 * <<profiling-queries, profiling>>
 
-Using unsupported features as part of a search with RRF results
+Using unsupported features as part of a search with an `rrf` retriever results
 in an exception.
 
-[[rrf-using-sub-searches]]
-==== Reciprocal rank fusion using sub searches
+[[rrf-using-multiple-standard-retrievers]]
+==== Reciprocal rank fusion using multiple standard retrievers
 
-<<request-body-sub-searches, Sub searches>> provides a way to
-combine and rank multiple searches using RRF.
+The `rrf` retriever provides a way to combine and rank multiple
+`standard` retrievers. A primary use case is combining top documents
+from a traditional BM25 query and an <<semantic-search-elser, ELSER>>
+query to achieve improved relevance.
 
-An example request using RRF with sub searches:
+An example request using RRF with multiple standard retrievers:
 
 [source,console]
 ----
 GET example-index/_search
 {
-    "sub_searches": [
-        {
-            "query": {
-                "term": {
-                    "text": "blue shoes sale"
+    "retriever": {
+        "rrf": { <3>
+            "retrievers": [
+                {
+                    "standard": { <1>
+                        "query": {
+                            "term": {
+                                "text": "blue shoes sale"
+                            }
+                        }
+                    }
+                },
+                {
+                    "standard": { <2>
+                        "query": {
+                            "text_expansion":{
+                                "ml.tokens":{
+                                    "model_id":"my_elser_model",
+                                    "model_text":"What blue shoes are on sale?"
+                                }
+                            }
+                        }
+                    }
                 }
-            }
-        },
-        {
-            "query": {
-                "text_expansion":{
-                    "ml.tokens":{
-                        "model_id":"my_elser_model",
-                        "model_text":"What blue shoes are on sale?"
-                     }
-                }
-            }
-        }
-    ],
-    "rank": {
-        "rrf": {
+            ],
             "window_size": 50,
             "rank_constant": 20
         }
@@ -156,16 +168,30 @@ GET example-index/_search
 ----
 // TEST[skip:example fragment]
 
-In the above example, we execute each of the two sub searches
-independently of each other. First we run the term query for
-`blue shoes sales` using the standard BM25 scoring algorithm. Then
-we run the text expansion query for `What blue shoes are on sale?`
+In the above example, we execute each of the two `standard` retrievers
+independently of each other. Then we use the `rrf` retriever to combine
+the results.
+
+<1> First we run the `standard` retriever
+specifying a term query for `blue shoes sales` using the standard BM25
+scoring algorithm.
+<2> Next we run the `standard` retriever specifying a
+text expansion query for `What blue shoes are on sale?`
 using our <<semantic-search-elser, ELSER>> scoring algorithm.
-RRF allows us to combine the two results sets generated by completely
-independent scoring algorithms with equal weighting. Not only does this
-remove the need to figure out what the appropriate weighting would be
-using linear combination, but RRF is also shown to give improved
+<3> The `rrf` retriever allows us to combine the two top documents sets
+generated by completely independent scoring algorithms with equal weighting.
+
+Not only does this remove the need to figure out what the appropriate
+weighting is using linear combination, but RRF is also shown to give improved
 relevance over either query individually.
+
+[[rrf-using-sub-searches]]
+==== Reciprocal rank fusion using sub searches
+
+RRF using sub searches is no longer supported. Use the
+<<retriever, retriever API>> instead. See
+<<rrf-using-multiple-standard-retrievers, using multiple standard retrievers>>
+for an example.
 
 [[rrf-full-example]]
 ==== Reciprocal rank fusion full example
@@ -179,7 +205,7 @@ to explain.
 ----
 PUT example-index
 {
-  "mappings": {
+    "mappings": {
         "properties": {
             "text" : {
                 "type" : "text"
@@ -234,26 +260,35 @@ POST example-index/_refresh
 ----
 // TEST
 
-We now execute a search using RRF with a query, a kNN search, and
+We now execute a search using an `rrf` retriever with a `standard` retriever
+specifying a BM25 query, a `knn` retriever specifying a kNN search, and
 a terms aggregation.
 
 [source,console]
 ----
 GET example-index/_search
 {
-    "query": {
-        "term": {
-            "text": "rrf"
-        }
-    },
-    "knn": {
-        "field": "vector",
-        "query_vector": [3],
-        "k": 5,
-        "num_candidates": 5
-    },
-    "rank": {
+    "retriever": {
         "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "text": "rrf"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [3],
+                        "k": 5,
+                        "num_candidates": 5
+                    }
+                }
+            ],
             "window_size": 5,
             "rank_constant": 1
         }
@@ -351,10 +386,11 @@ use `_rank` to show our top-ranked documents.
 // TESTRESPONSE[s/: \.\.\./: $body.$_path/]
 
 Let's break down how these hits were ranked. We
-start by running the query and the kNN search
-separately to collect what their individual hits are.
+start by running the `standard` retriever specifying a query
+and the `knn` retriever specifying a kNN search separately to
+collect what their individual hits are.
 
-First, we look at the hits for the query.
+First, we look at the hits for the query from the `standard` retriever.
 
 [source,console-result]
 ----
@@ -407,7 +443,7 @@ First, we look at the hits for the query.
 <4> rank 4, `_id` 1
 
 Note that our first hit doesn't have a value for the `vector` field. Now,
-we look at the results for the kNN search.
+we look at the results for the kNN search from the `knn` retriever.
 
 [source,console-result]
 ----
@@ -460,7 +496,8 @@ we look at the results for the kNN search.
 <4> rank 4, `_id` 5
 
 We can now take the two individually ranked result sets and apply the
-RRF formula to them to get our final ranking.
+RRF formula to them using parameters from the `rrf` retriever to get
+our final ranking.
 
 [source,python]
 ----
@@ -478,4 +515,3 @@ truncating the bottom `2` docs in our RRF result set with a `size` of `3`.
 We end with `_id: 3` as `_rank: 1`, `_id: 2` as `_rank: 2`, and
 `_id: 4` as `_rank: 3`. This ranking matches the result set from the
 original RRF search as expected.
-

@@ -134,6 +134,20 @@ public class TransportVersions {
     public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
     public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
     public static final TransportVersion RANDOM_AGG_SHARD_SEED = def(8_596_00_0);
+    public static final TransportVersion ESQL_TIMINGS = def(8_597_00_0);
+    public static final TransportVersion DATA_STREAM_AUTO_SHARDING_EVENT = def(8_598_00_0);
+    public static final TransportVersion ADD_FAILURE_STORE_INDICES_OPTIONS = def(8_599_00_0);
+    public static final TransportVersion ESQL_ENRICH_OPERATOR_STATUS = def(8_600_00_0);
+    public static final TransportVersion ESQL_SERIALIZE_ARRAY_VECTOR = def(8_601_00_0);
+    public static final TransportVersion ESQL_SERIALIZE_ARRAY_BLOCK = def(8_602_00_0);
+    public static final TransportVersion ADD_DATA_STREAM_GLOBAL_RETENTION = def(8_603_00_0);
+    public static final TransportVersion ALLOCATION_STATS = def(8_604_00_0);
+    public static final TransportVersion ESQL_EXTENDED_ENRICH_TYPES = def(8_605_00_0);
+    public static final TransportVersion KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING = def(8_606_00_0);
+    public static final TransportVersion ESQL_EXTENDED_ENRICH_INPUT_TYPE = def(8_607_00_0);
+    public static final TransportVersion ESQL_SERIALIZE_BIG_VECTOR = def(8_608_00_0);
+    public static final TransportVersion AGGS_EXCLUDED_DELETED_DOCS = def(8_609_00_0);
+    public static final TransportVersion ESQL_SERIALIZE_BIG_ARRAY = def(8_610_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

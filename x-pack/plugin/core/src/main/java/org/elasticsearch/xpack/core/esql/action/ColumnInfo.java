@@ -7,8 +7,52 @@
 
 package org.elasticsearch.xpack.core.esql.action;
 
-public interface ColumnInfo {
-    String name();
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
-    String type();
+import java.io.IOException;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
+public record ColumnInfo(String name, String type) implements Writeable {
+
+    private static final InstantiatingObjectParser<ColumnInfo, Void> PARSER;
+    static {
+        InstantiatingObjectParser.Builder<ColumnInfo, Void> parser = InstantiatingObjectParser.builder(
+            "esql/column_info",
+            true,
+            ColumnInfo.class
+        );
+        parser.declareString(constructorArg(), new ParseField("name"));
+        parser.declareString(constructorArg(), new ParseField("type"));
+        PARSER = parser.build();
+    }
+
+    public static ColumnInfo fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    public ColumnInfo(StreamInput in) throws IOException {
+        this(in.readString(), in.readString());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeString(type);
+    }
+
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject();
+        builder.field("name", name);
+        builder.field("type", type);
+        builder.endObject();
+        return builder;
+    }
 }

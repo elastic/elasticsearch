@@ -25,13 +25,17 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.AggregationOperator;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -49,8 +53,10 @@ import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -58,12 +64,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
 
-    public static final String ESQL_THREAD_POOL_NAME = "esql";
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
@@ -77,7 +83,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
         "esql.query.result_truncation_default_size",
-        500,
+        1000,
         1,
         10000,
         Setting.Property.NodeScope,
@@ -102,14 +108,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                     services.clusterService().getClusterName().value(),
                     EsqlDataTypeRegistry.INSTANCE,
                     Set::of
-                )
+                ),
+                new EsqlIndexResolver(services.client(), EsqlDataTypeRegistry.INSTANCE)
             ),
-            new ExchangeService(
-                services.clusterService().getSettings(),
-                services.threadPool(),
-                EsqlPlugin.ESQL_THREAD_POOL_NAME,
-                blockFactory
-            ),
+            new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );
     }
@@ -144,7 +146,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(
             new RestEsqlQueryAction(),
@@ -160,31 +163,26 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             List.of(
                 DriverStatus.ENTRY,
                 AbstractPageMappingOperator.Status.ENTRY,
+                AggregationOperator.Status.ENTRY,
                 ExchangeSinkOperator.Status.ENTRY,
                 ExchangeSourceOperator.Status.ENTRY,
+                HashAggregationOperator.Status.ENTRY,
                 LimitOperator.Status.ENTRY,
                 LuceneOperator.Status.ENTRY,
                 TopNOperatorStatus.ENTRY,
                 MvExpandOperator.Status.ENTRY,
                 ValuesSourceReaderOperator.Status.ENTRY,
-                SingleValueQuery.ENTRY
+                SingleValueQuery.ENTRY,
+                AsyncOperator.Status.ENTRY,
+                EnrichLookupOperator.Status.ENTRY
             ).stream(),
             Block.getNamedWriteables().stream()
         ).toList();
     }
 
-    @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         return List.of(
-            new FixedExecutorBuilder(
-                settings,
-                ESQL_THREAD_POOL_NAME,
-                allocatedProcessors,
-                1000,
-                ESQL_THREAD_POOL_NAME,
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            ),
             // TODO: Maybe have two types of threadpools for workers: one for CPU-bound and one for I/O-bound tasks.
             // And we should also reduce the number of threads of the CPU-bound threadpool to allocatedProcessors.
             new FixedExecutorBuilder(

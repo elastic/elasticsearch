@@ -163,7 +163,6 @@ public class LocalExecutionPlanner {
             AggregateExec.class,
             a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
-
         PhysicalOperation physicalOperation = plan(node, context);
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
@@ -469,7 +468,7 @@ public class LocalExecutionPlanner {
                 source.layout.get(enrich.matchField().id()).channel(),
                 enrichLookupService,
                 enrichIndex,
-                "match", // TODO: enrich should also resolve the match_type
+                enrich.matchType(),
                 enrich.policyMatchField(),
                 enrich.enrichFields()
             ),
@@ -512,7 +511,7 @@ public class LocalExecutionPlanner {
         for (int index = 0, size = projections.size(); index < size; index++) {
             NamedExpression ne = projections.get(index);
 
-            NameId inputId;
+            NameId inputId = null;
             if (ne instanceof Alias a) {
                 inputId = ((NamedExpression) a.child()).id();
             } else {
@@ -628,6 +627,11 @@ public class LocalExecutionPlanner {
                 Stream.of(sinkOperatorFactory)
             ).map(Describable::describe).collect(joining("\n\\_", "\\_", ""));
         }
+
+        @Override
+        public String toString() {
+            return describe();
+        }
     }
 
     /**
@@ -711,6 +715,8 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
+                    System.currentTimeMillis(),
+                    System.nanoTime(),
                     driverContext,
                     physicalOperation::describe,
                     source,

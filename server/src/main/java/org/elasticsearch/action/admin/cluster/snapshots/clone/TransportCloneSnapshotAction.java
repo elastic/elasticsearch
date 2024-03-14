@@ -30,7 +30,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public final class TransportCloneSnapshotAction extends AcknowledgedTransportMasterNodeAction<CloneSnapshotRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/snapshot/clone");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/snapshot/clone");
     private final SnapshotsService snapshotsService;
 
     @Inject

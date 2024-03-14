@@ -114,13 +114,14 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testMetadataIndex() {
-        try (EsqlQueryResponse resp = runQuery("FROM logs*,*:logs* [METADATA _index] | stats sum(v) by _index | sort _index")) {
+        try (EsqlQueryResponse resp = runQuery("FROM logs*,*:logs* METADATA _index | stats sum(v) by _index | sort _index")) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0), equalTo(List.of(285L, "cluster-a:logs-2")));
             assertThat(values.get(1), equalTo(List.of(45L, "logs-1")));
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106273")
     public void testProfile() {
         assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
         final int localOnlyProfiles;

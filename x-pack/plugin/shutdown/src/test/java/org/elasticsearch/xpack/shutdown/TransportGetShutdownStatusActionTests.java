@@ -68,6 +68,7 @@ import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentSLMMode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -467,6 +468,51 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         );
     }
 
+    public void testStalledIfShardCopyOnAnotherNodeHasDifferentRole() {
+        Index index = new Index(randomIdentifier(), randomUUID());
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(
+                new TestShardRouting.Builder(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED).withRole(
+                    ShardRouting.Role.INDEX_ONLY
+                ).build()
+            )
+            .addShard(
+                new TestShardRouting.Builder(new ShardId(index, 0), SHUTTING_DOWN_NODE_ID, false, ShardRoutingState.STARTED).withRole(
+                    ShardRouting.Role.SEARCH_ONLY
+                ).build()
+            )
+            .build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            new CancellableTask(1, "direct", GetShutdownStatusAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of()),
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.SIGTERM,
+            true,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService,
+            allocationDeciders
+        );
+
+        assertShardMigration(
+            status,
+            SingleNodeShutdownMetadata.Status.STALLED,
+            1,
+            allOf(containsString(index.getName()), containsString("[0] [replica]"))
+        );
+    }
+
     public void testNotStalledIfAllShardsHaveACopyOnAnotherNode() {
         Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
         IndexMetadata imd = generateIndexMetadata(index, 3, 0);
@@ -812,14 +858,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     private ShardRouting makeUnassignedShard(Index index, int shardId, String nodeId, boolean primary) {
         var unsignedInfo = makeUnassignedInfo(nodeId);
 
-        return TestShardRouting.newShardRouting(
-            new ShardId(index, shardId),
-            null,
-            null,
-            primary,
-            ShardRoutingState.UNASSIGNED,
+        return shardRoutingBuilder(new ShardId(index, shardId), null, primary, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
             unsignedInfo
-        );
+        ).build();
     }
 
     private ShutdownShardMigrationStatus getUnassignedShutdownStatus(Index index, IndexMetadata imd, ShardRouting... shards) {

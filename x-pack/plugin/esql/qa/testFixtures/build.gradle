@@ -23,7 +23,7 @@ dependencies {
  * If no arguments are specified, the default URL is http://localhost:9200 without authentication.
  * It also supports HTTPS.
  */
-task loadCsvSpecData(type: JavaExec) {
+tasks.register("loadCsvSpecData", JavaExec) {
   group = "Execution"
   description = "Loads ESQL CSV Spec Tests data on a running stand-alone instance"
   classpath = sourceSets.main.runtimeClasspath

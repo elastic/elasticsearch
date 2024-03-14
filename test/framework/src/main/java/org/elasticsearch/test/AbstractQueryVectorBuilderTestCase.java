@@ -25,11 +25,13 @@ import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -68,12 +70,21 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         return createTestInstance();
     }
 
+    protected KnnSearchBuilder parseKnnSearchBuilder(XContentParser parser) throws IOException {
+        return KnnSearchBuilder.fromXContent(parser).build(DEFAULT_SIZE);
+    }
+
     public final void testKnnSearchBuilderXContent() throws Exception {
         AbstractXContentTestCase.XContentTester<KnnSearchBuilder> tester = AbstractXContentTestCase.xContentTester(
             this::createParser,
-            () -> new KnnSearchBuilder(randomAlphaOfLength(10), createTestInstance(), 5, 10, randomBoolean() ? null : randomFloat()),
+            () -> new KnnSearchBuilder.Builder().field(randomAlphaOfLength(10))
+                .queryVectorBuilder(createTestInstance())
+                .k(5)
+                .numCandidates(10)
+                .similarity(randomBoolean() ? null : randomFloat())
+                .build(DEFAULT_SIZE),
             getToXContentParams(),
-            KnnSearchBuilder::fromXContent
+            this::parseKnnSearchBuilder
         );
         tester.test();
     }
@@ -121,7 +132,7 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
                 Rewriteable.rewriteAndFetch(randomFrom(serialized, searchBuilder), context, future);
                 KnnSearchBuilder rewritten = future.get();
-                assertThat(rewritten.getQueryVector(), equalTo(expected));
+                assertThat(rewritten.getQueryVector().asFloatVector(), equalTo(expected));
                 assertThat(rewritten.getQueryVectorBuilder(), nullValue());
             }
         }

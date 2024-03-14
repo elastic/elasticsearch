@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,7 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.DATA_STREAM_RESPONSE_INDEX_PROPERTIES;
+import static org.elasticsearch.TransportVersions.V_8_11_X;
+import static org.elasticsearch.cluster.metadata.DataStream.AUTO_SHARDING_FIELD;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
@@ -44,7 +46,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static final String NAME = "indices:admin/data_stream/get";
 
     private GetDataStreamAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
@@ -179,6 +181,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField TEMPORAL_RANGES = new ParseField("temporal_ranges");
             public static final ParseField TEMPORAL_RANGE_START = new ParseField("start");
             public static final ParseField TEMPORAL_RANGE_END = new ParseField("end");
+            public static final ParseField TIME_SINCE_LAST_AUTO_SHARD_EVENT = new ParseField("time_since_last_auto_shard_event");
+            public static final ParseField TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS = new ParseField(
+                "time_since_last_auto_shard_event_millis"
+            );
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
@@ -217,10 +223,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     in.readOptionalString(),
                     in.readOptionalString(),
                     in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
-                    in.getTransportVersion().onOrAfter(DATA_STREAM_RESPONSE_INDEX_PROPERTIES)
-                        ? in.readMap(Index::new, IndexProperties::new)
-                        : Map.of(),
-                    in.getTransportVersion().onOrAfter(DATA_STREAM_RESPONSE_INDEX_PROPERTIES) ? in.readBoolean() : true
+                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readMap(Index::new, IndexProperties::new) : Map.of(),
+                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true
                 );
             }
 
@@ -264,7 +268,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                     out.writeOptionalWriteable(timeSeries);
                 }
-                if (out.getTransportVersion().onOrAfter(DATA_STREAM_RESPONSE_INDEX_PROPERTIES)) {
+                if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);
                 }
@@ -349,6 +353,17 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
                 if (DataStream.isFailureStoreEnabled()) {
                     builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
+                }
+                if (dataStream.getAutoShardingEvent() != null) {
+                    DataStreamAutoShardingEvent autoShardingEvent = dataStream.getAutoShardingEvent();
+                    builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
+                    autoShardingEvent.toXContent(builder, params);
+                    builder.humanReadableField(
+                        TIME_SINCE_LAST_AUTO_SHARD_EVENT_MILLIS.getPreferredName(),
+                        TIME_SINCE_LAST_AUTO_SHARD_EVENT.getPreferredName(),
+                        autoShardingEvent.getTimeSinceLastAutoShardingEvent(System::currentTimeMillis)
+                    );
+                    builder.endObject();
                 }
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());

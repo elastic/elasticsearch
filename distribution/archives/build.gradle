@@ -11,7 +11,7 @@ import java.nio.file.Path
 
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
-CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, boolean isTestDistro) {
+CopySpec archiveFiles(String distributionType, String os, String architecture, boolean isTestDistro) {
   return copySpec {
     into("elasticsearch-${version}") {
       into('lib') {
@@ -29,9 +29,9 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       into('bin') {
         with binFiles(distributionType, isTestDistro)
       }
-      into("darwin".equals(platform) ? 'jdk.app' : 'jdk') {
+      into("darwin".equals(os) ? 'jdk.app' : 'jdk') {
         if (isTestDistro == false) {
-          with jdkFiles(project, platform, architecture)
+          with jdkFiles(project, os, architecture)
         }
       }
       into('') {
@@ -56,7 +56,11 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 
       with noticeFile(isTestDistro)
       into('modules') {
-        with modulesFiles
+        if (isTestDistro) {
+          with integTestModulesFiles
+        } else {
+          with modulesFiles(os, architecture)
+        }
       }
     }
   }
@@ -65,42 +69,42 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 distribution_archives {
   integTestZip {
     content {
-      archiveFiles(integTestModulesFiles, 'zip', null, 'x64', true)
+      archiveFiles('zip', null, null, true)
     }
   }
 
   windowsZip {
     archiveClassifier = 'windows-x86_64'
     content {
-      archiveFiles(modulesFiles('windows-x86_64'), 'zip', 'windows', 'x64', false)
+      archiveFiles('zip', 'windows', 'x64', false)
     }
   }
 
   darwinTar {
     archiveClassifier = 'darwin-x86_64'
     content {
-      archiveFiles(modulesFiles('darwin-x86_64'), 'tar', 'darwin', 'x64', false)
+      archiveFiles('tar', 'darwin', 'x64', false)
     }
   }
 
   darwinAarch64Tar {
     archiveClassifier = 'darwin-aarch64'
     content {
-      archiveFiles(modulesFiles('darwin-aarch64'), 'tar', 'darwin', 'aarch64', false)
+      archiveFiles('tar', 'darwin', 'aarch64', false)
     }
   }
 
   linuxAarch64Tar {
     archiveClassifier = 'linux-aarch64'
     content {
-      archiveFiles(modulesFiles('linux-aarch64'), 'tar', 'linux', 'aarch64', false)
+      archiveFiles('tar', 'linux', 'aarch64', false)
     }
   }
 
   linuxTar {
     archiveClassifier = 'linux-x86_64'
     content {
-      archiveFiles(modulesFiles('linux-x86_64'), 'tar', 'linux', 'x64', false)
+      archiveFiles('tar', 'linux', 'x64', false)
     }
   }
 }

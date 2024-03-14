@@ -1,10 +1,26 @@
 [discrete]
 [[esql-to_lower]]
 === `TO_LOWER`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/to_lower.svg[Embedded,opts=inline]
 
-Returns a new string representing the input string converted to lower case
+*Parameters*
+
+`str`::
+String expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns a new string representing the input string converted to lower case.
+
+*Supported types*
+
+include::types/to_lower.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -14,7 +30,3 @@ include::{esql-specs}/string.csv-spec[tag=to_lower]
 |===
 include::{esql-specs}/string.csv-spec[tag=to_lower-result]
 |===
-
-Supported types:
-
-include::types/to_lower.asciidoc[]

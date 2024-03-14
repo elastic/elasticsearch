@@ -40,7 +40,8 @@ public class RestChunkedToXContentListener<Response extends ChunkedToXContent> e
         channel.sendResponse(
             RestResponse.chunked(
                 getRestStatus(response),
-                ChunkedRestResponseBody.fromXContent(response, params, channel, releasableFromResponse(response))
+                ChunkedRestResponseBody.fromXContent(response, params, channel),
+                releasableFromResponse(response)
             )
         );
     }

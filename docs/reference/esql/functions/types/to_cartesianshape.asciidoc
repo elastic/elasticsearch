@@ -1,0 +1,8 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v | result
+cartesian_point | cartesian_shape
+cartesian_shape | cartesian_shape
+keyword | cartesian_shape
+text | cartesian_shape
+|===

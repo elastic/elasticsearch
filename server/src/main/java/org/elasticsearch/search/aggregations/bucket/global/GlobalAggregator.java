@@ -43,10 +43,11 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+        grow(1);
         scorer.score(new LeafCollector() {
             @Override
             public void collect(int doc) throws IOException {
-                collectBucket(sub, doc, 0);
+                collectExistingBucket(sub, doc, 0);
             }
 
             @Override

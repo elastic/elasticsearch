@@ -36,7 +36,7 @@ import java.util.function.LongSupplier;
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
     public static final String NAME = "indices:data/read/msearch";
-    public static final ActionType<MultiSearchResponse> TYPE = new ActionType<>(NAME, MultiSearchResponse::new);
+    public static final ActionType<MultiSearchResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportMultiSearchAction.class);
     private final int allocatedProcessors;
     private final ThreadPool threadPool;

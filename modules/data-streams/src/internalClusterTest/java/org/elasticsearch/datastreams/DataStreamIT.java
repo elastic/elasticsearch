@@ -11,9 +11,9 @@ import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -1790,7 +1790,8 @@ public class DataStreamIT extends ESIntegTestCase {
                         original.getIndexMode(),
                         original.getLifecycle(),
                         original.isFailureStore(),
-                        original.getFailureIndices()
+                        original.getFailureIndices(),
+                        null
                     );
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
@@ -1831,16 +1832,11 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(indicesStatsResponse.getIndices().size(), equalTo(2));
     }
 
-    private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {
+    private static void verifyResolvability(String dataStream, RequestBuilder<?, ?> requestBuilder, boolean fail) {
         verifyResolvability(dataStream, requestBuilder, fail, 0);
     }
 
-    private static void verifyResolvability(
-        String dataStream,
-        ActionRequestBuilder<?, ?> requestBuilder,
-        boolean fail,
-        long expectedCount
-    ) {
+    private static void verifyResolvability(String dataStream, RequestBuilder<?, ?> requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             String expectedErrorMessage = "no such index [" + dataStream + "]";
             if (requestBuilder instanceof MultiSearchRequestBuilder) {

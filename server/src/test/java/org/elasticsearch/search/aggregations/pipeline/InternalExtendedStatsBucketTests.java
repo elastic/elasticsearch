@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 
@@ -35,17 +34,11 @@ public class InternalExtendedStatsBucketTests extends InternalExtendedStatsTests
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).getReducer(null, 0));
     }
 
     @Override
     protected void assertReduced(InternalExtendedStats reduced, List<InternalExtendedStats> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected void assertFromXContent(InternalExtendedStats aggregation, ParsedAggregation parsedAggregation) {
-        super.assertFromXContent(aggregation, parsedAggregation);
-        assertTrue(parsedAggregation instanceof ParsedExtendedStatsBucket);
     }
 }

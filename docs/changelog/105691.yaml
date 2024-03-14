@@ -1,0 +1,5 @@
+pr: 105691
+summary: "ES|QL: Disable optimizations that rely on Expression.nullable()"
+area: ES|QL
+type: bug
+issues: []

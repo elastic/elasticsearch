@@ -41,6 +41,8 @@ public final class QueryPragmas implements Writeable {
         DataPartitioning.SEGMENT
     );
 
+    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting("time_series", false);
+
     /**
      * Size of a page in entries with {@code 0} being a special value asking
      * to adaptively size based on the number of columns in the page.
@@ -52,6 +54,8 @@ public final class QueryPragmas implements Writeable {
      * the status available to task API.
      */
     public static final Setting<TimeValue> STATUS_INTERVAL = Setting.timeSetting("status_interval", Driver.DEFAULT_STATUS_INTERVAL);
+
+    public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -114,8 +118,20 @@ public final class QueryPragmas implements Writeable {
         return ENRICH_MAX_WORKERS.get(settings);
     }
 
+    /**
+     * The maximum number of shards can be executed concurrently on a single node by this query. This is a safeguard to avoid
+     * opening and holding many shards (equivalent to many file descriptors) or having too many field infos created by a single query.
+     */
+    public int maxConcurrentShardsPerNode() {
+        return MAX_CONCURRENT_SHARDS_PER_NODE.get(settings);
+    }
+
     public boolean isEmpty() {
         return settings.isEmpty();
+    }
+
+    public boolean timeSeriesMode() {
+        return TIME_SERIES_MODE.get(settings);
     }
 
     @Override

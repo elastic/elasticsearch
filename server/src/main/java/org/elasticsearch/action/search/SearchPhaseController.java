@@ -22,6 +22,7 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -791,6 +792,7 @@ public final class SearchPhaseController {
      */
     SearchPhaseResults<SearchPhaseResult> newSearchPhaseResults(
         Executor executor,
+        Client client,
         CircuitBreaker circuitBreaker,
         Supplier<Boolean> isCanceled,
         SearchProgressListener listener,
@@ -814,6 +816,7 @@ public final class SearchPhaseController {
         return new QueryPhaseResultConsumer(
             request,
             executor,
+            client,
             circuitBreaker,
             this,
             isCanceled,

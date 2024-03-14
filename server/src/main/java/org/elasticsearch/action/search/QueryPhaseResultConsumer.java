@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankContext;
 import org.elasticsearch.search.rank.RankCoordinatorContext;
 
 import java.util.ArrayDeque;
@@ -75,6 +77,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     public QueryPhaseResultConsumer(
         SearchRequest request,
         Executor executor,
+        Client client,
         CircuitBreaker circuitBreaker,
         SearchPhaseController controller,
         Supplier<Boolean> isCanceled,
@@ -95,7 +98,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int from = source == null || source.from() == -1 ? SearchService.DEFAULT_FROM : source.from();
         this.rankCoordinatorContext = source == null || source.rankBuilder() == null
             ? null
-            : source.rankBuilder().buildRankCoordinatorContext(size, from);
+            : source.rankBuilder().buildRankCoordinatorContext(new RankContext(size, from, 100, client));
         this.hasTopDocs = (source == null || size != 0) && rankCoordinatorContext == null;
         this.hasAggs = source != null && source.aggregations() != null;
         this.aggReduceContextBuilder = hasAggs ? controller.getReduceContext(isCanceled, source.aggregations()) : null;

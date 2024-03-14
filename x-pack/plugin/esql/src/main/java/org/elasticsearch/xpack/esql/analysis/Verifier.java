@@ -388,12 +388,14 @@ public class Verifier {
      * Makes sure that spatial types do not appear in sorting contexts.
      */
     private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachDown(OrderBy.class, o -> o.order().forEach(agg -> agg.forEachUp(Attribute.class, fa -> {
-            DataType dataType = fa.dataType();
-            if (EsqlDataTypes.isSpatial(dataType)) {
-                localFailures.add(fail(fa, "cannot sort on " + dataType.typeName()));
-            }
-        })));
+        if (p instanceof OrderBy ob) {
+            ob.forEachExpression(Attribute.class, attr -> {
+                DataType dataType = attr.dataType();
+                if (EsqlDataTypes.isSpatial(dataType)) {
+                    localFailures.add(fail(attr, "cannot sort on " + dataType.typeName()));
+                }
+            });
+        }
     }
 
     /**

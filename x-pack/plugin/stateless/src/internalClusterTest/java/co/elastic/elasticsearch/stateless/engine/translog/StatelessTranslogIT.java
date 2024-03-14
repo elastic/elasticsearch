@@ -157,6 +157,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1505")
     public void testTranslogFileHoldDirectoryReflectsWhenFilesPruned() throws Exception {
         startMasterOnlyNode();
 

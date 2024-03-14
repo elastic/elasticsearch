@@ -82,8 +82,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
-import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
-import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
@@ -606,13 +604,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return enrich;
         }
 
+        private static final DataType[] GEO_TYPES = new DataType[] { GEO_POINT, GEO_SHAPE };
+        private static final DataType[] NON_GEO_TYPES = new DataType[] { KEYWORD, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
+
         private DataType[] allowedEnrichTypes(String matchType) {
-            return switch (matchType) {
-                case MATCH_TYPE -> new DataType[] { KEYWORD, IP };
-                case RANGE_TYPE -> new DataType[] { IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
-                case GEO_MATCH_TYPE -> new DataType[] { GEO_POINT, GEO_SHAPE };
-                default -> new DataType[] { KEYWORD, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME, GEO_POINT, GEO_SHAPE };
-            };
+            return matchType.equals(GEO_MATCH_TYPE) ? GEO_TYPES : NON_GEO_TYPES;
         }
     }
 

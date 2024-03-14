@@ -417,6 +417,8 @@ public final class CsvTestUtils {
         ),
         IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
         INTEGER_RANGE(s -> s == null ? null : Arrays.stream(s.split("-")).map(Integer::parseInt).toArray(), int[].class),
+        DOUBLE_RANGE(s -> s == null ? null : Arrays.stream(s.split("-")).map(Double::parseDouble).toArray(), double[].class),
+        DATE_RANGE(s -> s == null ? null : Arrays.stream(s.split("-")).map(BytesRef::new).toArray(), BytesRef[].class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(

@@ -25,17 +25,15 @@ import java.util.Map;
 public class FetchMetadataFieldsPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
-        FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
-        if (fetchFieldsContext == null) {
+        StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
+        if (storedFieldsContext == null || storedFieldsContext.fetchFields() == false) {
             return null;
         }
 
-        final StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
         final List<FieldAndFormat> additionalFields = getAdditionalFields(storedFieldsContext);
-        boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
         final MetadataFetcher metadataFetcher = MetadataFetcher.create(
             fetchContext.getSearchExecutionContext(),
-            fetchStoredFields,
+            storedFieldsContext.fetchFields(),
             additionalFields
         );
 

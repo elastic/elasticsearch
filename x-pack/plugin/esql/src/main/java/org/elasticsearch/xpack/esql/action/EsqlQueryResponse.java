@@ -26,6 +26,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,6 +38,7 @@ import java.util.Optional;
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
         ChunkedToXContentObject,
+        EsqlResponse,
         Releasable {
 
     @SuppressWarnings("this-escape")
@@ -282,6 +284,27 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     void closeInternal() {
         Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks));
+    }
+
+    @Override
+    public EsqlResponse response() {
+        var outer = this;
+        return new EsqlResponse() {
+            @Override
+            public List<? extends ColumnInfo> columns() {
+                return outer.columns();
+            }
+
+            @Override
+            public Iterator<Iterator<Object>> rows() {
+                return outer.rows();
+            }
+
+            @Override
+            public Iterator<Object> column(int columnIndex) {
+                return outer.column(columnIndex);
+            }
+        };
     }
 
     public static class Profile implements Writeable, ChunkedToXContentObject {

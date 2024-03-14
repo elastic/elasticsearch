@@ -53,8 +53,9 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
     public void testRowTypesAndValues() {
         var query = "row a = 1, b = \"x\", c = 1000000000000, d = 1.1";
         var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
-        try (var resp = run(request)) {
-            logger.info("response=" + resp);
+        try (var queryResp = run(request)) {
+            logger.info("response=" + queryResp);
+            var resp = queryResp.response();
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("a", "b", "c", "d"));
             assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer", "keyword", "long", "double"));
             assertThat(getValuesList(resp.rows()), contains(List.of(1, "x", 1000000000000L, 1.1d)));
@@ -64,8 +65,9 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
     public void testRowStatsProjectGroupByInt() {
         var query = "row a = 1, b = 2 | stats count(b) by a | keep a";
         var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
-        try (var resp = run(request)) {
-            logger.info("response=" + resp);
+        try (var queryResp = run(request)) {
+            logger.info("response=" + queryResp);
+            var resp = queryResp.response();
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
             assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("integer"));
             assertThat(getValuesList(resp.rows()), contains(List.of(1)));
@@ -75,8 +77,9 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
     public void testFrom() {
         var query = "from test | keep item, cost, color, sale | sort item";
         var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
-        try (var resp = run(request)) {
-            logger.info("response=" + resp);
+        try (var queryResp = run(request)) {
+            logger.info("response=" + queryResp);
+            var resp = queryResp.response();
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("item", "cost", "color", "sale"));
             assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("long", "double", "keyword", "date"));
             assertThat(columnValues(resp.column(0)), contains(1L, 2L, 3L, 4L));

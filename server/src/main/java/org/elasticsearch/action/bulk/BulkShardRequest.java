@@ -22,6 +22,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 
 public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
@@ -33,6 +34,8 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     private final BulkItemRequest[] items;
 
+    private transient Map<String, Set<String>> fieldsInferenceMetadata = null;
+
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
@@ -42,6 +45,23 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
+    }
+
+    /**
+     * Set the transient metadata indicating that this request requires running inference
+     * before proceeding.
+     */
+    void setFieldInferenceMetadata(Map<String, Set<String>> fieldsInferenceMetadata) {
+        this.fieldsInferenceMetadata = fieldsInferenceMetadata;
+    }
+
+    /**
+     * Consumes the inference metadata to execute inference on the bulk items just once.
+     */
+    public Map<String, Set<String>> consumeFieldInferenceMetadata() {
+        var ret = fieldsInferenceMetadata;
+        fieldsInferenceMetadata = null;
+        return ret;
     }
 
     public long totalSizeInBytes() {

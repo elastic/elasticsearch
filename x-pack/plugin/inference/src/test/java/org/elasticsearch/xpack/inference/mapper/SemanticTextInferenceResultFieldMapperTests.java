@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
-import org.elasticsearch.inference.SemanticTextModelSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;

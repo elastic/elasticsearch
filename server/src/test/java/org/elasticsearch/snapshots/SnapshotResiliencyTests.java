@@ -2355,9 +2355,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters,
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
-                        EmptySystemIndices.INSTANCE,
-                        null,
-                        null
+                        EmptySystemIndices.INSTANCE
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

@@ -59,7 +59,7 @@ statement
     | (DESCRIBE | DESC) (CATALOG cluster=string)?
                         (INCLUDE FROZEN)?
                         (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
-    | SHOW FUNCTIONS (likePattern)?                                                                       #metaFunctions
+    | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
     | SHOW CATALOGS                                                                                       #showCatalogs
     | SYS TABLES (CATALOG clusterLike=likePattern)?

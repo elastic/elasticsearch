@@ -183,8 +183,8 @@ javaRestTest      |employees      |VIEW      |ALIAS
 //
 ///////////////////////////////
 
-metaFunctions
-// tag::metaFunctions
+showFunctions
+// tag::showFunctions
 SHOW FUNCTIONS;
 
       name       |     type
@@ -350,7 +350,7 @@ ST_X             |SCALAR
 ST_Y             |SCALAR
 ST_Z             |SCALAR
 SCORE            |SCORE
-// end::metaFunctions
+// end::showFunctions
 ;
 
 showFunctionsLikeExact

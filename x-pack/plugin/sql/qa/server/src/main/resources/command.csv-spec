@@ -5,7 +5,7 @@
 //
 
 // SHOW_FUNCTIONS
-metaFunctions
+showFunctions
 SHOW FUNCTIONS;
 
     name:s       |    type:s

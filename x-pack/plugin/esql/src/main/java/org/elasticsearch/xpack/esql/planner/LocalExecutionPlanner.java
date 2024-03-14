@@ -343,8 +343,11 @@ public class LocalExecutionPlanner {
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
                     "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
-                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" -> throw new IllegalArgumentException(
+                case "geo_point", "cartesian_point" -> throw new IllegalArgumentException(
                     "can't sort on geo_point or point field without using specific sorting feature, like geo_distance"
+                );
+                case "geo_shape", "cartesian_shape" -> throw new IllegalArgumentException(
+                    "can't sort on geo_shape or shape field without using specific sorting feature, like geo_distance"
                 );
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case "unsupported" -> TopNEncoder.UNSUPPORTED;

@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
 
@@ -35,7 +33,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             "test",
             client().admin().indices().prepareCreate("test").setMapping("field", "type=semantic_text,model_id=test_model")
         );
-        assertEquals(Map.of("test_model", Set.of("field")), indexService.getMetadata().getFieldsForModels());
+        assertEquals(indexService.getMetadata().getFieldInferenceMetadata().getInferenceIdForField("field"), "test_model");
     }
 
     public void testAddSemanticTextField() throws Exception {
@@ -52,7 +50,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        assertEquals(Map.of("test_model", Set.of("field")), resultingState.metadata().index("test").getFieldsForModels());
+        assertEquals(resultingState.metadata().index("test").getFieldInferenceMetadata().getInferenceIdForField("field"), "test_model");
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.12.99"
-      reason: "Main geo_point and geo_shape support added in 8.13.0"
+      version: " - 8.13.99"
+      reason: "Mixed cluster tests don't work with the changed error message from sort"
       features: allowed_warnings_regex
 
   - do:

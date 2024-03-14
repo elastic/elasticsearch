@@ -123,7 +123,7 @@ setup:
   - match: { hits.total.value: 3 }
 
 ---
-"nested kNN search inner_hits size > 1":
+"nested kNN search with inner_hits size":
   - do:
       indices.create:
         index: test
@@ -172,7 +172,7 @@ setup:
   - do:
       index:
         index: test
-        id: "6"
+        id: "3"
         body:
           name: washing_machine_2.jpg
           nested:
@@ -200,11 +200,11 @@ setup:
                   query_vector_builder:
                     text_embedding:
                       model_id: text_embedding_model
-                      model_text: "the washing machine smells"
-                  num_candidates: 5
-              inner_hits: { size: 1, "fields": [ "nested.paragraph_id" ], _source: false }
+                      model_text: "the machine smells"
+                  num_candidates: 7
+              inner_hits: { size: 2, "fields": [ "nested.paragraph_id" ], _source: false }
 
   - match: {hits.total.value: 3}
-  - length: { hits.hits.0.inner_hits.nested.hits.hits: 1 }
-  - length: { hits.hits.1.inner_hits.nested.hits.hits: 1 }
-  - length: { hits.hits.2.inner_hits.nested.hits.hits: 1 }
+  - length: { hits.hits.0.inner_hits.nested.hits.hits: 2 }
+  - length: { hits.hits.1.inner_hits.nested.hits.hits: 2 }
+  - length: { hits.hits.2.inner_hits.nested.hits.hits: 2 }

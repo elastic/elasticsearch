@@ -1,4 +1,3 @@
-# This file is auto-generated. See .buildkite/pipelines/periodic.yml
 # This file is auto-generated. See .buildkite/pipelines/periodic.template.yml
 steps:
   - group: bwc

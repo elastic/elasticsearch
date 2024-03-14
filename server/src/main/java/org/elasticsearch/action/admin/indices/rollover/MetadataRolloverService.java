@@ -289,42 +289,44 @@ public class MetadataRolloverService {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
         }
 
-        DataStreamAutoShardingEvent dataStreamAutoShardingEvent = autoShardingResult != null ? switch (autoShardingResult.type()) {
-            case NO_CHANGE_REQUIRED -> {
-                logger.info(
-                    "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
-                    dataStreamName,
-                    dataStream.getAutoShardingEvent()
-                );
-                yield dataStream.getAutoShardingEvent();
-            }
-            case INCREASE_SHARDS, DECREASE_SHARDS -> {
-                logger.info("Auto sharding data stream [{}] to [{}]", dataStreamName, autoShardingResult);
-                yield new DataStreamAutoShardingEvent(
-                    dataStream.getWriteIndex().getName(),
-                    autoShardingResult.targetNumberOfShards(),
-                    now.toEpochMilli()
-                );
-            }
-            case COOLDOWN_PREVENTED_INCREASE, COOLDOWN_PREVENTED_DECREASE -> {
-                // we're in the cooldown period for this particular recommendation so perhaps use a previous autosharding
-                // recommendation (or the value configured in the backing index template otherwise)
-                if (dataStream.getAutoShardingEvent() != null) {
+        DataStreamAutoShardingEvent dataStreamAutoShardingEvent = autoShardingResult == null
+            ? dataStream.getAutoShardingEvent()
+            : switch (autoShardingResult.type()) {
+                case NO_CHANGE_REQUIRED -> {
                     logger.info(
                         "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
                         dataStreamName,
                         dataStream.getAutoShardingEvent()
                     );
+                    yield dataStream.getAutoShardingEvent();
                 }
-                yield dataStream.getAutoShardingEvent();
-            }
-            // data sharding might not be available due to the feature not being available/enabled or due to cluster level excludes
-            // being configured. the index template will dictate the number of shards as usual
-            case NOT_APPLICABLE -> {
-                logger.debug("auto sharding is not applicable for data stream [{}]", dataStreamName);
-                yield null;
-            }
-        } : dataStream.getAutoShardingEvent();
+                case INCREASE_SHARDS, DECREASE_SHARDS -> {
+                    logger.info("Auto sharding data stream [{}] to [{}]", dataStreamName, autoShardingResult);
+                    yield new DataStreamAutoShardingEvent(
+                        dataStream.getWriteIndex().getName(),
+                        autoShardingResult.targetNumberOfShards(),
+                        now.toEpochMilli()
+                    );
+                }
+                case COOLDOWN_PREVENTED_INCREASE, COOLDOWN_PREVENTED_DECREASE -> {
+                    // we're in the cooldown period for this particular recommendation so perhaps use a previous autosharding
+                    // recommendation (or the value configured in the backing index template otherwise)
+                    if (dataStream.getAutoShardingEvent() != null) {
+                        logger.info(
+                            "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
+                            dataStreamName,
+                            dataStream.getAutoShardingEvent()
+                        );
+                    }
+                    yield dataStream.getAutoShardingEvent();
+                }
+                // data sharding might not be available due to the feature not being available/enabled or due to cluster level excludes
+                // being configured. the index template will dictate the number of shards as usual
+                case NOT_APPLICABLE -> {
+                    logger.debug("auto sharding is not applicable for data stream [{}]", dataStreamName);
+                    yield null;
+                }
+            };
 
         // configure the number of shards using an auto sharding event (new, or existing) if we have one
         if (dataStreamAutoShardingEvent != null) {

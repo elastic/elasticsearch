@@ -26,14 +26,17 @@ import java.util.regex.Pattern;
 
 public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
-    record JdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash)  {}
+    record JdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) {}
 
     private static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
 
-    private static final List<OperatingSystem> supportedOperatingSystems =
-        List.of(OperatingSystem.MAC_OS, OperatingSystem.LINUX, OperatingSystem.WINDOWS);
+    private static final List<OperatingSystem> supportedOperatingSystems = List.of(
+        OperatingSystem.MAC_OS,
+        OperatingSystem.LINUX,
+        OperatingSystem.WINDOWS
+    );
 
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
@@ -107,8 +110,8 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         BuildPlatform buildPlatform = request.getBuildPlatform();
         Architecture architecture = buildPlatform.getArchitecture();
         OperatingSystem operatingSystem = buildPlatform.getOperatingSystem();
-        if (supportedOperatingSystems.contains(operatingSystem) == false ||
-            Architecture.AARCH64 == architecture && OperatingSystem.WINDOWS == operatingSystem) {
+        if (supportedOperatingSystems.contains(operatingSystem) == false
+            || Architecture.AARCH64 == architecture && OperatingSystem.WINDOWS == operatingSystem) {
             return null;
         }
 

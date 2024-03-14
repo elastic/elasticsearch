@@ -355,6 +355,20 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:23: invalid stats declaration; [avg] is not an aggregate function", error("from test | stats c = avg"));
     }
 
+    public void testSpatialSort() {
+        String prefix = "ROW wkt = [\"POINT(42.9711 -14.7553)\", \"POINT(75.8093 22.7277)\"] | MV_EXPAND wkt ";
+        assertEquals("1:130: cannot sort on geo_point", error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_point",
+            error(prefix + "| EVAL shape = TO_CARTESIANPOINT(wkt) | limit 5 | sort shape")
+        );
+        assertEquals("1:130: cannot sort on geo_shape", error(prefix + "| EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_shape",
+            error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
+        );
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
     }

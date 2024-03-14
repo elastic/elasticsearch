@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
@@ -389,8 +389,8 @@ public class Verifier {
      * This check is a simplification of a similar check in the SQL verifier.
      */
     private static void checkForSortOnSpatialTypes(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachDown(OrderBy.class, o -> o.order().forEach(agg -> agg.forEachUp(FieldAttribute.class, fa -> {
-            DataType dataType = fa.field().getDataType();
+        p.forEachDown(OrderBy.class, o -> o.order().forEach(agg -> agg.forEachUp(Attribute.class, fa -> {
+            DataType dataType = fa.dataType();
             if (EsqlDataTypes.isSpatial(dataType)) {
                 localFailures.add(fail(fa, "can't sort on " + dataType.typeName()));
             }

@@ -16,8 +16,6 @@ String expression. If `null`, the function returns `null`.
 
 Returns a new string representing the input string converted to upper case.
 
-*Supported types*
-
 include::types/to_upper.asciidoc[]
 
 *Example*

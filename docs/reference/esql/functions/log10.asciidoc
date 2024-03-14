@@ -17,10 +17,6 @@ value is always a double.
 
 Logs of 0, negative numbers, and infinites return `null` as well as a warning.
 
-*Supported types*
-
-include::types/log10.asciidoc[]
-
 *Example*
 
 [source.merge.styled,esql]

@@ -20,8 +20,6 @@ Delimiter.
 Converts a multivalued string expression into a single valued column containing
 the concatenation of all values separated by a delimiter.
 
-*Supported types*
-
 include::types/mv_concat.asciidoc[]
 
 *Examples*

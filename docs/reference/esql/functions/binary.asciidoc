@@ -23,8 +23,6 @@ include::types/not_equals.asciidoc[]
 [.text-center]
 image::esql/functions/signature/less_than.svg[Embedded,opts=inline]
 
-Supported types:
-
 include::types/less_than.asciidoc[]
 
 ==== Less than or equal to `<=`

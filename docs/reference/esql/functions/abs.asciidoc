@@ -16,8 +16,6 @@ Numeric expression. If `null`, the function returns `null`.
 
 Returns the absolute value.
 
-*Supported types*
-
 include::types/abs.asciidoc[]
 
 *Examples*

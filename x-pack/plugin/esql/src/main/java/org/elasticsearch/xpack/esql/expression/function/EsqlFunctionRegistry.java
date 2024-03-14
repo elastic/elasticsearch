@@ -103,7 +103,6 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 public final class EsqlFunctionRegistry extends FunctionRegistry {
 
@@ -222,7 +221,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Split.class, Split::new, "split") } };
     }
 
-    @Override protected String normalize(String name) {
+    @Override
+    protected String normalize(String name) {
         return normalizeName(name);
     }
 
@@ -230,11 +230,16 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(String name, String[] type, String description, boolean optional) {
-    }
+    public record ArgSignature(String name, String[] type, String description, boolean optional) {}
 
-    public record FunctionDescription(String name, List<ArgSignature> args, String[] returnType, String description, boolean variadic,
-                                      boolean isAggregation) {
+    public record FunctionDescription(
+        String name,
+        List<ArgSignature> args,
+        String[] returnType,
+        String description,
+        boolean variadic,
+        boolean isAggregation
+    ) {
         public String fullSignature() {
             StringBuilder builder = new StringBuilder();
             builder.append(ShowFunctions.withPipes(returnType));

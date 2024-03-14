@@ -25,7 +25,8 @@ or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 [[put-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+* Requires the `manage_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` role grants this privilege)
 
 
 [discrete]

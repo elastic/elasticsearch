@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
@@ -266,6 +267,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("transport_client"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("inference_admin"), is(true));
+        assertThat(ReservedRolesStore.isReserved("inference_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("ingest_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("monitoring_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("reporting_user"), is(true));
@@ -3875,6 +3878,46 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
         assertFalse(role.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(mockIndexAbstraction("foo")));
         assertOnlyReadAllowed(role, ".enrich-foo");
+    }
+
+    public void testInferenceAdminRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("inference_admin");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
+        assertTrue(role.cluster().check("cluster:monitor/xpack/inference", request, authentication));
+        assertTrue(role.cluster().check("cluster:monitor/xpack/inference/get", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
+        assertTrue(role.cluster().check("cluster:monitor/xpack/ml/trained_models/deployment/infer", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/start", request, authentication));
+        assertTrue(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/stop", request, authentication));
+        assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
+        assertOnlyReadAllowed(role, ".inference");
+    }
+
+    public void testInferenceUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+
+        RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("inference_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.buildFromRoleDescriptor(roleDescriptor, new FieldPermissionsCache(Settings.EMPTY), RESTRICTED_INDICES);
+        assertTrue(role.cluster().check("cluster:monitor/xpack/inference", request, authentication));
+        assertTrue(role.cluster().check("cluster:monitor/xpack/inference/get", request, authentication));
+        assertFalse(role.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
+        assertFalse(role.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
+        assertTrue(role.cluster().check("cluster:monitor/xpack/ml/trained_models/deployment/infer", request, authentication));
+        assertFalse(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/start", request, authentication));
+        assertFalse(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/stop", request, authentication));
+        assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
+        assertOnlyReadAllowed(role, ".inference");
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

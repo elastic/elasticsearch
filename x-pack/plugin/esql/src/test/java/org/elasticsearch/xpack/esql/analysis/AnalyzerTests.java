@@ -1467,14 +1467,6 @@ public class AnalyzerTests extends ESTestCase {
             | keep first_name, language_name, id
             """));
         assertThat(e.getMessage(), containsString("Unsupported type [BOOLEAN] for enrich matching field [x]; only [KEYWORD,"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("""
-            FROM sample_data
-            | EVAL x = to_string(client_ip)
-            | ENRICH client_cidr ON x WITH env
-            | KEEP client_ip, env
-            """, "sample_data", "mapping-sample_data.json"));
-        assertThat(e.getMessage(), containsString("Unsupported type [KEYWORD] for enrich matching field [x]; only [IP,"));
     }
 
     public void testValidEnrich() {

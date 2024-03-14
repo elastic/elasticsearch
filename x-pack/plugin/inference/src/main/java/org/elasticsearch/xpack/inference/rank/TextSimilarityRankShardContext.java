@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.inference.rank;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.search.rank.RankShardContext;
 import org.elasticsearch.search.rank.RankShardResult;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class TextSimilarityRankShardContext extends RankShardContext {
@@ -22,7 +24,14 @@ public class TextSimilarityRankShardContext extends RankShardContext {
 
     @Override
     public RankShardResult combine(List<TopDocs> rankResults) {
-        return null;
+        List<TextSimilarityRankDoc> textSimilarityRankDocs = new ArrayList<>();
+        for (TopDocs rankResult : rankResults) {
+            for (ScoreDoc scoreDoc : rankResult.scoreDocs) {
+                textSimilarityRankDocs.add(new TextSimilarityRankDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex));
+            }
+        }
+
+        return new TextSimilarityRankShardResult(textSimilarityRankDocs.toArray(new TextSimilarityRankDoc[0]));
     }
 
 }

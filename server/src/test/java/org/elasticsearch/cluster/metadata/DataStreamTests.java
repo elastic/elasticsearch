@@ -1168,8 +1168,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, globalRetention);
             assertThat(backingIndices.size(), is(2));
-            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
-            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+            assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
+            assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
         }
 
         {
@@ -1187,8 +1187,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, globalRetention);
             assertThat(backingIndices.size(), is(2));
-            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
-            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+            assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
+            assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
         }
 
         {
@@ -1204,8 +1204,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
             assertThat(backingIndices.size(), is(2));
-            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
-            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
+            assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
+            assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
         }
 
         {
@@ -1223,10 +1223,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
 
             assertThat(backingIndices.size(), is(4));
-            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
-            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
-            assertThat(backingIndices.get(2).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 3)));
-            assertThat(backingIndices.get(3).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 4)));
+            assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
+            assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
+            assertThat(backingIndices.get(2).getName(), is(dataStream.getIndices().get(2).getName()));
+            assertThat(backingIndices.get(3).getName(), is(dataStream.getIndices().get(3).getName()));
         }
 
         {
@@ -1265,7 +1265,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testGetIndicesPastRetentionWithOriginationDate() {
-        // First, build an ordinary datastream:
+        // First, build an ordinary data stream:
         String dataStreamName = "metrics-foo";
         long now = System.currentTimeMillis();
         List<DataStreamMetadata> creationAndRolloverTimes = List.of(
@@ -1302,9 +1302,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             testRetentionReference.set(TimeValue.timeValueMillis(2500));
             List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, null);
             assertThat(backingIndices.size(), is(3));
-            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
-            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
-            assertThat(backingIndices.get(2).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 6)));
+            assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
+            assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
+            assertThat(backingIndices.get(2).getName(), is(dataStream.getIndices().get(5).getName()));
         }
 
         {
@@ -1313,12 +1313,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, null);
 
             assertThat(backingIndices.size(), is(6));
-            assertThat(backingIndices.get(0).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 1)));
-            assertThat(backingIndices.get(1).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 2)));
-            assertThat(backingIndices.get(2).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 3)));
-            assertThat(backingIndices.get(3).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 4)));
-            assertThat(backingIndices.get(4).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 5)));
-            assertThat(backingIndices.get(5).getName(), is(DataStream.getDefaultBackingIndexName(dataStreamName, 6)));
+            assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
+            assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
+            assertThat(backingIndices.get(2).getName(), is(dataStream.getIndices().get(2).getName()));
+            assertThat(backingIndices.get(3).getName(), is(dataStream.getIndices().get(3).getName()));
+            assertThat(backingIndices.get(4).getName(), is(dataStream.getIndices().get(4).getName()));
+            assertThat(backingIndices.get(5).getName(), is(dataStream.getIndices().get(5).getName()));
         }
 
         {

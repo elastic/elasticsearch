@@ -32,3 +32,7 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 tasks.named('forbiddenApisMain21').configure {
   ignoreMissingClasses = true
 }
+
+tasks.named('forbiddenApisMain22').configure {
+  ignoreMissingClasses = true
+}

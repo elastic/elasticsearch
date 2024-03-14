@@ -60,7 +60,7 @@ This is not concerning as long as the number of such shards is decreasing and th
 for example after rolling restarts or changing allocation settings.
 
 If the cluster has this warning for an extended period of time, it is possible that the desired balance has diverged
-too far from the current state. In such cases you can reset the desired balance and calculate a 
+too far from the current state. If so, reset the desired balance to calculate a 
 new one that requires less shard movements to get to balanced state. Reset the desired balance 
 using the following API call:
 

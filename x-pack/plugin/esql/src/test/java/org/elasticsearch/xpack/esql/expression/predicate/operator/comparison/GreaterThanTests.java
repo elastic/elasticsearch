@@ -11,26 +11,25 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GreaterThanTests extends AbstractBinaryComparisonTestCase {
+public class GreaterThanTests extends AbstractFunctionTestCase {
     public GreaterThanTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        // ToDo: Add the full set of typed test cases here
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Int > Int", () -> {
             int rhs = randomInt();
             int lhs = randomInt();
@@ -45,19 +44,8 @@ public class GreaterThanTests extends AbstractBinaryComparisonTestCase {
             );
         })));
     }
-
     @Override
-    protected <T extends Comparable<T>> Matcher<Object> resultMatcher(T lhs, T rhs) {
-        return equalTo(lhs.compareTo(rhs) > 0);
-    }
-
-    @Override
-    protected BinaryComparison build(Source source, Expression lhs, Expression rhs) {
-        return new GreaterThan(source, lhs, rhs, ZoneOffset.UTC);
-    }
-
-    @Override
-    protected boolean isEquality() {
-        return false;
+    protected Expression build(Source source, List<Expression> args) {
+        return new GreaterThan(source, args.get(0), args.get(1));
     }
 }

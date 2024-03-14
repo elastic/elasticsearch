@@ -38,6 +38,9 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
         Map.entry(DataTypes.IP, GreaterThanOrEqualKeywordsEvaluator.Factory::new)
     );
 
+    public GreaterThanOrEqual(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.GTE, evaluatorMap);
+    }
     public GreaterThanOrEqual(Source source, Expression left, Expression right, ZoneId zoneId) {
         super(source, left, right, BinaryComparisonProcessor.BinaryComparisonOperation.GTE, zoneId, evaluatorMap);
     }

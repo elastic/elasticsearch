@@ -65,6 +65,8 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.enrich;
     exports org.elasticsearch.xpack.core.eql;
     exports org.elasticsearch.xpack.core.esql;
+    exports org.elasticsearch.xpack.core.esql.action;
+    exports org.elasticsearch.xpack.core.esql.action.internal; // TODO: qualify to esql when modularized
     exports org.elasticsearch.xpack.core.frozen.action;
     exports org.elasticsearch.xpack.core.frozen;
     exports org.elasticsearch.xpack.core.graph.action;
@@ -226,8 +228,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
     exports org.elasticsearch.xpack.core.ml.ltr;
-    exports org.elasticsearch.xpack.core.esql.action;
-    exports org.elasticsearch.xpack.core.esql.action.internal; // TODO: to esql
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with

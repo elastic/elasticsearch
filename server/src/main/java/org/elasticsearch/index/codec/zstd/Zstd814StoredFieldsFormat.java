@@ -121,8 +121,8 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
             final int compressedLength = in.readVInt();
 
             try (
-                CloseableByteBuffer src = NativeAccess.instance().newBuffer(compressedLength);
-                CloseableByteBuffer dest = NativeAccess.instance().newBuffer(originalLength)
+                CloseableByteBuffer src = nativeAccess.newBuffer(compressedLength);
+                CloseableByteBuffer dest = nativeAccess.newBuffer(originalLength)
             ) {
 
                 while (src.buffer().position() < compressedLength) {

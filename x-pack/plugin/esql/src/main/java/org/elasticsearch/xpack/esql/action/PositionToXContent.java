@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
-public abstract class PositionToXContent {
+abstract class PositionToXContent {
     protected final Block block;
 
     PositionToXContent(Block block) {

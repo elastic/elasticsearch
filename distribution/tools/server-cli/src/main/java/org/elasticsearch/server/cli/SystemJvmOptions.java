@@ -10,7 +10,11 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -21,6 +25,8 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
+        String libraryPath = findLibraryPath(sysprops);
+
         return Stream.of(
             /*
              * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
@@ -71,6 +77,8 @@ final class SystemJvmOptions {
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             setReplayFile(distroType, isHotspot),
+            "-Djava.library.path=" + libraryPath,
+            "-Djna.library.path=" + libraryPath,
             // Pass through distribution type
             "-Des.distribution.type=" + distroType
         ).filter(e -> e.isEmpty() == false).collect(Collectors.toList());
@@ -126,5 +134,39 @@ final class SystemJvmOptions {
             return "--enable-native-access=org.elasticsearch.nativeaccess";
         }
         return "";
+    }
+
+    private static String findLibraryPath(Map<String, String> sysprops) {
+        // working dir is ES installation, so we use relative path here
+        Path platformDir = Paths.get("lib", "platform");
+        String existingPath = sysprops.get("java.library.path");
+        assert existingPath != null;
+
+        String osname = sysprops.get("os.name");
+        String os;
+        if (osname.startsWith("Windows")) {
+            os = "windows";
+        } else if (osname.startsWith("Linux")) {
+            os = "linux";
+        } else if (osname.startsWith("Mac OS")) {
+            os = "darwin";
+        } else {
+            os = "unsupported_os[" + osname + "]";
+        }
+        String archname = sysprops.get("os.arch");
+        String arch;
+        if (archname.equals("amd64")) {
+            arch = "x64";
+        } else if (archname.equals("aarch64")) {
+            arch = archname;
+        } else {
+            arch = "unsupported_arch[" + archname + "]";
+        }
+        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + getPathSeparator() + existingPath;
+    }
+
+    @SuppressForbidden(reason = "no way to get path separator with nio")
+    private static String getPathSeparator() {
+        return File.pathSeparator;
     }
 }

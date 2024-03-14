@@ -200,7 +200,9 @@ height:double | s:double
 1.53          | 0.34
 ;
 
-powSalarySquared#[skip:-8.11.99,reason:return type changed in 8.12]
+powSalarySquared
+required_feature: esql.pow_double
+
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
 salary:integer | s:double
@@ -615,7 +617,9 @@ base:double | exponent:integer | result:double
 // end::powDI-result[]
 ;
 
-powIntInt#[skip:-8.11.99,reason:return type changed in 8.12]
+powIntInt
+required_feature: esql.pow_double
+
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
 ;
@@ -624,7 +628,9 @@ base:integer | exponent:integer | s:double
 2            | 2                | 4.0
 ;
 
-powIntIntPlusInt#[skip:-8.11.99,reason:return type changed in 8.12]
+powIntIntPlusInt
+required_feature: esql.pow_double
+
 row s = 1 + pow(2, 2);
 
 s:double
@@ -638,21 +644,27 @@ s:double
 5
 ;
 
-powIntUL#[skip:-8.11.99,reason:return type changed in 8.12]
+powIntUL
+required_feature: esql.pow_double
+
 row x = pow(1, 9223372036854775808);
 
 x:double
 1
 ;
 
-powLongUL#[skip:-8.11.99,reason:return type changed in 8.12]
+powLongUL
+required_feature: esql.pow_double
+
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
 x:double
 1
 ;
 
-powUnsignedLongUL#[skip:-8.11.99,reason:return type changed in 8.12]
+powUnsignedLongUL
+required_feature: esql.pow_double
+
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
 x:double
@@ -675,14 +687,18 @@ x:double
 null
 ;
 
-powULInt#[skip:-8.11.99,reason:return type changed in 8.12]
+powULInt
+required_feature: esql.pow_double
+
 row x = pow(to_unsigned_long(9223372036854775807), 1);
 
 x:double
 9223372036854775807
 ;
 
-powULIntOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
+powULIntOverrun
+required_feature: esql.pow_double
+
 ROW x = POW(9223372036854775808, 2)
 ;
 
@@ -702,14 +718,18 @@ x:double
 // end::pow2d-result[]
 ;
 
-powULLong#[skip:-8.11.99,reason:return type changed in 8.12]
+powULLong
+required_feature: esql.pow_double
+
 row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
 x:double
 10000000000
 ;
 
-powULLongOverrun#[skip:-8.11.99,reason:return type changed in 8.12]
+powULLongOverrun
+required_feature: esql.pow_double
+
 row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
 
 x:double

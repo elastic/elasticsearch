@@ -6,13 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.vectors;
+package org.elasticsearch.nativeaccess.lib;
 
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
-public class KnnVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilderTestCase {
-    @Override
-    DenseVectorFieldMapper.ElementType elementType() {
-        return DenseVectorFieldMapper.ElementType.FLOAT;
-    }
+public non-sealed interface JavaLibrary extends NativeLibrary {
+    CloseableByteBuffer newBuffer(int len);
 }

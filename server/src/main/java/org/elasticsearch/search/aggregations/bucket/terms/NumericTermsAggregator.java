@@ -13,6 +13,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -148,29 +149,30 @@ public final class NumericTermsAggregator extends TermsAggregator {
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
                 int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
-                PriorityQueue<B> ordered = buildPriorityQueue(size);
-                B spare = null;
-                BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-                Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
-                while (ordsEnum.next()) {
-                    long docCount = bucketDocCount(ordsEnum.ord());
-                    otherDocCounts[ordIdx] += docCount;
-                    if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                        continue;
+                try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
+                    B spare = null;
+                    BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+                    Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
+                    while (ordsEnum.next()) {
+                        long docCount = bucketDocCount(ordsEnum.ord());
+                        otherDocCounts[ordIdx] += docCount;
+                        if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                            continue;
+                        }
+                        if (spare == null) {
+                            spare = emptyBucketBuilder.get();
+                        }
+                        updateBucket(spare, ordsEnum, docCount);
+                        spare = ordered.insertWithOverflow(spare);
                     }
-                    if (spare == null) {
-                        spare = emptyBucketBuilder.get();
-                    }
-                    updateBucket(spare, ordsEnum, docCount);
-                    spare = ordered.insertWithOverflow(spare);
-                }
 
-                // Get the top buckets
-                B[] bucketsForOrd = buildBuckets(ordered.size());
-                topBucketsPerOrd[ordIdx] = bucketsForOrd;
-                for (int b = ordered.size() - 1; b >= 0; --b) {
-                    topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                    otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                    // Get the top buckets
+                    B[] bucketsForOrd = buildBuckets((int) ordered.size());
+                    topBucketsPerOrd[ordIdx] = bucketsForOrd;
+                    for (int b = (int) ordered.size() - 1; b >= 0; --b) {
+                        topBucketsPerOrd[ordIdx][b] = ordered.pop();
+                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                    }
                 }
             }
 
@@ -228,7 +230,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
          * Build a {@link PriorityQueue} to sort the buckets. After we've
          * collected all of the buckets we'll collect all entries in the queue.
          */
-        abstract PriorityQueue<B> buildPriorityQueue(int size);
+        abstract ObjectArrayPriorityQueue<B> buildPriorityQueue(int size);
 
         /**
          * Build the sub-aggregations into the buckets. This will usually
@@ -268,8 +270,8 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        final PriorityQueue<B> buildPriorityQueue(int size) {
-            return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
+        final ObjectArrayPriorityQueue<B> buildPriorityQueue(int size) {
+            return new BucketPriorityQueue<>(size, bigArrays(), partiallyBuiltBucketComparator);
         }
 
         @Override
@@ -551,8 +553,8 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        PriorityQueue<SignificantLongTerms.Bucket> buildPriorityQueue(int size) {
-            return new BucketSignificancePriorityQueue<>(size);
+        ObjectArrayPriorityQueue<SignificantLongTerms.Bucket> buildPriorityQueue(int size) {
+            return new BucketSignificancePriorityQueue<>(size, bigArrays());
         }
 
         @Override

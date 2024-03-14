@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -247,28 +248,29 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
                 int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
-                PriorityQueue<B> ordered = buildPriorityQueue(size);
-                B spare = null;
-                BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-                Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
-                while (ordsEnum.next()) {
-                    long docCount = bucketDocCount(ordsEnum.ord());
-                    otherDocCounts[ordIdx] += docCount;
-                    if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                        continue;
+                try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
+                    B spare = null;
+                    BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+                    Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
+                    while (ordsEnum.next()) {
+                        long docCount = bucketDocCount(ordsEnum.ord());
+                        otherDocCounts[ordIdx] += docCount;
+                        if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                            continue;
+                        }
+                        if (spare == null) {
+                            spare = emptyBucketBuilder.get();
+                        }
+                        updateBucket(spare, ordsEnum, docCount);
+                        spare = ordered.insertWithOverflow(spare);
                     }
-                    if (spare == null) {
-                        spare = emptyBucketBuilder.get();
-                    }
-                    updateBucket(spare, ordsEnum, docCount);
-                    spare = ordered.insertWithOverflow(spare);
-                }
 
-                topBucketsPerOrd[ordIdx] = buildBuckets(ordered.size());
-                for (int i = ordered.size() - 1; i >= 0; --i) {
-                    topBucketsPerOrd[ordIdx][i] = ordered.pop();
-                    otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][i].getDocCount();
-                    finalizeBucket(topBucketsPerOrd[ordIdx][i]);
+                    topBucketsPerOrd[ordIdx] = buildBuckets((int) ordered.size());
+                    for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                        topBucketsPerOrd[ordIdx][i] = ordered.pop();
+                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][i].getDocCount();
+                        finalizeBucket(topBucketsPerOrd[ordIdx][i]);
+                    }
                 }
             }
 
@@ -307,7 +309,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
          * Build a {@link PriorityQueue} to sort the buckets. After we've
          * collected all of the buckets we'll collect all entries in the queue.
          */
-        abstract PriorityQueue<B> buildPriorityQueue(int size);
+        abstract ObjectArrayPriorityQueue<B> buildPriorityQueue(int size);
 
         /**
          * Update fields in {@code spare} to reflect information collected for
@@ -402,8 +404,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        PriorityQueue<StringTerms.Bucket> buildPriorityQueue(int size) {
-            return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
+        ObjectArrayPriorityQueue<StringTerms.Bucket> buildPriorityQueue(int size) {
+            return new BucketPriorityQueue<>(size, bigArrays(), partiallyBuiltBucketComparator);
         }
 
         @Override
@@ -528,8 +530,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        PriorityQueue<SignificantStringTerms.Bucket> buildPriorityQueue(int size) {
-            return new BucketSignificancePriorityQueue<>(size);
+        ObjectArrayPriorityQueue<SignificantStringTerms.Bucket> buildPriorityQueue(int size) {
+            return new BucketSignificancePriorityQueue<>(size, bigArrays());
         }
 
         @Override

@@ -8,14 +8,18 @@
 
 package org.elasticsearch.index.codec.zstd;
 
+import org.apache.lucene.codecs.StoredFieldsWriter;
 import org.apache.lucene.codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.codecs.lucene90.compressing.Lucene90CompressingStoredFieldsFormat;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
@@ -39,6 +43,9 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
     private static final int BEST_SPEED_BLOCK_SIZE = (16 - 2) * 1_024;
     private static final int BEST_COMPRESSION_BLOCK_SIZE = (256 - 16) * 1_024;
 
+    /** Attribute key for compression mode. */
+    public static final String MODE_KEY = Zstd814StoredFieldsFormat.class.getSimpleName() + ".mode";
+
     public enum Mode {
         BEST_SPEED(0, BEST_SPEED_BLOCK_SIZE, 128),
         BEST_COMPRESSION(3, BEST_COMPRESSION_BLOCK_SIZE, 2048);
@@ -52,12 +59,23 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
         }
     }
 
+    private final Mode mode;
+
     public Zstd814StoredFieldsFormat(Mode mode) {
-        this(mode.level, mode.blockSizeInBytes, mode.blockDocCount);
+        super("ZstdStoredFields814", new ZstdCompressionMode(mode.level), mode.blockSizeInBytes, mode.blockDocCount, 10);
+        this.mode = mode;
     }
 
-    Zstd814StoredFieldsFormat(int level, int blockSizeInBytes, int blockDocCount) {
-        super("ZstdStoredFields814", new ZstdCompressionMode(level), blockSizeInBytes, blockDocCount, 10);
+    @Override
+    public StoredFieldsWriter fieldsWriter(Directory directory, SegmentInfo si, IOContext context) throws IOException {
+        // Both modes are compatible, we only put an attribute for debug purposes.
+        String previous = si.putAttribute(MODE_KEY, mode.name());
+        if (previous != null && previous.equals(mode.name()) == false) {
+            throw new IllegalStateException(
+                "found existing value for " + MODE_KEY + " for segment: " + si.name + "old=" + previous + ", new=" + mode.name()
+            );
+        }
+        return super.fieldsWriter(directory, si, context);
     }
 
     private static class ZstdCompressionMode extends CompressionMode {

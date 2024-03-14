@@ -23,7 +23,7 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
- * Elasticsearch codec as of 8.13. This extends the Lucene 9.9 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
+ * Elasticsearch codec as of 8.14. This extends the Lucene 9.9 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
  * {@link Zstd814StoredFieldsFormat}.
  */
 public class Elasticsearch814Codec extends FilterCodec {

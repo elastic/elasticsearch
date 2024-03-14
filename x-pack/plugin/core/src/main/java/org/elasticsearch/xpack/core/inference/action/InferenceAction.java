@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -50,12 +51,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public static final ParseField INPUT = new ParseField("input");
         public static final ParseField TASK_SETTINGS = new ParseField("task_settings");
+        public static final ParseField QUERY = new ParseField("query");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
             // TODO timeout
             PARSER.declareStringArray(Request.Builder::setInput, INPUT);
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
+            PARSER.declareString(Request.Builder::setQuery, QUERY);
         }
 
         private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
@@ -78,6 +81,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final List<String> input;
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
+        @Nullable
+        private final String query;
 
         public Request(
             TaskType taskType,
@@ -91,6 +96,23 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.input = input;
             this.taskSettings = taskSettings;
             this.inputType = inputType;
+            this.query = null;
+        }
+
+        public Request(
+            TaskType taskType,
+            String inferenceEntityId,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            String query
+        ) {
+            this.taskType = taskType;
+            this.inferenceEntityId = inferenceEntityId;
+            this.input = input;
+            this.taskSettings = taskSettings;
+            this.inputType = inputType;
+            this.query = query;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -108,6 +130,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 this.inputType = InputType.UNSPECIFIED;
             }
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+                this.query = in.readOptionalString();
+            } else {
+                this.query = null;
+            }
         }
 
         public TaskType getTaskType() {
@@ -120,6 +148,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public List<String> getInput() {
             return input;
+        }
+
+        public String getQuery() {
+            return query;
         }
 
         public Map<String, Object> getTaskSettings() {
@@ -161,6 +193,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
                 out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK) && query != null) {
+                out.writeOptionalString(query);
+            }
         }
 
         // default for easier testing
@@ -200,6 +236,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private List<String> input;
             private InputType inputType = InputType.UNSPECIFIED;
             private Map<String, Object> taskSettings = Map.of();
+            private String query;
 
             private Builder() {}
 
@@ -218,6 +255,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            public Builder setQuery(String query) {
+                this.query = query;
+                return this;
+            }
+
             public Builder setInputType(InputType inputType) {
                 this.inputType = inputType;
                 return this;
@@ -229,7 +271,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             public Request build() {
-                return new Request(taskType, inferenceEntityId, input, taskSettings, inputType);
+                return new Request(taskType, inferenceEntityId, input, taskSettings, inputType, query);
             }
         }
     }

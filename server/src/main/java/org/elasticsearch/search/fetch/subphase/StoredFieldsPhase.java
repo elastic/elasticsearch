@@ -91,10 +91,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
                 Map<String, DocumentField> docFields = new HashMap<>();
                 for (StoredField storedField : storedFields) {
                     if (storedField.hasValue(loadedFields)) {
-                        DocumentField df = new DocumentField(storedField.name, storedField.process(loadedFields));
-                        if (storedField.isMetadataField == false) {
-                            docFields.put(storedField.name, df);
-                        }
+                        docFields.put(storedField.name, new DocumentField(storedField.name, storedField.process(loadedFields)));
                     }
                 }
                 hitContext.hit().addDocumentFields(docFields, Collections.emptyMap());

@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -24,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -76,9 +74,9 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             Source source = lookup.getSource(context, 0);
-            Map<String, DocumentField> fields = fieldFetcher.fetch(source, 0);
-            assertEquals(1, fields.size());
-            assertEquals(List.of("value"), fields.get("field").getValues());
+            FieldFetcher.DocAndMetaFields fields = fieldFetcher.fetch(source, 0);
+            assertEquals(1, fields.documentFields().size());
+            assertEquals(List.of("value"), fields.documentFields().get("field").getValues());
         });
     }
 }

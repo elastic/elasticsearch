@@ -35,7 +35,7 @@ import java.util.Set;
  */
 public class FieldFetcher {
 
-    private record ResolvedField(String field, String matchingPattern, MappedFieldType ft, String format) {}
+    private record ResolvedField(String field, String matchingPattern, MappedFieldType ft, String format, boolean isMetadataField) {}
 
     /**
      * Build a FieldFetcher for a given search context and collection of fields and formats
@@ -58,7 +58,9 @@ public class FieldFetcher {
                 if (context.isMetadataField(field) && matchingPattern != null) {
                     continue;
                 }
-                resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format));
+                resolvedFields.add(
+                    new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format, FetchFieldsPhase.isMetadataField(field))
+                );
             }
         }
 
@@ -127,7 +129,7 @@ public class FieldFetcher {
             if (nestedScope.equals(scope)) {
                 // These are fields in the current scope, so add them directly to the output map
                 for (ResolvedField ff : fieldsByNestedMapper.get(nestedScope)) {
-                    output.put(ff.field, new FieldContext(ff.field, buildValueFetcher(context, ff)));
+                    output.put(ff.field, new FieldContext(ff.field, buildValueFetcher(context, ff), ff.isMetadataField));
                 }
             } else {
                 // don't create nested fetchers if no children have been requested as part of the fields
@@ -147,7 +149,7 @@ public class FieldFetcher {
                         unmappedFetchPatterns
                     );
                     NestedValueFetcher nvf = new NestedValueFetcher(scope, new FieldFetcher(scopedFields, unmappedFieldFetcher));
-                    output.put(scope, new FieldContext(scope, nvf));
+                    output.put(scope, new FieldContext(scope, nvf, FetchFieldsPhase.isMetadataField(scope)));
                 }
             }
         }
@@ -161,25 +163,39 @@ public class FieldFetcher {
     private FieldFetcher(Map<String, FieldContext> fieldContexts, UnmappedFieldFetcher unmappedFieldFetcher) {
         this.fieldContexts = fieldContexts;
         this.unmappedFieldFetcher = unmappedFieldFetcher;
-        this.storedFieldsSpec = StoredFieldsSpec.build(fieldContexts.values(), fc -> fc.valueFetcher.storedFieldsSpec());
+        this.storedFieldsSpec = StoredFieldsSpec.build(
+            fieldContexts.values().stream().filter(f -> f.isMetadataField == false).toList(),
+            fc -> fc.valueFetcher.storedFieldsSpec()
+        );
     }
 
     public StoredFieldsSpec storedFieldsSpec() {
         return storedFieldsSpec;
     }
 
-    public Map<String, DocumentField> fetch(Source source, int doc) throws IOException {
+    /**
+     * Collects document and metadata fields as two separate maps
+     * mapping the field name to the actual {@link DocumentField}.
+     */
+    public record DocAndMetaFields(Map<String, DocumentField> documentFields, Map<String, DocumentField> metadataFields) {}
+
+    public DocAndMetaFields fetch(Source source, int doc) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
-        for (FieldContext context : fieldContexts.values()) {
-            String field = context.fieldName;
-            ValueFetcher valueFetcher = context.valueFetcher;
-            final DocumentField docField = valueFetcher.fetchDocumentField(field, source, doc);
-            if (docField != null) {
-                documentFields.put(field, docField);
+        Map<String, DocumentField> metadataFields = new HashMap<>();
+        for (FieldContext fieldContext : fieldContexts.values()) {
+            String field = fieldContext.fieldName;
+            ValueFetcher valueFetcher = fieldContext.valueFetcher;
+            final DocumentField value = valueFetcher.fetchDocumentField(field, source, doc);
+            if (value != null) {
+                if (fieldContext.isMetadataField) {
+                    metadataFields.put(field, value);
+                } else {
+                    documentFields.put(field, value);
+                }
             }
         }
         unmappedFieldFetcher.collectUnmapped(documentFields, source);
-        return documentFields;
+        return new DocAndMetaFields(documentFields, metadataFields);
     }
 
     public void setNextReader(LeafReaderContext readerContext) {
@@ -188,5 +204,5 @@ public class FieldFetcher {
         }
     }
 
-    private record FieldContext(String fieldName, ValueFetcher valueFetcher) {}
+    private record FieldContext(String fieldName, ValueFetcher valueFetcher, boolean isMetadataField) {}
 }

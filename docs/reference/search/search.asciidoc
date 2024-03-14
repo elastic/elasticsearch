@@ -188,7 +188,11 @@ testing.
 +
 IMPORTANT: The `q` parameter overrides the <<request-body-search-query,`query`>>
 parameter in the request body. If both parameters are specified, documents
-matching the `query` request body parameter are not returned.
+matching the `query` request body parameter are not returned. To make use of GET
+and the full Elasticsearch Query DSL, you can pass the request body as the
+<<api-request-body-query-string, `source` query string parameter>>
+when using GET.
+
 
 `request_cache`::
 (Optional, Boolean) If `true`, the caching of search results is enabled for

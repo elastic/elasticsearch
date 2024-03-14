@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the first of its arguments that is not null.
+Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.

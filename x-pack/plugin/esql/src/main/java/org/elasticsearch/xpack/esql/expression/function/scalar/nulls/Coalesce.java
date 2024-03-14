@@ -44,7 +44,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = { "boolean", "text", "integer", "keyword", "long" },
-        description = "Returns the first of its arguments that is not null.",
+        description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
     public Coalesce(

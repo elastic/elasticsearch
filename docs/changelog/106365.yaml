@@ -1,0 +1,5 @@
+pr: 106365
+summary: Update to latest Lucene bugfix version 8.11.3
+area: Search
+type: bug
+issues: []

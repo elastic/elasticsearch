@@ -163,11 +163,12 @@ class FieldCapabilitiesFetcher {
         Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-        for (String field : context.getAllFieldNames()) {
+        for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
+            final String field = entry.getKey();
             if (fieldNameFilter.test(field) == false) {
                 continue;
             }
-            MappedFieldType ft = context.getFieldType(field);
+            MappedFieldType ft = entry.getValue();
             boolean includeField = includeEmptyFields || enableFieldHasValue == false || ft.fieldHasValue(indexShard.getFieldInfos());
             if (includeField && filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(

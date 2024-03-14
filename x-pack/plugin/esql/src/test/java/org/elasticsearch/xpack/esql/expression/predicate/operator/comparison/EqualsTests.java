@@ -127,18 +127,20 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 List.of()
             )
         );
+        List<TestCaseSupplier.TypedDataSupplier> lhsSuppliers = new ArrayList<>();
+        List<TestCaseSupplier.TypedDataSupplier> rhsSuppliers = new ArrayList<>();
         for (DataType type : AbstractConvertFunction.STRING_TYPES) {
-            suppliers.addAll(
-                TestCaseSupplier.forBinaryNotCasting(
-                    "EqualsKeywordsEvaluator",
-                    "lhs",
-                    "rhs",
-                    Object::equals,
-                    DataTypes.BOOLEAN,
-                    TestCaseSupplier.stringCases(type),
-                    TestCaseSupplier.stringCases(type),
-                    List.of()
-                )
+            lhsSuppliers.addAll(TestCaseSupplier.stringCases(type));
+            rhsSuppliers.addAll(TestCaseSupplier.stringCases(type));
+            TestCaseSupplier.casesCrossProduct(
+                Object::equals,
+                lhsSuppliers,
+                rhsSuppliers,
+                (l, r) -> "EqualsKeywordsEvaluator",
+                List.of(),
+                suppliers,
+                DataTypes.BOOLEAN,
+                true
             );
         }
         suppliers.addAll(

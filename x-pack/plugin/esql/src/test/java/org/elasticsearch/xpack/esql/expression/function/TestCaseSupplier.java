@@ -194,7 +194,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
-    private static void casesCrossProduct(
+    public static void casesCrossProduct(
         BinaryOperator<Object> expected,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,

@@ -151,7 +151,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         Map<String, Set<String>> modelsForFields = computeModelsForFields(queryRewriteContext.getIndexMetadataMap().values());
         Set<String> modelsForField = modelsForFields.get(fieldName);
         if (modelsForField == null || modelsForField.isEmpty()) {
-            throw new IllegalArgumentException("Field [" + fieldName + "] is not a semantic_text field type");
+            throw new IllegalArgumentException("Field [" + fieldName + "] is not a " + SemanticTextFieldMapper.CONTENT_TYPE + " field type");
         }
 
         if (modelsForField.size() > 1) {
@@ -201,7 +201,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         InferenceResults inferenceResults = inferenceResultsList.get(0);
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType == false) {
-            // TODO: Better exception type to throw here?
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] is not registered as a " + SemanticTextFieldMapper.CONTENT_TYPE + " field type"
             );
@@ -227,8 +226,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) {
         // Cant use QueryBuilders.boolQuery() because a mapper is not registered for <field>.inference, causing
-        // TermQueryBuilder#doToQuery to fail (at TermQueryBuilder:202)
-        // TODO: Handle boost and queryName
+        // TermQueryBuilder#doToQuery to fail
         String inferenceResultsFieldName = fieldName + "." + INFERENCE_CHUNKS_RESULTS;
         BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(1);
 

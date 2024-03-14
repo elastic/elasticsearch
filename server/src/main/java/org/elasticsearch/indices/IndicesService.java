@@ -1711,8 +1711,12 @@ public class IndicesService extends AbstractLifecycleComponent
 
         Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
         for (Index index : indices) {
-            IndexService indexService = indexServiceSafe(index);
-            indexMetadataMap.put(index.getName(), indexService.getMetadata());
+            IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
+            if (indexMetadata == null) {
+                throw new IndexNotFoundException(index);
+            }
+
+            indexMetadataMap.put(index.getName(), indexMetadata);
         }
 
         return new QueryRewriteContext(parserConfig, client, nowInMillis, indexMetadataMap);

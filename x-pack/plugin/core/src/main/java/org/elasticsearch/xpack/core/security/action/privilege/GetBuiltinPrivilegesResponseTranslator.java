@@ -9,12 +9,6 @@ package org.elasticsearch.xpack.core.security.action.privilege;
 
 public interface GetBuiltinPrivilegesResponseTranslator {
 
-    @Deprecated
-    // TODO remove me in a follow-up
-    default GetBuiltinPrivilegesResponse translate(GetBuiltinPrivilegesResponse response, boolean restrictResponse) {
-        return translate(response);
-    }
-
     GetBuiltinPrivilegesResponse translate(GetBuiltinPrivilegesResponse response);
 
     class Default implements GetBuiltinPrivilegesResponseTranslator {

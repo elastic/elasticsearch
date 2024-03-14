@@ -49,6 +49,7 @@ public class FeatureData {
                         Strings.format("Duplicate feature - [%s] is declared by both [%s] and [%s]", hfe.getKey().id(), existing, spec)
                     );
                 }
+
                 if (hfe.getValue().after(CLUSTER_FEATURES_ADDED_VERSION)) {
                     throw new IllegalArgumentException(
                         Strings.format(

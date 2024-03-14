@@ -361,13 +361,6 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         }
                     }
                     case COOLDOWN_PREVENTED_INCREASE -> {
-                        AutoShardingResult autoShardingResult = new AutoShardingResult(
-                            COOLDOWN_PREVENTED_INCREASE,
-                            3,
-                            5,
-                            TimeValue.timeValueMinutes(10),
-                            64.33
-                        );
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                             clusterState,
                             dataStream.getName(),

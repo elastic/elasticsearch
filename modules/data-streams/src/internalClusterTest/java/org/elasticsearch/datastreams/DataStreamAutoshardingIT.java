@@ -103,7 +103,6 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
     public void testRolloverOnAutoShardCondition() throws Exception {
         final String dataStreamName = "logs-es";
 
-        // start with 3 shards
         putComposableIndexTemplate(
             "my-template",
             List.of("logs-*"),
@@ -416,6 +415,133 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
         }
 
+    }
+
+    public void testLazyRolloverKeepsPreviousAutoshardingDecision() throws IOException {
+        final String dataStreamName = "logs-es";
+
+        putComposableIndexTemplate(
+            "my-template",
+            List.of("logs-*"),
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+
+        indexDocs(dataStreamName, randomIntBetween(100, 200));
+
+        {
+            ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+
+            Index firstGenerationIndex = clusterStateBeforeRollover.metadata().dataStreams().get(dataStreamName).getWriteIndex();
+            IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().index(firstGenerationIndex);
+
+            List<ShardStats> shards = new ArrayList<>(firstGenerationMeta.getNumberOfShards());
+            for (int i = 0; i < firstGenerationMeta.getNumberOfShards(); i++) {
+                // the shard stats will yield a write load of 75.0 which will make the auto sharding service recommend an optimal number
+                // of 5 shards
+                shards.add(
+                    getShardStats(
+                        firstGenerationMeta,
+                        i,
+                        75,
+                        clusterStateBeforeRollover.routingTable()
+                            .index(dataStreamBeforeRollover.getWriteIndex())
+                            .shard(0)
+                            .primaryShard()
+                            .currentNodeId()
+                    )
+                );
+            }
+
+            for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
+                MockTransportService.getInstance(node.getName())
+                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                        TransportIndicesStatsAction instance = internalCluster().getInstance(
+                            TransportIndicesStatsAction.class,
+                            node.getName()
+                        );
+                        channel.sendResponse(
+                            instance.new NodeResponse(node.getId(), firstGenerationMeta.getNumberOfShards(), shards, List.of())
+                        );
+                    });
+            }
+
+            assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
+
+            ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+            DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
+            IndexMetadata secondGenerationMeta = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+            // we auto sharded up to 5 shards
+            assertThat(secondGenerationMeta.getNumberOfShards(), is(5));
+        }
+
+        {
+            try {
+                // eliminate the increase shards cooldown so there are no potential barriers to another increase shards option (we'll
+                // actually also simulate the stats such that an increase to 7 is warranted) and execute a lazy rollover that should not
+                // indeed auto shard up, but just keep the existing auto sharding event and create a new index with 5 shards (as dictated
+                // by the existing auto sharding event)
+                updateClusterSettings(
+                    Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN.getKey(), "0s")
+                );
+
+                ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+                DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
+
+                IndexMetadata secondGenIndex = clusterStateBeforeRollover.metadata().index(dataStreamBeforeRollover.getIndices().get(1));
+                List<ShardStats> shards = new ArrayList<>(secondGenIndex.getNumberOfShards());
+                for (int i = 0; i < secondGenIndex.getNumberOfShards(); i++) {
+                    // the shard stats will yield a write load of 100.0 which will make the auto sharding service recommend an optimal
+                    // number of 7 shards
+                    shards.add(
+                        getShardStats(
+                            secondGenIndex,
+                            i,
+                            100,
+                            clusterStateBeforeRollover.routingTable()
+                                .index(dataStreamBeforeRollover.getWriteIndex())
+                                .shard(i)
+                                .primaryShard()
+                                .currentNodeId()
+                        )
+                    );
+                }
+
+                for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
+                    MockTransportService.getInstance(node.getName())
+                        .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                            TransportIndicesStatsAction instance = internalCluster().getInstance(
+                                TransportIndicesStatsAction.class,
+                                node.getName()
+                            );
+                            channel.sendResponse(
+                                instance.new NodeResponse(node.getId(), secondGenIndex.getNumberOfShards(), shards, List.of())
+                            );
+                        });
+                }
+
+                RolloverRequest request = new RolloverRequest(dataStreamName, null);
+                request.lazy(true);
+                assertAcked(indicesAdmin().rolloverIndex(request).actionGet());
+
+                // index some docs so the rollover is executed
+                indexDocs(dataStreamName, 10);
+                ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+                DataStream dataStream = clusterStateAfterRollover.getMetadata().dataStreams().get(dataStreamName);
+                IndexMetadata thirdGenerationIndex = clusterStateAfterRollover.metadata().getIndexSafe(dataStream.getWriteIndex());
+
+                // we kept the number of shards to 5 as we did a lazy rollover
+                assertThat(thirdGenerationIndex.getNumberOfShards(), is(5));
+            } finally {
+                // reset increase shards cooldown value
+                updateClusterSettings(
+                    Settings.builder().putNull(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN.getKey())
+                );
+            }
+        }
     }
 
     private static ShardStats getShardStats(IndexMetadata indexMeta, int shardIndex, long targetWriteLoad, String assignedShardNodeId) {

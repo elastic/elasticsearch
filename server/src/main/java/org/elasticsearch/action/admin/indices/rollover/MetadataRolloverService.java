@@ -289,28 +289,17 @@ public class MetadataRolloverService {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
         }
 
-        DataStreamAutoShardingEvent newAutoShardingEvent = autoShardingResult != null ? switch (autoShardingResult.type()) {
+        DataStreamAutoShardingEvent dataStreamAutoShardingEvent = autoShardingResult != null ? switch (autoShardingResult.type()) {
             case NO_CHANGE_REQUIRED -> {
                 logger.info(
                     "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
                     dataStreamName,
-                    autoShardingResult
+                    dataStream.getAutoShardingEvent()
                 );
-                // the auto sharding recommendation hasn't changed on this rollover
-                Settings settingsWithAutoSharding = Settings.builder()
-                    .put(createIndexRequest.settings())
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), autoShardingResult.targetNumberOfShards())
-                    .build();
-                createIndexRequest.settings(settingsWithAutoSharding);
                 yield dataStream.getAutoShardingEvent();
             }
             case INCREASE_SHARDS, DECREASE_SHARDS -> {
                 logger.info("Auto sharding data stream [{}] to [{}]", dataStreamName, autoShardingResult);
-                Settings settingsWithAutoSharding = Settings.builder()
-                    .put(createIndexRequest.settings())
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), autoShardingResult.targetNumberOfShards())
-                    .build();
-                createIndexRequest.settings(settingsWithAutoSharding);
                 yield new DataStreamAutoShardingEvent(
                     dataStream.getWriteIndex().getName(),
                     autoShardingResult.targetNumberOfShards(),
@@ -326,15 +315,6 @@ public class MetadataRolloverService {
                         dataStreamName,
                         dataStream.getAutoShardingEvent()
                     );
-                    // the auto sharding recommendation hasn't changed on this rollover
-                    Settings settingsWithAutoSharding = Settings.builder()
-                        .put(createIndexRequest.settings())
-                        .put(
-                            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(),
-                            dataStream.getAutoShardingEvent().targetNumberOfShards()
-                        )
-                        .build();
-                    createIndexRequest.settings(settingsWithAutoSharding);
                 }
                 yield dataStream.getAutoShardingEvent();
             }
@@ -342,9 +322,18 @@ public class MetadataRolloverService {
             // being configured. the index template will dictate the number of shards as usual
             case NOT_APPLICABLE -> {
                 logger.debug("auto sharding is not applicable for data stream [{}]", dataStreamName);
-                yield dataStream.getAutoShardingEvent();
+                yield null;
             }
         } : dataStream.getAutoShardingEvent();
+
+        // configure the number of shards using an auto sharding event (new, or existing) if we have one
+        if (dataStreamAutoShardingEvent != null) {
+            Settings settingsWithAutoSharding = Settings.builder()
+                .put(createIndexRequest.settings())
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), dataStreamAutoShardingEvent.targetNumberOfShards())
+                .build();
+            createIndexRequest.settings(settingsWithAutoSharding);
+        }
 
         var createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
             dataStreamName,
@@ -368,7 +357,7 @@ public class MetadataRolloverService {
                         indexMetadata.getIndex(),
                         newGeneration,
                         metadata.isTimeSeriesTemplate(templateV2),
-                        newAutoShardingEvent
+                        dataStreamAutoShardingEvent
                     )
                 );
             },

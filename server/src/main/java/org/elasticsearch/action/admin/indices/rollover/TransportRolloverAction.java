@@ -241,14 +241,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
                         .map(stats -> stats.getIndex(dataStream.getWriteIndex().getName()));
 
-                    Double writeLoad = indexStats.map(stats -> {
-                        IndexingStats indexing = stats.getTotal().getIndexing();
-                        if (indexing != null) {
-                            return indexing.getTotal().getWriteLoad();
-                        } else {
-                            return null;
-                        }
-                    }).orElse(null);
+                    Double writeLoad = indexStats.map(stats -> stats.getTotal().getIndexing())
+                        .map(indexing -> indexing.getTotal().getWriteLoad())
+                        .orElse(null);
 
                     rolloverAutoSharding = dataStreamAutoShardingService.calculate(clusterState, dataStream, writeLoad);
                     logger.debug("data stream auto sharding result is [{}]", rolloverAutoSharding);

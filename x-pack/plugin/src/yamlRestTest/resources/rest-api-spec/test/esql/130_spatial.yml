@@ -98,7 +98,7 @@ geo_point:
 ---
 geo_point unsortable:
   - do:
-      catch: /can't sort on geo_point/
+      catch: /cannot sort on geo_point/
       esql.query:
         body:
           query: 'from geo_points | sort location'
@@ -106,7 +106,7 @@ geo_point unsortable:
 ---
 geo_point unsortable with limit:
   - do:
-      catch: /can't sort on geo_point/
+      catch: /cannot sort on geo_point/
       esql.query:
         body:
           query: 'from geo_points | LIMIT 10 | sort location'
@@ -114,7 +114,7 @@ geo_point unsortable with limit:
 ---
 geo_point unsortable with limit from row:
   - do:
-      catch: /can't sort on geo_point/
+      catch: /cannot sort on geo_point/
       esql.query:
         body:
           query: 'ROW wkt = ["POINT(42.9711 -14.7553)", "POINT(75.8093 22.7277)"] | MV_EXPAND wkt | EVAL pt = TO_GEOPOINT(wkt) | limit 5 | sort pt'
@@ -136,7 +136,7 @@ cartesian_point:
 ---
 cartesian_point unsortable:
   - do:
-      catch: /can't sort on cartesian_point/
+      catch: /cannot sort on cartesian_point/
       esql.query:
         body:
           query: 'from cartesian_points | sort location'
@@ -144,7 +144,7 @@ cartesian_point unsortable:
 ---
 cartesian_point unsortable with limit:
   - do:
-      catch: /can't sort on cartesian_point/
+      catch: /cannot sort on cartesian_point/
       esql.query:
         body:
           query: 'from cartesian_points | LIMIT 10 | sort location'
@@ -152,7 +152,7 @@ cartesian_point unsortable with limit:
 ---
 cartesian_point unsortable with limit from row:
   - do:
-      catch: /can't sort on cartesian_point/
+      catch: /cannot sort on cartesian_point/
       esql.query:
         body:
           query: 'ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] | MV_EXPAND wkt | EVAL pt = TO_CARTESIANPOINT(wkt) | limit 5 | sort pt'
@@ -174,7 +174,7 @@ geo_shape:
 ---
 geo_shape unsortable:
   - do:
-      catch: /can't sort on geo_shape/
+      catch: /cannot sort on geo_shape/
       esql.query:
         body:
           query: 'from geo_shapes | sort shape'
@@ -182,7 +182,7 @@ geo_shape unsortable:
 ---
 geo_shape unsortable with limit:
   - do:
-      catch: /can't sort on geo_shape/
+      catch: /cannot sort on geo_shape/
       esql.query:
         body:
           query: 'from geo_shapes | LIMIT 10 | sort shape'
@@ -190,7 +190,7 @@ geo_shape unsortable with limit:
 ---
 geo_shape unsortable with limit from row:
   - do:
-      catch: /can't sort on geo_shape/
+      catch: /cannot sort on geo_shape/
       esql.query:
         body:
           query: 'ROW wkt = ["POINT(42.9711 -14.7553)", "POINT(75.8093 22.7277)"] | MV_EXPAND wkt | EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape'
@@ -212,7 +212,7 @@ cartesian_shape:
 ---
 cartesian_shape unsortable:
   - do:
-      catch: /can't sort on cartesian_shape/
+      catch: /cannot sort on cartesian_shape/
       esql.query:
         body:
           query: 'from cartesian_shapes | sort shape'
@@ -220,7 +220,7 @@ cartesian_shape unsortable:
 ---
 cartesian_shape unsortable with limit:
   - do:
-      catch: /can't sort on cartesian_shape/
+      catch: /cannot sort on cartesian_shape/
       esql.query:
         body:
           query: 'from cartesian_shapes | LIMIT 10 | sort shape'
@@ -228,7 +228,7 @@ cartesian_shape unsortable with limit:
 ---
 cartesian_shape unsortable with limit from row:
   - do:
-      catch: /can't sort on cartesian_shape/
+      catch: /cannot sort on cartesian_shape/
       esql.query:
         body:
           query: 'ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] | MV_EXPAND wkt | EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape'

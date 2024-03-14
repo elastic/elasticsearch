@@ -58,6 +58,10 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
         fieldInferenceMap = ImmutableOpenMap.builder(fieldsToInferenceMap).build();
     }
 
+    public boolean isEmpty() {
+        return fieldInferenceMap.isEmpty();
+    }
+
     public record FieldInference(String inferenceId, Set<String> sourceFields)
         implements
             SimpleDiffable<FieldInference>,

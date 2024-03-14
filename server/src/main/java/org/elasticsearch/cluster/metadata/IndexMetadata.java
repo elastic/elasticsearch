@@ -734,7 +734,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.writeLoadForecast = writeLoadForecast;
         this.shardSizeInBytesForecast = shardSizeInBytesForecast;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
-        this.fieldInferenceMetadata = fieldInferenceMetadata;
+        this.fieldInferenceMetadata = Objects.requireNonNullElse(fieldInferenceMetadata, FieldInferenceMetadata.EMPTY);
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
@@ -2422,7 +2422,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.field(KEY_SHARD_SIZE_FORECAST, indexMetadata.shardSizeInBytesForecast);
             }
 
-            builder.field(KEY_FIELD_INFERENCE_METADATA, indexMetadata.fieldInferenceMetadata);
+            if (indexMetadata.fieldInferenceMetadata.isEmpty() == false) {
+                builder.field(KEY_FIELD_INFERENCE_METADATA, indexMetadata.fieldInferenceMetadata);
+            }
 
             builder.endObject();
         }

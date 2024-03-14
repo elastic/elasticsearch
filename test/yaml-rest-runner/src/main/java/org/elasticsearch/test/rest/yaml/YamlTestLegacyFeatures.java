@@ -25,9 +25,6 @@ public class YamlTestLegacyFeatures implements FeatureSpecification {
     private static final NodeFeature CAT_ALIASES_LOCAL_DEPRECATED = new NodeFeature("cat_aliases_local_deprecated");
 
     private static final NodeFeature CAT_ALLOCATION_NODE_ROLE = new NodeFeature("cat_allocation_node_role");
-    private static final NodeFeature CAT_ALLOCATION_SHARDS_UNDESIRED_AND_FORECASTS = new NodeFeature(
-        "cat_allocation_shards_undesired_and_forecasts"
-    );
 
     private static final NodeFeature CAT_INDICES_DATASET_SIZE = new NodeFeature("cat_indices_dataset_size");
     private static final NodeFeature CAT_INDICES_REPLICATE_CLOSED = new NodeFeature("cat_indices_replicate_closed");
@@ -53,7 +50,6 @@ public class YamlTestLegacyFeatures implements FeatureSpecification {
             Map.entry(CAT_ALIASES_LOCAL_DEPRECATED, Version.V_8_12_0),
 
             Map.entry(CAT_ALLOCATION_NODE_ROLE, Version.V_8_10_0),
-            Map.entry(CAT_ALLOCATION_SHARDS_UNDESIRED_AND_FORECASTS, Version.V_8_14_0),
 
             Map.entry(CAT_INDICES_REPLICATE_CLOSED, Version.V_7_2_0),
             Map.entry(CAT_INDICES_VALIDATE_HEALTH_PARAM, Version.V_7_8_0),

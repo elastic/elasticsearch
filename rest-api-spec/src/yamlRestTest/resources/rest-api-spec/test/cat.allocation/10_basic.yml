@@ -1,8 +1,8 @@
 ---
 "Help":
 
-  - requires:
-      cluster_features: ["cat_allocation_shards_undesired_and_forecasts"]
+  - skip:
+      version: " - 8.13.99"
       reason:  "shards.undesired, write_load.forecast and disk.indices.forecast are added in 8.14.0"
 
   - do:
@@ -29,8 +29,8 @@
 ---
 "One index":
 
-  - requires:
-      cluster_features: ["cat_allocation_shards_undesired_and_forecasts"]
+  - skip:
+      version: " - 8.13.99"
       reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
@@ -70,8 +70,8 @@
 ---
 "Node ID":
 
-  - requires:
-      cluster_features: ["cat_allocation_shards_undesired_and_forecasts"]
+  - skip:
+      version: " - 8.13.99"
       reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
@@ -110,8 +110,8 @@
 ---
 "All Nodes":
 
-   - requires:
-      cluster_features: [ "cat_allocation_shards_undesired_and_forecasts" ]
+   - skip:
+      version: " - 8.13.99"
       reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
    - do:
@@ -148,8 +148,8 @@
 ---
 "Column headers":
 
-  - requires:
-      cluster_features: ["cat_allocation_shards_undesired_and_forecasts"]
+  - skip:
+      version: " - 8.13.99"
       reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
@@ -230,8 +230,8 @@
 ---
 "Bytes":
 
-  - requires:
-      cluster_features: ["cat_allocation_shards_undesired_and_forecasts"]
+  - skip:
+      version: " - 8.13.99"
       reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
@@ -281,8 +281,8 @@
 ---
 "Node forecasts":
 
-  - requires:
-      cluster_features: ["cat_allocation_shards_undesired_and_forecasts"]
+  - skip:
+      version: " - 8.13.99"
       reason:  "write_load.forecast and disk.indices.forecast columns added in 8.14.0"
 
   - do:

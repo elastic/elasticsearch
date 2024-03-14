@@ -96,8 +96,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                 long before = testThreadPool.absoluteTimeInMillis();
                 switch (type) {
                     case INCREASE_SHARDS -> {
-                        AutoShardingResult autoShardingResult = new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33);
-                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(autoShardingResult));
+                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(5));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                             clusterState,
                             dataStream.getName(),
@@ -116,11 +115,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         {
                             // we have another condition that matched, so the rollover will be executed and the new number of shards
                             // will be 1
-                            AutoShardingResult autoShardingResult = new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33);
-                            List<Condition<?>> metConditions = List.of(
-                                new MaxDocsCondition(2L),
-                                new AutoShardCondition(autoShardingResult)
-                            );
+                            List<Condition<?>> metConditions = List.of(new MaxDocsCondition(2L), new AutoShardCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                                 clusterState,
                                 dataStream.getName(),
@@ -131,7 +126,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                autoShardingResult
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33)
                             );
                             assertRolloverResult(
                                 dataStream,
@@ -146,8 +141,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         {
                             // even if the decrease shards recommendation is not a rollover condition, an empty POST _rollover request will
                             // configure the decrease shards recommendation
-                            AutoShardingResult autoShardingResult = new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33);
-                            List<Condition<?>> metConditions = List.of(new AutoShardCondition(autoShardingResult));
+                            List<Condition<?>> metConditions = List.of(new AutoShardCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                                 clusterState,
                                 dataStream.getName(),
@@ -158,7 +152,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                autoShardingResult
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33)
                             );
                             assertRolloverResult(
                                 dataStream,
@@ -298,8 +292,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                 long before = testThreadPool.absoluteTimeInMillis();
                 switch (type) {
                     case INCREASE_SHARDS -> {
-                        AutoShardingResult autoShardingResult = new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33);
-                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(autoShardingResult));
+                        List<Condition<?>> metConditions = List.of(new AutoShardCondition(3));
                         MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                             clusterState,
                             dataStream.getName(),
@@ -318,11 +311,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         {
                             // we have another condition that matched, so the rollover will be executed and the new number of shards
                             // will be 1
-                            AutoShardingResult autoShardingResult = new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33);
-                            List<Condition<?>> metConditions = List.of(
-                                new MaxDocsCondition(2L),
-                                new AutoShardCondition(autoShardingResult)
-                            );
+                            List<Condition<?>> metConditions = List.of(new MaxDocsCondition(2L), new AutoShardCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                                 clusterState,
                                 dataStream.getName(),
@@ -333,7 +322,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                autoShardingResult
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33)
                             );
                             assertRolloverResult(
                                 dataStream,
@@ -348,8 +337,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                         {
                             // even if the decrease shards recommendation is not a rollover condition, an empty POST _rollover request will
                             // configure the decrease shards recommendation
-                            AutoShardingResult autoShardingResult = new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33);
-                            List<Condition<?>> metConditions = List.of(new AutoShardCondition(autoShardingResult));
+                            List<Condition<?>> metConditions = List.of(new AutoShardCondition(1));
                             MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                                 clusterState,
                                 dataStream.getName(),
@@ -360,7 +348,7 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                autoShardingResult
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33)
                             );
                             assertRolloverResult(
                                 dataStream,

@@ -162,13 +162,34 @@ public class RolloverConditionsTests extends AbstractXContentSerializingTestCase
         assertFalse(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true)));
         assertTrue(rolloverConditions.areConditionsMet(Map.of(maxAgeCondition, true, minDocsCondition, true, minAgeCondition, true)));
 
-        AutoShardCondition autoShardCondition = new AutoShardCondition(
-            new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
-        );
+        AutoShardCondition autoShardCondition = new AutoShardCondition(3);
         rolloverConditions = RolloverConditions.newBuilder()
-            .addAutoShardingCondition(new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0))
+            .addAutoShardingCondition(
+                randomBoolean()
+                    ? new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
+                    : new AutoShardingResult(AutoShardingType.DECREASE_SHARDS, 7, 3, TimeValue.ZERO, 0.8)
+            )
             .build();
         assertThat(rolloverConditions.areConditionsMet(Map.of(autoShardCondition.toString(), true)), is(true));
         assertThat(rolloverConditions.areConditionsMet(Map.of(autoShardCondition.toString(), false)), is(false));
+
+        // the rollover condition must be INCREASE or DECREASE_SHARDS, any other type should be ignored
+        rolloverConditions = RolloverConditions.newBuilder()
+            .addAutoShardingCondition(
+                new AutoShardingResult(
+                    randomFrom(
+                        AutoShardingType.COOLDOWN_PREVENTED_INCREASE,
+                        AutoShardingType.COOLDOWN_PREVENTED_DECREASE,
+                        AutoShardingType.NO_CHANGE_REQUIRED,
+                        AutoShardingType.NOT_APPLICABLE
+                    ),
+                    1,
+                    3,
+                    TimeValue.ZERO,
+                    3.0
+                )
+            )
+            .build();
+        assertThat(rolloverConditions.getConditions().size(), is(0));
     }
 }

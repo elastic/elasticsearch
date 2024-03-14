@@ -15,8 +15,6 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondit
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
-import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
-import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -101,7 +99,7 @@ public class IndexMetadataTests extends ESTestCase {
                         new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
                         new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
                         new MaxPrimaryShardDocsCondition(randomNonNegativeLong()),
-                        new AutoShardCondition(new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 4.0))
+                        new AutoShardCondition(3)
                     ),
                     randomNonNegativeLong()
                 )

@@ -25,8 +25,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
-import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,7 +40,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -70,7 +67,6 @@ import java.util.Map;
 import static org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -164,12 +160,9 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             assertThat(rolloverInfos.size(), is(1));
             List<Condition<?>> metConditions = rolloverInfos.get(dataStreamName).getMetConditions();
             assertThat(metConditions.size(), is(1));
-            assertThat(metConditions.get(0).value(), instanceOf(String.class));
-            String autoShardingRolloverInfo = (String) metConditions.get(0).value();
-            AutoShardingResult autoShardingResult = AutoShardCondition.fromCSVRep(autoShardingRolloverInfo);
-            assertThat(autoShardingResult.type(), is(AutoShardingType.INCREASE_SHARDS));
-            assertThat(autoShardingResult.writeLoad(), is(75.0));
-            assertThat(autoShardingResult.targetNumberOfShards(), is(5));
+            assertThat(metConditions.get(0).value(), instanceOf(Integer.class));
+            int autoShardingRolloverInfo = (int) metConditions.get(0).value();
+            assertThat(autoShardingRolloverInfo, is(5));
         }
 
         // let's do another rollover now that will not increase the number of shards because the increase shards cooldown has not lapsed,
@@ -266,7 +259,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     if (entry.getKey().equals(new MaxDocsCondition(1_000_000L).toString())) {
                         assertThat(entry.getValue(), is(false));
                     } else {
-                        assertThat(entry.getKey(), containsString(AutoShardingType.INCREASE_SHARDS.toString()));
+                        assertThat(entry.getKey(), is(new AutoShardCondition(7).toString()));
                         assertThat(entry.getValue(), is(true));
                     }
                 }
@@ -282,7 +275,6 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                 updateClusterSettings(
                     Settings.builder().putNull(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN.getKey())
                 );
-
             }
         }
     }
@@ -405,13 +397,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     if (entry.getKey().equals(new MaxDocsCondition(1L).toString())) {
                         assertThat(conditionStatus.get(new MaxDocsCondition(1L).toString()), is(true));
                     } else {
-                        assertThat(
-                            conditionStatus.get(
-                                new AutoShardCondition(new AutoShardingResult(AutoShardingType.DECREASE_SHARDS, 3, 2, TimeValue.ZERO, 2.0))
-                                    .toString()
-                            ),
-                            is(true)
-                        );
+                        assertThat(conditionStatus.get(new AutoShardCondition(2).toString()), is(true));
                     }
                 }
 

@@ -8,11 +8,9 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
-import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -25,32 +23,11 @@ public class AutoShardConditionTests extends AbstractWireSerializingTestCase<Aut
 
     @Override
     protected AutoShardCondition createTestInstance() {
-        return new AutoShardCondition(
-            new AutoShardingResult(
-                randomFrom(AutoShardingType.INCREASE_SHARDS, AutoShardingType.DECREASE_SHARDS),
-                randomNonNegativeInt(),
-                randomNonNegativeInt(),
-                TimeValue.ZERO,
-                randomDoubleBetween(0.0, 300.0, true)
-            )
-        );
+        return new AutoShardCondition(randomNonNegativeInt());
     }
 
     @Override
     protected AutoShardCondition mutateInstance(AutoShardCondition instance) throws IOException {
-        var type = instance.autoShardingResult().type();
-        var numberOfShards = instance.autoShardingResult().currentNumberOfShards();
-        var targetNumberOfShards = instance.autoShardingResult().targetNumberOfShards();
-        var writeLoad = instance.autoShardingResult().writeLoad();
-        switch (randomInt(3)) {
-            case 0 -> type = randomValueOtherThan(
-                type,
-                () -> randomFrom(AutoShardingType.INCREASE_SHARDS, AutoShardingType.DECREASE_SHARDS)
-            );
-            case 1 -> numberOfShards++;
-            case 2 -> targetNumberOfShards++;
-            case 3 -> writeLoad = randomValueOtherThan(writeLoad, () -> randomDoubleBetween(0.0, 500.0, true));
-        }
-        return new AutoShardCondition(new AutoShardingResult(type, numberOfShards, targetNumberOfShards, TimeValue.ZERO, writeLoad));
+        return new AutoShardCondition(randomValueOtherThan(instance.value, ESTestCase::randomNonNegativeInt));
     }
 }

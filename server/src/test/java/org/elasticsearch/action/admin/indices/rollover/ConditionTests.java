@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
-import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -354,29 +352,16 @@ public class ConditionTests extends ESTestCase {
             condition -> new MinPrimaryShardDocsCondition(condition.value),
             condition -> new MinPrimaryShardDocsCondition(randomNonNegativeLong())
         );
-        AutoShardingResult autoShardingResult = new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0);
-        AutoShardCondition autoShardCondition = new AutoShardCondition(autoShardingResult);
+        AutoShardCondition autoShardCondition = new AutoShardCondition(3);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             autoShardCondition,
-            condition -> new AutoShardCondition(autoShardingResult),
-            condition -> new AutoShardCondition(
-                new AutoShardingResult(
-                    AutoShardingType.DECREASE_SHARDS,
-                    randomNonNegativeInt(),
-                    randomNonNegativeInt(),
-                    TimeValue.ZERO,
-                    5.0
-                )
-            )
+            condition -> new AutoShardCondition(3),
+            condition -> new AutoShardCondition(2)
         );
     }
 
     public void testAutoShardCondition() {
-        AutoShardCondition autoShardCondition = new AutoShardCondition(
-            randomBoolean()
-                ? new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 3.0)
-                : new AutoShardingResult(AutoShardingType.DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.3)
-        );
+        AutoShardCondition autoShardCondition = new AutoShardCondition(randomNonNegativeInt());
         assertThat(
             autoShardCondition.evaluate(new Condition.Stats(1, randomNonNegativeLong(), randomByteSizeValue(), randomByteSizeValue(), 1))
                 .matched(),
@@ -384,49 +369,18 @@ public class ConditionTests extends ESTestCase {
         );
     }
 
-    public void testAutoShardCondtionXContent() throws IOException {
-        AutoShardCondition autoShardCondition = new AutoShardCondition(
-            new AutoShardingResult(AutoShardingType.INCREASE_SHARDS, 1, 3, TimeValue.ZERO, 2.0)
+    public void testParseAutoShardConditionFromRolloverInfo() throws IOException {
+        long time = System.currentTimeMillis();
+        RolloverInfo info = new RolloverInfo("logs-nginx", List.of(new AutoShardCondition(3)), time);
+
+        RolloverInfo parsedInfo = RolloverInfo.parse(
+            createParser(
+                JsonXContent.jsonXContent,
+                "{\n" + " \"met_conditions\": {\n" + " \"auto_sharding\": 3" + "\n},\n" + " \"time\": " + time + "\n" + "        }"
+            ),
+            "logs-nginx"
         );
-
-        {
-            assertThat(
-                AutoShardCondition.toCSVRep(autoShardCondition.autoShardingResult()),
-                is("type=INCREASE_SHARDS,current_number_of_shards=1,target_number_of_shards=3," + "write_load=2.0")
-            );
-        }
-
-        {
-            assertThat(
-                new AutoShardCondition(
-                    AutoShardCondition.fromCSVRep(
-                        "type=INCREASE_SHARDS,current_number_of_shards=1,target_number_of_shards=3," + "write_load=2.0"
-                    )
-                ),
-                is(autoShardCondition)
-            );
-        }
-
-        {
-            long time = System.currentTimeMillis();
-            RolloverInfo info = new RolloverInfo("logs-nginx", List.of(autoShardCondition), time);
-
-            RolloverInfo parsedInfo = RolloverInfo.parse(
-                createParser(
-                    JsonXContent.jsonXContent,
-                    "{\n"
-                        + " \"met_conditions\": {\n"
-                        + " \"auto_sharding\": \"type=INCREASE_SHARDS,current_number_of_shards=1,target_number_of_shards=3,write_load=2.0\""
-                        + " },\n"
-                        + " \"time\": "
-                        + time
-                        + "\n"
-                        + "        }"
-                ),
-                "logs-nginx"
-            );
-            assertThat(parsedInfo, is(info));
-        }
+        assertThat(parsedInfo, is(info));
     }
 
     private static ByteSizeValue randomByteSize() {

@@ -22,6 +22,8 @@ import java.util.NoSuchElementException;
  * <p><b>NOTE</b>: Iteration order is not specified.
  *
  * Based in lucene's {@link org.apache.lucene.util.PriorityQueue} but it uses a {@link ObjectArray} instead of plain {code Object[]}.
+ * This class only track the {@link ObjectArray} and not the memory usage of the elements. Furthermore,
+ * the elements are not closed even if they implement {@link Releasable}.
  */
 public abstract class ObjectArrayPriorityQueue<T> implements Iterable<T>, Releasable {
     private long size = 0;

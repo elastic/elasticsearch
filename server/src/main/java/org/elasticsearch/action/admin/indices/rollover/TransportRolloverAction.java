@@ -245,7 +245,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         .orElse(null);
 
                     rolloverAutoSharding = dataStreamAutoShardingService.calculate(clusterState, dataStream, writeLoad);
-                    logger.debug("data stream auto sharding result is [{}]", rolloverAutoSharding);
+                    logger.debug("auto sharding result for data stream [{}] is [{}]", dataStream.getName(), rolloverAutoSharding);
 
                     if (rolloverAutoSharding.type().equals(AutoShardingType.INCREASE_SHARDS)) {
                         RolloverConditions conditionsIncludingImplicit = RolloverConditions.newBuilder(rolloverRequest.getConditions())

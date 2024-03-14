@@ -9,7 +9,6 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -22,7 +21,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -32,18 +30,18 @@ import java.util.stream.Stream;
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
 
-    private static final List<String> ROOT_LEVEL_METADATA_FIELD_NAMES = List.of(
+    private static final List<String> METADATA_FIELD_NAMES = List.of(
         IgnoredFieldMapper.NAME,
         RoutingFieldMapper.NAME,
         LegacyTypeFieldMapper.NAME
     );
 
-    private static final List<FieldAndFormat> ROOT_LEVEL_METADATA_FIELDS = ROOT_LEVEL_METADATA_FIELD_NAMES.stream()
+    private static final List<FieldAndFormat> METADATA_FIELDS = METADATA_FIELD_NAMES.stream()
         .map(field -> new FieldAndFormat(field, null))
         .toList();
 
     public static boolean isMetadataField(final String field) {
-        return ROOT_LEVEL_METADATA_FIELD_NAMES.stream().anyMatch(f -> f.equals(field));
+        return METADATA_FIELD_NAMES.stream().anyMatch(fieldName -> fieldName.equals(field));
     }
 
     private static <T> List<T> emptyListIfNull(final List<T> theList) {
@@ -63,7 +61,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 .distinct()
                 .toList();
         final List<FieldAndFormat> storedFieldsIncludingDefaultMetadataFields = fetchStoredFields
-            ? Stream.concat(ROOT_LEVEL_METADATA_FIELDS.stream(), storedFields.stream()).distinct().toList()
+            ? Stream.concat(METADATA_FIELDS.stream(), storedFields.stream()).distinct().toList()
             : Collections.emptyList();
 
         final List<FieldAndFormat> fetchFields = fetchFieldsContext == null
@@ -88,9 +86,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             @Override
             public void process(HitContext hitContext) throws IOException {
                 final FieldFetcher.DocAndMetaFields fields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
-                final Map<String, DocumentField> documentFields = fields.documentFields();
-                final Map<String, DocumentField> metadataFields = fields.metadataFields();
-                hitContext.hit().addDocumentFields(documentFields, metadataFields);
+                hitContext.hit().addDocumentFields(fields.documentFields(), fields.metadataFields());
             }
         };
     }

@@ -183,14 +183,12 @@ public class FieldFetcher {
         Map<String, DocumentField> documentFields = new HashMap<>();
         Map<String, DocumentField> metadataFields = new HashMap<>();
         for (FieldContext fieldContext : fieldContexts.values()) {
-            String field = fieldContext.fieldName;
-            ValueFetcher valueFetcher = fieldContext.valueFetcher;
-            final DocumentField value = valueFetcher.fetchDocumentField(field, source, doc);
+            final DocumentField value = fieldContext.valueFetcher.fetchDocumentField(fieldContext.fieldName, source, doc);
             if (value != null) {
                 if (fieldContext.isMetadataField) {
-                    metadataFields.put(field, value);
+                    metadataFields.put(fieldContext.fieldName, value);
                 } else {
-                    documentFields.put(field, value);
+                    documentFields.put(fieldContext.fieldName, value);
                 }
             }
         }

@@ -1,9 +1,9 @@
 ---
 setup:
   - skip:
-      version: " - 8.10.99"
-      reason: "ESQL is available in 8.11+"
+      cluster_features: esql.value_agg
       features: allowed_warnings_regex
+      reason: VALUES agg added later on
   - do:
       indices.create:
         index: test

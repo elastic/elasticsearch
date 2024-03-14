@@ -43,6 +43,9 @@ public class EsqlFeatures implements FeatureSpecification {
     // */
     // private static final NodeFeature GEO_SHAPE_SUPPORT = new NodeFeature("esql.geo_shape");
 
+    /**
+     * The introduction of the {@code VALUES} agg.
+     */
     private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
 
     @Override

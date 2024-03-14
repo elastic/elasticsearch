@@ -69,6 +69,6 @@ using the following API call:
 DELETE /_internal/desired_balance
 --------------------------------------------------
 
-If cluster is getting into this state repeatedly without node restarts nor changes in allocation settings,
-it is possible to increase the <<shards-rebalancing-heuristics,cluster.routing.allocation.balance.threshold>> in order
-to reduce the sensitivity of the algorithm that tries to level up the shard count and disk usage within the cluster.
+If the cluster gets into this state repeatedly, without node restarts or changes in allocation settings,
+you can increase the <<shards-rebalancing-heuristics,`cluster.routing.allocation.balance.threshold`>>.
+This will reduce the sensitivity of the algorithm that tries to level up the shard count and disk usage within the cluster.

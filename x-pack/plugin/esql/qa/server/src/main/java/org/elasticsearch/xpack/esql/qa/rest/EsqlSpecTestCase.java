@@ -131,7 +131,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    protected void shouldSkipTest(String testName) {
+    protected void shouldSkipTest(String testName) throws IOException {
         for (String feature : testCase.requiredFeatures) {
             assumeTrue("Test " + testName + " requires " + feature, clusterHasFeature(feature));
         }

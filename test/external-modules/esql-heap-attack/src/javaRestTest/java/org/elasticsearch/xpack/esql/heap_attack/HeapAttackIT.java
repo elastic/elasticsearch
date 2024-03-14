@@ -58,7 +58,6 @@ import static org.hamcrest.Matchers.hasSize;
  * Tests that run ESQL queries that have, in the past, used so much memory they
  * crash Elasticsearch.
  */
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106262")
 public class HeapAttackIT extends ESRestTestCase {
 
     @ClassRule
@@ -69,7 +68,6 @@ public class HeapAttackIT extends ESRestTestCase {
     static ElasticsearchCluster buildCluster() {
         var spec = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .nodes(2)
             .module("test-esql-heap-attack")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial");

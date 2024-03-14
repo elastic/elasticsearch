@@ -1,0 +1,6 @@
+pr: 106370
+summary: Support preference parameter in ESQL
+area: ES|QL
+type: enhancement
+issues:
+ - 106273

@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -87,8 +88,23 @@ public class ConnectorSyncJobIndexService {
         PostConnectorSyncJobAction.Request request,
         ActionListener<PostConnectorSyncJobAction.Response> listener
     ) {
+        String connectorId = request.getId();
         try {
-            getSyncJobConnectorInfo(request.getId(), listener.delegateFailure((l, connector) -> {
+            getSyncJobConnectorInfo(connectorId, listener.delegateFailure((l, connector) -> {
+
+                if (Strings.isNullOrEmpty(connector.getIndexName())) {
+                    l.onFailure(
+                        new ElasticsearchStatusException(
+                            "Cannot start a sync for connector ["
+                                + connectorId
+                                + "] with no index attached. Set the [index_name] property for the connector "
+                                + "to enable syncing data.",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
+                    return;
+                }
+
                 Instant now = Instant.now();
                 ConnectorSyncJobType jobType = Objects.requireNonNullElse(request.getJobType(), ConnectorSyncJob.DEFAULT_JOB_TYPE);
                 ConnectorSyncJobTriggerMethod triggerMethod = Objects.requireNonNullElse(
@@ -97,7 +113,6 @@ public class ConnectorSyncJobIndexService {
                 );
 
                 try {
-
                     final IndexRequest indexRequest = new IndexRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 

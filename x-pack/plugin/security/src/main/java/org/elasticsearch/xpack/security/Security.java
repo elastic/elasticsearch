@@ -248,6 +248,7 @@ import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestIntercept
 import org.elasticsearch.xpack.security.authz.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ShardSearchRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.ValidateRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.DeprecationRoleDescriptorConsumer;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
@@ -842,7 +843,8 @@ public class Security extends Plugin
                     new ShardSearchRequestInterceptor(threadPool, getLicenseState(), clusterService),
                     new UpdateRequestInterceptor(threadPool, getLicenseState()),
                     new BulkShardRequestInterceptor(threadPool, getLicenseState()),
-                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState())
+                    new DlsFlsLicenseRequestInterceptor(threadPool.getThreadContext(), getLicenseState()),
+					new SearchRequestCacheDisablingInterceptor(threadPool, getLicenseState())
                 )
             );
         }

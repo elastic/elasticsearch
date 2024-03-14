@@ -377,7 +377,7 @@ public class ConditionTests extends ESTestCase {
         RolloverInfo parsedInfo = RolloverInfo.parse(
             createParser(
                 JsonXContent.jsonXContent,
-                "{\n" + " \"met_conditions\": {\n" + " \"auto_sharding\": 3" + "\n},\n" + " \"time\": " + time + "\n" + "        }"
+                "{\n" + " \"met_conditions\": {\n" + " \"optimal_shard_count\": 3" + "\n},\n" + " \"time\": " + time + "\n" + "        }"
             ),
             "logs-nginx"
         );

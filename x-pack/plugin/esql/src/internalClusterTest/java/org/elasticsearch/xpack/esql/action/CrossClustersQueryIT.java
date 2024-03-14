@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -54,6 +57,12 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         return plugins;
     }
 
+    @Override
+    protected Settings nodeSettings() {
+        // TODO: Allow relocation once we have retry in ESQL (see #103081)
+        return Settings.builder().put(super.nodeSettings()).put("cluster.routing.rebalance.enable", "none").build();
+    }
+
     public static class InternalExchangePlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
@@ -65,6 +74,18 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 )
             );
         }
+    }
+
+    void waitForNoInitializingShards(Client client, TimeValue timeout, String... indices) {
+        ClusterHealthResponse resp = client.admin()
+            .cluster()
+            .prepareHealth(indices)
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .setTimeout(timeout)
+            .get();
+        assertFalse(Strings.toString(resp, true, true), resp.isTimedOut());
     }
 
     @Before
@@ -121,10 +142,15 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106273")
     public void testProfile() {
         assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
+        waitForNoInitializingShards(client(LOCAL_CLUSTER), TimeValue.timeValueSeconds(30), "logs-*");
+        waitForNoInitializingShards(client(REMOTE_CLUSTER), TimeValue.timeValueSeconds(30), "logs-*");
+
         final int localOnlyProfiles;
+        // use the sam preference for all 3 requests to make sure they hit the same target nodes.
+        String preference = randomAlphaOfLength(4);
+
         // uses shard partitioning as segments can be merged during these queries
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD).build());
         {
@@ -132,6 +158,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             request.query("FROM logs* | stats sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
+            request.preference(preference);
             try (EsqlQueryResponse resp = runQuery(request)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(45L)));
@@ -147,6 +174,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             request.query("FROM *:logs* | stats sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
+            request.preference(preference);
             try (EsqlQueryResponse resp = runQuery(request)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(285L)));
@@ -162,6 +190,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             request.query("FROM logs*,*:logs* | stats total = sum(v)");
             request.pragmas(pragmas);
             request.profile(true);
+            request.preference(preference);
             try (EsqlQueryResponse resp = runQuery(request)) {
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values.get(0), equalTo(List.of(330L)));

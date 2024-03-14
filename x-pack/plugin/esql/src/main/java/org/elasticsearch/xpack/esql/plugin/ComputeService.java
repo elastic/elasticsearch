@@ -279,7 +279,7 @@ public class ComputeService {
     private void startComputeOnDataNodes(
         String sessionId,
         String clusterAlias,
-        CancellableTask parentTask,
+        CancellableTask task,
         EsqlConfiguration configuration,
         PhysicalPlan dataNodePlan,
         Set<String> concreteIndices,
@@ -293,7 +293,8 @@ public class ComputeService {
         // Since it's used only for @timestamp, it is relatively safe to assume it's not needed
         // but it would be better to have a proper impl.
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan, x -> true);
-        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
+        final String preference = configuration.preference();
+        lookupDataNodes(task, clusterAlias, preference, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
             try (RefCountingRunnable refs = new RefCountingRunnable(() -> parentListener.onResponse(null))) {
                 // For each target node, first open a remote exchange on the remote node, then link the exchange source to
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
@@ -307,13 +308,13 @@ public class ComputeService {
                         queryPragmas.exchangeBufferSize(),
                         esqlExecutor,
                         dataNodeListener.delegateFailureAndWrap((delegate, unused) -> {
-                            var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
+                            var remoteSink = exchangeService.newRemoteSink(task, sessionId, transportService, node.connection);
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                             transportService.sendChildRequest(
                                 node.connection,
                                 DATA_ACTION_NAME,
                                 new DataNodeRequest(sessionId, configuration, clusterAlias, node.shardIds, node.aliasFilters, dataNodePlan),
-                                parentTask,
+                                task,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(delegate, ComputeResponse::new, esqlExecutor)
                             );
@@ -521,6 +522,7 @@ public class ComputeService {
     void lookupDataNodes(
         Task parentTask,
         String clusterAlias,
+        String preference,
         QueryBuilder filter,
         Set<String> concreteIndices,
         String[] originalIndices,
@@ -570,7 +572,7 @@ public class ComputeService {
                 SearchRequest.DEFAULT_INDICES_OPTIONS,
                 filter,
                 null,
-                null,
+                preference,
                 false,
                 clusterAlias
             );

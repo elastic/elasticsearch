@@ -46,6 +46,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
+    private String preference;
 
     static EsqlQueryRequest syncEsqlQueryRequest() {
         return new EsqlQueryRequest(false);
@@ -166,6 +167,18 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     public void keepOnCompletion(boolean keepOnCompletion) {
         this.keepOnCompletion = keepOnCompletion;
+    }
+
+    public String preference() {
+        return preference;
+    }
+
+    /**
+     * nodes and shards preference used for this query.
+     */
+    public EsqlQueryRequest preference(String preference) {
+        this.preference = preference;
+        return this;
     }
 
     @Override

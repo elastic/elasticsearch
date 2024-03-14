@@ -43,6 +43,7 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
         var truncation = randomNonNegativeInt();
         var defaultTruncation = randomNonNegativeInt();
         boolean profile = randomBoolean();
+        String preference = randomBoolean() ? randomAlphaOfLength(10) : null;
 
         return new EsqlConfiguration(
             zoneId,
@@ -53,7 +54,8 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
             truncation,
             defaultTruncation,
             query,
-            profile
+            profile,
+            preference
         );
     }
 
@@ -64,7 +66,7 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
 
     @Override
     protected EsqlConfiguration mutateInstance(EsqlConfiguration in) throws IOException {
-        int ordinal = between(0, 8);
+        int ordinal = between(0, 9);
         return new EsqlConfiguration(
             ordinal == 0 ? randomValueOtherThan(in.zoneId(), () -> randomZone().normalized()) : in.zoneId(),
             ordinal == 1 ? randomValueOtherThan(in.locale(), () -> randomLocale(random())) : in.locale(),
@@ -76,7 +78,8 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
             ordinal == 5 ? in.resultTruncationMaxSize() + randomIntBetween(3, 10) : in.resultTruncationMaxSize(),
             ordinal == 6 ? in.resultTruncationDefaultSize() + randomIntBetween(3, 10) : in.resultTruncationDefaultSize(),
             ordinal == 7 ? randomAlphaOfLength(100) : in.query(),
-            ordinal == 8 ? in.profile() == false : in.profile()
+            ordinal == 8 ? in.profile() == false : in.profile(),
+            ordinal == 9 ? randomValueOtherThan(in.preference(), () -> randomAlphaOfLength(10)) : in.preference()
         );
     }
 }

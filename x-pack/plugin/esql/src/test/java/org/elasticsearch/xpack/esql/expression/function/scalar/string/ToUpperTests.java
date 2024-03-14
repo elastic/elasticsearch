@@ -67,7 +67,8 @@ public class ToUpperTests extends AbstractFunctionTestCase {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             "",
-            false
+            false,
+            null
         );
     }
 

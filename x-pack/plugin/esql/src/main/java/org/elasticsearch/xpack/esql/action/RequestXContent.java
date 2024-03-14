@@ -53,6 +53,7 @@ final class RequestXContent {
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
+    private static final ParseField PREFERENCE_FIELD = new ParseField("preference");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
@@ -83,6 +84,7 @@ final class RequestXContent {
         parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
+        parser.declareString(EsqlQueryRequest::preference, PREFERENCE_FIELD);
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {

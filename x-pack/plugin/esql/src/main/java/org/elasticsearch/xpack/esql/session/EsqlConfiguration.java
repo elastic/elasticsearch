@@ -13,6 +13,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.ql.session.Configuration;
 
@@ -39,6 +40,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
     private final String query;
 
     private final boolean profile;
+    private final String preference;
 
     public EsqlConfiguration(
         ZoneId zi,
@@ -49,7 +51,8 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         int resultTruncationMaxSize,
         int resultTruncationDefaultSize,
         String query,
-        boolean profile
+        boolean profile,
+        String preference
     ) {
         super(zi, username, clusterName);
         this.locale = locale;
@@ -58,6 +61,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         this.resultTruncationDefaultSize = resultTruncationDefaultSize;
         this.query = query;
         this.profile = profile;
+        this.preference = preference;
     }
 
     public EsqlConfiguration(StreamInput in) throws IOException {
@@ -72,6 +76,7 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         } else {
             this.profile = false;
         }
+        this.preference = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_PREFERENCE) ? in.readOptionalString() : null;
     }
 
     @Override
@@ -89,6 +94,9 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         writeQuery(out, query);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(profile);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_PREFERENCE)) {
+            out.writeOptionalString(preference);
         }
     }
 
@@ -129,6 +137,14 @@ public class EsqlConfiguration extends Configuration implements Writeable {
         return profile;
     }
 
+    /**
+     * Returns the preference of this query
+     */
+    @Nullable
+    public String preference() {
+        return preference;
+    }
+
     private static void writeQuery(StreamOutput out, String query) throws IOException {
         if (query.length() > QUERY_COMPRESS_THRESHOLD_CHARS) { // compare on chars to avoid UTF-8 encoding unless actually required
             out.writeBoolean(true);
@@ -161,13 +177,23 @@ public class EsqlConfiguration extends Configuration implements Writeable {
                 && Objects.equals(pragmas, that.pragmas)
                 && Objects.equals(locale, that.locale)
                 && Objects.equals(that.query, query)
-                && profile == that.profile;
+                && profile == that.profile
+                && Objects.equals(preference, that.preference);
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), pragmas, resultTruncationMaxSize, resultTruncationDefaultSize, locale, query, profile);
+        return Objects.hash(
+            super.hashCode(),
+            pragmas,
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
+            locale,
+            query,
+            profile,
+            preference
+        );
     }
 }

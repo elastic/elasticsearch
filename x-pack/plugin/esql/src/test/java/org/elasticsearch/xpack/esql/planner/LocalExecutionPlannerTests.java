@@ -143,7 +143,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
             StringUtils.EMPTY,
-            false
+            false,
+            null
         );
     }
 

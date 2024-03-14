@@ -147,7 +147,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_EXTENDED_ENRICH_INPUT_TYPE = def(8_607_00_0);
     public static final TransportVersion ESQL_SERIALIZE_BIG_VECTOR = def(8_608_00_0);
     public static final TransportVersion AGGS_EXCLUDED_DELETED_DOCS = def(8_609_00_0);
-    public static final TransportVersion KNN_QUERY_VECTOR_BUILDER = def(8_610_00_0);
+    public static final TransportVersion ESQL_SERIALIZE_BIG_ARRAY = def(8_610_00_0);
+    public static final TransportVersion KNN_QUERY_VECTOR_BUILDER = def(8_611_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -18,10 +18,11 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.zstd.Zstd;
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.Zstd;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 /**
  * {@link org.apache.lucene.codecs.StoredFieldsFormat} that compresses blocks of data using ZStandard.
@@ -84,25 +85,45 @@ public final class Zstd813StoredFieldsFormat extends Lucene90CompressingStoredFi
 
     private static final class ZstdDecompressor extends Decompressor {
 
-        byte[] compressed;
+        final byte[] copyBuffer = new byte[4096];
 
-        ZstdDecompressor() {
-            compressed = BytesRef.EMPTY_BYTES;
-        }
+        ZstdDecompressor() {}
 
         @Override
         public void decompress(DataInput in, int originalLength, int offset, int length, BytesRef bytes) throws IOException {
-            final int compressedLength = in.readVInt();
-            compressed = ArrayUtil.growNoCopy(compressed, compressedLength);
-            in.readBytes(compressed, 0, compressedLength);
-            bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, originalLength);
-
-            final int l = Zstd.decompress(ByteBuffer.wrap(bytes.bytes), ByteBuffer.wrap(compressed, 0, compressedLength));
-            if (l != originalLength) {
-                throw new CorruptIndexException("Corrupt", in);
+            if (originalLength == 0) {
+                bytes.offset = 0;
+                bytes.length = 0;
+                return;
             }
-            bytes.offset = offset;
-            bytes.length = length;
+
+            final NativeAccess nativeAccess = NativeAccess.instance();
+            final Zstd zstd = nativeAccess.getZstd();
+
+            final int compressedLength = in.readVInt();
+
+            try (
+                CloseableByteBuffer src = NativeAccess.instance().newBuffer(compressedLength);
+                CloseableByteBuffer dest = NativeAccess.instance().newBuffer(originalLength)
+            ) {
+
+                while (src.buffer().position() < compressedLength) {
+                    final int numBytes = Math.min(copyBuffer.length, compressedLength - src.buffer().position());
+                    in.readBytes(copyBuffer, 0, numBytes);
+                    src.buffer().put(copyBuffer, 0, numBytes);
+                }
+                src.buffer().flip();
+
+                final int decompressedLen = zstd.decompress(dest.buffer(), src.buffer());
+                if (decompressedLen != originalLength) {
+                    throw new CorruptIndexException("Expected " + originalLength + " decompressed bytes, got " + decompressedLen, in);
+                }
+
+                bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, length);
+                dest.buffer().get(offset, bytes.bytes, 0, length);
+                bytes.offset = 0;
+                bytes.length = length;
+            }
         }
 
         @Override
@@ -114,38 +135,47 @@ public final class Zstd813StoredFieldsFormat extends Lucene90CompressingStoredFi
     private static class ZstdCompressor extends Compressor {
 
         final int level;
-        byte[] buffer;
-        byte[] compressed;
+        final byte[] copyBuffer = new byte[4096];
 
         ZstdCompressor(int level) {
             this.level = level;
-            compressed = BytesRef.EMPTY_BYTES;
-            buffer = BytesRef.EMPTY_BYTES;
         }
 
         @Override
         public void compress(ByteBuffersDataInput buffersInput, DataOutput out) throws IOException {
-            final int len = Math.toIntExact(buffersInput.length());
+            final NativeAccess nativeAccess = NativeAccess.instance();
+            final Zstd zstd = nativeAccess.getZstd();
 
-            // Longer term, both `buffer` and `compressed` would ideally be stored in native memory so that the call to ZSTD doesn't have to
-            // do yet another copy.
-            buffer = ArrayUtil.growNoCopy(buffer, len);
-            buffersInput.readBytes(buffer, 0, len);
+            final int srcLen = Math.toIntExact(buffersInput.length());
+            if (srcLen == 0) {
+                return;
+            }
 
-            final int maxCompressedLength = Zstd.compressBound(len);
-            compressed = ArrayUtil.growNoCopy(compressed, maxCompressedLength);
+            final int compressBound = zstd.compressBound(srcLen);
 
-            // NOTE: ZSTD has APIs to reuse a compression context across calls, which helps efficiency. We're not using it here on purpose
-            // because compression contexts are quite heavy memory-wise, and there would be multiple of them per actively indexing shard.
-            // The compression context is allocated and released as part of the call to `compress`.
-            final int compressedLen = Zstd.compress(
-                ByteBuffer.wrap(compressed, 0, compressed.length),
-                ByteBuffer.wrap(buffer, 0, len),
-                level
-            );
+            try (
+                CloseableByteBuffer src = NativeAccess.instance().newBuffer(srcLen);
+                CloseableByteBuffer dest = NativeAccess.instance().newBuffer(compressBound)
+            ) {
 
-            out.writeVInt(compressedLen);
-            out.writeBytes(compressed, compressedLen);
+                while (buffersInput.position() < buffersInput.length()) {
+                    final int numBytes = Math.min(copyBuffer.length, (int) (buffersInput.length() - buffersInput.position()));
+                    buffersInput.readBytes(copyBuffer, 0, numBytes);
+                    src.buffer().put(copyBuffer, 0, numBytes);
+                }
+                src.buffer().flip();
+
+                final int compressedLen = zstd.compress(dest.buffer(), src.buffer(), level);
+                out.writeVInt(compressedLen);
+
+                for (int written = 0; written < compressedLen;) {
+                    final int numBytes = Math.min(copyBuffer.length, compressedLen - written);
+                    dest.buffer().get(copyBuffer, 0, numBytes);
+                    out.writeBytes(copyBuffer, 0, numBytes);
+                    written += numBytes;
+                    assert written == dest.buffer().position();
+                }
+            }
         }
 
         @Override

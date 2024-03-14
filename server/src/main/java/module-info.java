@@ -20,6 +20,7 @@ module org.elasticsearch.server {
 
     requires org.elasticsearch.cli;
     requires org.elasticsearch.base;
+    requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.pluginclassloader;
@@ -30,7 +31,6 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
-    requires org.elasticsearch.zstd;
 
     requires com.sun.jna;
     requires hppc;
@@ -229,6 +229,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
     exports org.elasticsearch.health.node;
+    exports org.elasticsearch.health.node.tracker;
     exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.health.stats;
     exports org.elasticsearch.http;
@@ -358,6 +359,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.search.query;
     exports org.elasticsearch.search.rank;
     exports org.elasticsearch.search.rescore;
+    exports org.elasticsearch.search.retriever;
     exports org.elasticsearch.search.runtime;
     exports org.elasticsearch.search.searchafter;
     exports org.elasticsearch.search.slice;
@@ -381,6 +383,7 @@ module org.elasticsearch.server {
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
     exports org.elasticsearch.action.datastreams.lifecycle;
+    exports org.elasticsearch.action.datastreams.autosharding;
     exports org.elasticsearch.action.downsample;
     exports org.elasticsearch.plugins.internal
         to
@@ -414,7 +417,8 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.service.TransportFeatures,
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures,
-            org.elasticsearch.indices.IndicesFeatures;
+            org.elasticsearch.indices.IndicesFeatures,
+            org.elasticsearch.search.retriever.RetrieversFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
@@ -437,4 +441,5 @@ module org.elasticsearch.server {
             org.elasticsearch.shardhealth,
             org.elasticsearch.serverless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
+    exports org.elasticsearch.lucene.spatial;
 }

@@ -26,6 +26,41 @@ import static org.hamcrest.Matchers.is;
 
 public class PerFieldMapperCodecTests extends ESTestCase {
 
+    private static final String MAPPING_1 = """
+        {
+            "_data_stream_timestamp": {
+                "enabled": true
+            },
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "gauge": {
+                    "type": "long"
+                }
+            }
+        }
+        """;
+
+    private static final String MAPPING_2 = """
+        {
+            "_data_stream_timestamp": {
+                "enabled": true
+            },
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "counter": {
+                    "type": "long"
+                },
+                "gauge": {
+                    "type": "long"
+                }
+            }
+        }
+        """;
+
     public void testUseBloomFilter() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, randomBoolean(), false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
@@ -67,88 +102,16 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
     }
 
-    public void testUseES87TSDBEncodingForCounterField() throws IOException {
-        String mapping = """
-            {
-                "_data_stream_timestamp": {
-                    "enabled": true
-                },
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
-                    },
-                    "counter": {
-                        "type": "long",
-                        "time_series_metric": "counter"
-                    }
-                }
-            }
-            """;
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, mapping);
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
-    }
-
-    public void testUseES87TSDBEncodingForCounterFieldNonTimeSeriesIndex() throws IOException {
-        String mapping = """
-            {
-                "_data_stream_timestamp": {
-                    "enabled": true
-                },
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
-                    },
-                    "counter": {
-                        "type": "long",
-                        "time_series_metric": "counter"
-                    }
-                }
-            }
-            """;
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, true, mapping);
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
-    }
-
-    public void testUseES87TSDBEncodingForGaugeField() throws IOException {
-        String mapping = """
-            {
-                "_data_stream_timestamp": {
-                    "enabled": true
-                },
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
-                    },
-                    "gauge": {
-                        "type": "long",
-                        "time_series_metric": "gauge"
-                    }
-                }
-            }
-            """;
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, mapping);
+    public void testEnableES87TSDBCodec() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, MAPPING_1);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
     }
 
-    public void testUseES87TSDBEncodingForGaugeFieldNonTimeSeriesIndex() throws IOException {
-        String mapping = """
-            {
-                "_data_stream_timestamp": {
-                    "enabled": true
-                },
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
-                    },
-                    "gauge": {
-                        "type": "long",
-                        "time_series_metric": "gauge"
-                    }
-                }
-            }
-            """;
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, true, mapping);
+    public void testDisableES87TSDBCodec() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, true, MAPPING_1);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
     }
 
     private PerFieldFormatSupplier createFormatSupplier(boolean timestampField, boolean timeSeries, boolean disableBloomFilter)
@@ -181,30 +144,24 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testUseES87TSDBEncodingSettingDisabled() throws IOException {
-        String mapping = """
-            {
-                "_data_stream_timestamp": {
-                    "enabled": true
-                },
-                "properties": {
-                    "@timestamp": {
-                        "type": "date"
-                    },
-                    "counter": {
-                        "type": "long",
-                        "time_series_metric": "counter"
-                    },
-                    "gauge": {
-                        "type": "long",
-                        "time_series_metric": "gauge"
-                    }
-                }
-            }
-            """;
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, true, mapping);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, true, MAPPING_2);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
+    }
+
+    public void testUseTimeSeriesModeDisabledCodecDisabled() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, MAPPING_2);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(false));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(false));
+    }
+
+    public void testUseTimeSeriesModeAndCodecEnabled() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, MAPPING_2);
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
+        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
     }
 
     private PerFieldFormatSupplier createFormatSupplier(boolean enableES87TSDBCodec, boolean timeSeries, String mapping)

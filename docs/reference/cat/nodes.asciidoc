@@ -318,7 +318,7 @@ Time spent in suggest, such as `0`.
 `suggest.total`, `suto`, `suggestTotal`::
 Number of suggest operations, such as `0`.
 
-`shard_stats.total_count`, `sstc`, `shardStatsTotalCount`::
+`shard_stats.total_count`, `sstc`, `shards`, `shardStatsTotalCount`::
 Number of shards assigned.
 
 `mappings.total_count`, `mtc`, `mappingsTotalCount`::

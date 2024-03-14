@@ -42,6 +42,10 @@ public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResul
         );
     }
 
+    public List<org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk> getChunks() {
+        return chunks;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("text_embedding_chunk");

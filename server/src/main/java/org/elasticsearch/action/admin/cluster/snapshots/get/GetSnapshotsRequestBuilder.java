@@ -109,10 +109,10 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     public GetSnapshotsRequestBuilder setAfter(String after) {
-        return setAfter(after == null ? null : GetSnapshotsRequest.After.fromQueryParam(after));
+        return setAfter(after == null ? null : SnapshotSortKey.decodeAfterQueryParam(after));
     }
 
-    public GetSnapshotsRequestBuilder setAfter(@Nullable GetSnapshotsRequest.After after) {
+    public GetSnapshotsRequestBuilder setAfter(@Nullable SnapshotSortKey.After after) {
         request.after(after);
         return this;
     }
@@ -122,7 +122,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
-    public GetSnapshotsRequestBuilder setSort(GetSnapshotsRequest.SortBy sort) {
+    public GetSnapshotsRequestBuilder setSort(SnapshotSortKey sort) {
         request.sort(sort);
         return this;
     }

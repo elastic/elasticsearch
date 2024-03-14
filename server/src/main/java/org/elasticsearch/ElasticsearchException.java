@@ -29,7 +29,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.indices.FailureIndexNotSupportedException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.ingest.GraphStructureException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
@@ -1884,25 +1886,37 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TooManyScrollContextsException.class,
             TooManyScrollContextsException::new,
             173,
-            TransportVersions.TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED
+            TransportVersions.V_8_12_0
         ),
         INVALID_BUCKET_PATH_EXCEPTION(
             AggregationExecutionException.InvalidPath.class,
             AggregationExecutionException.InvalidPath::new,
             174,
-            TransportVersions.INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED
+            TransportVersions.V_8_12_0
         ),
         MISSED_INDICES_UPDATE_EXCEPTION(
             AutoscalingMissedIndicesUpdateException.class,
             AutoscalingMissedIndicesUpdateException::new,
             175,
-            TransportVersions.MISSED_INDICES_UPDATE_EXCEPTION_ADDED
+            TransportVersions.V_8_12_0
         ),
         SEARCH_TIMEOUT_EXCEPTION(
             SearchTimeoutException.class,
             SearchTimeoutException::new,
             176,
             TransportVersions.SEARCH_TIMEOUT_EXCEPTION_ADDED
+        ),
+        INGEST_GRAPH_STRUCTURE_EXCEPTION(
+            GraphStructureException.class,
+            GraphStructureException::new,
+            177,
+            TransportVersions.INGEST_GRAPH_STRUCTURE_EXCEPTION
+        ),
+        FAILURE_INDEX_NOT_SUPPORTED_EXCEPTION(
+            FailureIndexNotSupportedException.class,
+            FailureIndexNotSupportedException::new,
+            178,
+            TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

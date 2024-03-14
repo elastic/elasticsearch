@@ -218,4 +218,65 @@ setup:
 
 
 
+---
+"Read-only access is sufficient to list connectors":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.list: { }
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-a" }
+  - match: { results.0.index_name: "search-1-test" }
+  - match: { results.0.language: "pl" }
+
+  - match: { results.1.id: "connector-b" }
+  - match: { results.1.index_name: "search-2-test" }
+  - match: { results.1.language: "en" }
+
+  - match: { results.2.id: "connector-c" }
+  - match: { results.2.index_name: "search-3-test" }
+  - match: { results.2.language: "nl" }
+
+
+---
+"List connectors requires read-only index privileges":
+  - skip:
+      features: headers
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.list: { }
+
+  - match: { count: 3 }
+
+  # Alphabetical order by index_name for results
+  - match: { results.0.id: "connector-a" }
+  - match: { results.0.index_name: "search-1-test" }
+  - match: { results.0.language: "pl" }
+
+  - match: { results.1.id: "connector-b" }
+  - match: { results.1.index_name: "search-2-test" }
+  - match: { results.1.language: "en" }
+
+  - match: { results.2.id: "connector-c" }
+  - match: { results.2.index_name: "search-3-test" }
+  - match: { results.2.language: "nl" }
+
+
+---
+"List connectors fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXBhc3N3b3Jk" }  # entsearch-unprivileged user
+      connector.list: { }
+
+
 

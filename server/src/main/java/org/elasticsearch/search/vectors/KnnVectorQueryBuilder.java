@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -36,7 +37,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -61,23 +61,19 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public static final ParseField FILTER_FIELD = new ParseField("filter");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
-        List<Float> vector = (List<Float>) args[1];
-        final float[] vectorArray;
-        if (vector != null) {
-            vectorArray = new float[vector.size()];
-            for (int i = 0; i < vector.size(); i++) {
-                vectorArray[i] = vector.get(i);
-            }
-        } else {
-            vectorArray = null;
-        }
-        return new KnnVectorQueryBuilder((String) args[0], vectorArray, (Integer) args[2], (Float) args[3]);
-    });
+    public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        "knn",
+        args -> new KnnVectorQueryBuilder((String) args[0], (VectorData) args[1], (Integer) args[2], (Float) args[3])
+    );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareFloatArray(constructorArg(), QUERY_VECTOR_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> VectorData.parseXContent(p),
+            QUERY_VECTOR_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER
+        );
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
         PARSER.declareFloat(optionalConstructorArg(), VECTOR_SIMILARITY_FIELD);
         PARSER.declareFieldArray(
@@ -94,12 +90,20 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     private final String fieldName;
-    private final float[] queryVector;
+    private final VectorData queryVector;
     private Integer numCands;
     private final List<QueryBuilder> filterQueries = new ArrayList<>();
     private final Float vectorSimilarity;
 
     public KnnVectorQueryBuilder(String fieldName, float[] queryVector, Integer numCands, Float vectorSimilarity) {
+        this(fieldName, VectorData.fromFloats(queryVector), numCands, vectorSimilarity);
+    }
+
+    public KnnVectorQueryBuilder(String fieldName, byte[] queryVector, Integer numCands, Float vectorSimilarity) {
+        this(fieldName, VectorData.fromBytes(queryVector), numCands, vectorSimilarity);
+    }
+
+    public KnnVectorQueryBuilder(String fieldName, VectorData queryVector, Integer numCands, Float vectorSimilarity) {
         if (numCands != null && numCands > NUM_CANDS_LIMIT) {
             throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
@@ -120,13 +124,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         } else {
             this.numCands = in.readVInt();
         }
-        if (in.getTransportVersion().before(TransportVersions.V_8_7_0)
-            || in.getTransportVersion().onOrAfter(TransportVersions.KNN_AS_QUERY_ADDED)) {
-            this.queryVector = in.readFloatArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
+            this.queryVector = in.readOptionalWriteable(VectorData::new);
         } else {
-            in.readBoolean();
-            this.queryVector = in.readFloatArray();
-            in.readBoolean(); // used for byteQueryVector, which was always null
+            if (in.getTransportVersion().before(TransportVersions.V_8_7_0)
+                || in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                this.queryVector = VectorData.fromFloats(in.readFloatArray());
+            } else {
+                in.readBoolean();
+                this.queryVector = VectorData.fromFloats(in.readFloatArray());
+                in.readBoolean(); // used for byteQueryVector, which was always null
+            }
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             this.filterQueries.addAll(readQueries(in));
@@ -143,7 +151,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     }
 
     @Nullable
-    public float[] queryVector() {
+    public VectorData queryVector() {
         return queryVector;
     }
 
@@ -190,13 +198,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 out.writeVInt(numCands);
             }
         }
-        if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
-            || out.getTransportVersion().onOrAfter(TransportVersions.KNN_AS_QUERY_ADDED)) {
-            out.writeFloatArray(queryVector);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
+            out.writeOptionalWriteable(queryVector);
         } else {
-            out.writeBoolean(true);
-            out.writeFloatArray(queryVector);
-            out.writeBoolean(false); // used for byteQueryVector, which was always null
+            if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
+                || out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                out.writeFloatArray(queryVector.asFloatVector());
+            } else {
+                out.writeBoolean(true);
+                out.writeFloatArray(queryVector.asFloatVector());
+                out.writeBoolean(false); // used for byteQueryVector, which was always null
+            }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             writeQueries(out, filterQueries);
@@ -275,7 +287,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             );
         }
 
-        final BitSetProducer parentFilter;
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryBuilder query : this.filterQueries) {
             builder.add(query.toQuery(context), BooleanClause.Occur.FILTER);
@@ -290,6 +301,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
 
         if (parentPath != null) {
+            final BitSetProducer parentBitSet;
+            final Query parentFilter;
             NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
             if (originalObjectMapper != null) {
                 try {
@@ -297,32 +310,41 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                     context.nestedScope().previousLevel();
                     NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
                     parentFilter = objectMapper == null
-                        ? context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()))
-                        : context.bitsetFilter(objectMapper.nestedTypeFilter());
+                        ? Queries.newNonNestedFilter(context.indexVersionCreated())
+                        : objectMapper.nestedTypeFilter();
                 } finally {
                     context.nestedScope().nextLevel(originalObjectMapper);
                 }
             } else {
                 // we are NOT in a nested context, coming from the top level knn search
-                parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+                parentFilter = Queries.newNonNestedFilter(context.indexVersionCreated());
             }
+            parentBitSet = context.bitsetFilter(parentFilter);
             if (filterQuery != null) {
-                filterQuery = new ToChildBlockJoinQuery(filterQuery, parentFilter);
+                NestedHelper nestedHelper = new NestedHelper(context.nestedLookup(), context::isFieldMapped);
+                // We treat the provided filter as a filter over PARENT documents, so if it might match nested documents
+                // we need to adjust it.
+                if (nestedHelper.mightMatchNestedDocs(filterQuery)) {
+                    // Ensure that the query only returns parent documents matching `filterQuery`
+                    filterQuery = Queries.filtered(filterQuery, parentFilter);
+                }
+                // Now join the filterQuery & parentFilter to provide the matching blocks of children
+                filterQuery = new ToChildBlockJoinQuery(filterQuery, parentBitSet);
             }
-            return vectorFieldType.createKnnQuery(queryVector, adjustedNumCands, filterQuery, vectorSimilarity, parentFilter);
+            return vectorFieldType.createKnnQuery(queryVector, adjustedNumCands, filterQuery, vectorSimilarity, parentBitSet);
         }
         return vectorFieldType.createKnnQuery(queryVector, adjustedNumCands, filterQuery, vectorSimilarity, null);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(queryVector), numCands, filterQueries, vectorSimilarity);
+        return Objects.hash(fieldName, Objects.hashCode(queryVector), numCands, filterQueries, vectorSimilarity);
     }
 
     @Override
     protected boolean doEquals(KnnVectorQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
-            && Arrays.equals(queryVector, other.queryVector)
+            && Objects.equals(queryVector, other.queryVector)
             && Objects.equals(numCands, other.numCands)
             && Objects.equals(filterQueries, other.filterQueries)
             && Objects.equals(vectorSimilarity, other.vectorSimilarity);

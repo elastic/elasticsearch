@@ -1,0 +1,5 @@
+pr: 105893
+summary: Specialize serialization for `ArrayVectors`
+area: ES|QL
+type: enhancement
+issues: []

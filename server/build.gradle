@@ -37,7 +37,6 @@ dependencies {
   api project(":libs:elasticsearch-plugin-analysis-api")
   api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-tdigest")
-  api project(":libs:elasticsearch-zstd")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
   // no compile dependency by server, but server defines security policy for this codebase so it i>
@@ -68,17 +67,12 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
+  // access to native functions
+  implementation project(':libs:elasticsearch-native')
   api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
-
-  // zstd native implementation bundles
-  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:darwin-aarch64"
-  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:darwin-x86-64"
-  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:linux-aarch64"
-  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:linux-x86-64"
-  runtimeOnly "org.elasticsearch:zstd:${versions.zstd}:windows-x86-64"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
@@ -87,6 +81,7 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
+
 }
 
 spotless {
@@ -157,7 +152,7 @@ if (BuildParams.isSnapshotBuild() == false) {
 }
 
 tasks.named("test").configure {
-    systemProperty 'es.insecure_network_trace_enabled', 'true'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("thirdPartyAudit").configure {

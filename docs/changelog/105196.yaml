@@ -1,0 +1,6 @@
+pr: 105196
+summary: Adding a custom exception for problems with the graph of pipelines to be
+  applied to a document
+area: Ingest Node
+type: enhancement
+issues: []

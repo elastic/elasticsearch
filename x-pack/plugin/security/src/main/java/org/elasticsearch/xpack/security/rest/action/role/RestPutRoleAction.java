@@ -18,7 +18,9 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,11 +31,21 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a Role to the security index
  */
-@ServerlessScope(Scope.INTERNAL)
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
-    public RestPutRoleAction(Settings settings, XPackLicenseState licenseState) {
+    private final PutRoleRequestBuilderFactory builderFactory;
+    private final FileRolesStore fileRolesStore;
+
+    public RestPutRoleAction(
+        Settings settings,
+        XPackLicenseState licenseState,
+        PutRoleRequestBuilderFactory builderFactory,
+        FileRolesStore fileRolesStore
+    ) {
         super(settings, licenseState);
+        this.builderFactory = builderFactory;
+        this.fileRolesStore = fileRolesStore;
     }
 
     @Override
@@ -51,11 +63,10 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutRoleRequestBuilder requestBuilder = new PutRoleRequestBuilder(client).source(
-            request.param("name"),
-            request.requiredContent(),
-            request.getXContentType()
-        ).setRefreshPolicy(request.param("refresh"));
+        final boolean restrictRequest = request.hasParam(RestRequest.PATH_RESTRICTED);
+        final PutRoleRequestBuilder requestBuilder = builderFactory.create(client, restrictRequest, fileRolesStore::exists)
+            .source(request.param("name"), request.requiredContent(), request.getXContentType())
+            .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {

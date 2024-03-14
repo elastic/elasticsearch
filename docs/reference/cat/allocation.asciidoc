@@ -57,6 +57,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 `shards`::
 Number of primary and replica shards assigned to the node.
 
+`shards.undesired`::
+Amount of shards that are scheduled to be moved elsewhere in the cluster
+or -1 other than desired balance allocator is used
+
+`write_load.forecast`::
+Sum of index write load forecasts
+
+`disk.indices.forecast`::
+Sum of shard size forecasts
+
 `disk.indices`::
 Disk space used by the node's shards. Does not include disk space for the
 <<index-modules-translog,translog>> or unassigned shards.
@@ -99,6 +109,8 @@ IP address and port for the node.
 `node`::
 Name for the node. Set using <<node-name,`node.name`>>.
 
+`node.role`, `r`, `role`, `nodeRole`::
+Node roles
 
 [[cat-allocation-api-example]]
 ==== {api-examples-title}
@@ -113,8 +125,8 @@ The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-shards disk.indices disk.used disk.avail disk.total disk.percent host      ip        node    node.role
-     1         260b    47.3gb     43.4gb    100.7gb           46 127.0.0.1 127.0.0.1 CSUXak2 himrst
+shards shards.undesired write_load.forecast disk.indices.forecast disk.indices disk.used disk.avail disk.total disk.percent host      ip        node    node.role
+     1                0                 0.0                  260b         260b    47.3gb     43.4gb    100.7gb           46 127.0.0.1 127.0.0.1 CSUXak2 himrst
 --------------------------------------------------
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/ s/46/\\d+/]
 // TESTRESPONSE[s/CSUXak2 himrst/.+/ non_json]

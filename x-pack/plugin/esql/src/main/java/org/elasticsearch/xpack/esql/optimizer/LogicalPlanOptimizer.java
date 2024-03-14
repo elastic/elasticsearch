@@ -17,7 +17,8 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.AutoBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -28,7 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -45,7 +46,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
@@ -82,24 +82,27 @@ import java.util.function.Predicate;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
-import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
+
+    private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
 
     public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
         super(optimizerContext);
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {
-        return verifyOptimized(verified.optimized() ? verified : execute(verified));
+        var optimized = execute(verified);
+
+        Failures failures = verifier.verify(optimized);
+        if (failures.hasFailures()) {
+            throw new VerificationException(failures);
+        }
+        return optimized;
     }
 
     @Override
@@ -117,12 +120,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ConvertStringToByteRef(),
             new FoldNull(),
             new SplitInWithFoldableValue(),
-            new ConstantFolding(),
             new PropagateEvalFoldables(),
+            new ConstantFolding(),
+            new PartiallyFoldCase(),
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
-            new BinaryComparisonSimplification(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),
             new PropagateNullable(),
@@ -257,7 +260,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         static String temporaryName(Expression inner, Expression outer, int suffix) {
             String in = toString(inner);
             String out = toString(outer);
-            return "$$" + in + "$" + out + "$" + suffix;
+            return rawTemporaryName(in, out, String.valueOf(suffix));
+        }
+
+        static String rawTemporaryName(String inner, String outer, String suffix) {
+            return "$$" + inner + "$" + outer + "$" + suffix;
         }
 
         static int TO_STRING_LIMIT = 16;
@@ -837,9 +844,31 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
+    protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
+        @Override
+        protected LogicalPlan rule(Eval eval) {
+            return pushGeneratingPlanPastProjectAndOrderBy(eval, asAttributes(eval.fields()));
+        }
+    }
+
+    protected static class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
+        @Override
+        protected LogicalPlan rule(RegexExtract re) {
+            return pushGeneratingPlanPastProjectAndOrderBy(re, re.extractedFields());
+        }
+    }
+
+    protected static class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
+        @Override
+        protected LogicalPlan rule(Enrich en) {
+            return pushGeneratingPlanPastProjectAndOrderBy(en, asAttributes(en.enrichFields()));
+        }
+    }
+
     /**
-     * Pushes Evals past OrderBys. Although it seems arbitrary whether the OrderBy or the Eval is executed first,
-     * this transformation ensures that OrderBys only separated by an eval can be combined by PushDownAndCombineOrderBy.
+     * Pushes LogicalPlans which generate new attributes (Eval, Grok/Dissect, Enrich), past OrderBys and Projections.
+     * Although it seems arbitrary whether the OrderBy or the Eval is executed first, this transformation ensures that OrderBys only
+     * separated by an eval can be combined by PushDownAndCombineOrderBy.
      *
      * E.g.:
      *
@@ -849,59 +878,82 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      *
      * ... | eval x = b + 1 | sort a | sort x
      *
-     * Ordering the evals before the orderBys has the advantage that it's always possible to order the plans like this.
+     * Ordering the Evals before the OrderBys has the advantage that it's always possible to order the plans like this.
      * E.g., in the example above it would not be possible to put the eval after the two orderBys.
+     *
+     * In case one of the Eval's fields would shadow the orderBy's attributes, we rename the attribute first.
+     *
+     * E.g.
+     *
+     * ... | sort a | eval a = b + 1 | ...
+     *
+     * becomes
+     *
+     * ... | eval $$a = a | eval a = b + 1 | sort $$a | drop $$a
      */
-    protected static class PushDownEval extends OptimizerRules.OptimizerRule<Eval> {
-        @Override
-        protected LogicalPlan rule(Eval eval) {
-            LogicalPlan child = eval.child();
+    private static LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(UnaryPlan generatingPlan, List<Attribute> generatedAttributes) {
+        LogicalPlan child = generatingPlan.child();
 
-            if (child instanceof OrderBy orderBy) {
-                return orderBy.replaceChild(eval.replaceChild(orderBy.child()));
-            } else if (child instanceof Project) {
-                var projectWithEvalChild = pushDownPastProject(eval);
-                var fieldProjections = asAttributes(eval.fields());
-                return projectWithEvalChild.withProjections(mergeOutputExpressions(fieldProjections, projectWithEvalChild.projections()));
+        if (child instanceof OrderBy orderBy) {
+            Set<String> evalFieldNames = new LinkedHashSet<>(Expressions.names(generatedAttributes));
+
+            // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
+            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(evalFieldNames, orderBy.order());
+
+            AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
+            @SuppressWarnings("unchecked")
+            List<Order> newOrder = (List<Order>) (List<?>) nonShadowedOrders.rewrittenExpressions;
+
+            if (aliasesForShadowedOrderByAttrs.isEmpty() == false) {
+                List<Alias> newAliases = new ArrayList<>(aliasesForShadowedOrderByAttrs.values());
+
+                LogicalPlan plan = new Eval(orderBy.source(), orderBy.child(), newAliases);
+                plan = generatingPlan.replaceChild(plan);
+                plan = new OrderBy(orderBy.source(), plan, newOrder);
+                plan = new Project(generatingPlan.source(), plan, generatingPlan.output());
+
+                return plan;
             }
 
-            return eval;
+            return orderBy.replaceChild(generatingPlan.replaceChild(orderBy.child()));
+        } else if (child instanceof Project) {
+            var projectWithEvalChild = pushDownPastProject(generatingPlan);
+            return projectWithEvalChild.withProjections(mergeOutputExpressions(generatedAttributes, projectWithEvalChild.projections()));
         }
+
+        return generatingPlan;
     }
 
-    // same as for PushDownEval
-    protected static class PushDownRegexExtract extends OptimizerRules.OptimizerRule<RegexExtract> {
-        @Override
-        protected LogicalPlan rule(RegexExtract re) {
-            LogicalPlan child = re.child();
+    private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {};
 
-            if (child instanceof OrderBy orderBy) {
-                return orderBy.replaceChild(re.replaceChild(orderBy.child()));
-            } else if (child instanceof Project) {
-                var projectWithChild = pushDownPastProject(re);
-                return projectWithChild.withProjections(mergeOutputExpressions(re.extractedFields(), projectWithChild.projections()));
-            }
+    /**
+     * Replace attributes in the given expressions by assigning them temporary names.
+     * Returns the rewritten expressions and a map with an alias for each replaced attribute; the rewritten expressions reference
+     * these aliases.
+     */
+    private static AttributeReplacement renameAttributesInExpressions(
+        Set<String> attributeNamesToRename,
+        List<? extends Expression> expressions
+    ) {
+        AttributeMap<Alias> aliasesForReplacedAttributes = new AttributeMap<>();
+        List<Expression> rewrittenExpressions = new ArrayList<>();
 
-            return re;
+        for (Expression expr : expressions) {
+            rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
+                if (attributeNamesToRename.contains(attr.name())) {
+                    Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
+                        String tempName = SubstituteSurrogates.rawTemporaryName(a.name(), "temp_name", a.id().toString());
+                        // TODO: this should be synthetic
+                        return new Alias(a.source(), tempName, null, a, null, false);
+                    });
+                    return renamedAttribute.toAttribute();
+                }
+
+                return attr;
+            }));
         }
-    }
 
-    // TODO double-check: this should be the same as EVAL and GROK/DISSECT, needed to avoid unbounded sort
-    protected static class PushDownEnrich extends OptimizerRules.OptimizerRule<Enrich> {
-        @Override
-        protected LogicalPlan rule(Enrich re) {
-            LogicalPlan child = re.child();
-
-            if (child instanceof OrderBy orderBy) {
-                return orderBy.replaceChild(re.replaceChild(orderBy.child()));
-            } else if (child instanceof Project) {
-                var projectWithChild = pushDownPastProject(re);
-                var attrs = asAttributes(re.enrichFields());
-                return projectWithChild.withProjections(mergeOutputExpressions(attrs, projectWithChild.projections()));
-            }
-
-            return re;
-        }
+        return new AttributeReplacement(rewrittenExpressions, aliasesForReplacedAttributes);
     }
 
     protected static class PushDownAndCombineOrderBy extends OptimizerRules.OptimizerRule<OrderBy> {
@@ -1127,7 +1179,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext context) {
             if (plan instanceof UnaryPlan unary && unary.child() instanceof OrderBy order && order.child() instanceof EsRelation relation) {
-                var limit = new Literal(Source.EMPTY, context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER);
+                var limit = new Literal(plan.source(), context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER);
                 return unary.replaceChild(new TopN(plan.source(), relation, order.order(), limit));
             }
             return plan;
@@ -1536,84 +1588,44 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    /**
-     * Replace aggregations that are duplicated inside an Aggregate with an Eval to avoid duplicated compute.
-     * stats a = min(x), b = min(x), c = count(*), d = count() by g
-     * becomes
-     * stats a = min(x), c = count(*) by g
-     * eval b = a, d = c
-     * keep a, b, c, d, g
-     */
-    static class ReplaceDuplicateAggWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
-
-        ReplaceDuplicateAggWithEval() {
-            super(TransformDirection.UP);
-        }
-
+    public static class FoldNull extends OptimizerRules.FoldNull {
         @Override
-        protected LogicalPlan rule(Aggregate aggregate) {
-            LogicalPlan plan = aggregate;
+        protected Expression tryReplaceIsNullIsNotNull(Expression e) {
+            return e;
+        }
+    }
 
-            boolean foundDuplicate = false;
-            var aggs = aggregate.aggregates();
-            Map<AggregateFunction, Attribute> seenAggs = Maps.newMapWithExpectedSize(aggs.size());
-            List<NamedExpression> projections = new ArrayList<>();
-            List<NamedExpression> keptAggs = new ArrayList<>(aggs.size());
-
-            for (NamedExpression agg : aggs) {
-                var attr = agg.toAttribute();
-                if (agg instanceof Alias as && as.child() instanceof AggregateFunction af) {
-                    var seen = seenAggs.putIfAbsent(af, attr);
-                    if (seen != null) {
-                        foundDuplicate = true;
-                        projections.add(as.replaceChild(seen));
-                    }
-                    // otherwise keep the agg in place
-                    else {
-                        keptAggs.add(agg);
-                        projections.add(attr);
-                    }
-                } else {
-                    keptAggs.add(agg);
-                    projections.add(attr);
+    public static class PropagateNullable extends OptimizerRules.PropagateNullable {
+        protected Expression nullify(Expression exp, Expression nullExp) {
+            if (exp instanceof Coalesce) {
+                List<Expression> newChildren = new ArrayList<>(exp.children());
+                newChildren.removeIf(e -> e.semanticEquals(nullExp));
+                if (newChildren.size() != exp.children().size() && newChildren.size() > 0) { // coalesce needs at least one input
+                    return exp.replaceChildren(newChildren);
                 }
             }
-
-            // at least one duplicate found - add the projection (to keep the output in place)
-            if (foundDuplicate) {
-                var source = aggregate.source();
-                var newAggregate = new Aggregate(source, aggregate.child(), aggregate.groupings(), keptAggs);
-                plan = new Project(source, newAggregate, projections);
-            }
-
-            return plan;
+            return Literal.of(exp, null);
         }
     }
 
     /**
-     * Verify that a {@link LogicalPlan} can be executed.
-     *
-     * @param plan The logical plan to be verified.
-     * @throws VerificationException if the plan is invalid.
+     * Fold the arms of {@code CASE} statements.
+     * <pre>{@code
+     * EVAL c=CASE(true, foo, bar)
+     * }</pre>
+     * becomes
+     * <pre>{@code
+     * EVAL c=foo
+     * }</pre>
      */
-    LogicalPlan verifyOptimized(LogicalPlan plan) throws VerificationException {
-        Set<Failure> failures = new LinkedHashSet<>();
-        plan.forEachUp(p -> {
-            p.forEachExpression(AutoBucket.class, e -> {
-                Expression.TypeResolution resolution = isFoldable(e.from(), e.sourceText(), THIRD);
-                if (resolution.unresolved()) {
-                    failures.add(fail(e, resolution.message()));
-                }
-                resolution = isFoldable(e.to(), e.sourceText(), FOURTH);
-                if (resolution.unresolved()) {
-                    failures.add(fail(e, resolution.message()));
-                }
-            });
-        });
-        if (failures.isEmpty() == false) {
-            throw new VerificationException(failures);
+    static class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionRule<Case> {
+        PartiallyFoldCase() {
+            super(DOWN);
         }
 
-        return plan;
+        @Override
+        protected Expression rule(Case c) {
+            return c.partiallyFold();
+        }
     }
 }

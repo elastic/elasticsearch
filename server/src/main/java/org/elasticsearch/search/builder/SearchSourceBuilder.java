@@ -21,6 +21,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -38,6 +39,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -63,11 +66,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
@@ -118,6 +123,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
     public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
+    public static final ParseField RETRIEVER = new ParseField("retriever");
 
     private static final boolean RANK_SUPPORTED = Booleans.parseBoolean(System.getProperty("es.search.rank_supported"), true);
 
@@ -729,6 +735,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return this;
     }
 
+    public SearchSourceBuilder aggregationsBuilder(AggregatorFactories.Builder aggregations) {
+        if (this.aggregations != null) {
+            throw new IllegalStateException("cannot override aggregations builder");
+        }
+        this.aggregations = aggregations;
+        return this;
+    }
+
     /**
      * Add an aggregation to perform as part of the search.
      */
@@ -1230,10 +1244,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      * @param searchUsageHolder holder for the search usage statistics
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
      */
-    public SearchSourceBuilder parseXContent(XContentParser parser, boolean checkTrailingTokens, SearchUsageHolder searchUsageHolder)
-        throws IOException {
-        return parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage);
+    public SearchSourceBuilder parseXContent(
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(parser, checkTrailingTokens, searchUsageHolder::updateUsage, clusterSupportsFeature);
     }
 
     /**
@@ -1243,13 +1262,22 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      *
      * @param parser The xContent parser.
      * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
+     * @param clusterSupportsFeature used to check if certain features are available on this cluster
      */
-    public SearchSourceBuilder parseXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
-        return parseXContent(parser, checkTrailingTokens, s -> {});
+    public SearchSourceBuilder parseXContent(
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
+        return parseXContent(parser, checkTrailingTokens, s -> {}, clusterSupportsFeature);
     }
 
-    private SearchSourceBuilder parseXContent(XContentParser parser, boolean checkTrailingTokens, Consumer<SearchUsage> searchUsageConsumer)
-        throws IOException {
+    private SearchSourceBuilder parseXContent(
+        XContentParser parser,
+        boolean checkTrailingTokens,
+        Consumer<SearchUsage> searchUsageConsumer,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -1261,6 +1289,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         List<KnnSearchBuilder.Builder> knnBuilders = new ArrayList<>();
 
+        RetrieverBuilder retrieverBuilder = null;
         SearchUsage searchUsage = new SearchUsage();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -1313,7 +1342,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(),
                         parser
                     );
-                    searchUsage.trackSectionUsage(STORED_FIELDS_FIELD.getPreferredName());
+                    if (storedFieldsContext.fetchFields() == false
+                        || (storedFieldsContext.fieldNames() != null && storedFieldsContext.fieldNames().size() > 0)) {
+                        searchUsage.trackSectionUsage(STORED_FIELDS_FIELD.getPreferredName());
+                    }
                 } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     sort(parser.text());
                 } else if (PROFILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1326,7 +1358,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (RETRIEVER.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (clusterSupportsFeature.test(RetrieverBuilder.RETRIEVERS_SUPPORTED) == false) {
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a START_OBJECT in [retriever].");
+                    }
+                    retrieverBuilder = RetrieverBuilder.parseTopLevelRetrieverBuilder(
+                        parser,
+                        new RetrieverParserContext(searchUsage, clusterSupportsFeature)
+                    );
+                } else if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (subSearchSourceBuilders.isEmpty() == false) {
                         throw new IllegalArgumentException(
                             "cannot specify field [" + currentFieldName + "] and field [" + SUB_SEARCHES_FIELD.getPreferredName() + "]"
@@ -1469,7 +1509,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     storedFieldsContext = StoredFieldsContext.fromXContent(STORED_FIELDS_FIELD.getPreferredName(), parser);
-                    if (storedFieldsContext.fieldNames().size() > 0 || storedFieldsContext.fetchFields() == false) {
+                    if (storedFieldsContext.fetchFields() == false
+                        || (storedFieldsContext.fieldNames() != null && storedFieldsContext.fieldNames().size() > 0)) {
                         searchUsage.trackSectionUsage(STORED_FIELDS_FIELD.getPreferredName());
                     }
                 } else if (DOCVALUE_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1580,7 +1621,41 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] found after the main object.");
             }
         }
+
         knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
+
+        if (retrieverBuilder != null) {
+            List<String> specified = new ArrayList<>();
+            if (subSearchSourceBuilders.isEmpty() == false) {
+                specified.add(QUERY_FIELD.getPreferredName());
+            }
+            if (knnSearch.isEmpty() == false) {
+                specified.add(KNN_FIELD.getPreferredName());
+            }
+            if (searchAfterBuilder != null) {
+                specified.add(SEARCH_AFTER.getPreferredName());
+            }
+            if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
+                specified.add(TERMINATE_AFTER_FIELD.getPreferredName());
+            }
+            if (sorts != null) {
+                specified.add(SORT_FIELD.getPreferredName());
+            }
+            if (rescoreBuilders != null) {
+                specified.add(RESCORE_FIELD.getPreferredName());
+            }
+            if (minScore != null) {
+                specified.add(MIN_SCORE_FIELD.getPreferredName());
+            }
+            if (rankBuilder != null) {
+                specified.add(RANK_FIELD.getPreferredName());
+            }
+            if (specified.isEmpty() == false) {
+                throw new IllegalArgumentException("cannot specify [" + RETRIEVER.getPreferredName() + "] and " + specified);
+            }
+            retrieverBuilder.extractToSearchSourceBuilder(this, false);
+        }
+
         searchUsageConsumer.accept(searchUsage);
         return this;
     }

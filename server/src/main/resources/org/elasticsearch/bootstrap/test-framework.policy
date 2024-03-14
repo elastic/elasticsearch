@@ -123,10 +123,6 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.net.SocketPermission "*", "accept,connect";
 };
 
-grant codeBase "${codebase.jna}" {
-  permission java.io.FilePermission "*", "read";
-};
-
 grant {
   permission java.net.SocketPermission "127.0.0.1", "accept, connect, resolve";
   permission java.nio.file.LinkPermission "symbolic";

@@ -9,9 +9,12 @@ experimental[]
 Returns field usage information for each shard and field
 of an index.
 Field usage statistics are automatically captured when
-queries are running on a cluster. A shard-level search
+a shard starts running on a cluster node. A shard-level search
 request that accesses a given field, even if multiple times
-during that request, is counted as a single use.
+during that request, is counted as a single use. The counters 
+are cumulative and kept in memory. Upon node restart, or 
+when the shard is moved to a new node, the counters for 
+that shard will be reset.
 
 [source,console]
 --------------------------------------------------

@@ -23,7 +23,7 @@ import java.util.function.Predicate;
  */
 public final class MapperRegistry {
 
-    private final Map<String, Mapper.TypeParser> mapperParsers;
+    public final Map<String, Mapper.TypeParser> mapperParsers;
     private final Map<String, RuntimeField.Parser> runtimeFieldParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers7x;
@@ -37,7 +37,7 @@ public final class MapperRegistry {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Function<String, Predicate<String>> fieldFilter
     ) {
-        this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
+        this.mapperParsers = new LinkedHashMap<>(mapperParsers);
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
         Map<String, MetadataFieldMapper.TypeParser> metadata7x = new LinkedHashMap<>(metadataMapperParsers);

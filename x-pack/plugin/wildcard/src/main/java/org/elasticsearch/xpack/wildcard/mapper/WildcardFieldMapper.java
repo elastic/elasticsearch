@@ -845,8 +845,9 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            HashSet<?> dedupe = new HashSet<>(values);
             BooleanQuery.Builder bq = new BooleanQuery.Builder();
-            for (Object value : values) {
+            for (Object value : dedupe) {
                 bq.add(termQuery(value, context), Occur.SHOULD);
             }
             return new ConstantScoreQuery(bq.build());

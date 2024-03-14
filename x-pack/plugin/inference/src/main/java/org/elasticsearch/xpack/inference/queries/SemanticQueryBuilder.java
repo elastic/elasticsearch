@@ -151,7 +151,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         Map<String, Set<String>> modelsForFields = computeModelsForFields(queryRewriteContext.getIndexMetadataMap().values());
         Set<String> modelsForField = modelsForFields.get(fieldName);
         if (modelsForField == null || modelsForField.isEmpty()) {
-            throw new IllegalArgumentException("Field [" + fieldName + "] is not a " + SemanticTextFieldMapper.CONTENT_TYPE + " field type");
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] is not a " + SemanticTextFieldMapper.CONTENT_TYPE + " field type"
+            );
         }
 
         if (modelsForField.size() > 1) {

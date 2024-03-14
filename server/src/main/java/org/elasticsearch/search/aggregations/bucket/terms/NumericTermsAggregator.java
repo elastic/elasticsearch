@@ -11,7 +11,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
@@ -227,7 +226,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         abstract void updateBucket(B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
 
         /**
-         * Build a {@link PriorityQueue} to sort the buckets. After we've
+         * Build a {@link ObjectArrayPriorityQueue} to sort the buckets. After we've
          * collected all of the buckets we'll collect all entries in the queue.
          */
         abstract ObjectArrayPriorityQueue<B> buildPriorityQueue(int size);

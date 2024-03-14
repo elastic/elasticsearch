@@ -91,7 +91,9 @@ int:integer |dbl:double
 520128      |520128
 ;
 
-lessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+lessThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change < 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [salary_change < 1] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -105,7 +107,9 @@ emp_no:integer |salary_change:double
 10030          |-0.4
 ;
 
-greaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+greaterThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change > 1 | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [salary_change > 1] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -119,7 +123,9 @@ emp_no:integer |salary_change:double
 10079          |7.58
 ;
 
-equalToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+equalToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change == 1.19 | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -129,7 +135,9 @@ emp_no:integer |salary_change:double
 10001          |1.19
 ;
 
-equalToOrEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+equalToOrEqualToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change == 1.19 or salary_change == 7.58 | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -140,7 +148,9 @@ emp_no:integer |salary_change:double
 10079          |7.58
 ;
 
-inMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+inMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change in (1.19, 7.58) | keep emp_no, salary_change | sort emp_no;
 warning:Line 1:24: evaluation of [salary_change in (1.19, 7.58)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -151,7 +161,9 @@ emp_no:integer |salary_change:double
 10079          |7.58
 ;
 
-notLessThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+notLessThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(salary_change < 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [not(salary_change < 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change < 1] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -165,7 +177,9 @@ emp_no:integer |salary_change:double
 10079          | 7.58
 ;
 
-notGreaterThanMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+notGreaterThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(salary_change > 1) | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [not(salary_change > 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change > 1] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
@@ -179,7 +193,9 @@ emp_no:integer |salary_change:double
 10030          | -0.4
 ;
 
-notEqualToMultivalue#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+notEqualToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(salary_change == 1.19) | keep emp_no, salary_change | sort emp_no | limit 5;
 warning:Line 1:24: evaluation of [not(salary_change == 1.19)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.]
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]

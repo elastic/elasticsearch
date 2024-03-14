@@ -12,11 +12,15 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.test.TestUtil;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolutionStrategy;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
@@ -26,10 +30,13 @@ import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import javax.inject.Inject;
 
@@ -59,6 +66,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         configureConfigurations(project);
         configureCompile(project);
         configureInputNormalization(project);
+        configureNativeLibraryPath(project);
 
         // convenience access to common versions used in dependencies
         project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
@@ -163,6 +171,26 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
     public static void configureInputNormalization(Project project) {
         project.getNormalization().getRuntimeClasspath().ignore("META-INF/MANIFEST.MF");
         project.getNormalization().getRuntimeClasspath().ignore("IMPL-JARS/**/META-INF/MANIFEST.MF");
+    }
+
+    private static void configureNativeLibraryPath(Project project) {
+        String nativeProject = ":libs:elasticsearch-native:elasticsearch-native-libraries";
+        Configuration nativeConfig = project.getConfigurations().create("nativeLibs");
+        nativeConfig.defaultDependencies(deps -> {
+            deps.add(project.getDependencies().project(Map.of("path", nativeProject, "configuration", "default")));
+        });
+        // This input to the following lambda needs to be serializable. Configuration is not serializable, but FileCollection is.
+        FileCollection nativeConfigFiles = nativeConfig;
+
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            var systemProperties = test.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class);
+            var libraryPath = (Supplier<String>) () -> TestUtil.getTestLibraryPath(nativeConfigFiles.getAsPath());
+
+            test.dependsOn(nativeConfigFiles);
+            // we may use JNA or the JDK's foreign function api to load libraries, so we set both sysprops
+            systemProperties.systemProperty("java.library.path", libraryPath);
+            systemProperties.systemProperty("jna.library.path", libraryPath);
+        });
     }
 
     private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {

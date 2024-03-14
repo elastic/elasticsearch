@@ -27,13 +27,14 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
 
-import static org.elasticsearch.compute.data.ElementType.BYTES_REF;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 
 /**
  * Generates a list of Lucene queries based on the input block.
@@ -61,15 +62,25 @@ abstract class QueryList {
     /**
      * Returns a list of term queries for the given field and the input block.
      */
-    static QueryList termQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-        return new TermQueryList(field, searchExecutionContext, block);
+    static QueryList termQueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        Block block,
+        DataType inputDataType
+    ) {
+        return new TermQueryList(field, searchExecutionContext, block, inputDataType);
     }
 
     /**
      * Returns a list of geo_shape queries for the given field and the input block.
      */
-    static QueryList geoShapeQuery(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-        return new GeoShapeQueryList(field, searchExecutionContext, block);
+    static QueryList geoShapeQuery(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        Block block,
+        DataType inputDataType
+    ) {
+        return new GeoShapeQueryList(field, searchExecutionContext, block, inputDataType);
     }
 
     private static class TermQueryList extends QueryList {
@@ -77,13 +88,15 @@ abstract class QueryList {
         private final byte[] ipBytes = new byte[InetAddressPoint.BYTES];
         private final MappedFieldType field;
         private final SearchExecutionContext searchExecutionContext;
+        private final DataType inputDataType;
         private final IntFunction<Object> blockValueReader;
 
-        private TermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
+        private TermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block, DataType inputDataType) {
             super(block);
 
             this.field = field;
             this.searchExecutionContext = searchExecutionContext;
+            this.inputDataType = inputDataType;
             this.blockValueReader = blockToJavaObject();
         }
 
@@ -113,7 +126,7 @@ abstract class QueryList {
                 }
                 case BYTES_REF -> {
                     BytesRefBlock bytesRefBlock = (BytesRefBlock) block;
-                    if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType && rangeFieldType.rangeType() == RangeType.IP) {
+                    if (inputDataType == IP) {
                         yield offset -> {
                             bytesRefBlock.getBytesRef(offset, scratch);
                             if (ipBytes.length != scratch.length) {
@@ -154,13 +167,20 @@ abstract class QueryList {
         private final MappedFieldType field;
         private final SearchExecutionContext searchExecutionContext;
         private final IntFunction<Geometry> blockValueReader;
+        private final DataType inputDataType; // Currently unused, but might be needed for when input is read as doc-values
         private final IntFunction<Query> shapeQuery;
 
-        private GeoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
+        private GeoShapeQueryList(
+            MappedFieldType field,
+            SearchExecutionContext searchExecutionContext,
+            Block block,
+            DataType inputDataType
+        ) {
             super(block);
 
             this.field = field;
             this.searchExecutionContext = searchExecutionContext;
+            this.inputDataType = inputDataType;
             this.blockValueReader = blockToGeometry(block);
             this.shapeQuery = shapeQuery();
         }

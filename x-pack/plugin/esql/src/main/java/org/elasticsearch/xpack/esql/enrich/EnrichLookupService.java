@@ -265,8 +265,8 @@ public class EnrichLookupService {
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             MappedFieldType fieldType = searchExecutionContext.getFieldType(matchField);
             var queryList = switch (matchType) {
-                case "match", "range" -> QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
-                case "geo_match" -> QueryList.geoShapeQuery(fieldType, searchExecutionContext, inputBlock);
+                case "match", "range" -> QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock, inputDataType);
+                case "geo_match" -> QueryList.geoShapeQuery(fieldType, searchExecutionContext, inputBlock, inputDataType);
                 default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
             var queryOperator = new EnrichQuerySourceOperator(

@@ -1,7 +1,7 @@
 [[troubleshooting-unbalanced-cluster]]
 == Troubleshooting an unbalanced cluster
 
-Elasticsearch is balancing shards across data tier to achieve a good compromise between:
+Elasticsearch balances shards across data tiers to achieve a good compromise between:
 
 * shard count
 * disk usage

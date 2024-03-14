@@ -13,7 +13,7 @@ There is no guarantee that individual components will be evenly spread across th
 This could happen if some nodes have fewer shards, or are using less disk space, 
 but are assigned shards with higher ingest load forecasts.
 
-Use <<cat-allocation,cat allocation command>> to list workloads per node:
+Use the <<cat-allocation,cat allocation command>> to list workloads per node:
 
 [source,console]
 --------------------------------------------------

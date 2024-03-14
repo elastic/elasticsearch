@@ -397,7 +397,7 @@ public class DataStreamAutoShardingService {
                     assert uptimeInMillisForShard.isPresent();
                     double shardIndexingTime = writeLoadForShard.getAsDouble() * uptimeInMillisForShard.getAsLong();
                     long shardUptimeInMillis = uptimeInMillisForShard.getAsLong();
-                    totalShardIndexingTime += shardIndexingTime * shardUptimeInMillis;
+                    totalShardIndexingTime += shardIndexingTime;
                     totalShardUptime += shardUptimeInMillis;
                 }
             }

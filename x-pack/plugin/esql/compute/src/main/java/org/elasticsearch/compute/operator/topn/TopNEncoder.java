@@ -46,10 +46,6 @@ public interface TopNEncoder {
      */
     UnsupportedTypesTopNEncoder UNSUPPORTED = new UnsupportedTypesTopNEncoder();
 
-    static TopNEncoder unsortableWithError(String error) {
-        return new UnsortableTopNEncoderWithError(error);
-    }
-
     void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder);
 
     long decodeLong(BytesRef bytes);

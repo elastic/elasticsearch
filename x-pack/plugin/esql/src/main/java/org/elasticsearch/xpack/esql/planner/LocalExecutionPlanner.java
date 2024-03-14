@@ -337,16 +337,13 @@ public class LocalExecutionPlanner {
         List<Layout.ChannelSet> inverse = source.layout.inverse();
         for (int channel = 0; channel < inverse.size(); channel++) {
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type());
-            String typeName = inverse.get(channel).type().typeName();
-            encoders[channel] = switch (typeName) {
+            encoders[channel] = switch (inverse.get(channel).type().typeName()) {
                 case "ip" -> TopNEncoder.IP;
                 case "text", "keyword" -> TopNEncoder.UTF8;
                 case "version" -> TopNEncoder.VERSION;
                 case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
                     "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
-                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" -> TopNEncoder.unsortableWithError(
-                    "can't sort on " + typeName + " field"
-                );
+                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case "unsupported" -> TopNEncoder.UNSUPPORTED;
                 default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());

@@ -162,7 +162,7 @@ class FieldCapabilitiesFetcher {
 
         Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
         boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
-        includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
+        var fieldInfos = indexShard.getFieldInfos();
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
             final String field = entry.getKey();
@@ -170,9 +170,8 @@ class FieldCapabilitiesFetcher {
                 continue;
             }
             MappedFieldType ft = entry.getValue();
-            if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
-                && (indexFieldfilter.test(ft.name()) || context.isMetadataField(ft.name()))
-                && (filter == null || filter.test(ft))) {
+            boolean includeField = includeEmptyFields || enableFieldHasValue == false || ft.fieldHasValue(indexShard.getFieldInfos());
+            if (includeField && filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
                     ft.familyTypeName(),

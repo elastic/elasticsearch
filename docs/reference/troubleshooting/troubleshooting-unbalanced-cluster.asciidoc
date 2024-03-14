@@ -36,7 +36,7 @@ This response contains the following information that influences balancing:
 * `shards` is the current number of shards allocated to the node
 * `shards.undesired` is the number of shards that needs to be moved to other nodes to finish balancing
 * `disk.indices.forecast` is the expected disk usage according to projected shard growth
-* `write_load.forecast` is the projected ingest load associated with this node
+* `write_load.forecast` is the projected total write load associated with this node
 
 A cluster is considered balanced when all shards are in their desired locations, which means that no further shard movements are planned (all `shards.undesired` values are equal to 0).
 At this state it should have spread workload reasonably. For example, some nodes might have fewer shards but more ingest load.

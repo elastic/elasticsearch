@@ -23,6 +23,8 @@ same effect as a threshold of 40000. The default value is 3000.
 
 Returns the approximate number of distinct values.
 
+*Supported types*
+
 Can take any field type as input.
 
 *Examples*

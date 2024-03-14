@@ -13,6 +13,8 @@ include::{esql-specs}/spatial.csv-spec[tag=st_centroid-airports]
 include::{esql-specs}/spatial.csv-spec[tag=st_centroid-airports-result]
 |===
 
+Supported types:
+
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 v | result

@@ -18,6 +18,8 @@ Numeric expression.
 
 The average of a numeric expression.
 
+*Supported types*
+
 The result is always a `double` no matter the input type.
 
 *Examples*

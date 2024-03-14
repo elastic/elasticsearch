@@ -19,6 +19,8 @@ If omitted, equivalent to `COUNT(*)` (the number of rows).
 
 Returns the total number (count) of input values.
 
+*Supported types*
+
 Can take any field type as input.
 
 *Examples*

@@ -38,13 +38,13 @@ public class CohereRerankAction implements ExecutableAction {
     }
 
     @Override
-    public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
+    public void execute(String query, List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(
                 failedToSendRequestErrorMessage,
                 listener
             );
-            sender.send(requestCreator, input, wrappedListener);
+            sender.send(requestCreator, query, input, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

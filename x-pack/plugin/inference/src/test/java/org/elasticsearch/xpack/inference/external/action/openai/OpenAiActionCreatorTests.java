@@ -99,7 +99,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(null, List.of("abc"), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -152,7 +152,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(null, List.of("abc"), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -204,7 +204,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(null, List.of("abc"), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -263,7 +263,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(null, List.of("abc"), listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI embeddings request to [%s]", getUrl(webServer))));
@@ -333,7 +333,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abcd"), listener);
+            action.execute(null, List.of("abcd"), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -416,7 +416,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abcd"), listener);
+            action.execute(null, List.of("abcd"), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -484,7 +484,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("super long input"), listener);
+            action.execute(null, List.of("super long input"), listener);
 
             var result = listener.actionGet(TIMEOUT);
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.huggingface;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -48,10 +49,10 @@ public class HuggingFaceAction implements ExecutableAction {
     }
 
     @Override
-    public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
+    public void execute(@Nullable String query, List<String> input, ActionListener<InferenceServiceResults> listener) {
         try {
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
-            sender.send(requestCreator, input, wrappedListener);
+            sender.send(requestCreator, null, input, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

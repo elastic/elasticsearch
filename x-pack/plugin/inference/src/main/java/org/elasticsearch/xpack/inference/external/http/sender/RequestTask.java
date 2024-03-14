@@ -27,6 +27,7 @@ class RequestTask implements RejectableTask {
 
     private final AtomicBoolean finished = new AtomicBoolean();
     private final ExecutableRequestCreator requestCreator;
+    private final String query;
     private final List<String> input;
     private final ActionListener<InferenceServiceResults> listener;
 
@@ -38,6 +39,21 @@ class RequestTask implements RejectableTask {
         ActionListener<InferenceServiceResults> listener
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
+        this.input = Objects.requireNonNull(input);
+        this.listener = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
+        this.query = null;
+    }
+
+    RequestTask(
+        ExecutableRequestCreator requestCreator,
+        String query,
+        List<String> input,
+        @Nullable TimeValue timeout,
+        ThreadPool threadPool,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        this.requestCreator = Objects.requireNonNull(requestCreator);
+        this.query = Objects.requireNonNull(query);
         this.input = Objects.requireNonNull(input);
         this.listener = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
     }
@@ -87,7 +103,7 @@ class RequestTask implements RejectableTask {
 
     @Override
     public String getQuery() {
-        return null;
+        return query;
     }
 
     @Override

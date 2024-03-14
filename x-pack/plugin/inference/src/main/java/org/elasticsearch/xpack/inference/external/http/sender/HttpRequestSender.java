@@ -147,21 +147,24 @@ public class HttpRequestSender implements Sender {
 
     /**
      * Send a request at some point in the future. The timeout used is retrieved from the settings.
+     *
      * @param requestCreator a factory for creating a request to be sent to a 3rd party service
-     * @param input the list of string input to send in the request
-     * @param timeout the maximum time the request should wait for a response before timing out. If null, the timeout is ignored.
-     *                The queuing logic may still throw a timeout if it fails to send the request because it couldn't get a leased
-     * @param listener a listener to handle the response
+     * @param query
+     * @param input          the list of string input to send in the request
+     * @param timeout        the maximum time the request should wait for a response before timing out. If null, the timeout is ignored.
+     *                       The queuing logic may still throw a timeout if it fails to send the request because it couldn't get a leased
+     * @param listener       a listener to handle the response
      */
     public void send(
         ExecutableRequestCreator requestCreator,
+        @Nullable String query,
         List<String> input,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         assert started.get() : "call start() before sending a request";
         waitForStartToComplete();
-        service.execute(requestCreator, input, timeout, listener);
+        service.execute(requestCreator, query, input, timeout, listener);
     }
 
     private void waitForStartToComplete() {
@@ -176,14 +179,21 @@ public class HttpRequestSender implements Sender {
 
     /**
      * Send a request at some point in the future. The timeout used is retrieved from the settings.
+     *
      * @param requestCreator a factory for creating a request to be sent to a 3rd party service
-     * @param input the list of string input to send in the request
-     * @param listener a listener to handle the response
+     * @param query
+     * @param input          the list of string input to send in the request
+     * @param listener       a listener to handle the response
      */
-    public void send(ExecutableRequestCreator requestCreator, List<String> input, ActionListener<InferenceServiceResults> listener) {
+    public void send(
+        ExecutableRequestCreator requestCreator,
+        @Nullable String query,
+        List<String> input,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         assert started.get() : "call start() before sending a request";
         waitForStartToComplete();
-        service.execute(requestCreator, input, maxRequestTimeout, listener);
+        service.execute(requestCreator, query, input, maxRequestTimeout, listener);
     }
 
     public static List<Setting<?>> getSettings() {

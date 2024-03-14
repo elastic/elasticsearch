@@ -336,27 +336,36 @@ public class ServiceUtils {
     public static void getEmbeddingSize(Model model, InferenceService service, ActionListener<Integer> listener) {
         assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
 
-        service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), InputType.INGEST, listener.delegateFailureAndWrap((delegate, r) -> {
-            if (r instanceof TextEmbedding embeddingResults) {
-                try {
-                    delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
-                } catch (Exception e) {
-                    delegate.onFailure(new ElasticsearchStatusException("Could not determine embedding size", RestStatus.BAD_REQUEST, e));
+        service.infer(
+            model,
+            null,
+            List.of(TEST_EMBEDDING_INPUT),
+            Map.of(),
+            InputType.INGEST,
+            listener.delegateFailureAndWrap((delegate, r) -> {
+                if (r instanceof TextEmbedding embeddingResults) {
+                    try {
+                        delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
+                    } catch (Exception e) {
+                        delegate.onFailure(
+                            new ElasticsearchStatusException("Could not determine embedding size", RestStatus.BAD_REQUEST, e)
+                        );
+                    }
+                } else {
+                    delegate.onFailure(
+                        new ElasticsearchStatusException(
+                            "Could not determine embedding size. "
+                                + "Expected a result of type ["
+                                + TextEmbeddingResults.NAME
+                                + "] got ["
+                                + r.getWriteableName()
+                                + "]",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
                 }
-            } else {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not determine embedding size. "
-                            + "Expected a result of type ["
-                            + TextEmbeddingResults.NAME
-                            + "] got ["
-                            + r.getWriteableName()
-                            + "]",
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-            }
-        }));
+            })
+        );
     }
 
     private static final String TEST_EMBEDDING_INPUT = "how big";

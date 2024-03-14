@@ -113,7 +113,7 @@ public class CohereActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, overriddenTaskSettings, InputType.UNSPECIFIED);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(null, List.of("abc"), listener);
 
             var result = listener.actionGet(TIMEOUT);
 

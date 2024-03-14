@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -67,7 +66,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             InputType.UNSPECIFIED
         );
 
-        public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) {
+        public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
@@ -78,41 +77,25 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         private final TaskType taskType;
         private final String inferenceEntityId;
+        private final String query;
         private final List<String> input;
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
-        @Nullable
-        private final String query;
 
         public Request(
             TaskType taskType,
             String inferenceEntityId,
+            String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType
         ) {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
-            this.input = input;
-            this.taskSettings = taskSettings;
-            this.inputType = inputType;
-            this.query = null;
-        }
-
-        public Request(
-            TaskType taskType,
-            String inferenceEntityId,
-            List<String> input,
-            Map<String, Object> taskSettings,
-            InputType inputType,
-            String query
-        ) {
-            this.taskType = taskType;
-            this.inferenceEntityId = inferenceEntityId;
-            this.input = input;
-            this.taskSettings = taskSettings;
-            this.inputType = inputType;
             this.query = query;
+            this.input = input;
+            this.taskSettings = taskSettings;
+            this.inputType = inputType;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -151,6 +134,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         public String getQuery() {
+            System.out.println("\n\nQuery: \n\n" + query);
             return query;
         }
 
@@ -221,12 +205,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(input, request.input)
                 && Objects.equals(taskSettings, request.taskSettings)
-                && Objects.equals(inputType, request.inputType);
+                && Objects.equals(inputType, request.inputType)
+                && Objects.equals(query, request.query);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType);
+            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query);
         }
 
         public static class Builder {
@@ -271,7 +256,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             public Request build() {
-                return new Request(taskType, inferenceEntityId, input, taskSettings, inputType, query);
+                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType);
             }
         }
     }

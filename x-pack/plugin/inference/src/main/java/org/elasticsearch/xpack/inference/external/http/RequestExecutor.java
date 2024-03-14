@@ -29,6 +29,7 @@ public interface RequestExecutor {
 
     void execute(
         ExecutableRequestCreator requestCreator,
+        @Nullable String query,
         List<String> input,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener

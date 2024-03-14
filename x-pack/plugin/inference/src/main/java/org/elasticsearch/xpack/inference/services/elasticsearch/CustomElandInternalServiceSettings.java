@@ -46,7 +46,8 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
         validateParameters(numAllocations, validationException, numThreads);
 
-        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, "ServiceSettings", validationException);
+        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, "ServiceSettings", validationException); // TODO check if this is
+                                                                                                                    // the correct scope
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

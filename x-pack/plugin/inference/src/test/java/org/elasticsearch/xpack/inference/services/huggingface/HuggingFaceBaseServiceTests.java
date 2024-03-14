@@ -64,7 +64,7 @@ public class HuggingFaceBaseServiceTests extends ESTestCase {
 
         try (var service = new TestService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, List.of(""), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(mockModel, null, List.of(""), new HashMap<>(), InputType.INGEST, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(

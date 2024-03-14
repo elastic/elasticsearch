@@ -426,7 +426,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceEmbeddingsModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -461,7 +461,7 @@ public class HuggingFaceServiceTests extends ESTestCase {
 
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
             var result = listener.actionGet(TIMEOUT);
 

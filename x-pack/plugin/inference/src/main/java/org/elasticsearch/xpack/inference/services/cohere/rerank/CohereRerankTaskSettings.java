@@ -76,7 +76,10 @@ public class CohereRerankTaskSettings implements TaskSettings {
         if (requestTaskSettings != null && requestTaskSettings.getDoesReturnDocuments() != null) {
             doesReturnDocuments = requestTaskSettings.getDoesReturnDocuments();
         } else {
-            doesReturnDocuments = returnDocuments || (originalSettings != null && originalSettings.getDoesReturnDocuments());
+            doesReturnDocuments = returnDocuments
+                || (originalSettings != null
+                    && originalSettings.getDoesReturnDocuments() != null
+                    && originalSettings.getDoesReturnDocuments());
         }
         var truncationToUse = getValidTruncation(originalSettings, requestTaskSettings);
 

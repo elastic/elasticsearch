@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.cohere.CohereRerankRequest;
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.cohere.CohereRankedResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
 import java.util.List;
@@ -29,7 +30,7 @@ public class CohereRerankExecutableRequestCreator implements ExecutableRequestCr
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new CohereResponseHandler("cohere rerank", CohereEmbeddingsResponseEntity::fromResponse);
+        return new CohereResponseHandler("cohere rerank", CohereRankedResponseEntity::fromResponse);
     }
 
     private final CohereAccount account;

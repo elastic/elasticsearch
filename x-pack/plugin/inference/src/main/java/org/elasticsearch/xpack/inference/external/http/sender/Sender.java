@@ -20,10 +20,16 @@ public interface Sender extends Closeable {
 
     void send(
         ExecutableRequestCreator requestCreator,
+        @Nullable String query,
         List<String> input,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
 
-    void send(ExecutableRequestCreator requestCreator, List<String> input, ActionListener<InferenceServiceResults> listener);
+    void send(
+        ExecutableRequestCreator requestCreator,
+        @Nullable String query,
+        List<String> input,
+        ActionListener<InferenceServiceResults> listener
+    );
 }

@@ -121,7 +121,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        return putModelInternal(endpoint, modelConfig);
+        return putRequest(endpoint, modelConfig);
     }
 
     /**
@@ -129,12 +129,20 @@ public class InferenceBaseRestTest extends ESRestTestCase {
      */
     protected Map<String, Object> putModel(String modelId, String modelConfig) throws IOException {
         String endpoint = Strings.format("_inference/%s", modelId);
-        return putModelInternal(endpoint, modelConfig);
+        return putRequest(endpoint, modelConfig);
     }
 
-    private Map<String, Object> putModelInternal(String endpoint, String modelConfig) throws IOException {
+    Map<String, Object> putRequest(String endpoint, String body) throws IOException {
         var request = new Request("PUT", endpoint);
-        request.setJsonEntity(modelConfig);
+        request.setJsonEntity(body);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
+    Map<String, Object> postRequest(String endpoint, String body) throws IOException {
+        var request = new Request("POST", endpoint);
+        request.setJsonEntity(body);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);

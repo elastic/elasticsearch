@@ -33,8 +33,8 @@ public record CohereRerankRequestEntity(
     private static final String COHERE_MODEL_ID_FIELD = "model";
 
     public CohereRerankRequestEntity {
-        Objects.requireNonNull(query);
         Objects.requireNonNull(documents);
+        Objects.requireNonNull(query);
         Objects.requireNonNull(taskSettings);
     }
 

@@ -105,7 +105,12 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
         String serviceName = (String) requestAsMap.remove(ModelConfigurations.SERVICE);
         if (serviceName == null) {
-            listener.onFailure(new ElasticsearchStatusException("Model configuration is missing a service", RestStatus.BAD_REQUEST));
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Model configuration is missing [" + ModelConfigurations.SERVICE + "]",
+                    RestStatus.BAD_REQUEST
+                )
+            );
             return;
         }
 

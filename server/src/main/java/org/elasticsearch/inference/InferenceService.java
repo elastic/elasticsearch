@@ -11,6 +11,7 @@ package org.elasticsearch.inference;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Nullable;
 
 import java.io.Closeable;
 import java.util.List;
@@ -79,14 +80,16 @@ public interface InferenceService extends Closeable {
     /**
      * Perform inference on the model.
      *
-     * @param model The model
-     * @param input Inference input
+     * @param model        The model
+     * @param query
+     * @param input        Inference input
      * @param taskSettings Settings in the request to override the model's defaults
-     * @param inputType For search, ingest etc
-     * @param listener Inference result listener
+     * @param inputType    For search, ingest etc
+     * @param listener     Inference result listener
      */
     void infer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
@@ -98,15 +101,17 @@ public interface InferenceService extends Closeable {
      * model defaults if {@code chunkingOptions} contains unset
      * values.
      *
-     * @param model The model
-     * @param input Inference input
-     * @param taskSettings Settings in the request to override the model's defaults
-     * @param inputType For search, ingest etc
+     * @param model           The model
+     * @param query
+     * @param input           Inference input
+     * @param taskSettings    Settings in the request to override the model's defaults
+     * @param inputType       For search, ingest etc
      * @param chunkingOptions The window and span options to apply
-     * @param listener Chunked Inference result listener
+     * @param listener        Chunked Inference result listener
      */
     void chunkedInfer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,

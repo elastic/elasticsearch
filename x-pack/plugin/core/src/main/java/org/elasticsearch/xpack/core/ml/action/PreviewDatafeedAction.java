@@ -60,7 +60,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("preview_datafeed_action", Request.Builder::new);
         static {
             PARSER.declareObject(Builder::setDatafeedBuilder, DatafeedConfig.STRICT_PARSER, DATAFEED_CONFIG);
-            PARSER.declareObject(Builder::setJobBuilder, Job.REST_REQUEST_PARSER, JOB_CONFIG);
+            PARSER.declareObject(Builder::setJobBuilder, Job.STRICT_PARSER, JOB_CONFIG);
             PARSER.declareString(Builder::setStart, START_TIME);
             PARSER.declareString(Builder::setEnd, END_TIME);
         }

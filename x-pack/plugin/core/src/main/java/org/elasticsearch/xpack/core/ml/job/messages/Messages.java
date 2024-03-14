@@ -222,6 +222,8 @@ public final class Messages {
     public static final String JOB_CONFIG_FUNCTION_REQUIRES_OVERFIELD = "over_field_name must be set when the ''{0}'' function is used";
     public static final String JOB_CONFIG_ID_ALREADY_TAKEN = "The job cannot be created with the Id ''{0}''. The Id is already used.";
     public static final String JOB_CONFIG_ID_TOO_LONG = "The job id cannot contain more than {0,number,integer} characters.";
+    public static final String JOB_CONFIG_INVALID_CREATE_SETTINGS =
+        "The job is configured with fields [{0}] that are illegal to set at job creation";
     public static final String JOB_CONFIG_INVALID_FIELDNAME_CHARS =
         "Invalid field name ''{0}''. Field names including over, by and partition " + "fields cannot contain any of these characters: {1}";
     public static final String JOB_CONFIG_INVALID_FIELDNAME =

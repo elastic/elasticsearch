@@ -1130,7 +1130,7 @@
 "Test cannot create job with model snapshot id set":
 
   - do:
-      catch: /x_content_parse_exception/
+      catch: /illegal_argument_exception/
       ml.put_job:
         job_id: has-model-snapshot-id
         body:  >

@@ -79,3 +79,56 @@ setup:
                 query: "inference test"
 
   - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.0._score: 9.4934225 }
+
+---
+"Apply boost and query name":
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+                boost: 100.0
+                _name: i-like-naming-my-queries
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.0._score: 949.3422 }
+  - match: { hits.hits.0.matched_queries: ["i-like-naming-my-queries"] }
+
+---
+"Query the wrong field type":
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic_query:
+              non_inference_field:
+                query: "inference test"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [non_inference_field] is not a semantic_text field type" }

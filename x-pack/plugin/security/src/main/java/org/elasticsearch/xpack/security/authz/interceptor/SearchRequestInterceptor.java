@@ -65,6 +65,11 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
                     )
                 );
             } else {
+                if (hasZeroMinDocTermsAggregation(request)) {
+                    assert request.source() != null && request.source().aggregations() != null;
+                    request.source().aggregations().forceTermsAggsToExcludeDeletedDocs();
+                }
+
                 listener.onResponse(null);
             }
         } else {
@@ -75,10 +80,16 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     @Override
     public boolean supports(IndicesRequest request) {
         return request instanceof SearchRequest;
-    }
+	    }
 
     // package private for test
     boolean hasRemoteIndices(SearchRequest request) {
         return Arrays.stream(request.indices()).anyMatch(name -> name.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0);
     }
+    private static boolean hasZeroMinDocTermsAggregation(SearchRequest searchRequest) {
+        return searchRequest.source() != null
+            && searchRequest.source().aggregations() != null
+            && searchRequest.source().aggregations().hasZeroMinDocTermsAggregation();
+    }
+
 }

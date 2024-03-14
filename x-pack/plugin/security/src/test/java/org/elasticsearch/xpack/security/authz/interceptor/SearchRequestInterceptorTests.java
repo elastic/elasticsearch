@@ -15,11 +15,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.junit.After;
 import org.junit.Before;
 
@@ -123,5 +128,55 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         } else {
             assertThat(interceptor.hasRemoteIndices(searchRequest), is(false));
         }
+    }
+	
+	 public void testForceExcludeDeletedDocs() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("myterms");
+        termsAggregationBuilder.minDocCount(0);
+        searchSourceBuilder.aggregation(termsAggregationBuilder);
+        searchRequest.source(searchSourceBuilder);
+
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
+            {"term":{"username":"foo"}}""")));
+        final String index = randomAlphaOfLengthBetween(3, 8);
+        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        assertFalse(termsAggregationBuilder.excludeDeletedDocs());
+        interceptor.disableFeatures(
+            searchRequest,
+            Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
+            listener
+        );
+        assertTrue(termsAggregationBuilder.excludeDeletedDocs()); // changed value
+    }
+
+    public void testNoForceExcludeDeletedDocs() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("myterms");
+        termsAggregationBuilder.minDocCount(1);
+        searchSourceBuilder.aggregation(termsAggregationBuilder);
+        searchRequest.source(searchSourceBuilder);
+
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
+            {"term":{"username":"foo"}}""")));
+        final String index = randomAlphaOfLengthBetween(3, 8);
+        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        assertFalse(termsAggregationBuilder.excludeDeletedDocs());
+        interceptor.disableFeatures(
+            searchRequest,
+            Map.of(index, new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
+            listener
+        );
+        assertFalse(termsAggregationBuilder.excludeDeletedDocs()); // did not change value
+
+        termsAggregationBuilder.minDocCount(0);
+        interceptor.disableFeatures(
+            searchRequest,
+            Map.of(), // no DLS
+            listener
+        );
+        assertFalse(termsAggregationBuilder.excludeDeletedDocs()); // did not change value
     }
 }

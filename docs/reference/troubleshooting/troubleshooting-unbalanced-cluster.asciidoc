@@ -2,6 +2,7 @@
 == Troubleshooting an unbalanced cluster
 
 Elasticsearch is balancing shards across data tier to achieve a good compromise between:
+
 * shard count
 * disk usage
 * ingest load forecast for write indices
@@ -31,6 +32,7 @@ shards shards.undesired write_load.forecast disk.indices.forecast disk.indices d
 // TESTRESPONSE[s/CSUXak2 himrst/.+/ non_json]
 
 This response contains following components that influence the balancing
+
 * `shards` is the current number of shards allocated to the node
 * `shards.undesired` is the number of shards that needs to be moved to other nodes to finish balancing
 * `disk.indices.forecast` expected disk usage according to the projected shard growth

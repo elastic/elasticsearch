@@ -1,0 +1,5 @@
+pr: 106329
+summary: Fix Search Applications bug where deleting an alias before deleting an application intermittently caused errors
+area: Application
+type: bug
+issues: []

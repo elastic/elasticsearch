@@ -1711,12 +1711,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
         for (Index index : indices) {
-            IndexService indexService = indexService(index);
-            if (indexService == null) {
-                // TODO: OK to skip indices with no index service?
-                continue;
-            }
-
+            IndexService indexService = indexServiceSafe(index);
             indexMetadataMap.put(index.getName(), indexService.getMetadata());
         }
 

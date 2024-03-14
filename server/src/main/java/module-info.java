@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.index.codec.Elasticsearch814Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.plugins.internal.RestExtension;
 
@@ -434,7 +435,7 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
-    provides org.apache.lucene.codecs.Codec with org.elasticsearch.index.codec.Elasticsearch813Codec;
+    provides org.apache.lucene.codecs.Codec with Elasticsearch814Codec;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
         to

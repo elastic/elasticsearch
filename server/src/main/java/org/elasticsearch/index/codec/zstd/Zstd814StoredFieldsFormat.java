@@ -32,7 +32,7 @@ import java.io.IOException;
  * (64kB and 32kB respectively). In contrast, ZSTD doesn't have such a limitation and can better take advantage of large compression
  * buffers.
  */
-public final class Zstd813StoredFieldsFormat extends Lucene90CompressingStoredFieldsFormat {
+public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFieldsFormat {
 
     // ZSTD has special optimizations for inputs that are less than 16kB and less than 256kB. So subtract a bit of memory from 16kB and
     // 256kB to make our inputs unlikely to grow beyond 16kB for BEST_SPEED and 256kB for BEST_COMPRESSION.
@@ -52,12 +52,12 @@ public final class Zstd813StoredFieldsFormat extends Lucene90CompressingStoredFi
         }
     }
 
-    public Zstd813StoredFieldsFormat(Mode mode) {
+    public Zstd814StoredFieldsFormat(Mode mode) {
         this(mode.level, mode.blockSizeInBytes, mode.blockDocCount);
     }
 
-    Zstd813StoredFieldsFormat(int level, int blockSizeInBytes, int blockDocCount) {
-        super("ZstdStoredFields813", new ZstdCompressionMode(level), blockSizeInBytes, blockDocCount, 10);
+    Zstd814StoredFieldsFormat(int level, int blockSizeInBytes, int blockDocCount) {
+        super("ZstdStoredFields814", new ZstdCompressionMode(level), blockSizeInBytes, blockDocCount, 10);
     }
 
     private static class ZstdCompressionMode extends CompressionMode {

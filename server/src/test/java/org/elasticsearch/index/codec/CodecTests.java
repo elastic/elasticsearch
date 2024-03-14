@@ -45,13 +45,13 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Elasticsearch813Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Elasticsearch814Codec.class));
     }
 
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
         assertEquals(
-            "Zstd813StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
+            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=0), chunkSize=14336, maxDocsPerChunk=128, blockShift=10)",
             codec.storedFieldsFormat().toString()
         );
     }
@@ -59,7 +59,7 @@ public class CodecTests extends ESTestCase {
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService().codec("best_compression");
         assertEquals(
-            "Zstd813StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
+            "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
             codec.storedFieldsFormat().toString()
         );
     }

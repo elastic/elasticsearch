@@ -14,7 +14,7 @@ import static org.hamcrest.Matchers.is;
 
 public class RestClusterAllocationExplainActionTests extends ESTestCase {
 
-    public void testHealthReportAPIDoesNotTripCircuitBreakers() {
+    public void testCanNotTripCircuitBreaker() {
         assertThat(new RestClusterAllocationExplainAction().canTripCircuitBreaker(), is(false));
     }
 }

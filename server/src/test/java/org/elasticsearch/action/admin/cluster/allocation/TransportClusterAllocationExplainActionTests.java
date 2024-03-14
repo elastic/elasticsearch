@@ -37,7 +37,7 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool("TransportClusterAllocationExplainActionTests");
+        threadPool = new TestThreadPool(TransportClusterAllocationExplainActionTests.class.getName());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         transportService = new CapturingTransport().createTransportService(
             clusterService.getSettings(),
@@ -60,8 +60,11 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
         );
     }
 
-    public void testCanTripCircuitBreaker() {
-        assertThat(transportService.getRequestHandler("cluster:monitor/allocation/explain").canTripCircuitBreaker(), is(false));
+    public void testCanNotTripCircuitBreaker() {
+        assertThat(
+            transportService.getRequestHandler(TransportClusterAllocationExplainAction.TYPE.name()).canTripCircuitBreaker(),
+            is(false)
+        );
     }
 
     @After

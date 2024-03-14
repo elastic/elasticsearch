@@ -44,7 +44,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writePages(out, Math.toIntExact(size), pages, Byte.BYTES, BYTE_PAGE_SIZE);
+        writePages(out, size, pages, Byte.BYTES);
     }
 
     @Override

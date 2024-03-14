@@ -141,12 +141,6 @@ you query, and query `keyword` sub-fields instead of `text` fields.
 {esql} does not support querying time series data streams (TSDS).
 
 [discrete]
-[[esql-limitations-ccs]]
-=== {ccs-cap} is not supported
-
-{esql} does not support {ccs}.
-
-[discrete]
 [[esql-limitations-date-math]]
 === Date math limitations
 

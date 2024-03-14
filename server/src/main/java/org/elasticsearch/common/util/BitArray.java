@@ -10,8 +10,13 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+
+import java.io.IOException;
 
 /**
  * A bit array that is implemented using a growing {@link LongArray}
@@ -19,7 +24,7 @@ import org.elasticsearch.core.Releasables;
  * The underlying long array grows lazily based on the biggest index
  * that needs to be set.
  */
-public final class BitArray implements Accountable, Releasable {
+public final class BitArray implements Accountable, Releasable, Writeable {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BitArray.class);
 
@@ -33,6 +38,30 @@ public final class BitArray implements Accountable, Releasable {
     public BitArray(long initialSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
         this.bits = bigArrays.newLongArray(wordNum(initialSize) + 1, true);
+    }
+
+    /**
+     * Create a {@link BitArray} using {@link BigArrays} with bytes are written by {@link BitArray#writeTo}
+     */
+    public BitArray(BigArrays bigArrays, boolean readOnly, StreamInput in) throws IOException {
+        this.bigArrays = bigArrays;
+        final long numBits = in.readVLong();
+        this.bits = bigArrays.newLongArray(wordNum(numBits), readOnly == false);
+        boolean success = false;
+        try {
+            this.bits.fillWith(in);
+            success = true;
+        } finally {
+            if (success == false) {
+                this.bits.close();
+            }
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(size());
+        bits.writeTo(out);
     }
 
     /**

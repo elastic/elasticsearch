@@ -140,7 +140,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             ? timeSeriesIdBuilder.buildLegacyTsid().toBytesRef()
             : timeSeriesIdBuilder.buildTsidHash().toBytesRef();
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
-        TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId);
+        TsidExtractingIdFieldMapper.createField(
+            context,
+            getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+                ? timeSeriesIdBuilder.routingBuilder
+                : null,
+            timeSeriesId
+        );
     }
 
     private IndexVersion getIndexVersionCreated(final DocumentParserContext context) {

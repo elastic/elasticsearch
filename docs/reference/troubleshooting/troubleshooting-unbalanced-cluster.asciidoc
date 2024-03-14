@@ -48,7 +48,7 @@ Shard movement order is not deterministic and mostly determined by the source an
 While rebalancing is in progress some nodes might appear busier then others.
 
 When a shard is allocated to an undesired node it uses the resources of the current node instead of target.
-This might cause a hotspot (disk or CPU) when multiple shards are residing on the current node that have not been
+This might cause a hotspot (disk or CPU) when multiple shards reside on the current node that have not been
 moved to their corresponding targets yet.
 
 If cluster is taking a long time to finish rebalancing you might find following log entries:

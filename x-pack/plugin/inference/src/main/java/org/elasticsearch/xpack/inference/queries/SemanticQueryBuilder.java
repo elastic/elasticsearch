@@ -227,7 +227,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) {
         // Cant use QueryBuilders.boolQuery() because a mapper is not registered for <field>.inference, causing
-        // TermQueryBuilder#doToQuery to fail
+        // TermQueryBuilder#doToQuery to fail (at TermQueryBuilder:202)
+        // TODO: Handle boost and queryName
         String inferenceResultsFieldName = fieldName + "." + INFERENCE_CHUNKS_RESULTS;
         BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(1);
 
@@ -244,8 +245,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         BitSetProducer parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
-        Query query = new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, fieldName);
-        return handleBoostAndQueryName(query, context);
+        return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, fieldName);
     }
 
     @Override

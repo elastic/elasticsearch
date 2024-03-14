@@ -43,7 +43,6 @@ import java.util.List;
 
 import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_RESULTS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -103,13 +102,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     protected void doAssertLuceneQuery(SemanticQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(queryTokenCount, notNullValue());
         assertThat(query, notNullValue());
-        assertThat(query, either(instanceOf(ESToParentBlockJoinQuery.class)).or(instanceOf(BoostQuery.class)));
-
-        if (query instanceof BoostQuery boostQuery) {
-            assertThat(boostQuery.getBoost(), equalTo(queryBuilder.boost()));
-            assertThat(boostQuery.getQuery(), instanceOf(ESToParentBlockJoinQuery.class));
-            query = boostQuery.getQuery();
-        }
+        assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
 
         ESToParentBlockJoinQuery nestedQuery = (ESToParentBlockJoinQuery) query;
         assertThat(nestedQuery.getPath(), equalTo(SEMANTIC_TEXT_SPARSE_FIELD));

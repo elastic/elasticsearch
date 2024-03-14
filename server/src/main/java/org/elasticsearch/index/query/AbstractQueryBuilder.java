@@ -114,10 +114,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final Query toQuery(SearchExecutionContext context) throws IOException {
-        return handleBoostAndQueryName(doToQuery(context), context);
-    }
-
-    protected Query handleBoostAndQueryName(Query query, SearchExecutionContext context) {
+        Query query = doToQuery(context);
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
                 if (query instanceof MatchNoDocsQuery == false) {
@@ -131,7 +128,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 context.addNamedQuery(queryName, query);
             }
         }
-
         return query;
     }
 

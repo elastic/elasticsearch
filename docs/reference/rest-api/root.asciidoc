@@ -5,7 +5,7 @@
 ++++
 
 The Elasticsearch API's base url returns its basic build, 
-version, and cluster statistics. 
+version, and cluster information. 
 
 [source,console]
 --------------------------------------------------
@@ -36,7 +36,7 @@ The responding Cluster's `uuid` as confirmed by
 
 `version` ::
 (object) 
-Contains version statistics about the build.
+Contains information about the running version of Elasticsearch.
 + properties of `version`
 [%collapsible%open]
 ====
@@ -100,6 +100,3 @@ The API returns the following response:
   "tagline": "You Know, for Search"
 }
 ----
-// TESTRESPONSE[s/"name" : "instance-0000000000"/"name" : $body.name/]
-// TESTRESPONSE[s/"cluster_name" : "my_test_cluster"/"cluster_name" : $body.cluster_name/]
-// TESTRESPONSE[s/"cluster_uuid" : "5QaxoN0pRZuOmWSxstBBwQ"/"cluster_uuid" : $body.cluster_uuid/]

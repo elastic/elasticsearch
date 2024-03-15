@@ -38,6 +38,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -60,7 +61,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
-    private final Map<String, IndexMetadata> indexMetadataMap;
+    private final Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -77,7 +78,7 @@ public class QueryRewriteContext {
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
-        final Map<String, IndexMetadata> indexMetadataMap
+        final Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -95,7 +96,7 @@ public class QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
-        this.indexMetadataMap = indexMetadataMap != null ? Map.copyOf(indexMetadataMap) : Collections.emptyMap();
+        this.indexMetadataMapSupplier = indexMetadataMapSupplier;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -122,7 +123,7 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
-        final Map<String, IndexMetadata> indexMetadataMap
+        final Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier
     ) {
         this(
             parserConfiguration,
@@ -139,7 +140,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            indexMetadataMap
+            indexMetadataMapSupplier
         );
     }
 
@@ -377,6 +378,7 @@ public class QueryRewriteContext {
     }
 
     public Map<String, IndexMetadata> getIndexMetadataMap() {
-        return indexMetadataMap;
+        Map<String, IndexMetadata> indexMetadataMap = indexMetadataMapSupplier != null ? indexMetadataMapSupplier.get() : null;
+        return indexMetadataMap != null ? indexMetadataMap : Collections.emptyMap();
     }
 }

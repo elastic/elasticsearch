@@ -170,6 +170,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -1698,28 +1699,32 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest) {
-        // Skip unavailable indices
-        // TODO: Support metadata lookups for indices on remote clusters
-        IndicesOptions.Builder indicesOptionsBuilder = IndicesOptions.builder(indicesRequest.indicesOptions())
-            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true));
-        Index[] indices = indexNameExpressionResolver.concreteIndices(
-            clusterService.state(),
-            indicesOptionsBuilder.build(),
-            true,
-            indicesRequest.indices()
-        );
+        Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier = () -> {
+            // Skip unavailable indices
+            // TODO: Support metadata lookups for indices on remote clusters
+            IndicesOptions.Builder indicesOptionsBuilder = IndicesOptions.builder(indicesRequest.indicesOptions())
+                .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true));
+            Index[] indices = indexNameExpressionResolver.concreteIndices(
+                clusterService.state(),
+                indicesOptionsBuilder.build(),
+                true,
+                indicesRequest.indices()
+            );
 
-        Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
-        for (Index index : indices) {
-            IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
-            if (indexMetadata == null) {
-                throw new IndexNotFoundException(index);
+            Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
+            for (Index index : indices) {
+                IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
+                if (indexMetadata == null) {
+                    throw new IndexNotFoundException(index);
+                }
+
+                indexMetadataMap.put(index.getName(), indexMetadata);
             }
 
-            indexMetadataMap.put(index.getName(), indexMetadata);
-        }
+            return indexMetadataMap;
+        };
 
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, indexMetadataMap);
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, indexMetadataMapSupplier);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

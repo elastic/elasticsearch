@@ -615,7 +615,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 () -> true,
                 scriptService,
-                Map.of(index.getName(), indexMetadata)
+                () -> Map.of(index.getName(), indexMetadata)
             );
         }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -16,21 +17,23 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
+import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 
 /**
  * Listens for a single {@link EsqlQueryResponse}, builds a corresponding {@link RestResponse} and sends it.
  */
-public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse> {
+public final class EsqlResponseListener extends RestRefCountedChunkedToXContentListener<EsqlQueryResponse> {
     /**
      * A simple, thread-safe stop watch for timing a single action.
      * Allows to stop the time for building a response and to log it at a later point.
@@ -117,23 +120,26 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
     }
 
     @Override
-    public RestResponse buildResponse(EsqlQueryResponse esqlResponse) throws Exception {
+    protected void processResponse(EsqlQueryResponse esqlQueryResponse) throws IOException {
+        channel.sendResponse(buildResponse(esqlQueryResponse));
+    }
+
+    private RestResponse buildResponse(EsqlQueryResponse esqlResponse) throws IOException {
         boolean success = false;
+        final Releasable releasable = releasableFromResponse(esqlResponse);
         try {
             RestResponse restResponse;
             if (mediaType instanceof TextFormat format) {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
-                    ChunkedRestResponseBody.fromTextChunks(
-                        format.contentType(restRequest),
-                        format.format(restRequest, esqlResponse),
-                        esqlResponse
-                    )
+                    ChunkedRestResponseBody.fromTextChunks(format.contentType(restRequest), format.format(restRequest, esqlResponse)),
+                    releasable
                 );
             } else {
                 restResponse = RestResponse.chunked(
                     RestStatus.OK,
-                    ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel, esqlResponse)
+                    ChunkedRestResponseBody.fromXContent(esqlResponse, channel.request(), channel),
+                    releasable
                 );
             }
             long tookNanos = stopWatch.stop().getNanos();
@@ -142,7 +148,7 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
             return restResponse;
         } finally {
             if (success == false) {
-                esqlResponse.close();
+                releasable.close();
             }
         }
     }
@@ -162,8 +168,9 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
             long timeMillis = stopWatch.stop().getMillis();
-            onFailure(ex);
             LOGGER.info("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
+            logOnFailure(LOGGER, ex);
+            onFailure(ex);
         });
     }
 }

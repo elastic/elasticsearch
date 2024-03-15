@@ -37,7 +37,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.recovery.RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
 public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
-    private final Logger logger = LogManager.getLogger(SnapshotsRecoveryPlannerService.class);
+    private static final Logger logger = LogManager.getLogger(SnapshotsRecoveryPlannerService.class);
 
     private final ShardSnapshotsService shardSnapshotsService;
     private final BooleanSupplier isLicenseActive;

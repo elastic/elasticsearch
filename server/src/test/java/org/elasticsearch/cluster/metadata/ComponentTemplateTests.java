@@ -65,7 +65,17 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return randomInstance(false);
     }
 
+    // Deprecated component templates may lead to deprecation warnings when used in non-deprecated index templates
+    // to avoid test failures due to unexpected deprecation warnings, returns a non-deprecated instance
+    public static ComponentTemplate randomNonDeprecatedInstance() {
+        return randomInstance(false, randomFrom(Boolean.FALSE, null));
+    }
+
     public static ComponentTemplate randomInstance(boolean lifecycleAllowed) {
+        return randomInstance(lifecycleAllowed, randomOptionalBoolean());
+    }
+
+    public static ComponentTemplate randomInstance(boolean lifecycleAllowed, Boolean deprecated) {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
@@ -88,7 +98,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             meta = randomMeta();
         }
-        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta);
+        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, deprecated);
     }
 
     public static Map<String, AliasMetadata> randomAliases() {
@@ -136,7 +146,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     public static ComponentTemplate mutateTemplate(ComponentTemplate orig) {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> {
                 Template ot = orig.template();
                 yield switch (randomIntBetween(0, 3)) {
@@ -148,7 +158,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.lifecycle()
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     case 1 -> new ComponentTemplate(
                         new Template(
@@ -158,7 +169,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.lifecycle()
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     case 2 -> new ComponentTemplate(
                         new Template(
@@ -168,7 +180,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.lifecycle()
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     case 3 -> new ComponentTemplate(
                         new Template(
@@ -178,7 +191,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle)
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     default -> throw new IllegalStateException("illegal randomization branch");
                 };
@@ -186,12 +200,20 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             case 1 -> new ComponentTemplate(
                 orig.template(),
                 randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
-                orig.metadata()
+                orig.metadata(),
+                orig.deprecated()
             );
             case 2 -> new ComponentTemplate(
                 orig.template(),
                 orig.version(),
-                randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
+                randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta),
+                orig.deprecated()
+            );
+            case 3 -> new ComponentTemplate(
+                orig.template(),
+                orig.version(),
+                orig.metadata(),
+                orig.isDeprecated() ? randomFrom(false, null) : true
             );
             default -> throw new IllegalStateException("illegal randomization branch");
         };

@@ -8,6 +8,7 @@
 package org.elasticsearch.action;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Assertions;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -104,49 +106,6 @@ public class ActionListenerTests extends ESTestCase {
             AssertionError.class,
             () -> ActionListener.running(() -> { throw new UnsupportedOperationException(); }).onResponse(null)
         );
-    }
-
-    public void testWrapListener() {
-        var succeeded = new AtomicBoolean();
-        var failed = new AtomicBoolean();
-
-        var listener = ActionListener.wrap(new ActionListener<>() {
-            @Override
-            public void onResponse(Object o) {
-                assertTrue(succeeded.compareAndSet(false, true));
-                if (o instanceof RuntimeException e) {
-                    throw e;
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertTrue(failed.compareAndSet(false, true));
-                assertEquals("test exception", e.getMessage());
-                if (e instanceof UnsupportedOperationException uoe) {
-                    throw uoe;
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "test listener";
-            }
-        });
-
-        assertEquals("wrapped{test listener}", listener.toString());
-
-        listener.onResponse(new Object());
-        assertTrue(succeeded.getAndSet(false));
-        assertFalse(failed.getAndSet(false));
-
-        listener.onFailure(new RuntimeException("test exception"));
-        assertFalse(succeeded.getAndSet(false));
-        assertTrue(failed.getAndSet(false));
-
-        listener.onResponse(new RuntimeException("test exception"));
-        assertTrue(succeeded.getAndSet(false));
-        assertTrue(failed.getAndSet(false));
     }
 
     public void testOnResponse() {
@@ -545,6 +504,77 @@ public class ActionListenerTests extends ESTestCase {
         }
     }
 
+    public void testRun() throws Exception {
+        final var successFuture = new PlainActionFuture<>();
+        final var successResult = new Object();
+        ActionListener.run(successFuture, l -> l.onResponse(successResult));
+        assertTrue(successFuture.isDone());
+        assertSame(successResult, successFuture.get());
+
+        final var failFuture = new PlainActionFuture<>();
+        final var failException = new ElasticsearchException("simulated");
+        ActionListener.run(failFuture, l -> {
+            if (randomBoolean()) {
+                l.onFailure(failException);
+            } else {
+                throw failException;
+            }
+        });
+        assertTrue(failFuture.isDone());
+        assertSame(failException, expectThrows(ExecutionException.class, ElasticsearchException.class, failFuture::get));
+    }
+
+    public void testRunWithResource() {
+        final var future = new PlainActionFuture<>();
+        final var successResult = new Object();
+        final var failException = new ElasticsearchException("simulated");
+        final var resourceIsClosed = new AtomicBoolean(false);
+        ActionListener.runWithResource(ActionListener.runBefore(future, () -> assertTrue(resourceIsClosed.get())), () -> new Releasable() {
+            @Override
+            public void close() {
+                assertTrue(resourceIsClosed.compareAndSet(false, true));
+            }
+
+            @Override
+            public String toString() {
+                return "test releasable";
+            }
+        }, (l, r) -> {
+            assertFalse(resourceIsClosed.get());
+            assertEquals("test releasable", r.toString());
+            if (randomBoolean()) {
+                l.onResponse(successResult);
+            } else {
+                if (randomBoolean()) {
+                    l.onFailure(failException);
+                } else {
+                    throw failException;
+                }
+            }
+        });
+
+        assertTrue(future.isDone());
+        try {
+            assertSame(successResult, future.get());
+        } catch (ExecutionException e) {
+            assertSame(failException, e.getCause());
+        } catch (InterruptedException e) {
+            fail(e);
+        }
+
+        final var failureFuture = new PlainActionFuture<>();
+        ActionListener.runWithResource(
+            failureFuture,
+            () -> { throw new ElasticsearchException("resource creation failure"); },
+            (l, r) -> fail("should not be called")
+        );
+        assertTrue(failureFuture.isDone());
+        assertEquals(
+            "resource creation failure",
+            expectThrows(ExecutionException.class, ElasticsearchException.class, failureFuture::get).getMessage()
+        );
+    }
+
     public void testReleaseAfter() {
         runReleaseAfterTest(true, false);
         runReleaseAfterTest(true, true);
@@ -579,6 +609,9 @@ public class ActionListenerTests extends ESTestCase {
                 l.onResponse(null);
             } catch (Exception e) {
                 // ok
+            } catch (AssertionError e) {
+                // ensure this was only thrown by ActionListener#assertOnce
+                assertThat(e.getMessage(), endsWith("must handle its own exceptions"));
             }
         } else {
             l.onFailure(new RuntimeException("supplied"));

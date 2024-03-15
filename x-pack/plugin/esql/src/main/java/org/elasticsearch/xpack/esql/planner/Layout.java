@@ -119,5 +119,14 @@ public interface Layout {
             }
             return new DefaultLayout(Collections.unmodifiableMap(layout), numberOfChannels);
         }
+
+        public void replace(NameId id, NameId id1) {
+            for (ChannelSet channel : this.channels) {
+                if (channel != null && channel.nameIds.contains(id)) {
+                    channel.nameIds.remove(id);
+                    channel.nameIds.add(id1);
+                }
+            }
+        }
     }
 }

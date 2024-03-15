@@ -21,6 +21,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,6 +32,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -295,7 +297,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 IndexVersion.fromId(version.id)
             );
         } else {
-            return new VersionInformation(version, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current());
+            return new VersionInformation(version, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
         }
     }
 
@@ -335,7 +337,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             versionInfo = new VersionInformation(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
         } else {
             versionInfo = inferVersionInformation(Version.readVersion(in));
@@ -372,7 +374,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             o.writeString(role.roleNameAbbreviation());
             o.writeBoolean(role.canContainData());
         });
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             Version.writeVersion(versionInfo.nodeVersion(), out);
             IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
             IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);
@@ -485,6 +487,16 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public Version getVersion() {
         return this.versionInfo.nodeVersion();
+    }
+
+    public OptionalInt getPre811VersionId() {
+        // Even if Version is removed from this class completely it will need to read the version ID
+        // off the wire for old node versions, so the value of this variable can be obtained from that
+        int versionId = versionInfo.nodeVersion().id;
+        if (versionId >= Version.V_8_11_0.id) {
+            return OptionalInt.empty();
+        }
+        return OptionalInt.of(versionId);
     }
 
     public IndexVersion getMinIndexVersion() {

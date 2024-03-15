@@ -41,6 +41,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
+    private static final int REQUEST_TIMEOUT_SECONDS = 10;
+
     private QueryRulesIndexService queryRulesIndexService;
 
     @Before
@@ -212,11 +214,11 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for put request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
-        assertNotNull(resp.get());
+        assertNotNull("Received null response from put request", resp.get());
         return resp.get();
     }
 
@@ -237,11 +239,11 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for get request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
-        assertNotNull(resp.get());
+        assertNotNull("Received null response from get request", resp.get());
         return resp.get();
     }
 
@@ -262,11 +264,11 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for delete request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
-        assertNotNull(resp.get());
+        assertNotNull("Received null response from delete request", resp.get());
         return resp.get();
     }
 
@@ -287,11 +289,11 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for list request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
-        assertNotNull(resp.get());
+        assertNotNull("Received null response from list request", resp.get());
         return resp.get();
     }
 

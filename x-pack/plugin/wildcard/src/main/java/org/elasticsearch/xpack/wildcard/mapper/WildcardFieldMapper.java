@@ -52,6 +52,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -59,6 +60,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -119,8 +122,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
     });
 
-    public static class PunctuationFoldingFilter extends TokenFilter {
-        @SuppressWarnings("this-escape")
+    public static final class PunctuationFoldingFilter extends TokenFilter {
         private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
 
         /**
@@ -134,7 +136,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public final boolean incrementToken() throws IOException {
+        public boolean incrementToken() throws IOException {
             if (input.incrementToken()) {
                 normalize(termAtt.buffer(), 0, termAtt.length());
                 return true;
@@ -238,8 +240,8 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
-                name,
-                new WildcardFieldType(context.buildFullName(name), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                name(),
+                new WildcardFieldType(context.buildFullName(name()), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),
@@ -266,7 +268,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         private WildcardFieldType(String name, String nullValue, int ignoreAbove, IndexVersion version, Map<String, String> meta) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
-            if (version.onOrAfter(IndexVersion.V_7_10_0)) {
+            if (version.onOrAfter(IndexVersions.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
                 this.analyzer = WILDCARD_ANALYZER_7_9;
@@ -584,7 +586,7 @@ public class WildcardFieldMapper extends FieldMapper {
             throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
         }
 
-        protected void getNgramTokens(Set<String> tokens, String fragment) {
+        private void getNgramTokens(Set<String> tokens, String fragment) {
             if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
                 // If a regex is a form of match-all e.g. ".*" we only produce the token start/end markers as search
                 // terms which can be ignored.
@@ -848,6 +850,14 @@ public class WildcardFieldMapper extends FieldMapper {
                 bq.add(termQuery(value, context), Occur.SHOULD);
             }
             return new ConstantScoreQuery(bq.build());
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new BlockDocValuesReader.BytesRefsFromBinaryBlockLoader(name());
+            }
+            return null;
         }
 
         @Override

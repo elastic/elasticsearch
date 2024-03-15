@@ -21,27 +21,24 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -53,21 +50,30 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of a search request.
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
-    private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
-    private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
-    private static final ParseField TOOK = new ParseField("took");
-    private static final ParseField TIMED_OUT = new ParseField("timed_out");
-    private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
-    private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
+    // for cross-cluster scenarios where cluster names are shown in API responses, use this string
+    // rather than empty string (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) we use internally
+    public static final String LOCAL_CLUSTER_NAME_REPRESENTATION = "(local)";
 
-    private final SearchResponseSections internalResponse;
+    public static final ParseField SCROLL_ID = new ParseField("_scroll_id");
+    public static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
+    public static final ParseField TOOK = new ParseField("took");
+    public static final ParseField TIMED_OUT = new ParseField("timed_out");
+    public static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
+    public static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
+
+    private final SearchHits hits;
+    private final InternalAggregations aggregations;
+    private final Suggest suggest;
+    private final SearchProfileResults profileResults;
+    private final boolean timedOut;
+    private final Boolean terminatedEarly;
+    private final int numReducePhases;
     private final String scrollId;
     private final String pointInTimeId;
     private final int totalShards;
@@ -77,9 +83,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final Clusters clusters;
     private final long tookInMillis;
 
+    private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
+
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
-        internalResponse = new InternalSearchResponse(in);
+        this.hits = SearchHits.readFrom(in, true);
+        this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
+        this.suggest = in.readBoolean() ? new Suggest(in) : null;
+        this.timedOut = in.readBoolean();
+        this.terminatedEarly = in.readOptionalBoolean();
+        this.profileResults = in.readOptionalWriteable(SearchProfileResults::new);
+        this.numReducePhases = in.readVInt();
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         int size = in.readVInt();
@@ -95,15 +109,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            pointInTimeId = in.readOptionalString();
-        } else {
-            pointInTimeId = null;
-        }
+        pointInTimeId = in.readOptionalString();
     }
 
     public SearchResponse(
-        SearchResponseSections internalResponse,
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
         String scrollId,
         int totalShards,
         int successfulShards,
@@ -112,11 +128,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         ShardSearchFailure[] shardFailures,
         Clusters clusters
     ) {
-        this(internalResponse, scrollId, totalShards, successfulShards, skippedShards, tookInMillis, shardFailures, clusters, null);
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            null
+        );
     }
 
     public SearchResponse(
-        SearchResponseSections internalResponse,
+        SearchResponseSections searchResponseSections,
         String scrollId,
         int totalShards,
         int successfulShards,
@@ -126,7 +158,50 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         Clusters clusters,
         String pointInTimeId
     ) {
-        this.internalResponse = internalResponse;
+        this(
+            searchResponseSections.hits,
+            searchResponseSections.aggregations,
+            searchResponseSections.suggest,
+            searchResponseSections.timedOut,
+            searchResponseSections.terminatedEarly,
+            searchResponseSections.profileResults,
+            searchResponseSections.numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId
+        );
+    }
+
+    public SearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        SearchProfileResults profileResults,
+        int numReducePhases,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        String pointInTimeId
+    ) {
+        this.hits = hits;
+        hits.incRef();
+        this.aggregations = aggregations;
+        this.suggest = suggest;
+        this.profileResults = profileResults;
+        this.timedOut = timedOut;
+        this.terminatedEarly = terminatedEarly;
+        this.numReducePhases = numReducePhases;
         this.scrollId = scrollId;
         this.pointInTimeId = pointInTimeId;
         this.clusters = clusters;
@@ -140,27 +215,48 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
     }
 
-    public RestStatus status() {
-        return RestStatus.status(successfulShards, totalShards, shardFailures);
+    @Override
+    public void incRef() {
+        refCounted.incRef();
     }
 
-    public SearchResponseSections getInternalResponse() {
-        return internalResponse;
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            hits.decRef();
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    public RestStatus status() {
+        return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
 
     /**
      * The search hits.
      */
     public SearchHits getHits() {
-        return internalResponse.hits();
+        assert hasReferences();
+        return hits;
     }
 
     /**
      * Aggregations in this response. "empty" aggregations could be
      * either {@code null} or {@link InternalAggregations#EMPTY}.
      */
-    public @Nullable Aggregations getAggregations() {
-        return internalResponse.aggregations();
+    public @Nullable InternalAggregations getAggregations() {
+        return aggregations;
     }
 
     /**
@@ -171,14 +267,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     public Suggest getSuggest() {
-        return internalResponse.suggest();
+        return suggest;
     }
 
     /**
      * Has the search operation timed out.
      */
     public boolean isTimedOut() {
-        return internalResponse.timedOut();
+        return timedOut;
     }
 
     /**
@@ -186,14 +282,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * <code>terminateAfter</code>
      */
     public Boolean isTerminatedEarly() {
-        return internalResponse.terminatedEarly();
+        return terminatedEarly;
     }
 
     /**
      * Returns the number of reduce phases applied to obtain this search response
      */
     public int getNumReducePhases() {
-        return internalResponse.getNumReducePhases();
+        return numReducePhases;
     }
 
     /**
@@ -201,6 +297,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
+    }
+
+    public long getTookInMillis() {
+        return tookInMillis;
     }
 
     /**
@@ -261,7 +361,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     @Nullable
     public Map<String, SearchProfileShardResult> getProfileResults() {
-        return internalResponse.profile();
+        if (profileResults == null) {
+            return Collections.emptyMap();
+        }
+        return profileResults.getShardResults();
     }
 
     /**
@@ -275,6 +378,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        assert hasReferences();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             this.innerToXContentChunked(params),
@@ -286,7 +390,27 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return Iterators.concat(
             ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
             Iterators.single(clusters),
-            internalResponse.toXContentChunked(params)
+            Iterators.concat(
+                Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
+                Iterators.single((ToXContent) (b, p) -> {
+                    if (aggregations != null) {
+                        aggregations.toXContent(b, p);
+                    }
+                    return b;
+                }),
+                Iterators.single((b, p) -> {
+                    if (suggest != null) {
+                        suggest.toXContent(b, p);
+                    }
+                    return b;
+                }),
+                Iterators.single((b, p) -> {
+                    if (profileResults != null) {
+                        profileResults.toXContent(b, p);
+                    }
+                    return b;
+                })
+            )
         );
     }
 
@@ -317,118 +441,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return builder;
     }
 
-    public static SearchResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser);
-        parser.nextToken();
-        return innerFromXContent(parser);
-    }
-
-    public static SearchResponse innerFromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
-        String currentFieldName = parser.currentName();
-        SearchHits hits = null;
-        Aggregations aggs = null;
-        Suggest suggest = null;
-        SearchProfileResults profile = null;
-        boolean timedOut = false;
-        Boolean terminatedEarly = null;
-        int numReducePhases = 1;
-        long tookInMillis = -1;
-        int successfulShards = -1;
-        int totalShards = -1;
-        int skippedShards = 0; // 0 for BWC
-        String scrollId = null;
-        String searchContextId = null;
-        List<ShardSearchFailure> failures = new ArrayList<>();
-        Clusters clusters = Clusters.EMPTY;
-        for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
-            if (token == Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (SCROLL_ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                    scrollId = parser.text();
-                } else if (POINT_IN_TIME_ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                    searchContextId = parser.text();
-                } else if (TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
-                    tookInMillis = parser.longValue();
-                } else if (TIMED_OUT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    timedOut = parser.booleanValue();
-                } else if (TERMINATED_EARLY.match(currentFieldName, parser.getDeprecationHandler())) {
-                    terminatedEarly = parser.booleanValue();
-                } else if (NUM_REDUCE_PHASES.match(currentFieldName, parser.getDeprecationHandler())) {
-                    numReducePhases = parser.intValue();
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == Token.START_OBJECT) {
-                if (SearchHits.Fields.HITS.equals(currentFieldName)) {
-                    hits = SearchHits.fromXContent(parser);
-                } else if (Aggregations.AGGREGATIONS_FIELD.equals(currentFieldName)) {
-                    aggs = Aggregations.fromXContent(parser);
-                } else if (Suggest.NAME.equals(currentFieldName)) {
-                    suggest = Suggest.fromXContent(parser);
-                } else if (SearchProfileResults.PROFILE_FIELD.equals(currentFieldName)) {
-                    profile = SearchProfileResults.fromXContent(parser);
-                } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                        if (token == Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (RestActions.FAILED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                parser.intValue(); // we don't need it but need to consume it
-                            } else if (RestActions.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                successfulShards = parser.intValue();
-                            } else if (RestActions.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                totalShards = parser.intValue();
-                            } else if (RestActions.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                skippedShards = parser.intValue();
-                            } else {
-                                parser.skipChildren();
-                            }
-                        } else if (token == Token.START_ARRAY) {
-                            if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                                    failures.add(ShardSearchFailure.fromXContent(parser));
-                                }
-                            } else {
-                                parser.skipChildren();
-                            }
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
-                } else if (Clusters._CLUSTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    clusters = Clusters.fromXContent(parser);
-                } else {
-                    parser.skipChildren();
-                }
-            }
-        }
-        SearchResponseSections searchResponseSections = new SearchResponseSections(
-            hits,
-            aggs,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profile,
-            numReducePhases
-        );
-        return new SearchResponse(
-            searchResponseSections,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-            clusters,
-            searchContextId
-        );
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        internalResponse.writeTo(out);
+        assert hasReferences();
+        hits.writeTo(out);
+        out.writeOptionalWriteable(aggregations);
+        out.writeOptionalWriteable(suggest);
+        out.writeBoolean(timedOut);
+        out.writeOptionalBoolean(terminatedEarly);
+        out.writeOptionalWriteable(profileResults);
+        out.writeVInt(numReducePhases);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
 
@@ -440,14 +462,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeOptionalString(pointInTimeId);
-        }
+        out.writeOptionalString(pointInTimeId);
     }
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return hasReferences() == false ? "SearchResponse[released]" : Strings.toString(this);
     }
 
     /**
@@ -455,18 +475,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * and how many of them were skipped and further details in a Map of Cluster objects
      * (when doing a cross-cluster search).
      */
-    public static class Clusters implements ToXContentFragment, Writeable {
+    public static final class Clusters implements ToXContentFragment, Writeable {
 
         public static final Clusters EMPTY = new Clusters(0, 0, 0);
 
-        static final ParseField _CLUSTERS_FIELD = new ParseField("_clusters");
-        static final ParseField TOTAL_FIELD = new ParseField("total");
-        static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
-        static final ParseField SKIPPED_FIELD = new ParseField("skipped");
-        static final ParseField RUNNING_FIELD = new ParseField("running");
-        static final ParseField PARTIAL_FIELD = new ParseField("partial");
-        static final ParseField FAILED_FIELD = new ParseField("failed");
-        static final ParseField DETAILS_FIELD = new ParseField("details");
+        public static final ParseField _CLUSTERS_FIELD = new ParseField("_clusters");
+        public static final ParseField TOTAL_FIELD = new ParseField("total");
+        public static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
+        public static final ParseField SKIPPED_FIELD = new ParseField("skipped");
+        public static final ParseField RUNNING_FIELD = new ParseField("running");
+        public static final ParseField PARTIAL_FIELD = new ParseField("partial");
+        public static final ParseField FAILED_FIELD = new ParseField("failed");
+        public static final ParseField DETAILS_FIELD = new ParseField("details");
 
         private final int total;
         private final int successful;   // not used for minimize_roundtrips=true; dynamically determined from clusterInfo map
@@ -479,7 +499,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final Map<String, Cluster> clusterInfo;
 
         // not Writeable since it is only needed on the (primary) CCS coordinator
-        private transient Boolean ccsMinimizeRoundtrips;
+        private final transient Boolean ccsMinimizeRoundtrips;
 
         /**
          * For use with cross-cluster searches.
@@ -542,7 +562,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.total = in.readVInt();
             int successfulTemp = in.readVInt();
             int skippedTemp = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 List<Cluster> clusterList = in.readCollectionAsList(Cluster::new);
                 if (clusterList.isEmpty()) {
                     this.clusterInfo = Collections.emptyMap();
@@ -580,7 +600,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     + failed;
         }
 
-        private Clusters(Map<String, Cluster> clusterInfoMap) {
+        public Clusters(Map<String, Cluster> clusterInfoMap) {
             assert clusterInfoMap.size() > 0 : "this constructor should not be called with an empty Cluster info map";
             this.total = clusterInfoMap.size();
             this.clusterInfo = clusterInfoMap;
@@ -595,7 +615,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeVInt(total);
             out.writeVInt(successful);
             out.writeVInt(skipped);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_053)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 if (clusterInfo != null) {
                     List<Cluster> clusterList = clusterInfo.values().stream().toList();
                     out.writeCollection(clusterList);
@@ -625,65 +645,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 builder.endObject();
             }
             return builder;
-        }
-
-        public static Clusters fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-            int total = -1;
-            int successful = -1;
-            int skipped = -1;
-            int running = 0;    // 0 for BWC
-            int partial = 0;    // 0 for BWC
-            int failed = 0;     // 0 for BWC
-            Map<String, Cluster> clusterInfoMap = ConcurrentCollections.newConcurrentMap();
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (Clusters.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        total = parser.intValue();
-                    } else if (Clusters.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        successful = parser.intValue();
-                    } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        skipped = parser.intValue();
-                    } else if (Clusters.RUNNING_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        running = parser.intValue();
-                    } else if (Clusters.PARTIAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        partial = parser.intValue();
-                    } else if (Clusters.FAILED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        failed = parser.intValue();
-                    } else {
-                        parser.skipChildren();
-                    }
-                } else if (token == Token.START_OBJECT) {
-                    if (Clusters.DETAILS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        String currentDetailsFieldName = null;
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentDetailsFieldName = parser.currentName();  // cluster alias
-                            } else if (token == Token.START_OBJECT) {
-                                Cluster c = Cluster.fromXContent(currentDetailsFieldName, parser);
-                                clusterInfoMap.put(currentDetailsFieldName, c);
-                            } else {
-                                parser.skipChildren();
-                            }
-                        }
-                    } else {
-                        parser.skipChildren();
-                    }
-                } else {
-                    parser.skipChildren();
-                }
-            }
-            if (clusterInfoMap.isEmpty()) {
-                assert running == 0 && partial == 0 && failed == 0
-                    : "Non cross-cluster should have counter for running, partial and failed equal to 0";
-                return new Clusters(total, successful, skipped);
-            } else {
-                return new Clusters(clusterInfoMap);
-            }
         }
 
         /**
@@ -849,10 +810,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * See the Clusters clusterInfo Map for details.
      */
     public static class Cluster implements ToXContentFragment, Writeable {
-        static final ParseField INDICES_FIELD = new ParseField("indices");
-        static final ParseField STATUS_FIELD = new ParseField("status");
+        public static final ParseField INDICES_FIELD = new ParseField("indices");
+        public static final ParseField STATUS_FIELD = new ParseField("status");
 
-        private static final boolean SKIP_UNAVAILABLE_DEFAULT = false;
+        public static final boolean SKIP_UNAVAILABLE_DEFAULT = false;
 
         private final String clusterAlias;
         private final String indexExpression; // original index expression from the user for this cluster
@@ -960,7 +921,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             this.timedOut = in.readBoolean();
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_066)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 this.skipUnavailable = in.readBoolean();
             } else {
                 this.skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;
@@ -985,7 +946,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             private List<ShardSearchFailure> failures;
             private TimeValue took;
             private Boolean timedOut;
-            private Cluster original;
+            private final Cluster original;
 
             public Builder(Cluster copyFrom) {
                 this.original = copyFrom;
@@ -1065,7 +1026,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             out.writeOptionalLong(took == null ? null : took.millis());
             out.writeBoolean(timedOut);
             out.writeCollection(failures);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_RESP_SKIP_UNAVAILABLE_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 out.writeBoolean(skipUnavailable);
             }
         }
@@ -1074,7 +1035,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String name = clusterAlias;
             if (clusterAlias.equals("")) {
-                name = "(local)";
+                name = LOCAL_CLUSTER_NAME_REPRESENTATION;
             }
             builder.startObject(name);
             {
@@ -1108,96 +1069,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             }
             builder.endObject();
             return builder;
-        }
-
-        public static Cluster fromXContent(String clusterAlias, XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-
-            String clusterName = clusterAlias;
-            if (clusterAlias.equals("(local)")) {
-                clusterName = "";
-            }
-            String indexExpression = null;
-            String status = "running";
-            boolean timedOut = false;
-            long took = -1L;
-            // these are all from the _shards section
-            int totalShards = -1;
-            int successfulShards = -1;
-            int skippedShards = -1;
-            int failedShards = -1;
-            List<ShardSearchFailure> failures = new ArrayList<>();
-
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (Cluster.INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        indexExpression = parser.text();
-                    } else if (Cluster.STATUS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        status = parser.text();
-                    } else if (TIMED_OUT.match(currentFieldName, parser.getDeprecationHandler())) {
-                        timedOut = parser.booleanValue();
-                    } else if (TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
-                        took = parser.longValue();
-                    } else {
-                        parser.skipChildren();
-                    }
-                } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                        if (token == Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (RestActions.FAILED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                failedShards = parser.intValue();
-                            } else if (RestActions.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                successfulShards = parser.intValue();
-                            } else if (RestActions.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                totalShards = parser.intValue();
-                            } else if (RestActions.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                skippedShards = parser.intValue();
-                            } else {
-                                parser.skipChildren();
-                            }
-                        } else {
-                            parser.skipChildren();
-                        }
-                    }
-                } else if (token == Token.START_ARRAY) {
-                    if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                            failures.add(ShardSearchFailure.fromXContent(parser));
-                        }
-                    } else {
-                        parser.skipChildren();
-                    }
-                } else {
-                    parser.skipChildren();
-                }
-            }
-
-            Integer totalShardsFinal = totalShards == -1 ? null : totalShards;
-            Integer successfulShardsFinal = successfulShards == -1 ? null : successfulShards;
-            Integer skippedShardsFinal = skippedShards == -1 ? null : skippedShards;
-            Integer failedShardsFinal = failedShards == -1 ? null : failedShards;
-            TimeValue tookTimeValue = took == -1L ? null : new TimeValue(took);
-            boolean skipUnavailable = SKIP_UNAVAILABLE_DEFAULT;  // skipUnavailable is not exposed to XContent, so just use default
-
-            return new Cluster(
-                clusterName,
-                indexExpression,
-                skipUnavailable,
-                SearchResponse.Cluster.Status.valueOf(status.toUpperCase(Locale.ROOT)),
-                totalShardsFinal,
-                successfulShardsFinal,
-                skippedShardsFinal,
-                failedShardsFinal,
-                failures,
-                tookTimeValue,
-                timedOut
-            );
         }
 
         public String getClusterAlias() {
@@ -1277,18 +1148,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     // public for tests
     public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
-        SearchHits searchHits = new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN);
-        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-            searchHits,
+        return new SearchResponse(
+            SearchHits.empty(new TotalHits(0L, TotalHits.Relation.EQUAL_TO), Float.NaN),
             InternalAggregations.EMPTY,
-            null,
             null,
             false,
             null,
-            0
-        );
-        return new SearchResponse(
-            internalSearchResponse,
+            null,
+            0,
             null,
             0,
             0,

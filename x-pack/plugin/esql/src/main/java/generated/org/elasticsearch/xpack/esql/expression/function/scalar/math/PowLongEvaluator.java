@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -42,14 +43,8 @@ public final class PowLongEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref baseRef = base.eval(page)) {
-      if (baseRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       DoubleBlock baseBlock = (DoubleBlock) baseRef.block();
       try (Block.Ref exponentRef = exponent.eval(page)) {
-        if (exponentRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         DoubleBlock exponentBlock = (DoubleBlock) exponentRef.block();
         DoubleVector baseVector = baseBlock.asVector();
         if (baseVector == null) {
@@ -65,13 +60,27 @@ public final class PowLongEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public LongBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (baseBlock.isNull(p) || baseBlock.getValueCount(p) != 1) {
+        if (baseBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (exponentBlock.isNull(p) || exponentBlock.getValueCount(p) != 1) {
+        if (baseBlock.getValueCount(p) != 1) {
+          if (baseBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (exponentBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (exponentBlock.getValueCount(p) != 1) {
+          if (exponentBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -87,7 +96,7 @@ public final class PowLongEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public LongBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Pow.processLong(baseVector.getDouble(p), exponentVector.getDouble(p)));
@@ -108,5 +117,30 @@ public final class PowLongEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public void close() {
     Releasables.closeExpectNoException(base, exponent);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory base;
+
+    private final EvalOperator.ExpressionEvaluator.Factory exponent;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory base,
+        EvalOperator.ExpressionEvaluator.Factory exponent) {
+      this.source = source;
+      this.base = base;
+      this.exponent = exponent;
+    }
+
+    @Override
+    public PowLongEvaluator get(DriverContext context) {
+      return new PowLongEvaluator(source, base.get(context), exponent.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "PowLongEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+    }
   }
 }

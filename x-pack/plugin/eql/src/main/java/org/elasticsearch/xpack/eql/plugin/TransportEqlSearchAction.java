@@ -61,7 +61,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexNam
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 
-public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
+public final class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> {
 
@@ -73,7 +73,6 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
 
-    @SuppressWarnings("this-escape")
     @Inject
     public TransportEqlSearchAction(
         Settings settings,
@@ -211,7 +210,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                         r -> listener.onResponse(qualifyHits(r, clusterAlias)),
                         e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
                     ),
-                    EqlSearchAction.INSTANCE.getResponseReader(),
+                    EqlSearchResponse::new,
                     TransportResponseHandler.TRANSPORT_WORKER
                 )
             );

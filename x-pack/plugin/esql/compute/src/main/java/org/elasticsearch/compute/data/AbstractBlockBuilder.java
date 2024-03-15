@@ -140,8 +140,9 @@ abstract class AbstractBlockBuilder implements Block.Builder {
             return;
         }
         int newSize = calculateNewArraySize(valuesLength);
-        adjustBreaker((long) (newSize - valuesLength) * elementSize());
+        adjustBreaker(newSize * elementSize());
         growValuesArray(newSize);
+        adjustBreaker(-valuesLength * elementSize());
     }
 
     @Override
@@ -164,7 +165,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     }
 
     protected void adjustBreaker(long deltaBytes) {
-        blockFactory.adjustBreaker(deltaBytes, false);
+        blockFactory.adjustBreaker(deltaBytes);
         estimatedBytes += deltaBytes;
         assert estimatedBytes >= 0;
     }

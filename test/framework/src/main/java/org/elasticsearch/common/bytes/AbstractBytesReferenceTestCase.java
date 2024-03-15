@@ -540,6 +540,8 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
     protected abstract BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException;
 
+    protected abstract BytesReference newBytesReference(byte[] content) throws IOException;
+
     public void testCompareTo() throws IOException {
         final int iters = randomIntBetween(5, 10);
         for (int i = 0; i < iters; i++) {
@@ -659,8 +661,12 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
         map.forEach((value, positions) -> {
             for (int i = 0; i < positions.size(); i++) {
                 final int pos = positions.get(i);
-                final int from = i == 0 ? randomIntBetween(0, pos) : positions.get(i - 1) + 1;
+                final int from = randomIntBetween(i == 0 ? 0 : positions.get(i - 1) + 1, pos);
                 assertEquals(bytesReference.indexOf(value, from), pos);
+            }
+            final int firstNotFoundPos = positions.get(positions.size() - 1) + 1;
+            if (firstNotFoundPos < bytesReference.length()) {
+                assertEquals(-1, bytesReference.indexOf(value, between(firstNotFoundPos, bytesReference.length() - 1)));
             }
         });
         final byte missing = randomValueOtherThanMany(map::containsKey, ESTestCase::randomByte);
@@ -681,5 +687,31 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             offset += len;
         }
         assertArrayEquals(bytes, BytesReference.toBytes(bytesReference));
+    }
+
+    public void testReadSlices() throws IOException {
+        final int refs = randomIntBetween(1, 1024);
+        final BytesReference bytesReference;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            for (int i = 0; i < refs; i++) {
+                out.writeBytesReference(newBytesReference(randomIntBetween(1, 1024)));
+            }
+            bytesReference = newBytesReference(out.copyBytes().array());
+        }
+        try (StreamInput input1 = bytesReference.streamInput(); StreamInput input2 = bytesReference.streamInput()) {
+            for (int i = 0; i < refs; i++) {
+                boolean sliceLeft = randomBoolean();
+                BytesReference left = sliceLeft ? input1.readSlicedBytesReference() : input1.readBytesReference();
+                if (sliceLeft && bytesReference.hasArray()) {
+                    assertSame(left.array(), bytesReference.array());
+                }
+                boolean sliceRight = randomBoolean();
+                BytesReference right = sliceRight ? input2.readSlicedBytesReference() : input2.readBytesReference();
+                assertEquals(left, right);
+                if (sliceRight && bytesReference.hasArray()) {
+                    assertSame(right.array(), right.array());
+                }
+            }
+        }
     }
 }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -34,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -54,7 +53,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FailedNodeRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(FailedNodeRoutingTests.class);
 
     public void testSimpleFailedNodeTest() {
         AllocationService strategy = createAllocationService(
@@ -227,7 +225,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             .roles(roles)
             .version(
                 VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersionUtils.randomCompatibleVersion(random())
             )
             .build();

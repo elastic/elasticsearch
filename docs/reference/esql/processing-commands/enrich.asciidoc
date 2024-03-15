@@ -1,61 +1,105 @@
 [discrete]
 [[esql-enrich]]
 === `ENRICH`
-You can use `ENRICH` to add data from your existing indices to incoming records.
-It's similar to <<ingest-enriching-data, ingest enrich>>, but it works at query time.
+
+**Syntax**
+
+[source,esql]
+----
+ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2, ...]
+----
+
+*Parameters*
+
+`policy`::
+The name of the enrich policy. You need to <<esql-set-up-enrich-policy,create>>
+and <<esql-execute-enrich-policy,execute>> the enrich policy first.
+
+`mode`::
+The mode of the enrich command in cross cluster {esql}.
+See <<ccq-enrich, enrich across clusters>>.
+
+`match_field`::
+The match field. `ENRICH` uses its value to look for records in the enrich
+index. If not specified, the match will be performed on the column with the same
+name as the `match_field` defined in the <<esql-enrich-policy,enrich policy>>.
+
+`fieldX`::
+The enrich fields from the enrich index that are added to the result as new
+columns. If a column with the same name as the enrich field already exists, the
+existing column will be replaced by the new column. If not specified, each of
+the enrich fields defined in the policy is added
+
+`new_nameX`::
+Enables you to change the name of the column that's added for each of the enrich
+fields. Defaults to the enrich field name.
+
+*Description*
+
+`ENRICH` enables you to add data from existing indices as new columns using an
+enrich policy. Refer to <<esql-enrich-data>> for information about setting up a
+policy.
+
+image::images/esql/esql-enrich.png[align="center"]
+
+TIP: Before you can use `ENRICH`, you need to <<esql-set-up-enrich-policy,create
+and execute an enrich policy>>.
+
+*Examples*
+
+// tag::examples[]
+The following example uses the `languages_policy` enrich policy to add a new
+column for each enrich field defined in the policy. The match is performed using
+the `match_field` defined in the <<esql-enrich-policy,enrich policy>> and
+requires that the input table has a column with the same name (`language_code`
+in this example). `ENRICH` will look for records in the
+<<esql-enrich-index,enrich index>> based on the match field value.
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich-result]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich-result]
 |===
 
-`ENRICH` requires an <<enrich-policy,enrich policy>> to be executed.
-The enrich policy defines a match field (a key field) and a set of enrich fields.
-
-`ENRICH` will look for records in the <<enrich-index,enrich index>> based on the match field value.
-The matching key in the input dataset can be defined using `ON <field-name>`; if it's not specified,
-the match will be performed on a field with the same name as the match field defined in the <<enrich-policy,enrich policy>>.
+To use a column with a different name than the `match_field` defined in the
+policy as the match field, use `ON <column-name>`:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_on]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_on]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_on-result]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_on-result]
 |===
 
-
-You can specify which attributes (between those defined as enrich fields in the policy) have to be added to the result,
-using `WITH <field1>, <field2>...` syntax.
+By default, each of the enrich fields defined in the policy is added as a
+column. To explicitly select the enrich fields that are added, use
+`WITH <field1>, <field2>, ...`:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_with]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_with]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_with-result]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_with-result]
 |===
 
-
-Attributes can also be renamed using `WITH new_name=<field1>`
+You can rename the columns that are added using `WITH new_name=<field1>`:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_rename]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_rename]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_rename-result]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_rename-result]
 |===
 
-
-By default (if no `WITH` is defined), `ENRICH` will add all the enrich fields defined in the <<enrich-policy,enrich policy>>
-to the result.
-
-In case of name collisions, the newly created fields will override the existing fields.
+In case of name collisions, the newly created columns will override existing
+columns.
+// end::examples[]

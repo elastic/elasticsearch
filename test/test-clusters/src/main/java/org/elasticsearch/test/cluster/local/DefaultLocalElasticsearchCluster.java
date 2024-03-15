@@ -15,6 +15,9 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Arrays;
 import java.util.function.Supplier;
 
 public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H extends LocalClusterHandle> implements ElasticsearchCluster {
@@ -32,13 +35,20 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
         return new Statement() {
             @Override
             public void evaluate() throws Throwable {
+                S spec = specProvider.get();
                 try {
-                    S spec = specProvider.get();
-                    handle = clusterFactory.create(spec);
-                    handle.start();
+                    if (spec.isShared() == false || handle == null) {
+                        if (spec.isShared()) {
+                            maybeCheckThreadLeakFilters(description);
+                        }
+                        handle = clusterFactory.create(spec);
+                        handle.start();
+                    }
                     base.evaluate();
                 } finally {
-                    close();
+                    if (spec.isShared() == false) {
+                        close();
+                    }
                 }
             }
         };
@@ -146,6 +156,12 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
         return handle.getNodeLog(index, logType);
     }
 
+    @Override
+    public void updateStoredSecureSettings() {
+        checkHandle();
+        handle.updateStoredSecureSettings();
+    }
+
     protected H getHandle() {
         return handle;
     }
@@ -153,6 +169,34 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     protected void checkHandle() {
         if (handle == null) {
             throw new IllegalStateException("Cluster handle has not been initialized. Did you forget the @ClassRule annotation?");
+        }
+    }
+
+    /**
+     * Check for {@code TestClustersThreadFilter} if necessary. We use reflection here to avoid a dependency on randomized runner.
+     */
+    @SuppressWarnings("unchecked")
+    private void maybeCheckThreadLeakFilters(Description description) {
+        try {
+            Class<? extends Annotation> threadLeakFiltersClass = (Class<? extends Annotation>) Class.forName(
+                "com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters"
+            );
+            Annotation[] annotations = description.getTestClass().getAnnotationsByType(threadLeakFiltersClass);
+            for (Annotation annotation : annotations) {
+                try {
+                    Class<?>[] classes = (Class<?>[]) annotation.getClass().getMethod("filters").invoke(annotation);
+                    if (Arrays.stream(classes).noneMatch(c -> c.getName().equals("org.elasticsearch.test.TestClustersThreadFilter"))) {
+                        throw new IllegalStateException(
+                            "TestClustersThreadFilter is required when using shared clusters. Annotate your test with the following:\n\n"
+                                + "    @ThreadLeakFilters(filters = TestClustersThreadFilter.class)\n"
+                        );
+                    }
+                } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+                    throw new RuntimeException("Unable to inspect filters on " + annotation, e);
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            // If randomized runner isn't on the classpath then we don't care
         }
     }
 }

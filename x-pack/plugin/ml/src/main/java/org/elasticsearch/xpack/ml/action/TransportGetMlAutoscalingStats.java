@@ -27,8 +27,6 @@ import org.elasticsearch.xpack.core.ml.action.GetMlAutoscalingStats.Response;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-import java.util.concurrent.Executor;
-
 /**
  * Internal (no-REST) transport to retrieve metrics for serverless autoscaling.
  */
@@ -36,7 +34,6 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
 
     private final MlMemoryTracker mlMemoryTracker;
     private final Settings settings;
-    private final Executor timeoutExecutor;
 
     @Inject
     public TransportGetMlAutoscalingStats(
@@ -61,26 +58,28 @@ public class TransportGetMlAutoscalingStats extends TransportMasterNodeAction<Re
         );
         this.mlMemoryTracker = mlMemoryTracker;
         this.settings = settings;
-        this.timeoutExecutor = threadPool.generic();
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
 
-        if (mlMemoryTracker.isRecentlyRefreshed()) {
-            MlAutoscalingResourceTracker.getMlAutoscalingStats(
-                state,
-                clusterService.getClusterSettings(),
-                mlMemoryTracker,
-                settings,
-                ActionListener.wrap(autoscalingResources -> listener.onResponse(new Response(autoscalingResources)), listener::onFailure)
-            );
-        } else {
-            // Recent memory statistics aren't available at the moment, trigger a refresh and return a no-scale.
-            // (If a refresh is already in progress, this won't trigger a new one.)
+        if (mlMemoryTracker.isRecentlyRefreshed() == false) {
+            // Recent memory statistics aren't available at the moment, trigger a refresh in the background.
+            // (If a refresh is already in progress, this won't trigger a new one.) We still proceed to return a
+            // scaling response in this case. This API gets called every 5 seconds, so the memory info is likely only
+            // a few seconds stale, and still good enough. If it gets _really_ badly out of date, or has never been
+            // populated in the first place then there are places in MlAutoscalingResourceTracker.getMlAutoscalingStats
+            // that will return a no-scale.
             mlMemoryTracker.asyncRefresh();
-            listener.onResponse(new Response(MlAutoscalingResourceTracker.noScaleStats(state)));
         }
+
+        MlAutoscalingResourceTracker.getMlAutoscalingStats(
+            state,
+            clusterService.getClusterSettings(),
+            mlMemoryTracker,
+            settings,
+            listener.delegateFailureAndWrap((l, autoscalingResources) -> l.onResponse(new Response(autoscalingResources)))
+        );
     }
 
     @Override

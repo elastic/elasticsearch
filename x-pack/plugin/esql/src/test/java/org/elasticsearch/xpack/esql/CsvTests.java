@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -38,6 +40,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -47,17 +50,19 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -87,11 +92,11 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -103,7 +108,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.hamcrest.Matchers.equalTo;
@@ -141,6 +145,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
+    private static final String IGNORED_CSV_FILE_NAMES_PATTERN = "-IT_tests_only";
 
     private final String fileName;
     private final String groupName;
@@ -153,14 +158,16 @@ public class CsvTests extends ESTestCase {
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
-    private final LogicalPlanOptimizer logicalPlanOptimizer = new LogicalPlanOptimizer();
     private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private ThreadPool threadPool;
+    private Executor executor;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec").stream().filter(x -> x.toString().contains("-ignoreCsvTests") == false).toList();
+        List<URL> urls = classpathResources("/*.csv-spec").stream()
+            .filter(x -> x.toString().contains(IGNORED_CSV_FILE_NAMES_PATTERN) == false)
+            .toList();
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
         return SpecReader.readScriptSpec(urls, specParser());
     }
@@ -168,18 +175,17 @@ public class CsvTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool(
-            "CsvTests",
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                ESQL_THREAD_POOL_NAME,
-                numThreads,
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
-        );
+        if (randomBoolean()) {
+            int numThreads = randomBoolean() ? 1 : between(2, 16);
+            threadPool = new TestThreadPool(
+                "CsvTests",
+                new FixedExecutorBuilder(Settings.EMPTY, "esql_test", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            );
+            executor = threadPool.executor("esql_test");
+        } else {
+            threadPool = new TestThreadPool(getTestName());
+            executor = threadPool.executor(ThreadPool.Names.SEARCH);
+        }
         HeaderWarning.setThreadContext(threadPool.getThreadContext());
     }
 
@@ -212,7 +218,11 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
+            /*
+             * We're intentionally not NodeFeatures here because we expect all
+             * of the features to be supported in this unit test.
+             */
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
@@ -231,13 +241,16 @@ public class CsvTests extends ESTestCase {
     private void doTest() throws Exception {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         var actualResults = executePlan(bigArrays);
-        var expected = loadCsvSpecValues(testCase.expectedResults);
+        try {
+            var expected = loadCsvSpecValues(testCase.expectedResults);
 
-        var log = logResults() ? LOGGER : null;
-        assertResults(expected, actualResults, testCase.ignoreOrder, log);
-        assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
-        Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            var log = logResults() ? LOGGER : null;
+            assertResults(expected, actualResults, testCase.ignoreOrder, log);
+            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
+        } finally {
+            Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
+            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        }
     }
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
@@ -256,18 +269,27 @@ public class CsvTests extends ESTestCase {
     }
 
     private static EnrichResolution loadEnrichPolicies() {
-        Set<String> names = new HashSet<>();
-        Set<EnrichPolicyResolution> resolutions = new HashSet<>();
+        EnrichResolution enrichResolution = new EnrichResolution();
         for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
             EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig.policyFileName());
             CsvTestsDataLoader.TestsDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
-            IndexResolution idxRes = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName());
-            names.add(policyConfig.policyName());
-            resolutions.add(new EnrichPolicyResolution(policyConfig.policyName(), policy, idxRes));
+            EsIndex esIndex = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName()).get();
+            var concreteIndices = Map.of(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
+            enrichResolution.addResolvedPolicy(
+                policyConfig.policyName(),
+                Enrich.Mode.ANY,
+                new ResolvedEnrichPolicy(
+                    policy.getMatchField(),
+                    policy.getType(),
+                    policy.getEnrichFields(),
+                    concreteIndices,
+                    esIndex.mapping()
+                )
+            );
         }
-        return new EnrichResolution(resolutions, names);
+        return enrichResolution;
     }
 
     private static EnrichPolicy loadEnrichPolicyMapping(String policyFileName) {
@@ -286,7 +308,7 @@ public class CsvTests extends ESTestCase {
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies), TEST_VERIFIER);
         var analyzed = analyzer.analyze(parsed);
-        var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
+        var logicalOptimized = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)).optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
         var optimizedPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan));
         opportunisticallyAssertPlanSerialization(physicalPlan, optimizedPlan); // comment out to disable serialization
@@ -320,13 +342,20 @@ public class CsvTests extends ESTestCase {
         var testDataset = testsDataset(parsed);
 
         String sessionId = "csv-test";
-        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), threadPool.executor(ESQL_THREAD_POOL_NAME));
-        ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(between(1, 64), threadPool::relativeTimeInMillis);
+        BlockFactory blockFactory = new BlockFactory(
+            bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
+            bigArrays,
+            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
+        );
+        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
+        ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,
+            "",
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             bigArrays,
-            new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays),
+            blockFactory,
+            randomNodeSettings(),
             configuration,
             exchangeSource,
             exchangeSink,
@@ -381,13 +410,7 @@ public class CsvTests extends ESTestCase {
             DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(
-                        threadPool.getThreadContext(),
-                        threadPool.executor(ESQL_THREAD_POOL_NAME),
-                        driver,
-                        between(1, 1000),
-                        driverListener
-                    );
+                    Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
                 }
             };
             PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
@@ -397,8 +420,17 @@ public class CsvTests extends ESTestCase {
             }));
             return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
-            Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
+            Releasables.close(() -> Releasables.close(drivers));
         }
+    }
+
+    private Settings randomNodeSettings() {
+        Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofBytes(randomIntBetween(0, 4096)));
+            builder.put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofBytes(randomIntBetween(0, 16 * 1024)));
+        }
+        return builder.build();
     }
 
     private Throwable reworkException(Throwable th) {
@@ -434,6 +466,6 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        assertMap(normalized, matchesList(testCase.expectedWarnings));
+        assertMap(normalized, matchesList(testCase.expectedWarnings(true)));
     }
 }

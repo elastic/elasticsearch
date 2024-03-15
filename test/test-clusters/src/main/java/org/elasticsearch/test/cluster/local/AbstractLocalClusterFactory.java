@@ -152,10 +152,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 createConfigDirectory();
                 copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install
                 copyExtraJarFiles();
-                installPlugins();
                 if (distributionDescriptor.getType() == DistributionType.INTEG_TEST) {
                     installModules();
                 }
+                installPlugins();
                 currentVersion = spec.getVersion();
             } else {
                 createConfigDirectory();
@@ -443,6 +443,21 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             });
         }
 
+        public void updateStoredSecureSettings() {
+            if (usesSecureSecretsFile) {
+                throw new UnsupportedOperationException("updating stored secure settings is not supported in serverless test clusters");
+            }
+            final Path keystoreFile = workingDir.resolve("config").resolve("elasticsearch.keystore");
+            try {
+                Files.deleteIfExists(keystoreFile);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            createKeystore();
+            addKeystoreSettings();
+            addKeystoreFiles();
+        }
+
         private void createKeystore() {
             if (spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()) {
                 runToolScript("elasticsearch-keystore", null, "-v", "create");
@@ -576,7 +591,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void installPlugins() {
             if (spec.getPlugins().isEmpty() == false) {
-                Pattern pattern = Pattern.compile("(.+)(?:-\\d\\.\\d\\.\\d-SNAPSHOT\\.zip)?");
+                Pattern pattern = Pattern.compile("(.+)(?:-\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?\\.zip)");
 
                 LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), name);
                 List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
@@ -588,8 +603,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     .map(
                         pluginName -> pluginPaths.stream()
                             .map(path -> Pair.of(pattern.matcher(path.getFileName().toString()), path))
-                            .filter(pair -> pair.left.matches())
-                            .map(p -> p.right.getParent().resolve(p.left.group(1)))
+                            .filter(pair -> pair.left.matches() && pair.left.group(1).equals(pluginName))
+                            .map(p -> p.right.getParent().resolve(p.left.group(0)))
                             .findFirst()
                             .orElseThrow(() -> {
                                 String taskPath = System.getProperty("tests.task");
@@ -715,9 +730,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String systemProperties = "";
-            if (spec.getSystemProperties().isEmpty() == false) {
-                systemProperties = spec.getSystemProperties()
-                    .entrySet()
+            Map<String, String> resolvedSystemProperties = new HashMap<>(spec.resolveSystemProperties());
+            if (resolvedSystemProperties.isEmpty() == false) {
+                systemProperties = resolvedSystemProperties.entrySet()
                     .stream()
                     .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
                     .map(p -> p.replace("${ES_PATH_CONF}", configDir.toString()))

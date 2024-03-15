@@ -10,13 +10,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -25,10 +24,12 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.env.Environment;
@@ -49,7 +50,9 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
@@ -63,6 +66,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -76,6 +80,8 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
@@ -87,15 +93,16 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -107,10 +114,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.monitoring.MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
@@ -164,8 +171,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return client -> client.filterWithHeader(headers);
     }
 
-    @Override
-    protected Settings externalClusterClientSettings() {
+    private Settings externalClusterClientSettings() {
         final Path home = createTempDir();
         final Path xpackConf = home.resolve("config");
         try {
@@ -204,6 +210,35 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.put("xpack.security.transport.ssl.key_passphrase", "testnode");
         builder.put("xpack.security.transport.ssl.verification_mode", "certificate");
         return builder.build();
+    }
+
+    @Override
+    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        final String clusterAddresses = System.getProperty(TESTS_CLUSTER);
+        assertTrue(TESTS_CLUSTER + " must be set", Strings.hasLength(clusterAddresses));
+        if (scope == Scope.TEST) {
+            throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
+        }
+        final String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
+        if (Strings.isNullOrEmpty(clusterName)) {
+            throw new IllegalArgumentException("External test cluster name must be provided");
+        }
+        final String[] stringAddresses = clusterAddresses.split(",");
+        final TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
+        int i = 0;
+        for (String stringAddress : stringAddresses) {
+            URL url = new URL("http://" + stringAddress);
+            InetAddress inetAddress = InetAddress.getByName(url.getHost());
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
+        }
+        return new ExternalTestCluster(
+            createTempDir(),
+            externalClusterClientSettings(),
+            nodePlugins(),
+            getClientWrapper(),
+            clusterName,
+            transportAddresses
+        );
     }
 
     protected void cleanUp() {
@@ -271,19 +306,24 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
     }
 
-    protected static List<String> fetchAllAuditMessages(String jobId) {
+    protected static List<String> fetchAllAuditMessages(String jobId) throws Exception {
         RefreshRequest refreshRequest = new RefreshRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
-        RefreshResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
+        BroadcastResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
 
-        SearchRequest searchRequest = new SearchRequestBuilder(client(), SearchAction.INSTANCE).setIndices(
-            NotificationsIndex.NOTIFICATIONS_INDEX
-        ).addSort("timestamp", SortOrder.ASC).setQuery(QueryBuilders.termQuery("job_id", jobId)).setSize(100).request();
-        SearchResponse searchResponse = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
-
-        return Arrays.stream(searchResponse.getHits().getHits())
-            .map(hit -> (String) hit.getSourceAsMap().get("message"))
-            .collect(Collectors.toList());
+        SearchRequest searchRequest = new SearchRequestBuilder(client()).setIndices(NotificationsIndex.NOTIFICATIONS_INDEX)
+            .addSort("timestamp", SortOrder.ASC)
+            .setQuery(QueryBuilders.termQuery("job_id", jobId))
+            .setSize(100)
+            .request();
+        List<String> messages = new ArrayList<>();
+        assertResponse(
+            client().execute(TransportSearchAction.TYPE, searchRequest),
+            searchResponse -> Arrays.stream(searchResponse.getHits().getHits())
+                .map(hit -> (String) hit.getSourceAsMap().get("message"))
+                .forEach(messages::add)
+        );
+        return messages;
     }
 
     @Override
@@ -319,6 +359,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read));
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new));
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     PersistentTaskParams.class,
@@ -399,18 +440,13 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     protected static void createDataStreamAndTemplate(String dataStreamName, String mapping) throws IOException {
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
-                new ComposableIndexTemplate(
-                    Collections.singletonList(dataStreamName),
-                    new Template(null, new CompressedXContent(mapping), null),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(),
-                    null
-                )
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(Collections.singletonList(dataStreamName))
+                    .template(new Template(null, new CompressedXContent(mapping), null))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
             )
         ).actionGet();
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();

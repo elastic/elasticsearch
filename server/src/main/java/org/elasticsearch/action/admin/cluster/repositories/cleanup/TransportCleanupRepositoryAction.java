@@ -154,7 +154,10 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         }
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
         final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-        repository.getRepositoryData(repositoryDataListener);
+        repository.getRepositoryData(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE, // Listener is lightweight, only submits a cluster state update task, no need to fork
+            repositoryDataListener
+        );
         repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repositoryData) -> {
             final long repositoryStateId = repositoryData.getGenId();
             logger.info("Running cleanup operations on repository [{}][{}]", repositoryName, repositoryStateId);

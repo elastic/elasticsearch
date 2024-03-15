@@ -47,10 +47,12 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
@@ -65,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.DUMMY_DEST_INDEX_FOR_PREVIEW;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
@@ -153,6 +156,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                 config.getDestination().getIndex(),
                 config.getDestination().getAliases(),
                 config.getSyncConfig(),
+                config.getSettings(),
                 listener
             ),
             listener::onFailure
@@ -208,9 +212,10 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         String dest,
         List<DestAlias> aliases,
         SyncConfig syncConfig,
+        SettingsConfig settingsConfig,
         ActionListener<Response> listener
     ) {
-        Client parentTaskAssigningClient = new ParentTaskAssigningClient(client, parentTaskId);
+        Client parentTaskClient = new ParentTaskAssigningClient(client, parentTaskId);
 
         final SetOnce<Map<String, String>> mappings = new SetOnce<>();
 
@@ -279,24 +284,29 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     builder.endObject();
                     var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                     pipelineRequest.setId(pipeline);
-                    parentTaskAssigningClient.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
+                    parentTaskClient.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
                 }
             }
         }, listener::onFailure);
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
-            mappings.set(deducedMappings);
+            if (TransformEffectiveSettings.isDeduceMappingsDisabled(settingsConfig)) {
+                mappings.set(emptyMap());
+            } else {
+                mappings.set(deducedMappings);
+            }
             function.preview(
-                parentTaskAssigningClient,
+                parentTaskClient,
                 timeout,
                 filteredHeaders,
                 source,
+                // Use deduced mappings for generating preview even if "settings.deduce_mappings" is set to false
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,
                 previewListener
             );
         }, listener::onFailure);
 
-        function.deduceMappings(parentTaskAssigningClient, filteredHeaders, source, deduceMappingsListener);
+        function.deduceMappings(parentTaskClient, filteredHeaders, transformId, source, deduceMappingsListener);
     }
 }

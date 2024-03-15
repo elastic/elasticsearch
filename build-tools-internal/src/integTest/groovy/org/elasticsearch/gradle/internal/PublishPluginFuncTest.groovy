@@ -29,7 +29,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 id 'elasticsearch.java'
                 id 'elasticsearch.publish'
             }
-            
+
             version = "1.0"
             group = 'org.acme'
             description = "custom project description"
@@ -92,11 +92,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 id 'elasticsearch.publish'
                 id 'com.github.johnrengelman.shadow'
             }
-            
+
             repositories {
                 mavenCentral()
             }
-            
+
             dependencies {
                 implementation 'org.slf4j:log4j-over-slf4j:1.7.30'
                 shadow 'org.slf4j:slf4j-api:1.7.30'
@@ -110,8 +110,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                  }
             }
             version = "1.0"
-            group = 'org.acme' 
-            description = 'some description'       
+            group = 'org.acme'
+            description = 'some description'
         """
 
         when:
@@ -179,7 +179,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                shadow project(":someLib")            
+                shadow project(":someLib")
             }
             publishing {
                  repositories {
@@ -192,10 +192,10 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             allprojects {
                 apply plugin: 'elasticsearch.java'
                 version = "1.0"
-                group = 'org.acme' 
+                group = 'org.acme'
             }
 
-            description = 'some description'       
+            description = 'some description'
         """
 
         when:
@@ -263,13 +263,13 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 id 'elasticsearch.publish'
                 id 'com.github.johnrengelman.shadow'
             }
-            
+
             esplugin {
                 name = 'hello-world-plugin'
                 classname 'org.acme.HelloWorldPlugin'
                 description = "custom project description"
             }
-            
+
             publishing {
                  repositories {
                     maven {
@@ -277,17 +277,17 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                     }
                  }
             }
-                    
+
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
             licenseFile.set(file('license.txt'))
             noticeFile.set(file('notice.txt'))
             version = "1.0"
-            group = 'org.acme'        
+            group = 'org.acme'
         """
 
         when:
-        def result = gradleRunner('assemble', '--stacktrace').build()
+        def result = gradleRunner('assemble', '--stacktrace', '-x', 'generateHistoricalFeaturesMetadata').build()
 
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
@@ -348,19 +348,19 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 id 'elasticsearch.internal-es-plugin'
                 id 'elasticsearch.publish'
             }
-            
+
             esplugin {
                 name = 'hello-world-plugin'
                 classname 'org.acme.HelloWorldPlugin'
                 description = "custom project description"
             }
-           
+
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
             licenseFile.set(file('license.txt'))
             noticeFile.set(file('notice.txt'))
             version = "2.0"
-            group = 'org.acme'        
+            group = 'org.acme'
         """
 
         when:
@@ -420,9 +420,9 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             apply plugin:'elasticsearch.publish'
 
             version = "1.0"
-            group = 'org.acme'        
+            group = 'org.acme'
             description = "just a test project"
-            
+
             ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
         """
 

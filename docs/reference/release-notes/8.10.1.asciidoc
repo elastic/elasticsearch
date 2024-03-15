@@ -9,6 +9,8 @@ Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.
 
 include::8.10.0.asciidoc[tag=repositorydata-format-change]
 
+include::8.7.1.asciidoc[tag=no-preventive-gc-issue]
+
 [[bug-8.10.1]]
 [float]
 === Bug fixes

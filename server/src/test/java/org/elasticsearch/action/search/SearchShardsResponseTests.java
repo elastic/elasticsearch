@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -113,11 +114,11 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
     public void testLegacyResponse() {
         DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1")
             .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2")
             .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         final ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[2];
         {

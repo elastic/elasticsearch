@@ -36,7 +36,7 @@ import java.util.function.Function;
  */
 public class FeatureFlag {
 
-    private final Logger logger = LogManager.getLogger(FeatureFlag.class);
+    private static final Logger logger = LogManager.getLogger(FeatureFlag.class);
 
     private final String name;
     private final boolean enabled;

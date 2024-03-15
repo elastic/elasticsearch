@@ -1,8 +1,30 @@
 [discrete]
 [[esql-mv_concat]]
 === `MV_CONCAT`
-Converts a multivalued string field into a single valued field containing the
-concatenation of all values separated by a delimiter:
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/mv_concat.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`v`::
+Multivalue expression.
+
+`delim`::
+Delimiter.
+
+*Description*
+
+Converts a multivalued string expression into a single valued column containing
+the concatenation of all values separated by a delimiter.
+
+*Supported types*
+
+include::types/mv_concat.asciidoc[]
+
+*Examples*
 
 [source.merge.styled,esql]
 ----
@@ -13,7 +35,7 @@ include::{esql-specs}/string.csv-spec[tag=mv_concat]
 include::{esql-specs}/string.csv-spec[tag=mv_concat-result]
 |===
 
-If you want to concat non-string fields call <<esql-to_string>> on them first:
+To concat non-string columns, call <<esql-to_string>> first:
 
 [source.merge.styled,esql]
 ----
@@ -23,4 +45,3 @@ include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string]
 |===
 include::{esql-specs}/string.csv-spec[tag=mv_concat-to_string-result]
 |===
-

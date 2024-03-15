@@ -615,8 +615,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
-        Consumer<Exception> throwing = e -> { throw new AssertionError(e); };
-        return RejectAwareActionListener.wrap(consumer::accept, throwing, throwing);
+        return RejectAwareActionListener.wrap(consumer::accept, ESTestCase::fail, ESTestCase::fail);
     }
 
     @SuppressWarnings("unchecked")

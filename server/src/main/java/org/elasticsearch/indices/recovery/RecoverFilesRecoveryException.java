@@ -18,13 +18,12 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RecoverFilesRecoveryException extends ElasticsearchException implements ElasticsearchWrapperException {
+public final class RecoverFilesRecoveryException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     private final int numberOfFiles;
 
     private final ByteSizeValue totalFilesSize;
 
-    @SuppressWarnings("this-escape")
     public RecoverFilesRecoveryException(ShardId shardId, int numberOfFiles, ByteSizeValue totalFilesSize, Throwable cause) {
         super("Failed to transfer [{}] files with total size of [{}]", cause, numberOfFiles, totalFilesSize);
         Objects.requireNonNull(totalFilesSize, "totalFilesSize must not be null");

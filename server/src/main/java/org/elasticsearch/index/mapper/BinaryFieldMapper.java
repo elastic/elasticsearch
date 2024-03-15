@@ -64,8 +64,8 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public BinaryFieldMapper build(MapperBuilderContext context) {
             return new BinaryFieldMapper(
-                name,
-                new BinaryFieldType(context.buildFullName(name), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                name(),
+                new BinaryFieldType(context.buildFullName(name()), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo,
                 this
@@ -191,11 +191,10 @@ public class BinaryFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static class CustomBinaryDocValuesField extends CustomDocValuesField {
+    public static final class CustomBinaryDocValuesField extends CustomDocValuesField {
 
         private final List<byte[]> bytesList;
 
-        @SuppressWarnings("this-escape")
         public CustomBinaryDocValuesField(String name, byte[] bytes) {
             super(name);
             bytesList = new ArrayList<>();

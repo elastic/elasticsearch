@@ -29,6 +29,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -50,6 +51,9 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.LatLonShapeDocValuesQuery;
 import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -58,7 +62,6 @@ import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
@@ -107,7 +110,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         return ((GeoShapeWithDocValuesFieldMapper) in).builder;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
@@ -138,12 +141,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             this.geoFormatterFactory = geoFormatterFactory;
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
-            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), IndexVersion.V_7_8_0.onOrBefore(version));
+            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), IndexVersions.V_7_8_0.onOrBefore(version));
             addScriptValidation(script, indexed, hasDocValues);
         }
 
         // for testing
-        protected Builder setStored(boolean stored) {
+        Builder setStored(boolean stored) {
             this.stored.setValue(stored);
             return this;
         }
@@ -170,7 +173,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeometryFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), GeometryFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -191,7 +194,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             GeoShapeParser parser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.get(),
                 hasDocValues.get(),
                 stored.get(),
@@ -203,7 +206,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             );
             if (script.get() == null) {
                 return new GeoShapeWithDocValuesFieldMapper(
-                    name,
+                    name(),
                     ft,
                     multiFieldsBuilder.build(this, context),
                     copyTo,
@@ -213,7 +216,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 );
             }
             return new GeoShapeWithDocValuesFieldMapper(
-                name,
+                name(),
                 ft,
                 multiFieldsBuilder.build(this, context),
                 copyTo,
@@ -266,7 +269,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             failIfNotIndexedNorDocValuesFallback(context);
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
-            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersion.V_7_5_0)) {
+            if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(IndexVersions.V_7_5_0)) {
                 throw new QueryShardException(
                     context,
                     ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
@@ -335,7 +338,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
             boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
             if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
-                if (parserContext.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
+                if (parserContext.indexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
                     Set<String> deprecatedParams = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
                     throw new IllegalArgumentException(
                         "using deprecated parameters "

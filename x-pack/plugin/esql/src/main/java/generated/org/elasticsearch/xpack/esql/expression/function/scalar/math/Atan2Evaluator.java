@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -13,58 +14,69 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Atan2}.
  * This class is generated. Do not edit it.
  */
 public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator y;
 
   private final EvalOperator.ExpressionEvaluator x;
 
   private final DriverContext driverContext;
 
-  public Atan2Evaluator(EvalOperator.ExpressionEvaluator y, EvalOperator.ExpressionEvaluator x,
-      DriverContext driverContext) {
+  public Atan2Evaluator(Source source, EvalOperator.ExpressionEvaluator y,
+      EvalOperator.ExpressionEvaluator x, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.y = y;
     this.x = x;
     this.driverContext = driverContext;
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref yRef = y.eval(page)) {
-      if (yRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      DoubleBlock yBlock = (DoubleBlock) yRef.block();
-      try (Block.Ref xRef = x.eval(page)) {
-        if (xRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        DoubleBlock xBlock = (DoubleBlock) xRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock yBlock = (DoubleBlock) y.eval(page)) {
+      try (DoubleBlock xBlock = (DoubleBlock) x.eval(page)) {
         DoubleVector yVector = yBlock.asVector();
         if (yVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), yBlock, xBlock));
+          return eval(page.getPositionCount(), yBlock, xBlock);
         }
         DoubleVector xVector = xBlock.asVector();
         if (xVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), yBlock, xBlock));
+          return eval(page.getPositionCount(), yBlock, xBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), yVector, xVector).asBlock());
+        return eval(page.getPositionCount(), yVector, xVector).asBlock();
       }
     }
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock yBlock, DoubleBlock xBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (yBlock.isNull(p) || yBlock.getValueCount(p) != 1) {
+        if (yBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (xBlock.isNull(p) || xBlock.getValueCount(p) != 1) {
+        if (yBlock.getValueCount(p) != 1) {
+          if (yBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (xBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (xBlock.getValueCount(p) != 1) {
+          if (xBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -75,7 +87,7 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
       }
@@ -91,5 +103,30 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(y, x);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory y;
+
+    private final EvalOperator.ExpressionEvaluator.Factory x;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory y,
+        EvalOperator.ExpressionEvaluator.Factory x) {
+      this.source = source;
+      this.y = y;
+      this.x = x;
+    }
+
+    @Override
+    public Atan2Evaluator get(DriverContext context) {
+      return new Atan2Evaluator(source, y.get(context), x.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "Atan2Evaluator[" + "y=" + y + ", x=" + x + "]";
+    }
   }
 }

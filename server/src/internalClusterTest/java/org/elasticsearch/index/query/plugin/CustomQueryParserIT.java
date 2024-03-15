@@ -32,7 +32,7 @@ public class CustomQueryParserIT extends ESIntegTestCase {
         super.setUp();
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("index").setId("1").setSource("field", "value").get();
+        prepareIndex("index").setId("1").setSource("field", "value").get();
         refresh();
     }
 
@@ -42,10 +42,10 @@ public class CustomQueryParserIT extends ESIntegTestCase {
     }
 
     public void testCustomDummyQuery() {
-        assertHitCount(client().prepareSearch("index").setQuery(new DummyQueryBuilder()), 1L);
+        assertHitCount(prepareSearch("index").setQuery(new DummyQueryBuilder()), 1L);
     }
 
     public void testCustomDummyQueryWithinBooleanQuery() {
-        assertHitCount(client().prepareSearch("index").setQuery(new BoolQueryBuilder().must(new DummyQueryBuilder())), 1L);
+        assertHitCount(prepareSearch("index").setQuery(new BoolQueryBuilder().must(new DummyQueryBuilder())), 1L);
     }
 }

@@ -13,12 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -46,158 +44,139 @@ import java.util.zip.CRC32;
  * (possibly the entire blob) and compute its checksum. It is acceptable if the blob is not found but we do not accept the blob being
  * otherwise unreadable.
  */
-public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Response> {
+class GetBlobChecksumAction extends HandledTransportAction<GetBlobChecksumAction.Request, GetBlobChecksumAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(GetBlobChecksumAction.class);
 
-    public static final GetBlobChecksumAction INSTANCE = new GetBlobChecksumAction();
+    static final String NAME = "cluster:admin/repository/analyze/blob/read";
 
-    public static final String NAME = "cluster:admin/repository/analyze/blob/read";
+    private static final int BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
 
-    private GetBlobChecksumAction() {
-        super(NAME, Response::new);
+    private final RepositoriesService repositoriesService;
+
+    GetBlobChecksumAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
+        super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT));
+        this.repositoriesService = repositoriesService;
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
 
-        private static final Logger logger = GetBlobChecksumAction.logger;
+        assert task instanceof CancellableTask;
+        CancellableTask cancellableTask = (CancellableTask) task;
 
-        private static final int BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
-
-        private final RepositoriesService repositoriesService;
-
-        @Inject
-        public TransportAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
-            super(
-                NAME,
-                transportService,
-                actionFilters,
-                Request::new,
-                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT)
-            );
-            this.repositoriesService = repositoriesService;
+        final Repository repository = repositoriesService.repository(request.getRepositoryName());
+        if (repository instanceof BlobStoreRepository == false) {
+            throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob store repository");
         }
 
-        @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        final BlobContainer blobContainer = blobStoreRepository.blobStore()
+            .blobContainer(blobStoreRepository.basePath().add(request.getBlobPath()));
 
-            assert task instanceof CancellableTask;
-            CancellableTask cancellableTask = (CancellableTask) task;
+        logger.trace("handling [{}]", request);
 
-            final Repository repository = repositoriesService.repository(request.getRepositoryName());
-            if (repository instanceof BlobStoreRepository == false) {
-                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob store repository");
+        final InputStream rawInputStream;
+        try {
+            if (request.isWholeBlob()) {
+                rawInputStream = blobContainer.readBlob(OperationPurpose.REPOSITORY_ANALYSIS, request.getBlobName());
+            } else {
+                rawInputStream = blobContainer.readBlob(
+                    OperationPurpose.REPOSITORY_ANALYSIS,
+                    request.getBlobName(),
+                    request.getRangeStart(),
+                    request.getRangeLength()
+                );
             }
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            logger.trace("blob not found for [{}]", request);
+            listener.onResponse(Response.BLOB_NOT_FOUND);
+            return;
+        } catch (IOException e) {
+            logger.warn("failed to read blob for [{}]", request);
+            listener.onFailure(e);
+            return;
+        }
 
-            final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            final BlobContainer blobContainer = blobStoreRepository.blobStore()
-                .blobContainer(blobStoreRepository.basePath().add(request.getBlobPath()));
+        logger.trace("reading blob for [{}]", request);
 
-            logger.trace("handling [{}]", request);
+        final AtomicLong throttleNanos = new AtomicLong();
+        final InputStream throttledInputStream = blobStoreRepository.maybeRateLimitRestores(rawInputStream, throttleNanos::addAndGet);
+        final CRC32 crc32 = new CRC32();
+        final byte[] buffer = new byte[BUFFER_SIZE];
+        long bytesRead = 0L;
+        final long startTimeNanos = System.nanoTime();
+        long firstByteNanos = startTimeNanos;
 
-            final InputStream rawInputStream;
-            try {
-                if (request.isWholeBlob()) {
-                    rawInputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, request.getBlobName());
-                } else {
-                    rawInputStream = blobContainer.readBlob(
-                        OperationPurpose.SNAPSHOT,
-                        request.getBlobName(),
-                        request.getRangeStart(),
-                        request.getRangeLength()
+        boolean success = false;
+        try {
+            while (true) {
+                final int readSize;
+                try {
+                    readSize = throttledInputStream.read(buffer, 0, buffer.length);
+                } catch (IOException e) {
+                    logger.warn("exception while read blob for [{}]", request);
+                    listener.onFailure(e);
+                    return;
+                }
+
+                if (readSize == -1) {
+                    break;
+                }
+
+                if (readSize > 0) {
+                    if (bytesRead == 0L) {
+                        firstByteNanos = System.nanoTime();
+                    }
+
+                    crc32.update(buffer, 0, readSize);
+                    bytesRead += readSize;
+                }
+
+                if (cancellableTask.isCancelled()) {
+                    throw new RepositoryVerificationException(
+                        request.repositoryName,
+                        "cancelled [" + request.getDescription() + "] after reading [" + bytesRead + "] bytes"
                     );
                 }
-            } catch (FileNotFoundException | NoSuchFileException e) {
-                logger.trace("blob not found for [{}]", request);
-                listener.onResponse(Response.BLOB_NOT_FOUND);
-                return;
-            } catch (IOException e) {
-                logger.warn("failed to read blob for [{}]", request);
-                listener.onFailure(e);
-                return;
             }
-
-            logger.trace("reading blob for [{}]", request);
-
-            final AtomicLong throttleNanos = new AtomicLong();
-            final InputStream throttledInputStream = blobStoreRepository.maybeRateLimitRestores(rawInputStream, throttleNanos::addAndGet);
-            final CRC32 crc32 = new CRC32();
-            final byte[] buffer = new byte[BUFFER_SIZE];
-            long bytesRead = 0L;
-            final long startTimeNanos = System.nanoTime();
-            long firstByteNanos = startTimeNanos;
-
-            boolean success = false;
-            try {
-                while (true) {
-                    final int readSize;
-                    try {
-                        readSize = throttledInputStream.read(buffer, 0, buffer.length);
-                    } catch (IOException e) {
-                        logger.warn("exception while read blob for [{}]", request);
-                        listener.onFailure(e);
-                        return;
-                    }
-
-                    if (readSize == -1) {
-                        break;
-                    }
-
-                    if (readSize > 0) {
-                        if (bytesRead == 0L) {
-                            firstByteNanos = System.nanoTime();
-                        }
-
-                        crc32.update(buffer, 0, readSize);
-                        bytesRead += readSize;
-                    }
-
-                    if (cancellableTask.isCancelled()) {
-                        throw new RepositoryVerificationException(
-                            request.repositoryName,
-                            "cancelled [" + request.getDescription() + "] after reading [" + bytesRead + "] bytes"
-                        );
-                    }
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(throttledInputStream);
-                }
+            success = true;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(throttledInputStream);
             }
-            try {
-                throttledInputStream.close();
-            } catch (IOException e) {
-                throw new RepositoryVerificationException(
-                    request.repositoryName,
-                    "failed to close input stream when handling [" + request.getDescription() + "]",
-                    e
-                );
-            }
-
-            final long endTimeNanos = System.nanoTime();
-
-            if (request.isWholeBlob() == false && bytesRead != request.getRangeLength()) {
-                throw new RepositoryVerificationException(
-                    request.repositoryName,
-                    "unexpectedly read [" + bytesRead + "] bytes when handling [" + request.getDescription() + "]"
-                );
-            }
-
-            final Response response = new Response(
-                bytesRead,
-                crc32.getValue(),
-                firstByteNanos - startTimeNanos,
-                endTimeNanos - startTimeNanos,
-                throttleNanos.get()
+        }
+        try {
+            throttledInputStream.close();
+        } catch (IOException e) {
+            throw new RepositoryVerificationException(
+                request.repositoryName,
+                "failed to close input stream when handling [" + request.getDescription() + "]",
+                e
             );
-            logger.trace("responding to [{}] with [{}]", request, response);
-            listener.onResponse(response);
         }
 
+        final long endTimeNanos = System.nanoTime();
+
+        if (request.isWholeBlob() == false && bytesRead != request.getRangeLength()) {
+            throw new RepositoryVerificationException(
+                request.repositoryName,
+                "unexpectedly read [" + bytesRead + "] bytes when handling [" + request.getDescription() + "]"
+            );
+        }
+
+        final Response response = new Response(
+            bytesRead,
+            crc32.getValue(),
+            firstByteNanos - startTimeNanos,
+            endTimeNanos - startTimeNanos,
+            throttleNanos.get()
+        );
+        logger.trace("responding to [{}] with [{}]", request, response);
+        listener.onResponse(response);
     }
 
-    public static class Request extends ActionRequest {
+    static class Request extends ActionRequest {
 
         private final String repositoryName;
         private final String blobPath;
@@ -230,29 +209,29 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
             this.rangeEnd = rangeEnd;
         }
 
-        public String getRepositoryName() {
+        String getRepositoryName() {
             return repositoryName;
         }
 
-        public String getBlobPath() {
+        String getBlobPath() {
             return blobPath;
         }
 
-        public String getBlobName() {
+        String getBlobName() {
             return blobName;
         }
 
-        public long getRangeStart() {
+        long getRangeStart() {
             assert isWholeBlob() == false;
             return rangeStart;
         }
 
-        public long getRangeEnd() {
+        long getRangeEnd() {
             assert isWholeBlob() == false;
             return rangeEnd;
         }
 
-        public long getRangeLength() {
+        long getRangeLength() {
             assert isWholeBlob() == false;
             return rangeEnd - rangeStart;
         }
@@ -303,7 +282,7 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
         }
     }
 
-    public static class Response extends ActionResponse {
+    static class Response extends ActionResponse {
 
         static Response BLOB_NOT_FOUND = new Response(0L, 0L, 0L, 0L, 0L);
 
@@ -355,27 +334,27 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
                 + '}';
         }
 
-        public long getBytesRead() {
+        long getBytesRead() {
             return bytesRead;
         }
 
-        public long getChecksum() {
+        long getChecksum() {
             return checksum;
         }
 
-        public long getFirstByteNanos() {
+        long getFirstByteNanos() {
             return firstByteNanos;
         }
 
-        public long getElapsedNanos() {
+        long getElapsedNanos() {
             return elapsedNanos;
         }
 
-        public long getThrottleNanos() {
+        long getThrottleNanos() {
             return throttleNanos;
         }
 
-        public boolean isNotFound() {
+        boolean isNotFound() {
             return bytesRead == 0L && checksum == 0L && firstByteNanos == 0L && elapsedNanos == 0L && throttleNanos == 0L;
         }
 

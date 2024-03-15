@@ -8,34 +8,52 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
+
 /**
- * Vector implementation that defers to an enclosed IntArray.
+ * Vector implementation that defers to an enclosed {@link IntArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class IntBigArrayVector extends AbstractVector implements IntVector, Releasable {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntBigArrayVector.class);
+    private static final long BASE_RAM_BYTES_USED = 0; // FIXME
 
     private final IntArray values;
-
-    private final IntBlock block;
-
-    public IntBigArrayVector(IntArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
 
     public IntBigArrayVector(IntArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new IntVectorBlock(this);
+    }
+
+    static IntBigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        IntArray values = blockFactory.bigArrays().newIntArray(positions, false);
+        boolean success = false;
+        try {
+            values.fillWith(in);
+            IntBigArrayVector vector = new IntBigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
     }
 
     @Override
     public IntBlock asBlock() {
-        return block;
+        return new IntVectorBlock(this);
     }
 
     @Override
@@ -60,7 +78,8 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
 
     @Override
     public IntVector filter(int... positions) {
-        final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length, true);
+        var blockFactory = blockFactory();
+        final IntArray filtered = blockFactory.bigArrays().newIntArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
@@ -68,11 +87,9 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link IntArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

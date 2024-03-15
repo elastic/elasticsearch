@@ -42,6 +42,7 @@ import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocat
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
@@ -306,7 +307,7 @@ public final class IndexSettings {
                 && fastRefresh == false
                 && value.compareTo(TimeValue.ZERO) > 0
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
-                && indexVersion.after(IndexVersion.V_8_10_0)) {
+                && indexVersion.after(IndexVersions.V_8_10_0)) {
                 throw new IllegalArgumentException(
                     "index setting ["
                         + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
@@ -753,6 +754,7 @@ public final class IndexSettings {
     private volatile long mappingNestedFieldsLimit;
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
+    private volatile boolean ignoreDynamicFieldsBeyondLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
@@ -872,7 +874,7 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
-        assert softDeleteEnabled || version.before(IndexVersion.V_8_0_0) : "soft deletes must be enabled in version " + version;
+        assert softDeleteEnabled || version.before(IndexVersions.V_8_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -897,6 +899,7 @@ public final class IndexSettings {
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
         mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
@@ -976,6 +979,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
+            this::setIgnoreDynamicFieldsBeyondLimit
+        );
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
@@ -1517,6 +1524,14 @@ public final class IndexSettings {
 
     private void setMappingTotalFieldsLimit(long value) {
         this.mappingTotalFieldsLimit = value;
+    }
+
+    private void setIgnoreDynamicFieldsBeyondLimit(boolean ignoreDynamicFieldsBeyondLimit) {
+        this.ignoreDynamicFieldsBeyondLimit = ignoreDynamicFieldsBeyondLimit;
+    }
+
+    public boolean isIgnoreDynamicFieldsBeyondLimit() {
+        return ignoreDynamicFieldsBeyondLimit;
     }
 
     public long getMappingDepthLimit() {

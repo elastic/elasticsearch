@@ -19,7 +19,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +41,8 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.io.IOException;
@@ -61,6 +61,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomInterval;
 import static org.hamcrest.Matchers.equalTo;
@@ -135,69 +136,68 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             )
         );
         LifecyclePolicy policy = new LifecyclePolicy(POLICY_NAME, phases);
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(policy);
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).actionGet());
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
     }
 
     public void testILMDownsampleRollingRestart() throws Exception {
-        try (InternalTestCluster cluster = internalCluster()) {
-            final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
-            cluster.startDataOnlyNodes(3);
-            ensureStableCluster(cluster.size());
-            ensureGreen();
+        final InternalTestCluster cluster = internalCluster();
+        final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
+        cluster.startDataOnlyNodes(3);
+        ensureStableCluster(cluster.size());
+        ensureGreen();
 
-            final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            long startTime = LocalDateTime.parse("1993-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
-            setup(sourceIndex, 1, 0, startTime);
-            final DownsampleConfig config = new DownsampleConfig(randomInterval());
-            final SourceSupplier sourceSupplier = () -> {
-                final String ts = randomDateForInterval(config.getInterval(), startTime);
-                double counterValue = DATE_FORMATTER.parseMillis(ts);
-                final List<String> dimensionValues = new ArrayList<>(5);
-                for (int j = 0; j < randomIntBetween(1, 5); j++) {
-                    dimensionValues.add(randomAlphaOfLength(6));
-                }
-                return XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(FIELD_TIMESTAMP, ts)
-                    .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
-                    .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
-                    .field(FIELD_METRIC_COUNTER, counterValue)
-                    .endObject();
-            };
-            int indexedDocs = bulkIndex(sourceIndex, sourceSupplier, DOC_COUNT);
-            final CountDownLatch disruptionStart = new CountDownLatch(1);
-            final CountDownLatch disruptionEnd = new CountDownLatch(1);
+        final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        long startTime = LocalDateTime.parse("1993-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
+        setup(sourceIndex, 1, 0, startTime);
+        final DownsampleConfig config = new DownsampleConfig(randomInterval());
+        final SourceSupplier sourceSupplier = () -> {
+            final String ts = randomDateForInterval(config.getInterval(), startTime);
+            double counterValue = DATE_FORMATTER.parseMillis(ts);
+            final List<String> dimensionValues = new ArrayList<>(5);
+            for (int j = 0; j < randomIntBetween(1, 5); j++) {
+                dimensionValues.add(randomAlphaOfLength(6));
+            }
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
+                .field(FIELD_METRIC_COUNTER, counterValue)
+                .endObject();
+        };
+        int indexedDocs = bulkIndex(sourceIndex, sourceSupplier, DOC_COUNT);
+        final CountDownLatch disruptionStart = new CountDownLatch(1);
+        final CountDownLatch disruptionEnd = new CountDownLatch(1);
 
-            new Thread(new Disruptor(cluster, sourceIndex, new DisruptionListener() {
-                @Override
-                public void disruptionStart() {
-                    disruptionStart.countDown();
-                }
+        new Thread(new Disruptor(cluster, sourceIndex, new DisruptionListener() {
+            @Override
+            public void disruptionStart() {
+                disruptionStart.countDown();
+            }
 
-                @Override
-                public void disruptionEnd() {
-                    disruptionEnd.countDown();
-                }
-            }, masterNodes.get(0), (ignored) -> {
-                try {
-                    cluster.rollingRestart(new InternalTestCluster.RestartCallback() {
-                        @Override
-                        public boolean validateClusterForming() {
-                            return true;
-                        }
-                    });
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            })).start();
+            @Override
+            public void disruptionEnd() {
+                disruptionEnd.countDown();
+            }
+        }, masterNodes.get(0), (ignored) -> {
+            try {
+                cluster.rollingRestart(new InternalTestCluster.RestartCallback() {
+                    @Override
+                    public boolean validateClusterForming() {
+                        return true;
+                    }
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        })).start();
 
-            final String targetIndex = "downsample-1h-" + sourceIndex;
-            startDownsampleTaskViaIlm(sourceIndex, targetIndex, disruptionStart, disruptionEnd);
-            waitUntil(() -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty());
-            ensureStableCluster(cluster.numDataAndMasterNodes());
-            assertTargetIndex(cluster, targetIndex, indexedDocs);
-        }
+        final String targetIndex = "downsample-1h-" + sourceIndex;
+        startDownsampleTaskViaIlm(sourceIndex, targetIndex, disruptionStart, disruptionEnd);
+        waitUntil(() -> getClusterPendingTasks(cluster.client()).pendingTasks().isEmpty(), 60, TimeUnit.SECONDS);
+        ensureStableCluster(cluster.numDataAndMasterNodes());
+        assertTargetIndex(cluster, targetIndex, indexedDocs);
     }
 
     private void startDownsampleTaskViaIlm(
@@ -239,13 +239,16 @@ public class ILMDownsampleDisruptionIT extends ESIntegTestCase {
             .getIndex(new GetIndexRequest().indices(targetIndex))
             .actionGet();
         assertEquals(1, getIndexResponse.indices().length);
-        final SearchResponse targetIndexSearch = cluster.client()
-            .prepareSearch(targetIndex)
-            .setQuery(new MatchAllQueryBuilder())
-            .setSize(Math.min(DOC_COUNT, indexedDocs))
-            .setTrackTotalHitsUpTo(Integer.MAX_VALUE)
-            .get();
-        assertTrue(targetIndexSearch.getHits().getHits().length > 0);
+        assertResponse(
+            cluster.client()
+                .prepareSearch(targetIndex)
+                .setQuery(new MatchAllQueryBuilder())
+                .setSize(Math.min(DOC_COUNT, indexedDocs))
+                .setTrackTotalHitsUpTo(Integer.MAX_VALUE),
+            targetIndexSearch -> {
+                assertTrue(targetIndexSearch.getHits().getHits().length > 0);
+            }
+        );
     }
 
     private int bulkIndex(final String indexName, final SourceSupplier sourceSupplier, int docCount) throws IOException {

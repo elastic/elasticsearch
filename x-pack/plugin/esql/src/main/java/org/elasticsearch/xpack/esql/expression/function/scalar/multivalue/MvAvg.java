@@ -12,7 +12,9 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -29,7 +31,11 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
  * Reduce a multivalued field to a single valued field containing the average value.
  */
 public class MvAvg extends AbstractMultivalueFunction {
-    public MvAvg(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = "double",
+        description = "Converts a multivalued field into a single valued field containing the average of all of the values."
+    )
+    public MvAvg(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 
@@ -45,13 +51,13 @@ public class MvAvg extends AbstractMultivalueFunction {
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> dvrCtx -> new MvAvgDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvAvgIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+        return switch (PlannerUtils.toElementType(field().dataType())) {
+            case DOUBLE -> new MvAvgDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvAvgIntEvaluator.Factory(fieldEval);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? dvrCtx -> new MvAvgUnsignedLongEvaluator(fieldEval.get(dvrCtx), dvrCtx)
-                : dvrCtx -> new MvAvgLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+                ? new MvAvgUnsignedLongEvaluator.Factory(fieldEval)
+                : new MvAvgLongEvaluator.Factory(fieldEval);
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

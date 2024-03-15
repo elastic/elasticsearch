@@ -88,7 +88,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,13 +101,13 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachFileRecursively;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -1287,7 +1286,7 @@ public class InstallPluginActionTests extends ESTestCase {
             )
         );
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
-        assertThat(e, hasToString(matches("checksum file at \\[.*\\] is not for this plugin")));
+        assertThat(e, hasToString(matchesRegex(".*checksum file at \\[.*\\] is not for this plugin.*")));
     }
 
     public void testInvalidShaFileContainingExtraLine() throws Exception {
@@ -1589,15 +1588,6 @@ public class InstallPluginActionTests extends ESTestCase {
         assertThat(InstallPluginAction.getSemanticVersion("1.2"), nullValue());
         assertThat(InstallPluginAction.getSemanticVersion("foo"), nullValue());
         assertThat(InstallPluginAction.getSemanticVersion("foo-1.2.3"), nullValue());
-    }
-
-    private Map<String, Map<String, String>> namedComponentsMap() {
-        Map<String, Map<String, String>> result = new LinkedHashMap<>();
-        Map<String, String> extensibles = new LinkedHashMap<>();
-        extensibles.put("a_component", "p.A");
-        extensibles.put("b_component", "p.B");
-        result.put("org.elasticsearch.plugins.cli.test_model.ExtensibleInterface", extensibles);
-        return result;
     }
 
     private static String namedComponentsJSON() {

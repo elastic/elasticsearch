@@ -4,7 +4,7 @@
 <titleabbrev>Put Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview:[]
+preview::[]
 
 Configures the data stream lifecycle for the targeted data streams.
 
@@ -53,6 +53,22 @@ Defaults to `open`.
 (Optional, string)
 If defined, every document added to this data stream will be stored at least for this time frame. Any time after this
 duration the document could be deleted. When empty, every document in this data stream will be stored indefinitely.
+
+`enabled`::
+(Optional, boolean)
+If defined, it turns data streqm lifecycle on/off (`true`/`false`) for this data stream.
+A data stream lifecycle that's disabled (`enabled: false`) will have no effect on the
+data stream. Defaults to `true`.
+
+`downsampling`::
+(Optional, array)
+An optional array of downsampling configuration objects, each defining an `after`
+interval representing when the backing index is meant to be downsampled (the time 
+frame is calculated since the index was rolled over, i.e. generation time) and
+a `fixed_interval` representing the downsampling interval (the minimum `fixed_interval`
+value is `5m`). A maximum number of 10 downsampling rounds can be configured.
+See <<data-streams-put-lifecycle-downsampling-example, configuration example>> below.
+
 ====
 
 [[data-streams-put-lifecycle-example]]
@@ -78,3 +94,29 @@ When the lifecycle is successfully updated in all data streams, you receive the 
   "acknowledged": true
 }
 --------------------------------------------------
+
+[[data-streams-put-lifecycle-downsampling-example]]
+==== {api-examples-title}
+
+The following example configures two downsampling rounds, the first one starting
+one day after the backing index is rolled over (or later, if the index is still 
+within its write-accepting <<time-bound-indices, time bounds>>) with an interval
+of `10m`, and a second round starting 7 days after rollover at an interval of `1d`:
+
+[source,console]
+--------------------------------------------------------------------
+PUT _data_stream/my-weather-sensor-data-stream/_lifecycle
+{
+    "downsampling": [
+      {
+        "after": "1d",
+        "fixed_interval": "10m"
+      },
+      {
+        "after": "7d",
+        "fixed_interval": "1d"
+      }
+    ]
+}
+--------------------------------------------------------------------
+//TEST[skip:downsampling requires waiting for indices to be out of time bounds]

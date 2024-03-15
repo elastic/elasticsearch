@@ -1,0 +1,285 @@
+[chapter]
+[[getting-started]]
+= Quick start
+
+This guide helps you learn how to:
+
+* install and run {es} and {kib} (using {ecloud} or Docker),
+* add simple (non-timestamped) dataset to {es},
+* run basic searches.
+
+[TIP]
+====
+If you're interested in using {es} with Python, check out Elastic Search Labs. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
+
+* https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[Tutorial]: this walks you through building a complete search solution with {es}, from the ground up.
+* https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs` repository]: it contains a range of Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].
+====
+
+[discrete]
+[[run-elasticsearch]]
+=== Run {es}
+
+The simplest way to set up {es} is to create a managed deployment with {ess} on
+{ecloud}. If you prefer to manage your own test environment, install and
+run {es} using Docker.
+
+include::{es-repo-dir}/tab-widgets/code.asciidoc[]
+include::{es-repo-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
+
+[discrete]
+[[send-requests-to-elasticsearch]]
+=== Send requests to {es}
+
+You send data and other requests to {es} using REST APIs. This lets you interact
+with {es} using any client that sends HTTP requests, such as
+https://curl.se[curl]. You can also use {kib}'s Console to send requests to
+{es}.
+
+include::{es-repo-dir}/tab-widgets/api-call-widget.asciidoc[]
+
+[discrete]
+[[add-data]]
+=== Add data
+
+You add data to {es} as JSON objects called documents. {es} stores these
+documents in searchable indices.
+
+[discrete]
+[[add-single-document]]
+==== Add a single document
+
+Submit the following indexing request to add a single document to the
+`books` index.
+The request automatically creates the index.
+
+////
+[source,console]
+----
+PUT books
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+POST books/_doc
+{"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+----
+// TEST[s/_doc/_doc?refresh=wait_for/]
+
+The response includes metadata that {es} generates for the document including a unique `_id` for the document within the index.
+
+.Expand to see example response
+[%collapsible]
+===============
+[source,console-result]
+----
+{
+  "_index": "books",
+  "_id": "O0lG2IsBaSa7VYx_rEia",
+  "_version": 1,
+  "result": "created",
+  "_shards": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0
+  },
+  "_seq_no": 0,
+  "_primary_term": 1
+}
+----
+// TEST[skip:TODO]
+===============
+
+[discrete]
+[[add-multiple-documents]]
+==== Add multiple documents
+
+Use the `_bulk` endpoint to add multiple documents in one request. Bulk data
+must be newline-delimited JSON (NDJSON). Each line must end in a newline
+character (`\n`), including the last line.
+
+[source,console]
+----
+POST /_bulk
+{ "index" : { "_index" : "books" } }
+{"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+{ "index" : { "_index" : "books" } }
+{"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+{ "index" : { "_index" : "books" } }
+{"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+{ "index" : { "_index" : "books" } }
+{"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+{ "index" : { "_index" : "books" } }
+{"name": "The Handmaids Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+----
+// TEST[continued]
+
+You should receive a response indicating there were no errors.
+
+.Expand to see example response
+[%collapsible]
+===============
+[source,console-result]
+----
+{
+  "errors": false,
+  "took": 29,
+  "items": [
+    {
+      "index": {
+        "_index": "books",
+        "_id": "QklI2IsBaSa7VYx_Qkh-",
+        "_version": 1,
+        "result": "created",
+        "_shards": {
+          "total": 2,
+          "successful": 2,
+          "failed": 0
+        },
+        "_seq_no": 1,
+        "_primary_term": 1,
+        "status": 201
+      }
+    },
+    {
+      "index": {
+        "_index": "books",
+        "_id": "Q0lI2IsBaSa7VYx_Qkh-",
+        "_version": 1,
+        "result": "created",
+        "_shards": {
+          "total": 2,
+          "successful": 2,
+          "failed": 0
+        },
+        "_seq_no": 2,
+        "_primary_term": 1,
+        "status": 201
+      }
+    },
+    {
+      "index": {
+        "_index": "books",
+        "_id": "RElI2IsBaSa7VYx_Qkh-",
+        "_version": 1,
+        "result": "created",
+        "_shards": {
+          "total": 2,
+          "successful": 2,
+          "failed": 0
+        },
+        "_seq_no": 3,
+        "_primary_term": 1,
+        "status": 201
+      }
+    },
+    {
+      "index": {
+        "_index": "books",
+        "_id": "RUlI2IsBaSa7VYx_Qkh-",
+        "_version": 1,
+        "result": "created",
+        "_shards": {
+          "total": 2,
+          "successful": 2,
+          "failed": 0
+        },
+        "_seq_no": 4,
+        "_primary_term": 1,
+        "status": 201
+      }
+    },
+    {
+      "index": {
+        "_index": "books",
+        "_id": "RklI2IsBaSa7VYx_Qkh-",
+        "_version": 1,
+        "result": "created",
+        "_shards": {
+          "total": 2,
+          "successful": 2,
+          "failed": 0
+        },
+        "_seq_no": 5,
+        "_primary_term": 1,
+        "status": 201
+      }
+    }
+  ]
+}
+----
+// TEST[skip:TODO]
+===============
+
+[discrete]
+[[qs-search-data]]
+=== Search data
+
+Indexed documents are available for search in near real-time.
+
+[discrete]
+[[search-all-documents]]
+==== Search all documents
+
+Run the following command to search the `books` index for all documents:
+[source,console]
+----
+GET books/_search
+----
+// TEST[continued]
+
+The `_source` of each hit contains the original
+JSON object submitted during indexing.
+
+[discrete]
+[[qs-match-query]]
+==== `match` query
+
+You can use the `match` query to search for documents that contain a specific value in a specific field.
+This is the standard query for performing full-text search, including fuzzy matching and phrase searches.
+
+Run the following command to search the `books` index for documents containing `brave` in the `name` field:
+[source,console]
+----
+GET books/_search
+{
+  "query": {
+    "match": {
+      "name": "brave"
+    }
+  }
+}
+----
+// TEST[continued]
+
+[discrete]
+[[whats-next]]
+=== Next steps
+
+Now that {es} is up and running and you've learned the basics, you'll probably want to test out larger datasets, or index your own data.
+
+[discrete]
+[[whats-next-search-learn-more]]
+==== Learn more about search queries
+
+* <<search-with-elasticsearch>>. Jump here to learn about exact value search, full-text search, vector search, and more, using the <<search-search,search API>>.
+
+[discrete]
+[[whats-next-more-data]]
+==== Add more data
+
+* Learn how to {kibana-ref}/sample-data.html[install sample data] using {kib}. This is a quick way to test out {es} on larger workloads.
+* Learn how to use the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[upload data UI] in {kib} to add your own CSV, TSV, or JSON files.
+* Use the https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html[bulk API] to ingest your own datasets to {es}.
+
+[discrete]
+[[whats-next-client-libraries]]
+==== {es} programming language clients
+
+* Check out our https://www.elastic.co/guide/en/elasticsearch/client/index.html[client library] to work with your {es} instance in your preferred programming language.
+* If you're using Python, check out https://www.elastic.co/search-labs[Elastic Search Labs] for a range of examples that use the {es} Python client. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
+** This extensive, hands-on https://www.elastic.co/search-labs/tutorials/search-tutorial/welcome[tutorial] 
+walks you through building a complete search solution with {es}, from the ground up.
+** https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] contains a range of executable Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].

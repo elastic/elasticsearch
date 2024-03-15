@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -51,8 +54,11 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -60,8 +66,10 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -221,7 +229,7 @@ public class StatementParserTests extends ESTestCase {
                 List.of(
                     new Alias(
                         EMPTY,
-                        "fn(a+1)",
+                        "fn(a + 1)",
                         new UnresolvedFunction(EMPTY, "fn", DEFAULT, List.of(new Add(EMPTY, attribute("a"), integer(1))))
                     )
                 )
@@ -574,35 +582,32 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testMetadataFieldOnOtherSources() {
+        expectError("row a = 1 metadata _index", "line 1:20: extraneous input '_index' expecting <EOF>");
+        expectError("show functions metadata _index", "line 1:16: token recognition error at: 'm'");
         expectError(
-            "row a = 1 [metadata _index]",
-            "1:11: mismatched input '[' expecting {<EOF>, PIPE, 'and', COMMA, 'or', '+', '-', '*', '/', '%'}"
-        );
-        expectError("show functions [metadata _index]", "line 1:16: mismatched input '[' expecting {<EOF>, PIPE}");
-        expectError(
-            "explain [from foo] [metadata _index]",
-            "line 1:20: mismatched input '[' expecting {PIPE, COMMA, OPENING_BRACKET, ']'}"
+            "explain [from foo] metadata _index",
+            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'metadata'}"
         );
     }
 
     public void testMetadataFieldMultipleDeclarations() {
-        expectError("from test [metadata _index, _version, _index]", "1:40: metadata field [_index] already declared [@1:21]");
+        expectError("from test metadata _index, _version, _index", "1:39: metadata field [_index] already declared [@1:20]");
     }
 
     public void testMetadataFieldUnsupportedPrimitiveType() {
-        expectError("from test [metadata _tier]", "line 1:22: unsupported metadata field [_tier]");
+        expectError("from test metadata _tier", "line 1:21: unsupported metadata field [_tier]");
     }
 
     public void testMetadataFieldUnsupportedCustomType() {
-        expectError("from test [metadata _feature]", "line 1:22: unsupported metadata field [_feature]");
+        expectError("from test metadata _feature", "line 1:21: unsupported metadata field [_feature]");
     }
 
     public void testMetadataFieldNotFoundNonExistent() {
-        expectError("from test [metadata _doesnot_compute]", "line 1:22: unsupported metadata field [_doesnot_compute]");
+        expectError("from test metadata _doesnot_compute", "line 1:21: unsupported metadata field [_doesnot_compute]");
     }
 
     public void testMetadataFieldNotFoundNormalField() {
-        expectError("from test [metadata emp_no]", "line 1:22: unsupported metadata field [emp_no]");
+        expectError("from test metadata emp_no", "line 1:21: unsupported metadata field [emp_no]");
     }
 
     public void testDissectPattern() {
@@ -613,12 +618,14 @@ public class StatementParserTests extends ESTestCase {
         assertEquals("", dissect.parser().appendSeparator());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
 
-        cmd = processingCommand("dissect a \"%{foo}\" append_separator=\",\"");
-        assertEquals(Dissect.class, cmd.getClass());
-        dissect = (Dissect) cmd;
-        assertEquals("%{foo}", dissect.parser().pattern());
-        assertEquals(",", dissect.parser().appendSeparator());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        for (String separatorName : List.of("append_separator", "APPEND_SEPARATOR", "AppEnd_SeparAtor")) {
+            cmd = processingCommand("dissect a \"%{foo}\" " + separatorName + "=\",\"");
+            assertEquals(Dissect.class, cmd.getClass());
+            dissect = (Dissect) cmd;
+            assertEquals("%{foo}", dissect.parser().pattern());
+            assertEquals(",", dissect.parser().appendSeparator());
+            assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        }
 
         for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
             Tuple.tuple("from a | dissect foo \"\"", "[]"),
@@ -634,6 +641,7 @@ public class StatementParserTests extends ESTestCase {
             "from a | dissect foo \"%{bar}\" append_separator=3",
             "Invalid value for dissect append_separator: expected a string, but was [3]"
         );
+        expectError("from a | dissect foo \"%{}\"", "Invalid pattern for dissect: [%{}]");
     }
 
     public void testGrokPattern() {
@@ -671,7 +679,16 @@ public class StatementParserTests extends ESTestCase {
 
     public void testEnrich() {
         assertEquals(
-            new Enrich(EMPTY, PROCESSING_CMD_INPUT, new Literal(EMPTY, "countries", KEYWORD), new EmptyAttribute(EMPTY), null, List.of()),
+            new Enrich(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                null,
+                new Literal(EMPTY, "countries", KEYWORD),
+                new EmptyAttribute(EMPTY),
+                null,
+                Map.of(),
+                List.of()
+            ),
             processingCommand("enrich countries")
         );
 
@@ -679,12 +696,29 @@ public class StatementParserTests extends ESTestCase {
             new Enrich(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
+                null,
+                new Literal(EMPTY, "index-policy", KEYWORD),
+                new UnresolvedAttribute(EMPTY, "field_underscore"),
+                null,
+                Map.of(),
+                List.of()
+            ),
+            processingCommand("enrich index-policy ON field_underscore")
+        );
+
+        Enrich.Mode mode = randomFrom(Enrich.Mode.values());
+        assertEquals(
+            new Enrich(
+                EMPTY,
+                PROCESSING_CMD_INPUT,
+                mode,
                 new Literal(EMPTY, "countries", KEYWORD),
                 new UnresolvedAttribute(EMPTY, "country_code"),
                 null,
+                Map.of(),
                 List.of()
             ),
-            processingCommand("enrich countries ON country_code")
+            processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
         expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
@@ -697,6 +731,10 @@ public class StatementParserTests extends ESTestCase {
             "from a | enrich countries on foo with x* = bar ",
             "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
         );
+        expectError(
+            "from a | enrich typo:countries on foo",
+            "line 1:18: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
+        );
     }
 
     public void testMvExpand() {
@@ -706,9 +744,21 @@ public class StatementParserTests extends ESTestCase {
         assertThat(expand.target(), equalTo(attribute("a")));
     }
 
+    // see https://github.com/elastic/elasticsearch/issues/103331
+    public void testKeepStarMvExpand() {
+        try {
+            String query = "from test | keep * | mv_expand a";
+            var plan = statement(query);
+        } catch (UnresolvedException e) {
+            fail(e, "Regression: https://github.com/elastic/elasticsearch/issues/103331");
+        }
+
+    }
+
     public void testUsageOfProject() {
-        processingCommand("project a");
-        assertWarnings("PROJECT command is no longer supported, please use KEEP instead");
+        String query = "from test | project foo, bar";
+        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
+        assertThat(e.getMessage(), containsString("mismatched input 'project' expecting"));
     }
 
     public void testInputParams() {
@@ -796,11 +846,81 @@ public class StatementParserTests extends ESTestCase {
         expectError("row x = ?, y = ?", List.of(new TypedParamValue("integer", 1)), "Not enough actual parameters 1");
     }
 
+    public void testFieldContainingDotsAndNumbers() {
+        LogicalPlan where = processingCommand("where `a.b.1m.4321`");
+        assertThat(where, instanceOf(Filter.class));
+        Filter w = (Filter) where;
+        assertThat(w.child(), equalTo(PROCESSING_CMD_INPUT));
+        assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
+    }
+
+    public void testFieldQualifiedName() {
+        LogicalPlan where = processingCommand("where a.b.`1m`.`4321`");
+        assertThat(where, instanceOf(Filter.class));
+        Filter w = (Filter) where;
+        assertThat(w.child(), equalTo(PROCESSING_CMD_INPUT));
+        assertThat(Expressions.name(w.condition()), equalTo("a.b.1m.4321"));
+    }
+
+    public void testQuotedName() {
+        // row `my-field`=123 | stats count(`my-field`) | eval x = `count(`my-field`)`
+        LogicalPlan plan = processingCommand("stats count(`my-field`) |  keep `count(``my-field``)`");
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("count(`my-field`)"));
+    }
+
     private void assertIdentifierAsIndexPattern(String identifier, String statement) {
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(EsqlUnresolvedRelation.class));
         EsqlUnresolvedRelation table = (EsqlUnresolvedRelation) from;
         assertThat(table.table().index(), is(identifier));
+    }
+
+    public void testIdPatternUnquoted() throws Exception {
+        var string = "regularString";
+        assertThat(breakIntoFragments(string), contains(string));
+    }
+
+    public void testIdPatternQuoted() throws Exception {
+        var string = "`escaped string`";
+        assertThat(breakIntoFragments(string), contains(string));
+    }
+
+    public void testIdPatternQuotedWithDoubleBackticks() throws Exception {
+        var string = "`escaped``string`";
+        assertThat(breakIntoFragments(string), contains(string));
+    }
+
+    public void testIdPatternUnquotedAndQuoted() throws Exception {
+        var string = "this`is`a`mix`of`ids`";
+        assertThat(breakIntoFragments(string), contains("this", "`is`", "a", "`mix`", "of", "`ids`"));
+    }
+
+    public void testIdPatternQuotedTraling() throws Exception {
+        var string = "`foo`*";
+        assertThat(breakIntoFragments(string), contains("`foo`", "*"));
+    }
+
+    public void testIdPatternWithDoubleQuotedStrings() throws Exception {
+        var string = "`this``is`a`quoted `` string``with`backticks";
+        assertThat(breakIntoFragments(string), contains("`this``is`", "a", "`quoted `` string``with`", "backticks"));
+    }
+
+    public void testSpaceNotAllowedInIdPattern() throws Exception {
+        expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {'.', 'as'}");
+    }
+
+    public void testSpaceNotAllowedInIdPatternKeep() throws Exception {
+        expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
+    }
+
+    public void testEnrichOnMatchField() {
+        var plan = statement("ROW a = \"1\" | ENRICH languages_policy ON a WITH ```name``* = language_name`");
+        var enrich = as(plan, Enrich.class);
+        var lists = enrich.enrichFields();
+        assertThat(lists, hasSize(1));
+        var ua = as(lists.get(0), UnresolvedAttribute.class);
+        assertThat(ua.name(), is("`name`* = language_name"));
     }
 
     private LogicalPlan statement(String e) {

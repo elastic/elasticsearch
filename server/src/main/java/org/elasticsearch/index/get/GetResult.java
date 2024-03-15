@@ -52,17 +52,16 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
 
-    private String index;
-    private String id;
-    private long version;
-    private long seqNo;
-    private long primaryTerm;
-    private boolean exists;
+    private final String index;
+    private final String id;
+    private final long version;
+    private final long seqNo;
+    private final long primaryTerm;
+    private final boolean exists;
     private final Map<String, DocumentField> documentFields;
     private final Map<String, DocumentField> metaFields;
     private Map<String, Object> sourceAsMap;
     private BytesReference source;
-    private byte[] sourceAsBytes;
 
     public GetResult(StreamInput in) throws IOException {
         index = in.readString();
@@ -156,20 +155,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     }
 
     /**
-     * The source of the document if exists.
-     */
-    public byte[] source() {
-        if (source == null) {
-            return null;
-        }
-        if (sourceAsBytes != null) {
-            return sourceAsBytes;
-        }
-        this.sourceAsBytes = BytesReference.toBytes(sourceRef());
-        return this.sourceAsBytes;
-    }
-
-    /**
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesReference sourceRef() {
@@ -227,10 +212,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
         sourceAsMap = Source.fromBytes(source).source();
         return sourceAsMap;
-    }
-
-    public Map<String, Object> getSource() {
-        return sourceAsMap();
     }
 
     public Map<String, DocumentField> getMetadataFields() {

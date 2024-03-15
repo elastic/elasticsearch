@@ -8,7 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -433,7 +433,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             shardId,
             null,
             successfulShardStatus(nodeId),
-            ActionListener.running(() -> fail("should not complete publication"))
+            ActionTestUtils.assertNoFailureListener(t -> {})
         );
     }
 
@@ -443,7 +443,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             null,
             shardId,
             successfulShardStatus(nodeId),
-            ActionListener.running(() -> fail("should not complete publication"))
+            ActionTestUtils.assertNoFailureListener(t -> {})
         );
     }
 
@@ -504,7 +504,7 @@ public class SnapshotsServiceTests extends ESTestCase {
     private static ClusterState applyUpdates(ClusterState state, SnapshotsService.SnapshotTask... updates) throws Exception {
         return ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(state, batchExecutionContext -> {
             final SnapshotsInProgress existing = SnapshotsInProgress.get(batchExecutionContext.initialState());
-            final var context = new SnapshotsService.SnapshotShardsUpdateContext(batchExecutionContext);
+            final var context = new SnapshotsService.SnapshotShardsUpdateContext(batchExecutionContext, (a, b, c) -> {});
             final SnapshotsInProgress updated = context.computeUpdatedState();
             context.completeWithUpdatedState(updated);
             if (existing == updated) {

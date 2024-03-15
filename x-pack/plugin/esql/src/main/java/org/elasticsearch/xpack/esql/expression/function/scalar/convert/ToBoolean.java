@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -26,36 +25,32 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToBoolean extends AbstractConvertFunction {
 
-    private static final Map<
-        DataType,
-        TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>> EVALUATORS = Map.of(
-            BOOLEAN,
-            (fieldEval, source, driverContext) -> fieldEval,
-            KEYWORD,
-            ToBooleanFromStringEvaluator::new,
-            DOUBLE,
-            ToBooleanFromDoubleEvaluator::new,
-            LONG,
-            ToBooleanFromLongEvaluator::new,
-            UNSIGNED_LONG,
-            ToBooleanFromUnsignedLongEvaluator::new,
-            INTEGER,
-            ToBooleanFromIntEvaluator::new
-        );
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(BOOLEAN, (field, source) -> field),
+        Map.entry(KEYWORD, ToBooleanFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToBooleanFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToBooleanFromDoubleEvaluator.Factory::new),
+        Map.entry(LONG, ToBooleanFromLongEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToBooleanFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new)
+    );
 
-    public ToBoolean(Source source, Expression field) {
+    @FunctionInfo(returnType = "boolean", description = "Converts an input value to a boolean value.")
+    public ToBoolean(
+        Source source,
+        @Param(name = "v", type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+    ) {
         super(source, field);
     }
 
     @Override
-    protected
-        Map<DataType, TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>>
-        evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 

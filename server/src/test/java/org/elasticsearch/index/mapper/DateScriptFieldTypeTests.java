@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
@@ -469,6 +470,28 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 createMapperService(mapping.get());
             }).getMessage()
         );
+    }
+
+    public void testBlockLoader() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                DateScriptFieldType fieldType = build("add_days", Map.of("days", 1), OnScriptError.FAIL);
+                assertThat(
+                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType),
+                    equalTo(List.of(1595518581354L, 1595518581355L))
+                );
+                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(1595518581354L, 1595518581355L)));
+            }
+        }
     }
 
     @Override

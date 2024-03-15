@@ -21,19 +21,21 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:elasticsearch-dissect')
   implementation project(':libs:elasticsearch-grok')
+  // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
   testImplementation project('qa:testFixtures')
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackModule('security'))))
+  testImplementation project(path: xpackModule('enrich'))
+
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:ingest-common')
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
-  internalClusterTestImplementation project(":client:rest-high-level")
   internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
@@ -56,7 +58,7 @@ sourceSets.main.java {
   exclude 'generated/**'
 }
 
-tasks.getByName('test') {
+tasks.named("test").configure {
   if (BuildParams.isCi() == false) {
     systemProperty 'generateDocs', true
     doFirst {
@@ -196,6 +198,23 @@ tasks.register("regen") {
     // remove tabs in antlr generated files
     ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
       fileset(dir: outputPath, includes: 'EsqlBase*.java')
+    }
+    // suppress this-escape warnings on EsqlBaseLexer
+    ant.replaceregexp(
+      match: 'public EsqlBaseLexer',
+      replace: '@SuppressWarnings("this-escape")${line.separator}  public EsqlBaseLexer',
+      encoding: 'UTF-8'
+    ) {
+      fileset(dir: outputPath, includes: 'EsqlBaseLexer.java')
+    }
+    // suppress this-escape warnings on all internal EsqlBaseParser class constructores
+    ant.replaceregexp(
+      match: '([ ]+)public ([A-Z][a-z]+[a-z,A-Z]+\\()',
+      flags: 'g',
+      replace: '\\1@SuppressWarnings("this-escape")${line.separator}\\1public \\2',
+      encoding: 'UTF-8'
+    ) {
+      fileset(dir: outputPath, includes: 'EsqlBaseParser.java')
     }
     // fix line endings
     ant.fixcrlf(srcdir: outputPath, eol: 'lf') {

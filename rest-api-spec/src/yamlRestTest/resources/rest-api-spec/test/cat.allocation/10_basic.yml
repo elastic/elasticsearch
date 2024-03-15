@@ -2,8 +2,8 @@
 "Help":
 
   - skip:
-      version: " - 8.9.99"
-      reason:  "node.role column added in 8.10.0"
+      version: " - 8.13.99"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast are added in 8.14.0"
 
   - do:
       cat.allocation:
@@ -11,20 +11,27 @@
 
   - match:
       $body: |
-               /^  shards            .+   \n
-                   disk.indices      .+   \n
-                   disk.used         .+   \n
-                   disk.avail        .+   \n
-                   disk.total        .+   \n
-                   disk.percent      .+   \n
-                   host              .+   \n
-                   ip                .+   \n
-                   node              .+   \n
-                   node.role         .+   \n
+               /^  shards                .+   \n
+                   shards.undesired      .+   \n
+                   write_load.forecast   .+   \n
+                   disk.indices.forecast .+   \n
+                   disk.indices          .+   \n
+                   disk.used             .+   \n
+                   disk.avail            .+   \n
+                   disk.total            .+   \n
+                   disk.percent          .+   \n
+                   host                  .+   \n
+                   ip                    .+   \n
+                   node                  .+   \n
+                   node.role             .+   \n
                $/
 
 ---
 "One index":
+
+  - skip:
+      version: " - 8.13.99"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
         indices.create:
@@ -38,6 +45,9 @@
             /^
               ( \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+
+                \d+                    \s+
+                \d+(\.\d+)?            \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
@@ -45,19 +55,24 @@
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                [-\w.]+
+                [-\w.]+                \s+
+                [\w]+
                 \n
               )+
               (
                 \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+
-                UNASSIGNED
+                UNASSIGNED             \s*
                 \n
               )?
             $/
 
 ---
 "Node ID":
+
+  - skip:
+      version: " - 8.13.99"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
         cat.allocation:
@@ -67,6 +82,9 @@
       $body: |
             /^
               ( \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                \d+                    \s+
+                \d+(\.\d+)?            \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
@@ -74,7 +92,8 @@
                 (\d+                  \s+)?  #no value from client nodes
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                [-\w.]+
+                [-\w.]+                \s+
+                [\w]+
                 \n
               )
             $/
@@ -89,8 +108,11 @@
             $/
 
 ---
-
 "All Nodes":
+
+   - skip:
+      version: " - 8.13.99"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
    - do:
          cat.allocation:
@@ -101,6 +123,9 @@
              /^
                ( \s*                          #allow leading spaces to account for right-justified text
                  \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                 \d+                    \s+
+                 \d+(\.\d+)?            \s+
+                 \d+(\.\d+)?[kmgt]?b    \s+
                  \d+(\.\d+)?[kmgt]?b    \s+
                  \d+(\.\d+)?[kmgt]?b    \s+
                  (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
@@ -108,19 +133,24 @@
                  (\d+                  \s+)?  #no value from client nodes
                  [-\w.]+                \s+
                  \d+(\.\d+){3}          \s+
-                 [-\w.]+
+                 [-\w.]+                \s+
+                 [\w]+
                  \n
                )+
                (
                  \s*                          #allow leading spaces to account for right-justified text
                  \d+                    \s+
-                 UNASSIGNED
+                 UNASSIGNED             \s*
                  \n
                )?
              $/
 
 ---
 "Column headers":
+
+  - skip:
+      version: " - 8.13.99"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
         cat.allocation:
@@ -129,6 +159,9 @@
 
       $body: |
            /^  shards                  \s+
+               shards.undesired        \s+
+               write_load.forecast     \s+
+               disk.indices.forecast   \s+
                disk.indices            \s+
                disk.used               \s+
                disk.avail              \s+
@@ -136,11 +169,15 @@
                disk.percent            \s+
                host                    \s+
                ip                      \s+
-               node
+               node                    \s+
+               node.role
                \n
 
               ( \s*                          #allow leading spaces to account for right-justified text
                 \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                \d+                    \s+
+                \d+(\.\d+)?            \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
@@ -148,7 +185,8 @@
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                [-\w.]+
+                [-\w.]+                \s+
+                [\w]+
                 \n
               )+
             $/
@@ -190,8 +228,11 @@
 
 
 ---
-
 "Bytes":
+
+  - skip:
+      version: " - 8.13.99"
+      reason:  "shards.undesired, write_load.forecast and disk.indices.forecast columns are added in 8.14.0"
 
   - do:
       cat.allocation:
@@ -201,6 +242,9 @@
       $body: |
             /^
               ( \d+                 \s+    #usually 0, unless some system index has been recreated before this runs
+                \d+                 \s+
+                \d+(\.\d+)?         \s+
+                \d+                 \s+
                 0                   \s+
                 \d+                 \s+
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
@@ -208,13 +252,13 @@
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+             \s+
                 \d+(\.\d+){3}       \s+
-                [-\w.]+
+                [-\w.]+             \s+
+                [\w]+
                 \n
               )+
             $/
 
 ---
-
 "Node roles":
 
   - skip:
@@ -229,6 +273,28 @@
       $body: |
         /^
           ( [-\w.]+                \s+
+            [\w]+
+            \n
+          )+
+        $/
+
+---
+"Node forecasts":
+
+  - skip:
+      version: " - 8.13.99"
+      reason:  "write_load.forecast and disk.indices.forecast columns added in 8.14.0"
+
+  - do:
+      cat.allocation:
+        h: [node, shards.undesired, write_load.forecast, disk.indices.forecast]
+
+  - match:
+      $body: |
+        /^
+          ( [-\w.]+                \s+
+            [-\w.]+                \s+
+            [-\w.]+                \s+
             [\w]+
             \n
           )+

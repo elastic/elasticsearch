@@ -22,6 +22,11 @@ public class ModulesBuilder implements Iterable<Module> {
         return this;
     }
 
+    public <T> T bindToInstance(Class<T> cls, T instance) {
+        modules.add(b -> b.bind(cls).toInstance(instance));
+        return instance;
+    }
+
     @Override
     public Iterator<Module> iterator() {
         return modules.iterator();

@@ -115,7 +115,7 @@ public class StoredFieldsContext implements Writeable {
         StoredFieldsContext that = (StoredFieldsContext) o;
 
         if (fetchFields != that.fetchFields) return false;
-        return fieldNames != null ? fieldNames.equals(that.fieldNames) : that.fieldNames == null;
+        return Objects.equals(fieldNames, that.fieldNames);
 
     }
 
@@ -164,7 +164,7 @@ public class StoredFieldsContext implements Writeable {
             return fromList(Collections.singletonList(parser.text()));
         } else if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
             }
             return fromList(list);

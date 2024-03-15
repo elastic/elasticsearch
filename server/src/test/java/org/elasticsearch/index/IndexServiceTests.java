@@ -275,7 +275,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertEquals(1000, refreshTask.getInterval().millis());
         assertTrue(indexService.getRefreshTask().mustReschedule());
         IndexShard shard = indexService.getShard(0);
-        client().prepareIndex("test").setId("0").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("0").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         // now disable the refresh
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1))
@@ -294,7 +294,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         });
         assertFalse(refreshTask.isClosed());
         // refresh every millisecond
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1ms"))
             .get();
@@ -306,7 +306,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
                 assertEquals(2, search.totalHits.value);
             }
         });
-        client().prepareIndex("test").setId("2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         assertBusy(() -> {
             // this one becomes visible due to the scheduled refresh
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
@@ -324,7 +324,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
         assertTrue(indexService.getRefreshTask().mustReschedule());
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertFalse(shard.isSyncNeeded()));
     }
@@ -344,7 +344,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getFsyncTask().mustReschedule());
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         assertNotNull(indexService.getFsyncTask());
         final IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertFalse(shard.isSyncNeeded()));
@@ -367,7 +367,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         ensureGreen("test");
         assertTrue(indexService.getTrimTranslogTask().mustReschedule());
-        client().prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         indicesAdmin().prepareFlush("test").get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> assertThat(IndexShardTestCase.getTranslog(shard).totalOperations(), equalTo(0)));
@@ -384,7 +384,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         int translogOps = 0;
         final int numDocs = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex().setIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+            prepareIndex(indexName).setId(String.valueOf(i)).setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
             translogOps++;
             if (randomBoolean()) {
                 indicesAdmin().prepareFlush(indexName).get();
@@ -449,14 +449,14 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getFsyncTask().mustReschedule());
 
-        IndexMetadata indexMetadata = clusterAdmin().prepareState().execute().actionGet().getState().metadata().index("test");
+        IndexMetadata indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
         assertEquals("5s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
 
         indicesAdmin().prepareClose("test").get();
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "20s"))
             .get();
-        indexMetadata = clusterAdmin().prepareState().execute().actionGet().getState().metadata().index("test");
+        indexMetadata = clusterAdmin().prepareState().get().getState().metadata().index("test");
         assertEquals("20s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
     }
 }

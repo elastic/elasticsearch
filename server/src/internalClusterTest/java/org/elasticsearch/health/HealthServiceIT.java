@@ -9,37 +9,22 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.node.DiskHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,35 +52,34 @@ public class HealthServiceIT extends ESIntegTestCase {
     }
 
     public void testThatHealthNodeDataIsFetchedAndPassedToIndicators() throws Exception {
-        try (InternalTestCluster internalCluster = internalCluster()) {
-            ensureStableCluster(internalCluster.getNodeNames().length);
-            waitForAllNodesToReportHealth();
-            for (String node : internalCluster.getNodeNames()) {
-                HealthService healthService = internalCluster.getInstance(HealthService.class, node);
-                AtomicBoolean onResponseCalled = new AtomicBoolean(false);
-                ActionListener<List<HealthIndicatorResult>> listener = new ActionListener<>() {
-                    @Override
-                    public void onResponse(List<HealthIndicatorResult> resultList) {
-                        /*
-                         * The following is really just asserting that the TestHealthIndicatorService's calculate method was called. The
-                         * assertions that it actually got the HealthInfo data are in the calculate method of TestHealthIndicatorService.
-                         */
-                        assertNotNull(resultList);
-                        assertThat(resultList.size(), equalTo(1));
-                        HealthIndicatorResult testIndicatorResult = resultList.get(0);
-                        assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
-                        assertThat(testIndicatorResult.symptom(), equalTo(TestHealthIndicatorService.SYMPTOM));
-                        onResponseCalled.set(true);
-                    }
+        final InternalTestCluster internalCluster = internalCluster();
+        ensureStableCluster(internalCluster.getNodeNames().length);
+        waitForAllNodesToReportHealth();
+        for (String node : internalCluster.getNodeNames()) {
+            HealthService healthService = internalCluster.getInstance(HealthService.class, node);
+            AtomicBoolean onResponseCalled = new AtomicBoolean(false);
+            ActionListener<List<HealthIndicatorResult>> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(List<HealthIndicatorResult> resultList) {
+                    /*
+                     * The following is really just asserting that the TestHealthIndicatorService's calculate method was called. The
+                     * assertions that it actually got the HealthInfo data are in the calculate method of TestHealthIndicatorService.
+                     */
+                    assertNotNull(resultList);
+                    assertThat(resultList.size(), equalTo(1));
+                    HealthIndicatorResult testIndicatorResult = resultList.get(0);
+                    assertThat(testIndicatorResult.status(), equalTo(HealthStatus.RED));
+                    assertThat(testIndicatorResult.symptom(), equalTo(TestHealthIndicatorService.SYMPTOM));
+                    onResponseCalled.set(true);
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                };
-                healthService.getHealth(internalCluster.client(node), TestHealthIndicatorService.NAME, true, 1000, listener);
-                assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException(e);
+                }
+            };
+            healthService.getHealth(internalCluster.client(node), TestHealthIndicatorService.NAME, true, 1000, listener);
+            assertBusy(() -> assertThat(onResponseCalled.get(), equalTo(true)));
         }
     }
 
@@ -124,22 +108,7 @@ public class HealthServiceIT extends ESIntegTestCase {
         private final List<HealthIndicatorService> healthIndicatorServices = new ArrayList<>();
 
         @Override
-        public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            TelemetryProvider telemetryProvider,
-            AllocationService allocationService,
-            IndicesService indicesService
-        ) {
+        public Collection<?> createComponents(PluginServices services) {
             healthIndicatorServices.add(new TestHealthIndicatorService());
             return new ArrayList<>(healthIndicatorServices);
         }

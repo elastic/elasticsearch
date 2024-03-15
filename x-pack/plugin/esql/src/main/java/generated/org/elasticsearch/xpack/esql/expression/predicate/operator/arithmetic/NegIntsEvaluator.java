@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -36,24 +37,27 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      IntBlock vBlock = (IntBlock) vRef.block();
+  public Block eval(Page page) {
+    try (IntBlock vBlock = (IntBlock) v.eval(page)) {
       IntVector vVector = vBlock.asVector();
       if (vVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+        return eval(page.getPositionCount(), vBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), vVector));
+      return eval(page.getPositionCount(), vVector);
     }
   }
 
   public IntBlock eval(int positionCount, IntBlock vBlock) {
-    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+        if (vBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (vBlock.getValueCount(p) != 1) {
+          if (vBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -69,7 +73,7 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public IntBlock eval(int positionCount, IntVector vVector) {
-    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendInt(Neg.processInts(vVector.getInt(p)));
@@ -90,5 +94,26 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+      this.source = source;
+      this.v = v;
+    }
+
+    @Override
+    public NegIntsEvaluator get(DriverContext context) {
+      return new NegIntsEvaluator(source, v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NegIntsEvaluator[" + "v=" + v + "]";
+    }
   }
 }

@@ -24,13 +24,14 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.test.BreakerTestUtil;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.AssumptionViolatedException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -40,6 +41,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
@@ -57,13 +59,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     protected abstract void assertSimpleOutput(List<Page> input, List<Page> results);
 
     /**
-     * A {@link ByteSizeValue} that is so small any input to the operator
-     * will cause it to circuit break. If the operator can't break then
-     * throw an {@link AssumptionViolatedException}.
-     */
-    protected abstract ByteSizeValue smallEnoughToCircuitBreak();
-
-    /**
      * Test a small input set against {@link #simple}. Smaller input sets
      * are more likely to discover accidental behavior for clumped inputs.
      */
@@ -79,39 +74,59 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     }
 
     /**
-     * Run {@link #simple} with a circuit breaker configured by
-     * {@link #smallEnoughToCircuitBreak} and assert that it breaks
-     * in a sane way.
+     * Enough memory for {@link #simple} not to throw a {@link CircuitBreakingException}.
+     * It's fine if this is <strong>much</strong> more memory than {@linkplain #simple} needs.
+     * When we want to make {@linkplain #simple} throw we'll find the precise amount of memory
+     * that'll make it throw with a binary search.
+     */
+    protected ByteSizeValue enoughMemoryForSimple() {
+        return ByteSizeValue.ofGb(1);
+    }
+
+    /**
+     * Run {@link #simple} with a circuit breaker many times, making sure all blocks
+     * are properly released. In particular, we perform a binary search to find the
+     * largest amount of memory that'll throw a {@link CircuitBreakingException} with
+     * starting bounds of {@code 0b} and {@link #enoughMemoryForSimple}. Then we pick
+     * a random amount of memory between {@code 0b} and the maximum and run that,
+     * asserting both that this throws a {@link CircuitBreakingException} and releases
+     * all pages.
      */
     public final void testSimpleCircuitBreaking() {
-        /*
-         * We build two CircuitBreakers - one for the input blocks and one for the operation itself.
-         * The input blocks don't count against the memory usage for the limited operator that we
-         * build.
-         */
+        ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
+        Operator.OperatorFactory simple = simple();
         DriverContext inputFactoryContext = driverContext();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, smallEnoughToCircuitBreak())
-            .withCircuitBreaking();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+        try {
+            ByteSizeValue limit = BreakerTestUtil.findBreakerLimit(memoryLimitForSimple, l -> runWithLimit(simple, input, l));
+            ByteSizeValue testWithSize = ByteSizeValue.ofBytes(randomLongBetween(0, limit.getBytes()));
+            logger.info("testing with {} against a limit of {}", testWithSize, limit);
+            Exception e = expectThrows(CircuitBreakingException.class, () -> runWithLimit(simple, input, testWithSize));
+            assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+        } finally {
+            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
+        }
+        assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    private void runWithLimit(Operator.OperatorFactory factory, List<Page> input, ByteSizeValue limit) {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
-        boolean[] driverStarted = new boolean[1];
-        Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            var operator = simple(bigArrays).get(driverContext);
-            driverStarted[0] = true;
-            drive(operator, input.iterator(), driverContext);
-        });
-        if (driverStarted[0] == false) {
-            // if drive hasn't even started then we need to release the input pages
-            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
+        List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
+        boolean driverStarted = false;
+        try {
+            var operator = factory.get(driverContext);
+            driverStarted = true;
+            drive(operator, localInput.iterator(), driverContext);
+        } finally {
+            if (driverStarted == false) {
+                // if drive hasn't even started then we need to release the input pages manually
+                Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(localInput.iterator(), p -> p::releaseBlocks)));
+            }
+            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         }
-        assertThat(e.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-
-        // Note the lack of try/finally here - we're asserting that when the driver throws an exception we clear the breakers.
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
-        assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
     }
 
     /**
@@ -124,14 +139,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         DriverContext inputFactoryContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
 
-        CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky).withCircuitBreaking();
-        BlockFactory blockFactory = BlockFactory.getInstance(cranky.getBreaker(CircuitBreaker.REQUEST), bigArrays);
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+        DriverContext driverContext = crankyDriverContext();
 
         boolean driverStarted = false;
         try {
-            Operator operator = simple(bigArrays).get(driverContext);
+            Operator operator = simple().get(driverContext);
             driverStarted = true;
             drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
@@ -145,7 +157,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
 
         // Note the lack of try/finally here - we're asserting that when the driver throws an exception we clear the breakers.
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
     }
 
@@ -189,10 +200,10 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
 
         // Clone the input so that the operator can close it, then, later, we can read it again to build the assertion.
-        List<Page> origInput = BlockTestUtils.deepCopyOf(input, BlockFactory.getNonBreakingInstance());
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         BigArrays bigArrays = context.bigArrays().withCircuitBreaking();
 
-        List<Page> results = drive(simple(bigArrays).get(context), input.iterator(), context);
+        List<Page> results = drive(simple().get(context), input.iterator(), context);
         assertSimpleOutput(origInput, results);
         assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
 
@@ -228,7 +239,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
         Page page = input.get(0);
-        try (var operator = simple(driverContext.bigArrays()).get(driverContext)) {
+        try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
             operator.addInput(page);
             operator.finish();
@@ -248,7 +259,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
@@ -273,10 +284,12 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             drivers.add(
                 new Driver(
                     "dummy-session",
-                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, BlockFactory.getNonBreakingInstance()),
+                    0,
+                    0,
+                    new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
                     () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(
-                        BlockFactory.getNonBreakingInstance(),
+                        TestBlockFactory.getNonBreakingInstance(),
                         LongStream.range(0, between(1, 100)),
                         between(1, 100)
                     ),

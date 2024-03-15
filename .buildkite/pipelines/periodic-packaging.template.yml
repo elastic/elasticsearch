@@ -19,6 +19,7 @@ steps:
               - ubuntu-2004
               - ubuntu-2204
               - rocky-8
+              - rocky-9
               - rhel-7
               - rhel-8
               - rhel-9

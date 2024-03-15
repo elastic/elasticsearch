@@ -139,9 +139,8 @@ import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
 
-public class SqlFunctionRegistry extends FunctionRegistry {
+public final class SqlFunctionRegistry extends FunctionRegistry {
 
-    @SuppressWarnings("this-escape")
     public SqlFunctionRegistry() {
         register(functions());
     }

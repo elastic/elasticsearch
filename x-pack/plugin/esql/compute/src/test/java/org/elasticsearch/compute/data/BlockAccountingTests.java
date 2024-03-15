@@ -10,10 +10,12 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.tests.util.RamUsageTester.Accumulator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.core.Releasables;
 import org.hamcrest.Matcher;
 
 import java.lang.reflect.Field;
@@ -29,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class BlockAccountingTests extends ESTestCase {
+public class BlockAccountingTests extends ComputeTestCase {
 
     static final Accumulator RAM_USAGE_ACCUMULATOR = new TestRamUsageAccumulator();
 
@@ -38,183 +40,325 @@ public class BlockAccountingTests extends ESTestCase {
 
     // Array Vectors
     public void testBooleanVector() {
-        Vector empty = new BooleanArrayVector(new boolean[] {}, 0);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        BlockFactory blockFactory = blockFactory();
+        Vector empty = blockFactory.newBooleanArrayVector(new boolean[] {}, 0);
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            BooleanVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
-        Vector emptyPlusOne = new BooleanArrayVector(new boolean[] { randomBoolean() }, 1);
+        Vector emptyPlusOne = blockFactory.newBooleanArrayVector(new boolean[] { randomBoolean() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + 1)));
 
         boolean[] randomData = new boolean[randomIntBetween(2, 1024)];
-        Vector emptyPlusSome = new BooleanArrayVector(randomData, randomData.length);
+        Vector emptyPlusSome = blockFactory.newBooleanArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + randomData.length)));
 
         Vector filterVector = emptyPlusSome.filter(1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
+        Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
     }
 
     public void testIntVector() {
-        Vector empty = new IntArrayVector(new int[] {}, 0);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        BlockFactory blockFactory = blockFactory();
+        Vector empty = blockFactory.newIntArrayVector(new int[] {}, 0);
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            IntVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
-        Vector emptyPlusOne = new IntArrayVector(new int[] { randomInt() }, 1);
+        Vector emptyPlusOne = blockFactory.newIntArrayVector(new int[] { randomInt() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Integer.BYTES)));
 
         int[] randomData = new int[randomIntBetween(2, 1024)];
-        Vector emptyPlusSome = new IntArrayVector(randomData, randomData.length);
+        Vector emptyPlusSome = blockFactory.newIntArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + (long) Integer.BYTES * randomData.length)));
 
         Vector filterVector = emptyPlusSome.filter(1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
+        Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
     }
 
     public void testLongVector() {
-        Vector empty = new LongArrayVector(new long[] {}, 0);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        BlockFactory blockFactory = blockFactory();
+        Vector empty = blockFactory.newLongArrayVector(new long[] {}, 0);
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            LongVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
-        Vector emptyPlusOne = new LongArrayVector(new long[] { randomLong() }, 1);
+        Vector emptyPlusOne = blockFactory.newLongArrayVector(new long[] { randomLong() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(empty.ramBytesUsed() + Long.BYTES));
 
         long[] randomData = new long[randomIntBetween(2, 1024)];
-        Vector emptyPlusSome = new LongArrayVector(randomData, randomData.length);
+        Vector emptyPlusSome = blockFactory.newLongArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + (long) Long.BYTES * randomData.length));
 
         Vector filterVector = emptyPlusSome.filter(1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
+
+        Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
     }
 
     public void testDoubleVector() {
-        Vector empty = new DoubleArrayVector(new double[] {}, 0);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        BlockFactory blockFactory = blockFactory();
+        Vector empty = blockFactory.newDoubleArrayVector(new double[] {}, 0);
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            DoubleVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
-        Vector emptyPlusOne = new DoubleArrayVector(new double[] { randomDouble() }, 1);
+        Vector emptyPlusOne = blockFactory.newDoubleArrayVector(new double[] { randomDouble() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(empty.ramBytesUsed() + Double.BYTES));
 
         double[] randomData = new double[randomIntBetween(2, 1024)];
-        Vector emptyPlusSome = new DoubleArrayVector(randomData, randomData.length);
+        Vector emptyPlusSome = blockFactory.newDoubleArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + (long) Double.BYTES * randomData.length));
 
         // a filter becomes responsible for it's enclosing data, both in terms of accountancy and releasability
         Vector filterVector = emptyPlusSome.filter(1);
         assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusSome.ramBytesUsed()));
+
+        Releasables.close(empty, emptyPlusOne, emptyPlusSome, filterVector);
     }
 
     public void testBytesRefVector() {
-        try (
-            var emptyArray = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE);
-            var arrayWithOne = new BytesRefArray(0, BigArrays.NON_RECYCLING_INSTANCE)
-        ) {
-            Vector emptyVector = new BytesRefArrayVector(emptyArray, 0);
-            long expectedEmptyVectorUsed = RamUsageTester.ramUsed(emptyVector, RAM_USAGE_ACCUMULATOR);
-            assertThat(emptyVector.ramBytesUsed(), is(expectedEmptyVectorUsed));
+        BlockFactory blockFactory = blockFactory();
+        var emptyArray = new BytesRefArray(0, blockFactory.bigArrays());
+        var arrayWithOne = new BytesRefArray(0, blockFactory.bigArrays());
+        Vector emptyVector = blockFactory.newBytesRefArrayVector(emptyArray, 0);
+        long expectedEmptyVectorUsed = RamUsageTester.ramUsed(emptyVector, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            BytesRefVectorBlock.class
+        );
+        assertThat(emptyVector.ramBytesUsed(), is(expectedEmptyVectorUsed));
 
-            var bytesRef = new BytesRef(randomAlphaOfLengthBetween(1, 16));
-            arrayWithOne.append(bytesRef);
-            Vector emptyPlusOne = new BytesRefArrayVector(arrayWithOne, 1);
-            assertThat(emptyPlusOne.ramBytesUsed(), between(emptyVector.ramBytesUsed() + bytesRef.length, UPPER_BOUND));
+        var bytesRef = new BytesRef(randomAlphaOfLengthBetween(1, 16));
+        arrayWithOne.append(bytesRef);
+        Vector emptyPlusOne = blockFactory.newBytesRefArrayVector(arrayWithOne, 1);
+        assertThat(emptyPlusOne.ramBytesUsed(), between(emptyVector.ramBytesUsed() + bytesRef.length, UPPER_BOUND));
 
-            Vector filterVector = emptyPlusOne.filter(0);
-            assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
-        }
+        Vector filterVector = emptyPlusOne.filter(0);
+        assertThat(filterVector.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        Releasables.close(emptyVector, emptyPlusOne, filterVector);
     }
 
     // Array Blocks
     public void testBooleanBlock() {
-        Block empty = new BooleanArrayBlock(new boolean[] {}, 0, new int[0], null, Block.MvOrdering.UNORDERED);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        BlockFactory blockFactory = blockFactory();
+        Block empty = new BooleanArrayBlock(new boolean[] {}, 0, new int[] { 0 }, null, Block.MvOrdering.UNORDERED, blockFactory);
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            BooleanVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
-        Block emptyPlusOne = new BooleanArrayBlock(new boolean[] { randomBoolean() }, 1, new int[] { 0 }, null, Block.MvOrdering.UNORDERED);
-        assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + 1) + alignObjectSize(Integer.BYTES)));
+        Block emptyPlusOne = new BooleanArrayBlock(
+            new boolean[] { randomBoolean() },
+            1,
+            new int[] { 0, 1 },
+            null,
+            Block.MvOrdering.UNORDERED,
+            blockFactory
+        );
+        assertThat(
+            emptyPlusOne.ramBytesUsed(),
+            is(empty.ramBytesUsed() + ramBytesDiffForBooleanArrays(1, 0) + ramBytesDiffForIntArrays(2, 1))
+        );
 
         boolean[] randomData = new boolean[randomIntBetween(2, 1024)];
         int[] valueIndices = IntStream.range(0, randomData.length + 1).toArray();
-        Block emptyPlusSome = new BooleanArrayBlock(randomData, randomData.length, valueIndices, null, Block.MvOrdering.UNORDERED);
-        long expected = empty.ramBytesUsed() + ramBytesForBooleanArray(randomData) + ramBytesForIntArray(valueIndices);
+        Block emptyPlusSome = new BooleanArrayBlock(
+            randomData,
+            randomData.length,
+            valueIndices,
+            null,
+            Block.MvOrdering.UNORDERED,
+            blockFactory
+        );
+        long expected = empty.ramBytesUsed() + ramBytesDiffForBooleanArrays(randomData.length, 0) + ramBytesDiffForIntArrays(
+            valueIndices.length,
+            1
+        );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        Releasables.close(filterBlock);
     }
 
     public void testBooleanBlockWithNullFirstValues() {
-        Block empty = new BooleanArrayBlock(new boolean[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        Block empty = new BooleanArrayBlock(
+            new boolean[] {},
+            0,
+            null,
+            BitSet.valueOf(new byte[] { 1 }),
+            Block.MvOrdering.UNORDERED,
+            blockFactory()
+        );
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            BooleanVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), lessThanOrEqualTo(expectedEmptyUsed));
     }
 
     public void testIntBlock() {
-        Block empty = new IntArrayBlock(new int[] {}, 0, new int[] {}, null, Block.MvOrdering.UNORDERED);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        BlockFactory blockFactory = blockFactory();
+        Block empty = new IntArrayBlock(new int[] {}, 0, new int[] { 0 }, null, Block.MvOrdering.UNORDERED, blockFactory);
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            IntVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
-        Block emptyPlusOne = new IntArrayBlock(new int[] { randomInt() }, 1, new int[] { 0 }, null, Block.MvOrdering.UNORDERED);
-        assertThat(emptyPlusOne.ramBytesUsed(), is(empty.ramBytesUsed() + alignObjectSize(Integer.BYTES) + alignObjectSize(Integer.BYTES)));
+        Block emptyPlusOne = new IntArrayBlock(
+            new int[] { randomInt() },
+            1,
+            new int[] { 0, 1 },
+            null,
+            Block.MvOrdering.UNORDERED,
+            blockFactory
+        );
+        assertThat(emptyPlusOne.ramBytesUsed(), is(empty.ramBytesUsed() + ramBytesDiffForIntArrays(1, 0) + ramBytesDiffForIntArrays(2, 1)));
 
         int[] randomData = new int[randomIntBetween(2, 1024)];
         int[] valueIndices = IntStream.range(0, randomData.length + 1).toArray();
-        Block emptyPlusSome = new IntArrayBlock(randomData, randomData.length, valueIndices, null, Block.MvOrdering.UNORDERED);
-        long expected = empty.ramBytesUsed() + ramBytesForIntArray(randomData) + ramBytesForIntArray(valueIndices);
+        Block emptyPlusSome = new IntArrayBlock(
+            randomData,
+            randomData.length,
+            valueIndices,
+            null,
+            Block.MvOrdering.UNORDERED,
+            blockFactory
+        );
+        long expected = empty.ramBytesUsed() + ramBytesDiffForIntArrays(randomData.length, 0) + ramBytesDiffForIntArrays(
+            valueIndices.length,
+            1
+        );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        Releasables.close(filterBlock);
     }
 
     public void testIntBlockWithNullFirstValues() {
-        Block empty = new IntArrayBlock(new int[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        BlockFactory blockFactory = blockFactory();
+        Block empty = new IntArrayBlock(new int[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED, blockFactory);
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            IntVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
     }
 
     public void testLongBlock() {
-        Block empty = new LongArrayBlock(new long[] {}, 0, new int[0], null, Block.MvOrdering.UNORDERED);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        BlockFactory blockFactory = blockFactory();
+        Block empty = new LongArrayBlock(new long[] {}, 0, new int[] { 0 }, null, Block.MvOrdering.UNORDERED, blockFactory);
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            LongVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
-        Block emptyPlusOne = new LongArrayBlock(new long[] { randomInt() }, 1, new int[] { 0 }, null, Block.MvOrdering.UNORDERED);
-        assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Long.BYTES) + alignObjectSize(Integer.BYTES)));
+        Block emptyPlusOne = new LongArrayBlock(
+            new long[] { randomInt() },
+            1,
+            new int[] { 0, 1 },
+            null,
+            Block.MvOrdering.UNORDERED,
+            blockFactory
+        );
+        assertThat(
+            emptyPlusOne.ramBytesUsed(),
+            is(empty.ramBytesUsed() + ramBytesDiffForLongArrays(1, 0) + ramBytesDiffForIntArrays(2, 1))
+        );
 
         long[] randomData = new long[randomIntBetween(2, 1024)];
         int[] valueIndices = IntStream.range(0, randomData.length + 1).toArray();
-        Block emptyPlusSome = new LongArrayBlock(randomData, randomData.length, valueIndices, null, Block.MvOrdering.UNORDERED);
-        long expected = empty.ramBytesUsed() + ramBytesForLongArray(randomData) + ramBytesForIntArray(valueIndices);
+        Block emptyPlusSome = new LongArrayBlock(
+            randomData,
+            randomData.length,
+            valueIndices,
+            null,
+            Block.MvOrdering.UNORDERED,
+            blockFactory
+        );
+        long expected = empty.ramBytesUsed() + ramBytesDiffForLongArrays(randomData.length, 0) + ramBytesDiffForIntArrays(
+            valueIndices.length,
+            1
+        );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        Releasables.close(filterBlock);
     }
 
     public void testLongBlockWithNullFirstValues() {
-        Block empty = new LongArrayBlock(new long[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        Block empty = new LongArrayBlock(
+            new long[] {},
+            0,
+            null,
+            BitSet.valueOf(new byte[] { 1 }),
+            Block.MvOrdering.UNORDERED,
+            blockFactory()
+        );
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            LongVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
     }
 
     public void testDoubleBlock() {
-        Block empty = new DoubleArrayBlock(new double[] {}, 0, new int[0], null, Block.MvOrdering.UNORDERED);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        BlockFactory blockFactory = blockFactory();
+        Block empty = new DoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, null, Block.MvOrdering.UNORDERED, blockFactory);
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            DoubleVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
-        Block emptyPlusOne = new DoubleArrayBlock(new double[] { randomInt() }, 1, new int[] { 0 }, null, Block.MvOrdering.UNORDERED);
-        assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Double.BYTES) + alignObjectSize(Integer.BYTES)));
+        Block emptyPlusOne = new DoubleArrayBlock(
+            new double[] { randomInt() },
+            1,
+            new int[] { 0, 1 },
+            null,
+            Block.MvOrdering.UNORDERED,
+            blockFactory
+        );
+        assertThat(
+            emptyPlusOne.ramBytesUsed(),
+            is(empty.ramBytesUsed() + ramBytesDiffForDoubleArrays(1, 0) + ramBytesDiffForIntArrays(2, 1))
+        );
 
         double[] randomData = new double[randomIntBetween(2, 1024)];
         int[] valueIndices = IntStream.range(0, randomData.length + 1).toArray();
-        Block emptyPlusSome = new DoubleArrayBlock(randomData, randomData.length, valueIndices, null, Block.MvOrdering.UNORDERED);
-        long expected = empty.ramBytesUsed() + ramBytesForDoubleArray(randomData) + ramBytesForIntArray(valueIndices);
+        Block emptyPlusSome = new DoubleArrayBlock(
+            randomData,
+            randomData.length,
+            valueIndices,
+            null,
+            Block.MvOrdering.UNORDERED,
+            blockFactory
+        );
+        long expected = empty.ramBytesUsed() + ramBytesDiffForDoubleArrays(randomData.length, 0) + ramBytesDiffForIntArrays(
+            valueIndices.length,
+            1
+        );
         assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        Releasables.close(filterBlock);
     }
 
     public void testDoubleBlockWithNullFirstValues() {
-        Block empty = new DoubleArrayBlock(new double[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED);
-        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR);
+        Block empty = new DoubleArrayBlock(
+            new double[] {},
+            0,
+            null,
+            BitSet.valueOf(new byte[] { 1 }),
+            Block.MvOrdering.UNORDERED,
+            blockFactory()
+        );
+        long expectedEmptyUsed = RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR) + RamUsageEstimator.shallowSizeOfInstance(
+            DoubleVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
     }
 
@@ -248,19 +392,35 @@ public class BlockAccountingTests extends ESTestCase {
         }
     }
 
-    static long ramBytesForBooleanArray(boolean[] arr) {
-        return alignObjectSize((long) Byte.BYTES * arr.length);
+    static long ramBytesDiffForBooleanArrays(int length1, int lenght2) {
+        return ramBytesForBooleanArray(length1) - ramBytesForBooleanArray(lenght2);
     }
 
-    static long ramBytesForIntArray(int[] arr) {
-        return alignObjectSize((long) Integer.BYTES * arr.length);
+    static long ramBytesDiffForIntArrays(int length1, int lenght2) {
+        return ramBytesForIntArray(length1) - ramBytesForIntArray(lenght2);
     }
 
-    static long ramBytesForLongArray(long[] arr) {
-        return alignObjectSize((long) Long.BYTES * arr.length);
+    static long ramBytesDiffForLongArrays(int length1, int lenght2) {
+        return ramBytesForLongArray(length1) - ramBytesForLongArray(lenght2);
     }
 
-    static long ramBytesForDoubleArray(double[] arr) {
-        return alignObjectSize((long) Long.BYTES * arr.length);
+    static long ramBytesDiffForDoubleArrays(int length1, int lenght2) {
+        return ramBytesForDoubleArray(length1) - ramBytesForDoubleArray(lenght2);
+    }
+
+    static long ramBytesForBooleanArray(int length) {
+        return alignObjectSize((long) Byte.BYTES * length);
+    }
+
+    static long ramBytesForIntArray(int length) {
+        return alignObjectSize((long) Integer.BYTES * length);
+    }
+
+    static long ramBytesForLongArray(int length) {
+        return alignObjectSize((long) Long.BYTES * length);
+    }
+
+    static long ramBytesForDoubleArray(int length) {
+        return alignObjectSize((long) Long.BYTES * length);
     }
 }

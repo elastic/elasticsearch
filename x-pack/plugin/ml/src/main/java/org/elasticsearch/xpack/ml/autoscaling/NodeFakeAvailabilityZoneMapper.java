@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -27,12 +25,11 @@ import java.util.Map;
  */
 public class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabilityZoneMapper {
 
-    private static final Logger logger = LogManager.getLogger(NodeFakeAvailabilityZoneMapper.class);
-
     public NodeFakeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings) {
         this(settings, clusterSettings, null);
     }
 
+    @SuppressWarnings("this-escape")
     public NodeFakeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
         super(settings, clusterSettings, discoveryNodes);
         updateNodesByAvailabilityZone();

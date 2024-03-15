@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class SerializationTestCase extends ESTestCase {
     BigArrays bigArrays;
-    private BlockFactory blockFactory;
+    protected BlockFactory blockFactory;
     NamedWriteableRegistry registry = new NamedWriteableRegistry(Block.getNamedWriteables());
 
     @Before
@@ -62,7 +62,9 @@ public abstract class SerializationTestCase extends ESTestCase {
     <T extends Block> T serializeDeserializeBlock(T origBlock) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeNamedWriteable(origBlock);
-            return (T) blockStreamInput(out).readNamedWriteable(Block.class);
+            try (BlockStreamInput in = blockStreamInput(out)) {
+                return (T) in.readNamedWriteable(Block.class);
+            }
         }
     }
 

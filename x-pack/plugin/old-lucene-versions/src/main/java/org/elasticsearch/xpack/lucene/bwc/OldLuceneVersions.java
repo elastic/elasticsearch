@@ -14,23 +14,16 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -41,7 +34,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
@@ -52,15 +44,10 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -75,7 +62,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class OldLuceneVersions extends Plugin implements IndexStorePlugin, ClusterPlugin, RepositoryPlugin, ActionPlugin, EnginePlugin {
 
@@ -90,28 +76,15 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
 
     @Override
-    public Collection<Object> createComponents(
-        final Client client,
-        final ClusterService clusterService,
-        final ThreadPool threadPool,
-        final ResourceWatcherService resourceWatcherService,
-        final ScriptService scriptService,
-        final NamedXContentRegistry xContentRegistry,
-        final Environment environment,
-        final NodeEnvironment nodeEnvironment,
-        final NamedWriteableRegistry registry,
-        final IndexNameExpressionResolver resolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
-        this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
-        if (DiscoveryNode.isMasterNode(environment.settings())) {
+    public Collection<?> createComponents(PluginServices services) {
+        ThreadPool threadPool = services.threadPool();
+
+        this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), services.rerouteService()));
+        if (DiscoveryNode.isMasterNode(services.environment().settings())) {
             // We periodically look through the indices and identify if there are any archive indices,
             // then marking the feature as used. We do this on each master node so that if one master fails, the
             // continue reporting usage state.
-            var usageTracker = new ArchiveUsageTracker(getLicenseState(), clusterService::state);
+            var usageTracker = new ArchiveUsageTracker(getLicenseState(), services.clusterService()::state);
             threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), threadPool.generic());
         }
         return List.of();
@@ -197,8 +170,8 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             throw new UncheckedIOException(
                 Strings.format(
                     """
-                        Elasticsearch version [{}] has limited support for indices created with version [{}] but this index could not be \
-                        read. It may be using an unsupported feature, or it may be damaged or corrupt. See {} for further information.""",
+                        Elasticsearch version [%s] has limited support for indices created with version [%s] but this index could not be \
+                        read. It may be using an unsupported feature, or it may be damaged or corrupt. See %s for further information.""",
                     Build.current().version(),
                     IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexShard.indexSettings().getSettings()),
                     ReferenceDocs.ARCHIVE_INDICES

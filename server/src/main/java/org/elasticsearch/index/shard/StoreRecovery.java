@@ -30,12 +30,13 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -47,6 +48,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -307,7 +309,7 @@ public final class StoreRecovery {
                 RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
                 assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
-                restore(indexShard, repository, recoverySource, recoveryListener(indexShard, listener));
+                restore(indexShard, repository, recoverySource, recoveryListener(indexShard, listener).map(ignored -> true));
             } else {
                 listener.onResponse(false);
             }
@@ -407,15 +409,19 @@ public final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard, ActionListener<Void> outerListener) {
-        indexShard.preRecovery(outerListener.delegateFailureAndWrap((listener, ignored) -> {
-            final RecoveryState recoveryState = indexShard.recoveryState();
-            final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
-            indexShard.prepareForIndexRecovery();
-            SegmentInfos si = null;
-            final Store store = indexShard.store();
-            store.incRef();
-            boolean triggeredPostRecovery = false;
-            try {
+        final List<Releasable> releasables = new ArrayList<>(1);
+        SubscribableListener
+
+            .newForked(indexShard::preRecovery)
+
+            .<Void>andThen((l, ignored) -> {
+                final RecoveryState recoveryState = indexShard.recoveryState();
+                final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
+                indexShard.prepareForIndexRecovery();
+                SegmentInfos si = null;
+                final Store store = indexShard.store();
+                store.incRef();
+                releasables.add(store::decRef);
                 try {
                     store.failIfCorrupted();
                     try {
@@ -476,19 +482,22 @@ public final class StoreRecovery {
                     writeEmptyRetentionLeasesFile(indexShard);
                     indexShard.recoveryState().getIndex().setFileDetailsComplete();
                 }
-                indexShard.openEngineAndRecoverFromTranslog();
+                indexShard.openEngineAndRecoverFromTranslog(l);
+            })
+
+            .<Void>andThen((l, ignored) -> {
                 indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
                 indexShard.finalizeRecovery();
-                indexShard.postRecovery("post recovery from shard_store", ActionListener.runBefore(listener, store::decRef));
-                triggeredPostRecovery = true;
-            } catch (EngineException | IOException e) {
-                listener.onFailure(new IndexShardRecoveryException(shardId, "failed to recover from gateway", e));
-            } finally {
-                if (triggeredPostRecovery == false) {
-                    store.decRef();
+                indexShard.postRecovery("post recovery from shard_store", l);
+            })
+
+            .addListener(ActionListener.runBefore(outerListener.delegateResponse((l, e) -> {
+                if (e instanceof IndexShardRecoveryException) {
+                    l.onFailure(e);
+                } else {
+                    l.onFailure(new IndexShardRecoveryException(shardId, "failed to recover from gateway", e));
                 }
-            }
-        }));
+            }), () -> Releasables.close(releasables)));
     }
 
     private static void writeEmptyRetentionLeasesFile(IndexShard indexShard) throws IOException {
@@ -512,31 +521,24 @@ public final class StoreRecovery {
         IndexShard indexShard,
         Repository repository,
         SnapshotRecoverySource restoreSource,
-        ActionListener<Boolean> outerListener
+        ActionListener<Void> outerListener
     ) {
         logger.debug("restoring from {} ...", indexShard.recoveryState().getRecoverySource());
-        indexShard.preRecovery(outerListener.delegateFailure((listener, ignored) -> {
 
-            final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
-            if (restoreSource == null) {
-                listener.onFailure(new IndexShardRestoreFailedException(shardId, "empty restore source"));
-                return;
-            }
-            if (logger.isTraceEnabled()) {
-                logger.trace("[{}] restoring shard [{}]", restoreSource.snapshot(), shardId);
-            }
-            final ActionListener<Void> restoreListener = ActionListener.wrap(v -> {
-                indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
-                final Store store = indexShard.store();
-                bootstrap(indexShard, store);
-                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
-                writeEmptyRetentionLeasesFile(indexShard);
-                indexShard.openEngineAndRecoverFromTranslog();
-                indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
-                indexShard.finalizeRecovery();
-                indexShard.postRecovery("restore done", listener.map(voidValue -> true));
-            }, e -> listener.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e)));
-            try {
+        record ShardAndIndexIds(IndexId indexId, ShardId shardId) {}
+
+        SubscribableListener
+
+            .newForked(indexShard::preRecovery)
+
+            .<ShardAndIndexIds>andThen((shardAndIndexIdsListener, ignored) -> {
+                final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
+                if (restoreSource == null) {
+                    throw new IndexShardRestoreFailedException(shardId, "empty restore source");
+                }
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}] restoring shard [{}]", restoreSource.snapshot(), shardId);
+                }
                 translogState.totalOperations(0);
                 translogState.totalOperationsOnStart(0);
                 indexShard.prepareForIndexRecovery();
@@ -547,35 +549,59 @@ public final class StoreRecovery {
                 } else {
                     snapshotShardId = new ShardId(indexId.getName(), IndexMetadata.INDEX_UUID_NA_VALUE, shardId.id());
                 }
-                final ListenableFuture<IndexId> indexIdListener = new ListenableFuture<>();
-                // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
                 if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
-                    // BwC path, running against an old version master that did not add the IndexId to the recovery source
+                    // BwC path, running against an old version master that did not add the IndexId to the recovery source. If the index
+                    // UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
                     repository.getRepositoryData(
+                        // TODO no need to fork back to GENERIC if using cached repo data, see #101445
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         new ThreadedActionListener<>(
                             indexShard.getThreadPool().generic(),
-                            indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName()))
+                            shardAndIndexIdsListener.map(
+                                repositoryData -> new ShardAndIndexIds(repositoryData.resolveIndexId(indexId.getName()), snapshotShardId)
+                            )
                         )
                     );
                 } else {
-                    indexIdListener.onResponse(indexId);
+                    shardAndIndexIdsListener.onResponse(new ShardAndIndexIds(indexId, snapshotShardId));
                 }
+            })
+
+            .<Void>andThen((restoreListener, shardAndIndexId) -> {
                 assert indexShard.getEngineOrNull() == null;
-                indexIdListener.addListener(restoreListener.delegateFailureAndWrap((l, idx) -> {
-                    assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
-                    repository.restoreShard(
-                        indexShard.store(),
-                        restoreSource.snapshot().getSnapshotId(),
-                        idx,
-                        snapshotShardId,
-                        indexShard.recoveryState(),
-                        l
-                    );
-                }));
-            } catch (Exception e) {
-                restoreListener.onFailure(e);
-            }
-        }));
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
+                repository.restoreShard(
+                    indexShard.store(),
+                    restoreSource.snapshot().getSnapshotId(),
+                    shardAndIndexId.indexId(),
+                    shardAndIndexId.shardId(),
+                    indexShard.recoveryState(),
+                    restoreListener
+                );
+            })
+
+            .<Void>andThen((l, ignored) -> {
+                indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
+                final Store store = indexShard.store();
+                bootstrap(indexShard, store);
+                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+                writeEmptyRetentionLeasesFile(indexShard);
+                indexShard.openEngineAndRecoverFromTranslog(l);
+            })
+
+            .<Void>andThen((l, ignored) -> {
+                indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                indexShard.finalizeRecovery();
+                indexShard.postRecovery("restore done", l);
+            })
+
+            .addListener(outerListener.delegateResponse((l, e) -> {
+                if (e instanceof IndexShardRestoreFailedException) {
+                    l.onFailure(e);
+                } else {
+                    l.onFailure(new IndexShardRestoreFailedException(shardId, "restore failed", e));
+                }
+            }));
     }
 
     public static void bootstrap(final IndexShard indexShard, final Store store) throws IOException {

@@ -41,11 +41,6 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
         return List.of(getTestTransportPlugin(), MainRestPlugin.class);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), oneOf(200, 201));
     }

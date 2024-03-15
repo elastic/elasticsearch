@@ -53,33 +53,21 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
     XContentBuilder toShortXContent(XContentBuilder builder) throws IOException {
         builder.field("path", this.path);
         builder.humanReadableField("total_bytes", "total", ByteSizeValue.ofBytes(this.totalBytes));
-        builder.humanReadableField("used_bytes", "used", ByteSizeValue.ofBytes(this.getUsedBytes()));
+        builder.humanReadableField("used_bytes", "used", ByteSizeValue.ofBytes(this.usedBytes()));
         builder.humanReadableField("free_bytes", "free", ByteSizeValue.ofBytes(this.freeBytes));
-        builder.field("free_disk_percent", truncatePercent(this.getFreeDiskAsPercentage()));
-        builder.field("used_disk_percent", truncatePercent(this.getUsedDiskAsPercentage()));
+        builder.field("free_disk_percent", truncatePercent(this.freeDiskAsPercentage()));
+        builder.field("used_disk_percent", truncatePercent(this.usedDiskAsPercentage()));
         return builder;
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("node_id", this.nodeId);
         builder.field("node_name", this.nodeName);
-        builder = toShortXContent(builder);
+        toShortXContent(builder);
         return builder;
     }
 
-    public String getNodeId() {
-        return nodeId;
-    }
-
-    public String getNodeName() {
-        return nodeName;
-    }
-
-    public String getPath() {
-        return path;
-    }
-
-    public double getFreeDiskAsPercentage() {
+    public double freeDiskAsPercentage() {
         // We return 100.0% in order to fail "open", in that if we have invalid
         // numbers for the total bytes, it's as if we don't know disk usage.
         if (totalBytes == 0) {
@@ -88,20 +76,12 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
         return 100.0 * freeBytes / totalBytes;
     }
 
-    public double getUsedDiskAsPercentage() {
-        return 100.0 - getFreeDiskAsPercentage();
+    public double usedDiskAsPercentage() {
+        return 100.0 - freeDiskAsPercentage();
     }
 
-    public long getFreeBytes() {
-        return freeBytes;
-    }
-
-    public long getTotalBytes() {
-        return totalBytes;
-    }
-
-    public long getUsedBytes() {
-        return getTotalBytes() - getFreeBytes();
+    public long usedBytes() {
+        return totalBytes - freeBytes;
     }
 
     @Override
@@ -113,9 +93,9 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
             + "]["
             + path
             + "] free: "
-            + ByteSizeValue.ofBytes(getFreeBytes())
+            + ByteSizeValue.ofBytes(this.freeBytes())
             + "["
-            + Strings.format1Decimals(getFreeDiskAsPercentage(), "%")
+            + Strings.format1Decimals(freeDiskAsPercentage(), "%")
             + "]";
     }
 

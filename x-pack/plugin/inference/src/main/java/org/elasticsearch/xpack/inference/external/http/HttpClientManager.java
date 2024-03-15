@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.apache.logging.log4j.LogManager;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -35,15 +37,13 @@ public class HttpClientManager implements Closeable {
      */
     public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_connections",
-        // TODO pick a reasonable values here
-        20,
-        1,
-        1000,
+        20, // default
+        1, // min
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    private static final TimeValue DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME = TimeValue.timeValueSeconds(10);
+    private static final TimeValue DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME = TimeValue.timeValueMinutes(1);
     public static final Setting<TimeValue> CONNECTION_EVICTION_THREAD_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.inference.http.connection_eviction_interval",
         DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME,
@@ -65,9 +65,14 @@ public class HttpClientManager implements Closeable {
     private IdleConnectionEvictor connectionEvictor;
     private final HttpClient httpClient;
 
-    public static HttpClientManager create(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
+    public static HttpClientManager create(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ThrottlerManager throttlerManager
+    ) {
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager();
-        return new HttpClientManager(settings, connectionManager, threadPool, clusterService);
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
     }
 
     // Default for testing
@@ -75,14 +80,15 @@ public class HttpClientManager implements Closeable {
         Settings settings,
         PoolingNHttpClientConnectionManager connectionManager,
         ThreadPool threadPool,
-        ClusterService clusterService
+        ClusterService clusterService,
+        ThrottlerManager throttlerManager
     ) {
         this.threadPool = threadPool;
 
         this.connectionManager = connectionManager;
         setMaxConnections(MAX_CONNECTIONS.get(settings));
 
-        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager);
+        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager, throttlerManager);
 
         evictorSettings = new EvictorSettings(settings);
         connectionEvictor = createConnectionEvictor();
@@ -93,7 +99,8 @@ public class HttpClientManager implements Closeable {
     private static PoolingNHttpClientConnectionManager createConnectionManager() {
         ConnectingIOReactor ioReactor;
         try {
-            ioReactor = new DefaultConnectingIOReactor();
+            var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
+            ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
         } catch (IOReactorException e) {
             var message = "Failed to initialize the inference http client manager";
             logger.error(message, e);

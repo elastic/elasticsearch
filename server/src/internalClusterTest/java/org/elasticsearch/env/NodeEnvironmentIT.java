@@ -84,7 +84,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().startNode(dataPathSettings);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
+        prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         logger.info("--> restarting the node without the data role");
         ex = expectThrows(
@@ -152,7 +152,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
     public void testUpgradeDataFolder() throws IOException, InterruptedException {
         String node = internalCluster().startNode();
         prepareCreate("test").get();
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("1").setSource("{}", XContentType.JSON));
         String nodeId = clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId();
 
         final Settings dataPathSettings = internalCluster().dataPathSettings(node);
@@ -238,7 +238,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertEquals(nodeId, clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId());
         assertTrue(indexExists("test"));
         ensureYellow("test");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), 1L);
+        assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
     }
 
     public void testFailsToStartOnDataPathsFromMultipleNodes() throws IOException {

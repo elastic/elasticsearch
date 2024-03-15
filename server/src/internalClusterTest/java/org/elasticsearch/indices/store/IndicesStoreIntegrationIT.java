@@ -42,7 +42,6 @@ import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportMessageListener;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -155,11 +154,10 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     ) throws InterruptedException {
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodeTo, random());
         internalCluster().setDisruptionScheme(disruption);
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeTo);
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch receivedShardExistsRequestLatch = new CountDownLatch(1);
         // use a tracer on the target node to track relocation start and end
-        transportService.addMessageListener(new TransportMessageListener() {
+        MockTransportService.getInstance(nodeTo).addMessageListener(new TransportMessageListener() {
             @Override
             public void onRequestReceived(long requestId, String action) {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
@@ -213,17 +211,16 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         // add a transport delegate that will prevent the shard active request to succeed the first time after relocation has finished.
         // node_1 will then wait for the next cluster state change before it tries a next attempt to delete the shard.
-        MockTransportService transportServiceNode_1 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_1);
-        TransportService transportServiceNode_2 = internalCluster().getInstance(TransportService.class, node_2);
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
-        transportServiceNode_1.addSendBehavior(transportServiceNode_2, (connection, requestId, action, request, options) -> {
-            if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
-                shardActiveRequestSent.countDown();
-                logger.info("prevent shard active request from being sent");
-                throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
+        MockTransportService.getInstance(node_1)
+            .addSendBehavior(MockTransportService.getInstance(node_2), (connection, requestId, action, request, options) -> {
+                if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
+                    shardActiveRequestSent.countDown();
+                    logger.info("prevent shard active request from being sent");
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
 
         logger.info("--> move shard from {} to {}, and wait for relocation to finish", node_1, node_2);
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_2)).get();

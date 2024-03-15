@@ -183,6 +183,7 @@ GET /_xpack/usage
           "avg": 0.0,
           "max": 0.0
         },
+        "stats_by_model": [],
         "model_sizes_bytes": {
           "total": 0.0,
           "min": 0.0,
@@ -195,6 +196,11 @@ GET /_xpack/usage
       }
     },
     "node_count" : 1
+  },
+  "inference": {
+    "available" : true,
+    "enabled" : true,
+    "models" : []
   },
   "logstash" : {
     "available" : true,
@@ -214,7 +220,15 @@ GET /_xpack/usage
       "grok" : 0,
       "limit" : 0,
       "where" : 0,
-      "sort" : 0
+      "sort" : 0,
+      "drop" : 0,
+      "show" : 0,
+      "rename" : 0,
+      "mv_expand" : 0,
+      "keep" : 0,
+      "enrich" : 0,
+      "from" : 0,
+      "row" : 0
     },
     "queries" : {
       "rest" : {

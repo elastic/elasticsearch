@@ -26,7 +26,7 @@ import java.util.Objects;
 /**
  * Request to perform a search ranking evaluation.
  */
-public class RankEvalRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class RankEvalRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private RankEvalSpec rankingEvaluationSpec;
 
@@ -35,7 +35,6 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
 
     private SearchType searchType = SearchType.DEFAULT;
 
-    @SuppressWarnings("this-escape")
     public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
         this.rankingEvaluationSpec = Objects.requireNonNull(rankingEvaluationSpec, "ranking evaluation specification must not be null");
         indices(indices);

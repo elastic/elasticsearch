@@ -35,6 +35,8 @@ delete all the snapshots in the repository taken with version 8.10.0 or later
 using a cluster running version 8.10.4.
 // end::repositorydata-format-change[]
 
+include::8.7.1.asciidoc[tag=no-preventive-gc-issue]
+
 [[breaking-8.10.0]]
 [float]
 === Breaking changes

@@ -16,7 +16,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
@@ -37,10 +36,6 @@ public class ClusterSettingsUpdateWithFaultyMasterIT extends ESIntegTestCase {
         return List.of(BlockingClusterSettingTestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
-    @TestLogging(
-        reason = "https://github.com/elastic/elasticsearch/issues/98918",
-        value = "org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction:TRACE"
-    )
     public void testClusterSettingsUpdateNotAcknowledged() throws Exception {
         final var nodes = internalCluster().startMasterOnlyNodes(3);
         final String masterNode = internalCluster().getMasterName();
@@ -62,7 +57,7 @@ public class ClusterSettingsUpdateWithFaultyMasterIT extends ESIntegTestCase {
             .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(BlockingClusterSettingTestPlugin.TEST_BLOCKING_SETTING.getKey(), true).build())
-            .setMasterNodeTimeout(TimeValue.timeValueMillis(10L))
+            .setMasterNodeTimeout(TimeValue.timeValueMillis(100L))
             .execute();
 
         logger.info("--> waiting for cluster state update to be blocked");

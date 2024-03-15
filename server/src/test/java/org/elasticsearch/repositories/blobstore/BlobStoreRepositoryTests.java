@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -41,6 +42,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,12 +52,14 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -100,7 +104,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
+            prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
         indicesAdmin().prepareFlush(indexName).get();
 
@@ -200,7 +204,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         for (int i = 0; i < 16; i++) {
             repository.blobContainer()
-                .writeBlob(OperationPurpose.SNAPSHOT, BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
+                .writeBlob(OperationPurpose.SNAPSHOT_METADATA, BlobStoreRepository.INDEX_LATEST_BLOB, new BytesArray(buffer, 0, i), false);
             if (i == 8) {
                 assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(generation));
             } else {
@@ -290,7 +294,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             );
         };
 
-        final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
+        final RepositoryData repositoryData = AbstractSnapshotIntegTestCase.getRepositoryData(repository);
         final RepositoryData.SnapshotDetails snapshotDetails = repositoryData.getSnapshotDetails(snapshotId);
         snapshotDetailsAsserter.accept(snapshotDetails);
 
@@ -308,7 +312,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repositoryData.getGenId()
         );
 
-        snapshotDetailsAsserter.accept(PlainActionFuture.get(repository::getRepositoryData).getSnapshotDetails(snapshotId));
+        snapshotDetailsAsserter.accept(AbstractSnapshotIntegTestCase.getRepositoryData(repository).getSnapshotDetails(snapshotId));
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
@@ -410,7 +414,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         SnapshotShardContext context = ShardSnapshotTaskRunnerTests.dummyContext();
         int noOfFiles = randomIntBetween(10, 100);
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(noOfFiles);
-        PlainActionFuture<Void> listenerCalled = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> listenerCalled = new PlainActionFuture<>();
         ActionListener<Collection<Void>> allFilesUploadListener = ActionListener.running(() -> listenerCalled.onResponse(null));
         for (int i = 0; i < noOfFiles; i++) {
             files.add(ShardSnapshotTaskRunnerTests.dummyFileInfo());
@@ -434,13 +438,49 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     threadContext.putHeader(headerName, headerValue);
                     threadPool.generic().execute(ActionRunnable.wrap(listeners.acquire(), l -> {
                         safeAwait(barrier);
-                        repo.getRepositoryData(l.map(repositoryData -> {
+                        repo.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l.map(repositoryData -> {
                             assertEquals(headerValue, threadContext.getHeader(headerName));
                             return null;
                         }));
                     }));
                 }
             }
+        }
+        future.actionGet(10, TimeUnit.SECONDS);
+    }
+
+    public void testGetRepositoryDataForking() {
+        final var forkedListeners = Collections.synchronizedList(new ArrayList<Runnable>());
+        final var future = new PlainActionFuture<Void>();
+        try (var listeners = new RefCountingListener(future)) {
+            final var repo = setupRepo();
+            final int threads = between(1, 5);
+            final var barrier = new CyclicBarrier(threads);
+            final var threadPool = client().threadPool();
+            final var testThread = Thread.currentThread();
+            final var resultsCountDown = new CountDownLatch(threads);
+            for (int i = 0; i < threads; i++) {
+                threadPool.generic().execute(ActionRunnable.wrap(listeners.acquire(), l -> {
+                    final var callingThread = Thread.currentThread();
+                    safeAwait(barrier);
+                    repo.getRepositoryData(runnable -> {
+                        forkedListeners.add(runnable);
+                        resultsCountDown.countDown();
+                    }, l.map(repositoryData -> {
+                        final var currentThread = Thread.currentThread();
+                        if (currentThread == testThread) {
+                            assertEquals(0, resultsCountDown.getCount());
+                        } else {
+                            assertSame(callingThread, currentThread);
+                            resultsCountDown.countDown();
+                        }
+                        return null;
+                    }));
+                }));
+            }
+            safeAwait(resultsCountDown);
+            forkedListeners.forEach(Runnable::run);
+            repo.getRepositoryData(runnable -> fail("should use cached value and not fork"), listeners.acquire(ignored -> {}));
         }
         future.actionGet(10, TimeUnit.SECONDS);
     }

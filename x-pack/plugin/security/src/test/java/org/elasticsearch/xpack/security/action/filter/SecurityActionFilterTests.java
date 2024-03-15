@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.MockIndicesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -99,7 +100,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             .add(DiscoveryNodeUtils.create("id1"))
             .add(
                 DiscoveryNodeUtils.builder("id2")
-                    .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+                    .version(Version.CURRENT.minimumCompatibilityVersion(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
                     .build()
             )
             .build();
@@ -228,7 +229,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomFrom("*", "_all", "test*")
         );
-        String action = randomFrom(CloseIndexAction.NAME, OpenIndexAction.NAME, DeleteIndexAction.NAME);
+        String action = randomFrom(TransportCloseIndexAction.NAME, OpenIndexAction.NAME, TransportDeleteIndexAction.TYPE.name());
         ActionListener listener = mock(ActionListener.class);
         Task task = mock(Task.class);
         User user = new User("username", "r1", "r2");

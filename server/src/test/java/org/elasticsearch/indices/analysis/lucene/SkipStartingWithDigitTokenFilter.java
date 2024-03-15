@@ -14,9 +14,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 
 import java.io.IOException;
 
-public class SkipStartingWithDigitTokenFilter extends FilteringTokenFilter {
+public final class SkipStartingWithDigitTokenFilter extends FilteringTokenFilter {
 
-    @SuppressWarnings("this-escape")
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final long asciiDigitsToSkip;
 

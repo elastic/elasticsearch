@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -74,7 +74,12 @@ public class IndicesPermissionTests extends ESTestCase {
         Role role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
-        IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
+        IndicesAccessControl permissions = role.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("_index"),
+            lookup,
+            fieldPermissionsCache
+        );
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -86,7 +91,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), null, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -97,7 +102,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(FieldPermissions.DEFAULT, query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
@@ -108,7 +113,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -132,7 +137,7 @@ public class IndicesPermissionTests extends ESTestCase {
         role = Role.builder(RESTRICTED_INDICES, "_role")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().hasDocumentLevelPermissions(), is(true));
@@ -158,7 +163,7 @@ public class IndicesPermissionTests extends ESTestCase {
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), fooQuery, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
-        permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
+        permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
         Set<BytesReference> bothQueries = Sets.union(fooQuery, query);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -194,7 +199,12 @@ public class IndicesPermissionTests extends ESTestCase {
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .add(new FieldPermissions(fieldPermissionDef(null, null)), null, IndexPrivilege.ALL, randomBoolean(), "*")
             .build();
-        IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
+        IndicesAccessControl permissions = role.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("_index"),
+            lookup,
+            fieldPermissionsCache
+        );
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -261,15 +271,20 @@ public class IndicesPermissionTests extends ESTestCase {
                 "a1"
             )
             .build();
-        IndicesAccessControl iac = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        IndicesAccessControl iac = core.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet("a1", "ba"),
+            lookup,
+            fieldPermissionsCache
+        );
         assertTrue(iac.getIndexPermissions("a1").getFieldPermissions().grantsAccessTo("denied_field"));
         assertTrue(iac.getIndexPermissions("a1").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5)));
         // did not define anything for ba so we allow all
         assertFalse(iac.hasIndexPermissions("ba"));
 
-        assertTrue(core.check(SearchAction.NAME));
-        assertTrue(core.check(PutMappingAction.NAME));
-        assertTrue(core.check(AutoPutMappingAction.NAME));
+        assertTrue(core.check(TransportSearchAction.TYPE.name()));
+        assertTrue(core.check(TransportPutMappingAction.TYPE.name()));
+        assertTrue(core.check(TransportAutoPutMappingAction.TYPE.name()));
         assertFalse(core.check("unknown"));
 
         // test with two indices
@@ -302,7 +317,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 "a2"
             )
             .build();
-        iac = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "a2"), lookup, fieldPermissionsCache);
+        iac = core.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("a1", "a2"), lookup, fieldPermissionsCache);
         assertFalse(iac.getIndexPermissions("a1").getFieldPermissions().hasFieldLevelSecurity());
         assertFalse(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo("denied_field2"));
         assertFalse(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo("denied_field"));
@@ -310,9 +325,9 @@ public class IndicesPermissionTests extends ESTestCase {
         assertTrue(iac.getIndexPermissions("a2").getFieldPermissions().grantsAccessTo(randomAlphaOfLength(5) + "_field2"));
         assertTrue(iac.getIndexPermissions("a2").getFieldPermissions().hasFieldLevelSecurity());
 
-        assertTrue(core.check(SearchAction.NAME));
-        assertTrue(core.check(PutMappingAction.NAME));
-        assertTrue(core.check(AutoPutMappingAction.NAME));
+        assertTrue(core.check(TransportSearchAction.TYPE.name()));
+        assertTrue(core.check(TransportPutMappingAction.TYPE.name()));
+        assertTrue(core.check(TransportAutoPutMappingAction.TYPE.name()));
         assertFalse(core.check("unknown"));
     }
 
@@ -364,7 +379,7 @@ public class IndicesPermissionTests extends ESTestCase {
             "*"
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             Sets.newHashSet(internalSecurityIndex, SecuritySystemIndices.SECURITY_MAIN_ALIAS),
             lookup,
             fieldPermissionsCache
@@ -384,7 +399,7 @@ public class IndicesPermissionTests extends ESTestCase {
             "*"
         ).build();
         iac = indicesPermission.authorize(
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             Sets.newHashSet(internalSecurityIndex, SecuritySystemIndices.SECURITY_MAIN_ALIAS),
             lookup,
             fieldPermissionsCache
@@ -415,7 +430,7 @@ public class IndicesPermissionTests extends ESTestCase {
             "*"
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             Sets.newHashSet(asyncSearchIndex),
             lookup,
             fieldPermissionsCache
@@ -432,7 +447,12 @@ public class IndicesPermissionTests extends ESTestCase {
             true,
             "*"
         ).build();
-        iac = indicesPermission.authorize(SearchAction.NAME, Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
+        iac = indicesPermission.authorize(
+            TransportSearchAction.TYPE.name(),
+            Sets.newHashSet(asyncSearchIndex),
+            lookup,
+            fieldPermissionsCache
+        );
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.hasIndexPermissions(asyncSearchIndex), is(true));
         assertThat(iac.getIndexPermissions(asyncSearchIndex), is(notNullValue()));
@@ -466,7 +486,7 @@ public class IndicesPermissionTests extends ESTestCase {
             dataStreamName
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
-            SearchAction.NAME,
+            TransportSearchAction.TYPE.name(),
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
             fieldPermissionsCache
@@ -486,7 +506,7 @@ public class IndicesPermissionTests extends ESTestCase {
             dataStreamName
         ).build();
         iac = indicesPermission.authorize(
-            randomFrom(PutMappingAction.NAME, AutoPutMappingAction.NAME),
+            randomFrom(TransportPutMappingAction.TYPE.name(), TransportAutoPutMappingAction.TYPE.name()),
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
             fieldPermissionsCache
@@ -539,7 +559,7 @@ public class IndicesPermissionTests extends ESTestCase {
             )
             .build();
         IndicesAccessControl iac = core.authorize(
-            PutMappingAction.NAME,
+            TransportPutMappingAction.TYPE.name(),
             Sets.newHashSet("test1", "test_write1"),
             lookup,
             fieldPermissionsCache
@@ -551,22 +571,27 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(iac.hasIndexPermissions("test_write1"), is(true));
         assertWarnings(
             "the index privilege [index] allowed the update mapping action ["
-                + PutMappingAction.NAME
+                + TransportPutMappingAction.TYPE.name()
                 + "] on "
                 + "index [test1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges",
             "the index privilege [index] allowed the update mapping action ["
-                + PutMappingAction.NAME
+                + TransportPutMappingAction.TYPE.name()
                 + "] on "
                 + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges",
             "the index privilege [write] allowed the update mapping action ["
-                + PutMappingAction.NAME
+                + TransportPutMappingAction.TYPE.name()
                 + "] on "
                 + "index [test_write1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
-        iac = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);
+        iac = core.authorize(
+            TransportAutoPutMappingAction.TYPE.name(),
+            Sets.newHashSet("test1", "test_write1"),
+            lookup,
+            fieldPermissionsCache
+        );
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.getIndexPermissions("test1"), is(notNullValue()));
         assertThat(iac.hasIndexPermissions("test1"), is(true));
@@ -574,21 +599,21 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(iac.hasIndexPermissions("test_write1"), is(true));
         assertWarnings(
             "the index privilege [index] allowed the update mapping action ["
-                + AutoPutMappingAction.NAME
+                + TransportAutoPutMappingAction.TYPE.name()
                 + "] on "
                 + "index [test1], this privilege will not permit mapping updates in the next major release - "
                 + "users who require access to update mappings must be granted explicit privileges"
         );
 
-        iac = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
+        iac = core.authorize(TransportAutoPutMappingAction.TYPE.name(), Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.getIndexPermissions("test_write2"), is(notNullValue()));
         assertThat(iac.hasIndexPermissions("test_write2"), is(true));
-        iac = core.authorize(PutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
+        iac = core.authorize(TransportPutMappingAction.TYPE.name(), Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
         assertThat(iac.getIndexPermissions("test_write2"), is(nullValue()));
         assertThat(iac.hasIndexPermissions("test_write2"), is(false));
         iac = core.authorize(
-            AutoPutMappingAction.NAME,
+            TransportAutoPutMappingAction.TYPE.name(),
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
             fieldPermissionsCache
@@ -599,7 +624,7 @@ public class IndicesPermissionTests extends ESTestCase {
             assertThat(iac.hasIndexPermissions(im.getIndex().getName()), is(true));
         }
         iac = core.authorize(
-            PutMappingAction.NAME,
+            TransportPutMappingAction.TYPE.name(),
             Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
             lookup,
             fieldPermissionsCache

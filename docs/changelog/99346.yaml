@@ -1,5 +1,0 @@
-pr: 99346
-summary: Automatically disable `ignore_malformed` on datastream `@timestamp` fields
-area: Mapping
-type: bug
-issues: []

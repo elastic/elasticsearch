@@ -111,6 +111,36 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
+[[dense-vector-quantization]]
+==== Automatically quantize vectors for kNN search
+
+The `dense_vector` type supports quantization to reduce the memory footprint required when <<approximate-knn, searching>> `float` vectors.
+Currently the only quantization method supported is `int8` and provided vectors `element_type` must be `float`. To use
+a quantized index, you can set your index type to `int8_hnsw`.
+
+When using the `int8_hnsw` index, each of the `float` vectors' dimensions are quantized to 1-byte integers. This can
+reduce the memory footprint by as much as 75% at the cost of some accuracy. However, the disk usage can increase by
+25% due to the overhead of storing the quantized and raw vectors.
+
+[source,console]
+--------------------------------------------------
+PUT my-byte-quantized-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "index_options": {
+          "type": "int8_hnsw"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
 [role="child_attributes"]
 [[dense-vector-params]]
 ==== Parameters for dense vector fields
@@ -198,28 +228,44 @@ a distinct set of options.
 An optional section that configures the kNN indexing algorithm. The HNSW
 algorithm has two internal parameters that influence how the data structure is
 built. These can be adjusted to improve the accuracy of results, at the
-expense of slower indexing speed. When `index_options` is provided, all of its
-properties must be defined.
+expense of slower indexing speed.
 +
 ^*^ This parameter can only be specified when `index` is `true`.
-+
 +
 .Properties of `index_options`
 [%collapsible%open]
 ====
 `type`:::
 (Required, string)
-The type of kNN algorithm to use. Currently only `hnsw` is supported.
-
+The type of kNN algorithm to use. Can be either any of:
++
+--
+* `hnsw` - The default storage type. This utilizes the https://arxiv.org/abs/1603.09320[HNSW algorithm] for scalable
+    approximate kNN search. This supports all `element_type` values.
+* `int8_hnsw` - This utilizes the https://arxiv.org/abs/1603.09320[HNSW algorithm] in addition to automatically scalar
+quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint
+by 4x at the cost of some accuracy. See <<dense-vector-quantization, Automatically quantize vectors for kNN search>>.
+* `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
+* `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports
+`element_type` of `float`.
+--
 `m`:::
-(Required, integer)
+(Optional, integer)
 The number of neighbors each node will be connected to in the HNSW graph.
-Defaults to `16`.
+Defaults to `16`. Only applicable to `hnsw` and `int8_hnsw` index types.
 
 `ef_construction`:::
-(Required, integer)
+(Optional, integer)
 The number of candidates to track while assembling the list of nearest
-neighbors for each new node. Defaults to `100`.
+neighbors for each new node. Defaults to `100`. Only applicable to `hnsw` and `int8_hnsw` index types.
+
+`confidence_interval`:::
+(Optional, float)
+Only applicable to `int8_hnsw` and `int8_flat` index types. The confidence interval to use when quantizing the vectors,
+can be any value between and including `0.90` and `1.0`. This value restricts the values used when calculating
+the quantization thresholds. For example, a value of `0.95` will only use the middle 95% of the values when
+calculating the quantization thresholds (e.g. the highest and lowest 2.5% of values will be ignored).
+Defaults to `1/(dims + 1)`.
 ====
 
 [[dense-vector-synthetic-source]]
@@ -228,7 +274,7 @@ neighbors for each new node. Defaults to `100`.
 IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
 (indices that have `index.mode` set to `time_series`). For other indices
 synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will apply best effort to fix
+be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 

@@ -1,6 +1,0 @@
-pr: 98518
-summary: Add `index.look_back_time` setting for tsdb data streams
-area: TSDB
-type: enhancement
-issues:
- - 98463

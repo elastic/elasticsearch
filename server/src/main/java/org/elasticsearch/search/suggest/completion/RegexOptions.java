@@ -61,8 +61,8 @@ public class RegexOptions implements ToXContentFragment, Writeable {
         return PARSER.parse(parser, null).build();
     }
 
-    private int flagsValue;
-    private int maxDeterminizedStates;
+    private final int flagsValue;
+    private final int maxDeterminizedStates;
 
     private RegexOptions(int flagsValue, int maxDeterminizedStates) {
         this.flagsValue = flagsValue;

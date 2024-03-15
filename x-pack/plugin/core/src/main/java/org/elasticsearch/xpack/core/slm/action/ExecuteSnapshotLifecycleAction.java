@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -29,7 +28,7 @@ public class ExecuteSnapshotLifecycleAction extends ActionType<ExecuteSnapshotLi
     public static final String NAME = "cluster:admin/slm/execute";
 
     protected ExecuteSnapshotLifecycleAction() {
-        super(NAME, ExecuteSnapshotLifecycleAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -55,11 +54,6 @@ public class ExecuteSnapshotLifecycleAction extends ActionType<ExecuteSnapshotLi
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(lifecycleId);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

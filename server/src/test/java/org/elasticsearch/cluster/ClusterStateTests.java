@@ -44,6 +44,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -60,9 +61,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
@@ -223,6 +224,12 @@ public class ClusterStateTests extends ESTestCase {
                               }
                             }
                           ],
+                          "nodes_features" : [
+                            {
+                              "node_id" : "nodeId1",
+                              "features" : [ "f1", "f2" ]
+                            }
+                          ],
                           "metadata": {
                             "cluster_uuid": "clusterUUID",
                             "cluster_uuid_committed": false,
@@ -373,7 +380,7 @@ public class ClusterStateTests extends ESTestCase {
                         }""",
                     ephemeralId,
                     Version.CURRENT,
-                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current(),
                     TransportVersion.current(),
                     IndexVersion.current(),
@@ -388,13 +395,14 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testToXContent_FlatSettingTrue_ReduceMappingFalse() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put("flat_settings", "true");
-                put("reduce_mappings", "false");
-                put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            "flat_settings",
+            "true",
+            "reduce_mappings",
+            "false",
+            Metadata.CONTEXT_MODE_PARAM,
+            Metadata.CONTEXT_MODE_API
+        );
 
         final ClusterState clusterState = buildClusterState();
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
@@ -482,6 +490,15 @@ public class ClusterStateTests extends ESTestCase {
                               "hash" : 1
                             }
                           }
+                        }
+                      ],
+                      "nodes_features" : [
+                        {
+                          "node_id" : "nodeId1",
+                          "features" : [
+                            "f1",
+                            "f2"
+                          ]
                         }
                       ],
                       "metadata" : {
@@ -630,7 +647,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),
@@ -644,13 +661,14 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testToXContent_FlatSettingFalse_ReduceMappingTrue() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put("flat_settings", "false");
-                put("reduce_mappings", "true");
-                put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            "flat_settings",
+            "false",
+            "reduce_mappings",
+            "true",
+            Metadata.CONTEXT_MODE_PARAM,
+            Metadata.CONTEXT_MODE_API
+        );
 
         final ClusterState clusterState = buildClusterState();
 
@@ -739,6 +757,15 @@ public class ClusterStateTests extends ESTestCase {
                               "hash" : 1
                             }
                           }
+                        }
+                      ],
+                      "nodes_features" : [
+                        {
+                          "node_id" : "nodeId1",
+                          "features" : [
+                            "f1",
+                            "f2"
+                          ]
                         }
                       ],
                       "metadata" : {
@@ -893,7 +920,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),
@@ -922,15 +949,7 @@ public class ClusterStateTests extends ESTestCase {
                                     "type",
                                     // the type name is the root value,
                                     // the original logic in ClusterState.toXContent will reduce
-                                    new HashMap<>() {
-                                        {
-                                            put("type", new HashMap<String, Object>() {
-                                                {
-                                                    put("key", "value");
-                                                }
-                                            });
-                                        }
-                                    }
+                                    Map.of("type", Map.of("key", "value"))
                                 )
                             )
                             .numberOfShards(1)
@@ -954,6 +973,7 @@ public class ClusterStateTests extends ESTestCase {
               "blocks" : { },
               "nodes" : { },
               "nodes_versions" : [ ],
+              "nodes_features" : [ ],
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
                 "cluster_uuid_committed" : false,
@@ -1015,27 +1035,55 @@ public class ClusterStateTests extends ESTestCase {
             }""", IndexVersion.current()), Strings.toString(builder));
     }
 
+    public void testNodeFeaturesSorted() throws IOException {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodeFeatures(Map.of("node2", Set.of("nf1", "f2", "nf2"), "node1", Set.of("f3", "f2", "f1"), "node3", Set.of()))
+            .build();
+
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        writeChunks(clusterState, builder, new ToXContent.MapParams(Map.of("metric", ClusterState.Metric.NODES.toString())));
+        builder.endObject();
+
+        assertThat(Strings.toString(builder), equalTo("""
+            {
+              "cluster_uuid" : "_na_",
+              "nodes" : { },
+              "nodes_versions" : [ ],
+              "nodes_features" : [
+                {
+                  "node_id" : "node1",
+                  "features" : [
+                    "f1",
+                    "f2",
+                    "f3"
+                  ]
+                },
+                {
+                  "node_id" : "node2",
+                  "features" : [
+                    "f2",
+                    "nf1",
+                    "nf2"
+                  ]
+                },
+                {
+                  "node_id" : "node3",
+                  "features" : [ ]
+                }
+              ]
+            }"""));
+    }
+
     private ClusterState buildClusterState() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .state(IndexMetadata.State.OPEN)
             .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-            .putMapping(new MappingMetadata("type", new HashMap<>() {
-                {
-                    put("type1", new HashMap<String, Object>() {
-                        {
-                            put("key", "value");
-                        }
-                    });
-                }
-            }))
+            .putMapping(new MappingMetadata("type", Map.of("type1", Map.of("key", "value"))))
             .putAlias(AliasMetadata.builder("alias").indexRouting("indexRouting").build())
             .numberOfShards(1)
             .primaryTerm(0, 1L)
-            .putInSyncAllocationIds(0, new HashSet<>() {
-                {
-                    add("allocationId");
-                }
-            })
+            .putInSyncAllocationIds(0, Set.of("allocationId"))
             .numberOfReplicas(2)
             .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
             .stats(new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 120, 1))
@@ -1056,6 +1104,7 @@ public class ClusterStateTests extends ESTestCase {
                     new CompatibilityVersions(TransportVersion.current(), Map.of(".tasks", new SystemIndexDescriptor.MappingsVersion(1, 1)))
                 )
             )
+            .nodeFeatures(Map.of("nodeId1", Set.of("f1", "f2")))
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
@@ -1082,16 +1131,8 @@ public class ClusterStateTests extends ESTestCase {
                     .coordinationMetadata(
                         CoordinationMetadata.builder()
                             .term(1)
-                            .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>() {
-                                {
-                                    add("commitedConfigurationNodeId");
-                                }
-                            }))
-                            .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>() {
-                                {
-                                    add("acceptedConfigurationNodeId");
-                                }
-                            }))
+                            .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("commitedConfigurationNodeId")))
+                            .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("acceptedConfigurationNodeId")))
                             .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
                             .build()
                     )
@@ -1180,7 +1221,7 @@ public class ClusterStateTests extends ESTestCase {
         // equal mappings versions
         {
             var builder = ClusterState.builder(buildClusterState());
-            builder.compatibilityVersions(
+            builder.nodeIdsToCompatibilityVersions(
                 Map.of(
                     "node1",
                     new CompatibilityVersions(
@@ -1200,7 +1241,7 @@ public class ClusterStateTests extends ESTestCase {
         // unequal mappings versions
         {
             var builder = ClusterState.builder(buildClusterState());
-            builder.compatibilityVersions(
+            builder.nodeIdsToCompatibilityVersions(
                 Map.of(
                     "node1",
                     new CompatibilityVersions(
@@ -1220,7 +1261,7 @@ public class ClusterStateTests extends ESTestCase {
         // one node has a mappings version that the other is missing
         {
             var builder = ClusterState.builder(buildClusterState());
-            builder.compatibilityVersions(
+            builder.nodeIdsToCompatibilityVersions(
                 Map.of(
                     "node1",
                     new CompatibilityVersions(
@@ -1256,9 +1297,11 @@ public class ClusterStateTests extends ESTestCase {
             chunkCount += 2 + clusterState.blocks().indices().size();
         }
 
-        // nodes, nodes_versions
+        // nodes, nodes_versions, nodes_features
         if (metrics.contains(ClusterState.Metric.NODES)) {
-            chunkCount += 4 + clusterState.nodes().size() + clusterState.compatibilityVersions().size();
+            chunkCount += 7 + clusterState.nodes().size() + clusterState.compatibilityVersions().size() + clusterState.clusterFeatures()
+                .nodeFeatures()
+                .size();
         }
 
         // metadata

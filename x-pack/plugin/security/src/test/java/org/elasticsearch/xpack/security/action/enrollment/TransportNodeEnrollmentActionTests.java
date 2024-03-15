@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.security.action.enrollment;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
@@ -102,7 +102,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             DiscoveryNode n = node(i);
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
+                    Build.current().version(),
                     TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),

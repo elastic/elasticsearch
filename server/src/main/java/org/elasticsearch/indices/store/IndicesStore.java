@@ -64,7 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class IndicesStore implements ClusterStateListener, Closeable {
+public final class IndicesStore implements ClusterStateListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesStore.class);
 
@@ -88,7 +88,6 @@ public class IndicesStore implements ClusterStateListener, Closeable {
 
     private final TimeValue deleteShardTimeout;
 
-    @SuppressWarnings("this-escape")
     @Inject
     public IndicesStore(
         Settings settings,
@@ -258,7 +257,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return TransportResponseHandler.TRANSPORT_WORKER;
         }
 
@@ -338,7 +337,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
     private class ShardActiveRequestHandler implements TransportRequestHandler<ShardActiveRequest> {
 
         @Override
-        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel, Task task) {
             IndexShard indexShard = getShard(request);
 
             // make sure shard is really there before register cluster state observer
@@ -382,7 +381,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
                         public void sendResult(boolean shardActive) {
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch (IOException | EsRejectedExecutionException e) {
+                            } catch (EsRejectedExecutionException e) {
                                 logger.error(
                                     () -> format(
                                         "failed send response for shard active while trying to "

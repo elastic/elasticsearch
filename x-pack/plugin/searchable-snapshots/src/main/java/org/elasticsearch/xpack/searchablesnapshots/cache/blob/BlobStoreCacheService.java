@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -56,11 +55,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORI
 public class BlobStoreCacheService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(BlobStoreCacheService.class);
-
-    /**
-     * Before 7.12.0 blobs were cached using a 4KB or 8KB maximum length.
-     */
-    private static final Version OLD_CACHED_BLOB_SIZE_VERSION = Version.V_7_12_0;
 
     public static final int DEFAULT_CACHED_BLOB_SIZE = ByteSizeUnit.KB.toIntBytes(1);
     private static final Cache<String, String> LOG_EXCEEDING_FILES_CACHE = CacheBuilder.<String, String>builder()
@@ -129,7 +123,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false
             : "must not block [" + Thread.currentThread().getName() + "] for a cache read";
 
-        final PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<CachedBlob> future = new PlainActionFuture<>();
         getAsync(repository, snapshotId, indexId, shardId, name, range, future);
         try {
             return future.actionGet(5, TimeUnit.SECONDS);
@@ -250,7 +244,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         try {
             final CachedBlob cachedBlob = new CachedBlob(
                 Instant.ofEpochMilli(timeInEpochMillis),
-                Version.CURRENT,
                 repository,
                 name,
                 generatePath(snapshotId, indexId, shardId),
@@ -333,14 +326,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
     public ByteRange computeBlobCacheByteRange(ShardId shardId, String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
         final LuceneFilesExtensions fileExtension = LuceneFilesExtensions.fromExtension(IndexFileNames.getExtension(fileName));
 
-        if (useLegacyCachedBlobSizes()) {
-            if (fileLength <= ByteSizeUnit.KB.toBytes(8L)) {
-                return ByteRange.of(0L, fileLength);
-            } else {
-                return ByteRange.of(0L, ByteSizeUnit.KB.toBytes(4L));
-            }
-        }
-
         if (fileExtension != null && fileExtension.isMetadata()) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
             if (fileLength > maxAllowedLengthInBytes) {
@@ -349,11 +334,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             return ByteRange.of(0L, Math.min(fileLength, maxAllowedLengthInBytes));
         }
         return ByteRange.of(0L, Math.min(fileLength, DEFAULT_CACHED_BLOB_SIZE));
-    }
-
-    protected boolean useLegacyCachedBlobSizes() {
-        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        return minNodeVersion.before(OLD_CACHED_BLOB_SIZE_VERSION);
     }
 
     private static void logExceedingFile(ShardId shardId, LuceneFilesExtensions extension, long length, ByteSizeValue maxAllowedLength) {

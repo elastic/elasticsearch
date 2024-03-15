@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.random.RandomGenerator;
@@ -28,7 +30,20 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 10_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            requestedSamples,
+            1.0d,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         request.setAdjustSampleCount(false);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);
@@ -43,7 +58,20 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 10_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            requestedSamples,
+            1.0d,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         request.setAdjustSampleCount(true);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);
@@ -58,7 +86,20 @@ public class ResamplerTests extends ESTestCase {
         int requestedSamples = 20_000;
         int actualTotalSamples = 40_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            requestedSamples,
+            1.0d,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         request.setAdjustSampleCount(false);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);
@@ -67,13 +108,57 @@ public class ResamplerTests extends ESTestCase {
         assertEquals(20_000, resampler.adjustSampleCount(actualSamplesSingleTrace));
     }
 
+    public void testResamplingNoSampleRateAdjustmentWithQuery() {
+        double sampleRate = 1.0d;
+        int requestedSamples = 1;
+        int actualTotalSamples = 200;
+        // there is only one event
+        int actualSamplesSingleTrace = 200;
+
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            requestedSamples,
+            1.0d,
+            1.0d,
+            1.0d,
+            new BoolQueryBuilder().filter(
+                new RangeQueryBuilder("@timestamp").lt("2023-10-19 15:33:00").gte("2023-09-20 15:31:52").format("yyyy-MM-dd HH:mm:ss")
+            ),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        request.setAdjustSampleCount(false);
+        // use the real resampler here to ensure we have a stable seed even for complex queries
+        Resampler resampler = new Resampler(request, sampleRate, actualTotalSamples);
+
+        assertEquals(200, resampler.adjustSampleCount(actualSamplesSingleTrace));
+    }
+
     public void testResamplingAndSampleRateAdjustment() {
         // corresponds to profiling-events-5pow01
         double sampleRate = 1.0d / Math.pow(5.0d, 1);
         int requestedSamples = 20_000;
         int actualTotalSamples = 40_000;
 
-        GetStackTracesRequest request = new GetStackTracesRequest(requestedSamples, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            requestedSamples,
+            1.0d,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         request.setAdjustSampleCount(true);
 
         Resampler resampler = createResampler(request, sampleRate, actualTotalSamples);

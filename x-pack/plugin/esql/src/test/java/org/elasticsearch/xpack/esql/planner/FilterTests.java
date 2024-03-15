@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -30,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.Queries;
 import org.junit.BeforeClass;
@@ -38,6 +41,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -48,12 +52,13 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.ql.util.Queries.Clause.MUST;
 import static org.elasticsearch.xpack.ql.util.Queries.Clause.SHOULD;
+import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSource;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FilterTests extends ESTestCase {
 
     // use a field that already exists in the mapping
-    private static final String AT_TIMESTAMP = "emp_no";
+    private static final String EMP_NO = "emp_no";
     private static final String OTHER_FIELD = "salary";
 
     private static EsqlParser parser;
@@ -68,9 +73,9 @@ public class FilterTests extends ESTestCase {
         parser = new EsqlParser();
 
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping);
+        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        logicalOptimizer = new LogicalPlanOptimizer();
+        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         mapper = new Mapper(false);
 
@@ -81,7 +86,7 @@ public class FilterTests extends ESTestCase {
     }
 
     public void testTimestampRequestFilterNoQueryFilter() {
-        var restFilter = restFilterQuery(AT_TIMESTAMP);
+        var restFilter = restFilterQuery(EMP_NO);
 
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
@@ -98,24 +103,29 @@ public class FilterTests extends ESTestCase {
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {}
-            """, AT_TIMESTAMP, value), null);
+            """, EMP_NO, value), null);
 
         var filter = filterQueryForTransportNodes(plan);
-        var expected = singleValueQuery(rangeQuery(AT_TIMESTAMP).gt(value), AT_TIMESTAMP);
+        var expected = singleValueQuery(rangeQuery(EMP_NO).gt(value), EMP_NO, ((SingleValueQuery.Builder) filter).source());
         assertEquals(expected.toString(), filter.toString());
     }
 
     public void testTimestampRequestFilterQueryFilter() {
         var value = 10;
-        var restFilter = restFilterQuery(AT_TIMESTAMP);
+        var restFilter = restFilterQuery(EMP_NO);
 
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > 10
-            """, AT_TIMESTAMP, value), restFilter);
+            """, EMP_NO, value), restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
-        var queryFilter = singleValueQuery(rangeQuery(AT_TIMESTAMP).gt(value).includeUpper(false), AT_TIMESTAMP);
+        var builder = ((BoolQueryBuilder) filter).filter().get(1);
+        var queryFilter = singleValueQuery(
+            rangeQuery(EMP_NO).gt(value).includeUpper(false),
+            EMP_NO,
+            ((SingleValueQuery.Builder) builder).source()
+        );
         var expected = Queries.combine(FILTER, asList(restFilter, queryFilter));
         assertEquals(expected.toString(), filter.toString());
     }
@@ -123,16 +133,17 @@ public class FilterTests extends ESTestCase {
     public void testTimestampRequestFilterQueryFilterWithConjunction() {
         var lowValue = 10;
         var highValue = 100;
-        var restFilter = restFilterQuery(AT_TIMESTAMP);
+        var restFilter = restFilterQuery(EMP_NO);
 
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {} AND {} < {}
-            """, AT_TIMESTAMP, lowValue, AT_TIMESTAMP, highValue), restFilter);
+            """, EMP_NO, lowValue, EMP_NO, highValue), restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
-        var left = singleValueQuery(rangeQuery(AT_TIMESTAMP).gt(lowValue), AT_TIMESTAMP);
-        var right = singleValueQuery(rangeQuery(AT_TIMESTAMP).lt(highValue), AT_TIMESTAMP);
+        var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
+        var left = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
+        var right = singleValueQuery(rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
         var must = Queries.combine(MUST, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, must));
         assertEquals(expected.toString(), filter.toString());
@@ -141,12 +152,12 @@ public class FilterTests extends ESTestCase {
     public void testTimestampRequestFilterQueryFilterWithDisjunctionOnDifferentFields() {
         var lowValue = 10;
         var highValue = 100;
-        var restFilter = restFilterQuery(AT_TIMESTAMP);
+        var restFilter = restFilterQuery(EMP_NO);
 
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {} OR {} < {}
-            """, OTHER_FIELD, lowValue, AT_TIMESTAMP, highValue), restFilter);
+            """, OTHER_FIELD, lowValue, EMP_NO, highValue), restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
         var expected = restFilter;
@@ -156,16 +167,17 @@ public class FilterTests extends ESTestCase {
     public void testTimestampRequestFilterQueryFilterWithDisjunctionOnSameField() {
         var lowValue = 10;
         var highValue = 100;
-        var restFilter = restFilterQuery(AT_TIMESTAMP);
+        var restFilter = restFilterQuery(EMP_NO);
 
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {} OR {} < {}
-            """, AT_TIMESTAMP, lowValue, AT_TIMESTAMP, highValue), restFilter);
+            """, EMP_NO, lowValue, EMP_NO, highValue), restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
-        var left = singleValueQuery(rangeQuery(AT_TIMESTAMP).gt(lowValue), AT_TIMESTAMP);
-        var right = singleValueQuery(rangeQuery(AT_TIMESTAMP).lt(highValue), AT_TIMESTAMP);
+        var shoulds = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).should();
+        var left = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(0)).source());
+        var right = singleValueQuery(rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) shoulds.get(1)).source());
         var should = Queries.combine(SHOULD, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, should));
         assertEquals(expected.toString(), filter.toString());
@@ -175,16 +187,17 @@ public class FilterTests extends ESTestCase {
         var lowValue = 10;
         var highValue = 100;
         var eqValue = 1234;
-        var restFilter = restFilterQuery(AT_TIMESTAMP);
+        var restFilter = restFilterQuery(EMP_NO);
 
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {} AND {} == {} AND {} < {}
-            """, AT_TIMESTAMP, lowValue, OTHER_FIELD, eqValue, AT_TIMESTAMP, highValue), restFilter);
+            """, EMP_NO, lowValue, OTHER_FIELD, eqValue, EMP_NO, highValue), restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
-        var left = singleValueQuery(rangeQuery(AT_TIMESTAMP).gt(lowValue), AT_TIMESTAMP);
-        var right = singleValueQuery(rangeQuery(AT_TIMESTAMP).lt(highValue), AT_TIMESTAMP);
+        var musts = ((BoolQueryBuilder) ((BoolQueryBuilder) filter).filter().get(1)).must();
+        var left = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(0)).source());
+        var right = singleValueQuery(rangeQuery(EMP_NO).lt(highValue), EMP_NO, ((SingleValueQuery.Builder) musts.get(1)).source());
         var must = Queries.combine(MUST, asList(left, right));
         var expected = Queries.combine(FILTER, asList(restFilter, must));
         assertEquals(expected.toString(), filter.toString());
@@ -195,17 +208,18 @@ public class FilterTests extends ESTestCase {
         var eqValue = 1234;
         var highValue = 100;
 
-        var restFilter = restFilterQuery(AT_TIMESTAMP);
+        var restFilter = restFilterQuery(EMP_NO);
 
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
             |WHERE {} > {}
             |EVAL {} = {}
             |WHERE {} > {}
-            """, AT_TIMESTAMP, lowValue, AT_TIMESTAMP, eqValue, AT_TIMESTAMP, highValue), restFilter);
+            """, EMP_NO, lowValue, EMP_NO, eqValue, EMP_NO, highValue), restFilter);
 
         var filter = filterQueryForTransportNodes(plan);
-        var queryFilter = singleValueQuery(rangeQuery(AT_TIMESTAMP).gt(lowValue), AT_TIMESTAMP);
+        var builder = ((BoolQueryBuilder) filter).filter().get(1);
+        var queryFilter = singleValueQuery(rangeQuery(EMP_NO).gt(lowValue), EMP_NO, ((SingleValueQuery.Builder) builder).source());
         var expected = Queries.combine(FILTER, asList(restFilter, queryFilter));
         assertEquals(expected.toString(), filter.toString());
     }
@@ -217,7 +231,7 @@ public class FilterTests extends ESTestCase {
              FROM test
             |EVAL {} = {}
             |WHERE {} > {}
-            """, AT_TIMESTAMP, OTHER_FIELD, AT_TIMESTAMP, eqValue), null);
+            """, EMP_NO, OTHER_FIELD, EMP_NO, eqValue), null);
 
         var filter = filterQueryForTransportNodes(plan);
         assertThat(filter, nullValue());
@@ -229,7 +243,7 @@ public class FilterTests extends ESTestCase {
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
             |WHERE to_int(to_string({})) == {}
-            """, AT_TIMESTAMP, eqValue), null);
+            """, EMP_NO, eqValue), null);
 
         var filter = filterQueryForTransportNodes(plan);
         assertThat(filter, nullValue());
@@ -241,7 +255,7 @@ public class FilterTests extends ESTestCase {
         var plan = plan(LoggerMessageFormat.format(null, """
              FROM test
             |WHERE to_int(to_string({})) + 987 == {}
-            """, AT_TIMESTAMP, eqValue), null);
+            """, EMP_NO, eqValue), null);
 
         var filter = filterQueryForTransportNodes(plan);
         assertThat(filter, nullValue());
@@ -251,13 +265,14 @@ public class FilterTests extends ESTestCase {
      * Ugly hack to create a QueryBuilder for SingleValueQuery.
      * For some reason however the queryName is set to null on range queries when deserializing.
      */
-    public static QueryBuilder singleValueQuery(QueryBuilder inner, String field) {
+    public static QueryBuilder singleValueQuery(QueryBuilder inner, String field, Source source) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             // emulate SingleValueQuery writeTo
             out.writeFloat(AbstractQueryBuilder.DEFAULT_BOOST);
             out.writeOptionalString(null);
             out.writeNamedWriteable(inner);
             out.writeString(field);
+            writeSource(out, source);
 
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
@@ -291,7 +306,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder filterQueryForTransportNodes(PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(plan, AT_TIMESTAMP);
+        return PlannerUtils.detectFilter(plan, EMP_NO, x -> true);
     }
 
     @Override

@@ -9,21 +9,13 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class ProjectOperator extends AbstractPageMappingOperator {
-
-    private final Set<Integer> pagesUsed;
-    private final int[] projection;
-    private Block[] blocks;
-
     public record ProjectOperatorFactory(List<Integer> projection) implements OperatorFactory {
-
         @Override
         public Operator get(DriverContext driverContext) {
             return new ProjectOperator(projection);
@@ -31,9 +23,15 @@ public class ProjectOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "ProjectOperator[projection = " + projection + "]";
+            if (projection.size() < 10) {
+                return "ProjectOperator[projection = " + projection + "]";
+            }
+            return "ProjectOperator[projection = [" + projection.size() + " fields]]";
         }
     }
+
+    private final int[] projection;
+    private final Block[] blocks;
 
     /**
      * Creates an operator that applies the given projection, encoded as an integer list where
@@ -43,8 +41,8 @@ public class ProjectOperator extends AbstractPageMappingOperator {
      * @param projection list of blocks to keep and their order.
      */
     public ProjectOperator(List<Integer> projection) {
-        this.pagesUsed = new HashSet<>(projection);
         this.projection = projection.stream().mapToInt(Integer::intValue).toArray();
+        this.blocks = new Block[projection.size()];
     }
 
     @Override
@@ -53,32 +51,38 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         if (blockCount == 0) {
             return page;
         }
-        if (blocks == null) {
-            blocks = new Block[projection.length];
-        }
-
-        Arrays.fill(blocks, null);
-        int b = 0;
-        for (int source : projection) {
-            if (source >= blockCount) {
-                throw new IllegalArgumentException(
-                    "Cannot project block with index [" + source + "] from a page with size [" + blockCount + "]"
-                );
+        Page output = null;
+        try {
+            int b = 0;
+            for (int source : projection) {
+                if (source >= blockCount) {
+                    throw new IllegalArgumentException(
+                        "Cannot project block with index [" + source + "] from a page with size [" + blockCount + "]"
+                    );
+                }
+                var block = page.getBlock(source);
+                blocks[b++] = block;
+                block.incRef();
             }
-            var block = page.getBlock(source);
-            blocks[b++] = block;
+            int positionCount = page.getPositionCount();
+            // Use positionCount explicitly to avoid re-computing - also, if the projection is empty, there may be
+            // no more blocks left to determine the positionCount from.
+            output = new Page(positionCount, blocks);
+            return output;
+        } finally {
+            if (output == null) {
+                Releasables.close(blocks);
+            }
+            Arrays.fill(blocks, null);
+            page.releaseBlocks();
         }
-        return page.newPageAndRelease(blocks);
     }
 
     @Override
     public String toString() {
-        return "ProjectOperator[projection = " + Arrays.toString(projection) + ']';
-    }
-
-    static void assertNotReleasing(List<Releasable> toRelease, Block toKeep) {
-        // verify by identity equality
-        assert toRelease.stream().anyMatch(r -> r == toKeep) == false
-            : "both releasing and keeping the same block: " + toRelease.stream().filter(r -> r == toKeep).toList();
+        if (projection.length < 10) {
+            return "ProjectOperator[projection = " + Arrays.toString(projection) + "]";
+        }
+        return "ProjectOperator[projection = [" + projection.length + " fields]]";
     }
 }

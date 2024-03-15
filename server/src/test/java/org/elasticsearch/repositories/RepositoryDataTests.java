@@ -14,6 +14,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -108,7 +109,7 @@ public class RepositoryDataTests extends ESTestCase {
             newSnapshot,
             new RepositoryData.SnapshotDetails(
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
+                randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -140,7 +141,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId.getUUID(),
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
+                    randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)
@@ -208,7 +209,7 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotId,
             new RepositoryData.SnapshotDetails(
                 state,
-                randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
+                randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomAlphaOfLength(10)
@@ -453,7 +454,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId,
                 new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.values()),
-                    randomFrom(IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE),
+                    randomFrom(IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomAlphaOfLength(10)

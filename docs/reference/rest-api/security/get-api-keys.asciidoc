@@ -134,6 +134,7 @@ A successful call returns a JSON structure that contains the information of the 
       "invalidated": false, <6>
       "username": "myuser", <7>
       "realm": "native1", <8>
+      "realm_type": "native",
       "metadata": { <9>
         "application": "myapp"
       },
@@ -175,7 +176,7 @@ A successful call returns a JSON structure that contains the information of the 
 <4> Creation time for the API key in milliseconds
 <5> Optional expiration time for the API key in milliseconds
 <6> Invalidation status for the API key. If the key has been invalidated, it has
-a value of `true`. Otherwise, it is `false`.
+a value of `true` and an additional field with the `invalidation` time in milliseconds. Otherwise, it is `false`.
 <7> Principal for which this API key was created
 <8> Realm name of the principal for which this API key was created
 <9> Metadata of the API key
@@ -289,6 +290,7 @@ A successful call returns a JSON structure that contains the information of one 
       "invalidated": false,
       "username": "myuser",
       "realm": "native1",
+      "realm_type": "native",
       "metadata": {
         "application": "myapp"
       },

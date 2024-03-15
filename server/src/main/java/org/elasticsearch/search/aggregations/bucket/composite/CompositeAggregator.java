@@ -21,6 +21,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
@@ -70,7 +71,7 @@ import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.M
 
 public final class CompositeAggregator extends BucketsAggregator implements SizedBucketAggregator {
 
-    private final Logger logger = LogManager.getLogger(CompositeAggregator.class);
+    private static final Logger logger = LogManager.getLogger(CompositeAggregator.class);
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;
@@ -196,11 +197,11 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         for (int i = 0; i < queue.size(); i++) {
             bucketOrdsToCollect[i] = i;
         }
-        InternalAggregations[] subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect);
         while (queue.size() > 0) {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
-            InternalAggregations aggs = subAggsForBuckets[slot];
+            InternalAggregations aggs = subAggsForBuckets.apply(slot);
             long docCount = queue.getDocCount(slot);
             buckets[queue.size()] = new InternalComposite.InternalBucket(
                 sourceNames,
@@ -256,22 +257,19 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     /** Return true if the provided field may have multiple values per document in the leaf **/
     private static boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
-        switch (type) {
-            case STRING:
+        return switch (type) {
+            case STRING -> {
                 final SortedSetDocValues v1 = context.reader().getSortedSetDocValues(sortField.getField());
-                return v1 != null && DocValues.unwrapSingleton(v1) == null;
-
-            case DOUBLE:
-            case FLOAT:
-            case LONG:
-            case INT:
+                yield v1 != null && DocValues.unwrapSingleton(v1) == null;
+            }
+            case DOUBLE, FLOAT, LONG, INT -> {
                 final SortedNumericDocValues v2 = context.reader().getSortedNumericDocValues(sortField.getField());
-                return v2 != null && DocValues.unwrapSingleton(v2) == null;
-
-            default:
+                yield v2 != null && DocValues.unwrapSingleton(v2) == null;
+            }
+            default ->
                 // we have no clue whether the field is multi-valued or not so we assume it is.
-                return true;
-        }
+                true;
+        };
     }
 
     /**
@@ -359,8 +357,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                     }
 
                     @Override
-                    public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), false) {
+                    public FieldComparator<?> getComparator(int numHits, Pruning enableSkipping) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), Pruning.NONE) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {
@@ -631,13 +629,5 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         }
     }
 
-    private static class Entry {
-        final AggregationExecutionContext aggCtx;
-        final DocIdSet docIdSet;
-
-        Entry(AggregationExecutionContext aggCtx, DocIdSet docIdSet) {
-            this.aggCtx = aggCtx;
-            this.docIdSet = docIdSet;
-        }
-    }
+    private record Entry(AggregationExecutionContext aggCtx, DocIdSet docIdSet) {}
 }

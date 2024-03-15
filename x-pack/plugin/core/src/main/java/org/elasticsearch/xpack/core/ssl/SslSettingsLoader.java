@@ -33,14 +33,13 @@ import java.util.stream.Collectors;
 /**
  * A configuration loader for SSL Settings
  */
-public class SslSettingsLoader extends SslConfigurationLoader {
+public final class SslSettingsLoader extends SslConfigurationLoader {
 
     private final Settings settings;
     private final Map<String, Setting<? extends SecureString>> secureSettings;
     private final Map<String, Setting<?>> standardSettings;
     private final Map<String, Setting<?>> disabledSettings;
 
-    @SuppressWarnings("this-escape")
     public SslSettingsLoader(Settings settings, String settingPrefix, boolean acceptNonSecurePasswords) {
         super(settingPrefix);
         this.settings = settings;

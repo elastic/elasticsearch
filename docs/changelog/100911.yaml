@@ -1,6 +1,0 @@
-pr: 100911
-summary: '`WaitForSnapshotStep` verifies if the index belongs to the latest snapshot
-  of that SLM policy'
-area: ILM+SLM
-type: bug
-issues: []

@@ -61,6 +61,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -68,9 +69,11 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -344,7 +347,7 @@ public class PersistedClusterStateService {
     public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
         String nodeId = null;
         Version version = null;
-        IndexVersion oldestIndexVersion = IndexVersion.ZERO;
+        IndexVersion oldestIndexVersion = IndexVersions.ZERO;
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -364,7 +367,7 @@ public class PersistedClusterStateService {
                         if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
                             oldestIndexVersion = IndexVersion.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
                         } else {
-                            oldestIndexVersion = IndexVersion.ZERO;
+                            oldestIndexVersion = IndexVersions.ZERO;
                         }
                     }
                 } catch (IndexNotFoundException e) {
@@ -375,7 +378,8 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
-        return new NodeMetadata(nodeId, version, oldestIndexVersion);
+        // TODO: remove use of Version here (ES-7343)
+        return new NodeMetadata(nodeId, BuildVersion.fromVersionId(version.id()), oldestIndexVersion);
     }
 
     /**
@@ -437,6 +441,10 @@ public class PersistedClusterStateService {
                                 PrintStream printStream = new PrintStream(outputStream, true, StandardCharsets.UTF_8);
                                 CheckIndex checkIndex = new CheckIndex(directory)
                             ) {
+                                // Setting thread count to 1 prevents Lucene from starting disposable threads to execute the check and runs
+                                // the check on this thread which is potentially faster for a small index like the cluster state and saves
+                                // resources during test execution
+                                checkIndex.setThreadCount(1);
                                 checkIndex.setInfoStream(printStream);
                                 checkIndex.setChecksumsOnly(true);
                                 isClean = checkIndex.checkIndex().clean;
@@ -667,8 +675,7 @@ public class PersistedClusterStateService {
     }
 
     private <T> T readXContent(BytesReference bytes, CheckedFunction<XContentParser, T, IOException> reader) throws IOException {
-        final XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(parserConfig, bytes.streamInput());
-        try {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentType.SMILE)) {
             return reader.apply(parser);
         } catch (Exception e) {
             throw new CorruptStateException(e);
@@ -703,7 +710,7 @@ public class PersistedClusterStateService {
 
                         if (document.getField(PAGE_FIELD_NAME) == null) {
                             // legacy format: not paginated or compressed
-                            assert IndexVersion.MINIMUM_COMPATIBLE.before(IndexVersion.V_7_16_0);
+                            assert IndexVersions.MINIMUM_COMPATIBLE.before(IndexVersions.V_7_16_0);
                             bytesReferenceConsumer.accept(documentData);
                             continue;
                         }

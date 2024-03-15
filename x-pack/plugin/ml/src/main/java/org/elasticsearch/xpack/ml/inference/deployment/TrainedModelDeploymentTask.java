@@ -23,6 +23,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -148,7 +149,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         InferenceConfigUpdate update,
         boolean skipQueue,
         TimeValue timeout,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
+        boolean chunkResponse,
         ActionListener<InferenceResults> listener
     ) {
         if (inferenceConfigHolder.get() == null) {
@@ -169,13 +172,16 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             );
             return;
         }
+        var updatedConfig = update.isEmpty() ? inferenceConfigHolder.get() : inferenceConfigHolder.get().apply(update);
         trainedModelAssignmentNodeService.infer(
             this,
-            update.apply(inferenceConfigHolder.get()),
+            updatedConfig,
             input,
             skipQueue,
             timeout,
+            prefixType,
             parentActionTask,
+            chunkResponse,
             listener
         );
     }

@@ -430,7 +430,8 @@ public class ReplicationOperation<
             return null;  // not waiting for any shards
         }
         final IndexShardRoutingTable shardRoutingTable = primary.getReplicationGroup().getRoutingTable();
-        if (waitForActiveShards.enoughShardsActive(shardRoutingTable)) {
+        ActiveShardCount.EnoughShards enoughShardsActive = waitForActiveShards.enoughShardsActive(shardRoutingTable);
+        if (enoughShardsActive.enoughShards()) {
             return null;
         } else {
             final String resolvedShards = waitForActiveShards == ActiveShardCount.ALL
@@ -441,7 +442,7 @@ public class ReplicationOperation<
                     + "request [{}]",
                 shardId,
                 waitForActiveShards,
-                shardRoutingTable.activeShards().size(),
+                enoughShardsActive.currentActiveShards(),
                 resolvedShards,
                 opType,
                 request
@@ -449,7 +450,7 @@ public class ReplicationOperation<
             return "Not enough active copies to meet shard count of ["
                 + waitForActiveShards
                 + "] (have "
-                + shardRoutingTable.activeShards().size()
+                + enoughShardsActive.currentActiveShards()
                 + ", needed "
                 + resolvedShards
                 + ").";
@@ -465,14 +466,13 @@ public class ReplicationOperation<
 
     private void finish() {
         if (finished.compareAndSet(false, true)) {
-            final ReplicationResponse.ShardInfo.Failure[] failuresArray;
-            if (shardReplicaFailures.isEmpty()) {
-                failuresArray = ReplicationResponse.NO_FAILURES;
-            } else {
-                failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
-                shardReplicaFailures.toArray(failuresArray);
-            }
-            primaryResult.setShardInfo(new ReplicationResponse.ShardInfo(totalShards.get(), successfulShards.get(), failuresArray));
+            primaryResult.setShardInfo(
+                ReplicationResponse.ShardInfo.of(
+                    totalShards.get(),
+                    successfulShards.get(),
+                    shardReplicaFailures.toArray(ReplicationResponse.NO_FAILURES)
+                )
+            );
             resultListener.onResponse(primaryResult);
         }
     }
@@ -661,13 +661,11 @@ public class ReplicationOperation<
 
     }
 
-    public static class RetryOnPrimaryException extends ElasticsearchException {
-        @SuppressWarnings("this-escape")
+    public static final class RetryOnPrimaryException extends ElasticsearchException {
         public RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
         }
 
-        @SuppressWarnings("this-escape")
         RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause) {
             super(msg, cause);
             setShard(shardId);

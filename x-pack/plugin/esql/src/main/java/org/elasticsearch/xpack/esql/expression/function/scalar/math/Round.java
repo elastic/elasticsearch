@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -38,11 +37,24 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
-public class Round extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class Round extends EsqlScalarFunction implements OptionalArgument {
+
+    private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 
     private final Expression field, decimals;
 
-    public Round(Source source, Expression field, Expression decimals) {
+    // @TODO: add support for "integer", "long", "unsigned_long" once tests are fixed
+    @FunctionInfo(returnType = "double", description = "Rounds a number to the closest number with the specified number of digits.")
+    public Round(
+        Source source,
+        @Param(name = "value", type = "double", description = "The numeric value to round") Expression field,
+        @Param(
+            optional = true,
+            name = "decimals",
+            type = { "integer" },
+            description = "The number of decimal places to round to. Defaults to 0."
+        ) Expression decimals
+    ) {
         super(source, decimals != null ? Arrays.asList(field, decimals) : Arrays.asList(field));
         this.field = field;
         this.decimals = decimals;
@@ -65,11 +77,6 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
     @Override
     public boolean foldable() {
         return field.foldable() && (decimals == null || decimals.foldable());
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "DoubleNoDecimals")
@@ -128,43 +135,34 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType fieldType = dataType();
         if (fieldType == DataTypes.DOUBLE) {
-            return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator::new, RoundDoubleEvaluator::new);
+            return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator.Factory::new, RoundDoubleEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return toEvaluator(toEvaluator, identity(), RoundIntEvaluator::new);
+            return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundIntEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.LONG) {
-            return toEvaluator(toEvaluator, identity(), RoundLongEvaluator::new);
+            return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundLongEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return toEvaluator(toEvaluator, identity(), RoundUnsignedLongEvaluator::new);
+            return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundUnsignedLongEvaluator.Factory::new);
         }
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
     }
 
-    private static <T, U> BiFunction<T, U, T> identity() {
-        return (t, u) -> t;
-    }
-
     private ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, ExpressionEvaluator.Factory> toEvaluator,
-        BiFunction<ExpressionEvaluator, DriverContext, ExpressionEvaluator> noDecimals,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> withDecimals
+        BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> noDecimals,
+        TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> withDecimals
     ) {
         var fieldEvaluator = toEvaluator.apply(field());
         if (decimals == null) {
-            return dvrCtx -> noDecimals.apply(fieldEvaluator.get(dvrCtx), dvrCtx);
+            return noDecimals.apply(source(), fieldEvaluator);
         }
-        var decimalsEvaluator = Cast.cast(decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
-        return dvrCtx -> withDecimals.apply(fieldEvaluator.get(dvrCtx), decimalsEvaluator.get(dvrCtx), dvrCtx);
+        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
+        return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
     }
 
     @Override

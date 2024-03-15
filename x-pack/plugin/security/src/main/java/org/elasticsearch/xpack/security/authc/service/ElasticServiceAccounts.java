@@ -26,7 +26,7 @@ final class ElasticServiceAccounts {
         "enterprise-search-server",
         new RoleDescriptor(
             NAMESPACE + "/enterprise-search-server",
-            new String[] { "manage", "manage_security" },
+            new String[] { "manage", "manage_security", "read_connector_secrets", "write_connector_secrets" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
@@ -75,7 +75,7 @@ final class ElasticServiceAccounts {
                     )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("profiling-*").privileges("read", "write", "auto_configure").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("profiling-*").privileges("read", "write").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
                     // for the non-sensitive "sampled traces" data stream:
@@ -157,7 +157,7 @@ final class ElasticServiceAccounts {
             new String[] { "monitor", "manage_own_api_key" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-*", "metrics-*")
+                    .indices("logs-*", "metrics-*", "traces-*")
                     .privileges("write", "create_index", "auto_configure")
                     .build(), },
             null,

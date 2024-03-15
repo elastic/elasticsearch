@@ -15,17 +15,13 @@ foo bar   | null       | null
 
 
 complexPattern
-// tag::dissect[]
 ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;" 
 | DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};" 
 | KEEP Y, M, D, h, m, s, msg, ip
-// end::dissect[]
 ;
 
-// tag::dissect-result[]
 Y:keyword | M:keyword | D:keyword | h:keyword | m:keyword | s:keyword | msg:keyword  | ip:keyword
 1953      | 01        | 23        | 12        | 15        | 00        | some text    | 127.0.0.1
-// end::dissect-result[]
 ;
 
 
@@ -47,6 +43,13 @@ foo 1 bar 2 baz  | bazbarfoo | 1          | 2
 
 appendSeparator
 row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}" append_separator=",";
+
+a:keyword        | b:keyword   | c:keyword    | d:keyword 
+foo 1 bar 2 baz  | foo,bar,baz | 1            | 2         
+;
+
+appendSeparatorUppercase
+row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}" APPEND_SEPARATOR=",";
 
 a:keyword        | b:keyword   | c:keyword    | d:keyword 
 foo 1 bar 2 baz  | foo,bar,baz | 1            | 2         
@@ -143,6 +146,14 @@ Bezalel Simmel    | Bezalel        | Simmel
 ;
 
 
+overwriteNameAfterSort#[skip:-8.13.0]
+from employees | sort emp_no ASC | dissect first_name "Ge%{emp_no}gi" | limit 1 | rename emp_no as first_name_fragment | keep first_name_fragment
+;
+
+first_name_fragment:keyword
+or
+;
+
 # for now it calculates only based on the first value
 multivalueInput
 from employees | where emp_no <= 10006 | dissect job_positions "%{a} %{b} %{c}" | sort emp_no | keep emp_no, a, b, c;
@@ -154,4 +165,61 @@ emp_no:integer | a:keyword            | b:keyword         | c:keyword
 10004          | Head                 | Human             | Resources
 10005          | null                 | null              | null 
 10006          | [Principal, Senior]  | [Support, Team]   | [Engineer, Lead]
+;
+
+docsGettingStartedDissect
+// tag::gs-dissect[]
+FROM sample_data
+| DISSECT message "Connected to %{server_ip}"
+// end::gs-dissect[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword | server_ip:keyword
+;
+
+docsGettingStartedDissectStatsBy
+// tag::gs-dissect-stats-by[]
+FROM sample_data
+| WHERE STARTS_WITH(message, "Connected to")
+| DISSECT message "Connected to %{server_ip}"
+| STATS COUNT(*) BY server_ip
+// end::gs-dissect-stats-by[]
+| SORT server_ip
+;
+
+COUNT(*):long  | server_ip:keyword
+1              |10.1.0.1       
+1              |10.1.0.2       
+1              |10.1.0.3      
+;
+
+emptyPattern#[skip:-8.11.99]
+ROW a="b c d"| DISSECT a "%{b} %{} %{d}";
+
+a:keyword | b:keyword | d:keyword
+b c d     | b         | d
+;
+
+
+multipleEmptyPatterns#[skip:-8.11.99]
+ROW a="b c d e"| DISSECT a "%{b} %{} %{} %{e}";
+
+a:keyword | b:keyword | e:keyword
+b c d e   | b         | e
+;
+
+firstEmptyPattern#[skip:-8.11.99]
+ROW a="x b c d"| DISSECT a "%{} %{b} %{} %{d}";
+
+a:keyword   | b:keyword | d:keyword
+x b c d     | b         | d
+;
+
+
+lastEmptyPattern#[skip:-8.11.99]
+ROW a="b c d x"| DISSECT a "%{b} %{} %{d} %{}";
+
+a:keyword  | b:keyword | d:keyword
+b c d x    | b         | d
 ;

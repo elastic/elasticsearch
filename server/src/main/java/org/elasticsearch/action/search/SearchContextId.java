@@ -32,16 +32,16 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 public final class SearchContextId {
     private final Map<ShardId, SearchContextIdForNode> shards;
     private final Map<String, AliasFilter> aliasFilter;
-    private transient Set<ShardSearchContextId> contextIds;
+    private final transient Set<ShardSearchContextId> contextIds;
 
     SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
         this.shards = shards;
@@ -110,12 +110,30 @@ public final class SearchContextId {
         }
     }
 
+    public static String[] decodeIndices(String id) {
+        try (
+            var decodedInputStream = Base64.getUrlDecoder().wrap(new ByteArrayInputStream(id.getBytes(StandardCharsets.ISO_8859_1)));
+            var in = new InputStreamStreamInput(decodedInputStream)
+        ) {
+            final TransportVersion version = TransportVersion.readVersion(in);
+            in.setTransportVersion(version);
+            final Map<ShardId, SearchContextIdForNode> shards = Collections.unmodifiableMap(
+                in.readCollection(Maps::newHashMapWithExpectedSize, SearchContextId::readShardsMapEntry)
+            );
+            return new SearchContextId(shards, Collections.emptyMap()).getActualIndices();
+        } catch (IOException e) {
+            assert false : e;
+            throw new IllegalArgumentException(e);
+        }
+    }
+
     private static void readShardsMapEntry(StreamInput in, Map<ShardId, SearchContextIdForNode> shards) throws IOException {
         shards.put(new ShardId(in), new SearchContextIdForNode(in));
     }
 
     public String[] getActualIndices() {
-        final Set<String> indices = new HashSet<>();
+        // ensure that the order is consistent
+        final Set<String> indices = new TreeSet<>();
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : shards().entrySet()) {
             final String indexName = entry.getKey().getIndexName();
             final String clusterAlias = entry.getValue().getClusterAlias();

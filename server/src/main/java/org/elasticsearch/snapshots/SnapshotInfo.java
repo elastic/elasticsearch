@@ -496,12 +496,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
      * Constructs snapshot information from stream input
      */
     public static SnapshotInfo readFrom(final StreamInput in) throws IOException {
-        final Snapshot snapshot;
-        if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
-            snapshot = new Snapshot(in);
-        } else {
-            snapshot = new Snapshot(UNKNOWN_REPO_NAME, new SnapshotId(in));
-        }
+        final Snapshot snapshot = new Snapshot(in);
         final List<String> indices = in.readStringCollectionAsImmutableList();
         final SnapshotState state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         final String reason = in.readOptionalString();
@@ -512,7 +507,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         final List<SnapshotShardFailure> shardFailures = in.readCollectionAsImmutableList(SnapshotShardFailure::new);
         final IndexVersion version = in.readBoolean() ? IndexVersion.readVersion(in) : null;
         final Boolean includeGlobalState = in.readOptionalBoolean();
-        final Map<String, Object> userMetadata = in.readMap();
+        final Map<String, Object> userMetadata = in.readGenericMap();
         final List<String> dataStreams = in.readStringCollectionAsImmutableList();
         final List<SnapshotFeatureInfo> featureStates = in.readCollectionAsImmutableList(SnapshotFeatureInfo::new);
         final Map<String, IndexSnapshotDetails> indexSnapshotDetails = in.readImmutableMap(IndexSnapshotDetails::new);
@@ -1015,11 +1010,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
-            snapshot.writeTo(out);
-        } else {
-            snapshot.getSnapshotId().writeTo(out);
-        }
+        snapshot.writeTo(out);
         out.writeStringCollection(indices);
         if (state != null) {
             out.writeBoolean(true);

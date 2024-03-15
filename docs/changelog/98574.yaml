@@ -1,6 +1,0 @@
-pr: 98574
-summary: Specify correct current `IndexVersion` after 8.10 release
-area: Infra/Core
-type: bug
-issues:
- - 98555

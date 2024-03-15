@@ -13,14 +13,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -62,7 +63,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -138,7 +138,7 @@ public class DatafeedConfigProvider {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                IndexAction.INSTANCE,
+                TransportIndexAction.TYPE,
                 indexRequest,
                 ActionListener.wrap(r -> listener.onResponse(Tuple.tuple(finalConfig, r)), e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
@@ -176,7 +176,7 @@ public class DatafeedConfigProvider {
         if (parentTaskId != null) {
             getRequest.setParentTask(parentTaskId);
         }
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetAction.TYPE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
@@ -223,7 +223,7 @@ public class DatafeedConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(response -> {
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 Set<String> datafeedIds = new HashSet<>();
                 // There cannot be more than one datafeed per job
                 assert response.getHits().getTotalHits().value <= jobIds.size();
@@ -233,8 +233,8 @@ public class DatafeedConfigProvider {
                     datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
                 }
 
-                listener.onResponse(datafeedIds);
-            }, listener::onFailure),
+                delegate.onResponse(datafeedIds);
+            }),
             client::search
         );
     }
@@ -256,7 +256,7 @@ public class DatafeedConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(response -> {
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 Map<String, DatafeedConfig.Builder> datafeedsByJobId = new HashMap<>();
                 // There cannot be more than one datafeed per job
                 assert response.getHits().getTotalHits().value <= jobIds.size();
@@ -265,8 +265,8 @@ public class DatafeedConfigProvider {
                     DatafeedConfig.Builder builder = parseLenientlyFromSource(hit.getSourceRef());
                     datafeedsByJobId.put(builder.getJobId(), builder);
                 }
-                listener.onResponse(datafeedsByJobId);
-            }, listener::onFailure),
+                delegate.onResponse(datafeedsByJobId);
+            }),
             client::search
         );
     }
@@ -280,14 +280,20 @@ public class DatafeedConfigProvider {
     public void deleteDatafeedConfig(String datafeedId, ActionListener<DeleteResponse> actionListener) {
         DeleteRequest request = new DeleteRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, actionListener.delegateFailure((l, deleteResponse) -> {
-            if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                l.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
-                return;
-            }
-            assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-            l.onResponse(deleteResponse);
-        }));
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportDeleteAction.TYPE,
+            request,
+            actionListener.delegateFailure((l, deleteResponse) -> {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    l.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                    return;
+                }
+                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+                l.onResponse(deleteResponse);
+            })
+        );
     }
 
     /**
@@ -314,42 +320,48 @@ public class DatafeedConfigProvider {
     ) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new DelegatingActionListener<>(updatedConfigListener) {
-            @Override
-            public void onResponse(GetResponse getResponse) {
-                if (getResponse.isExists() == false) {
-                    delegate.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
-                    return;
-                }
-                final long seqNo = getResponse.getSeqNo();
-                final long primaryTerm = getResponse.getPrimaryTerm();
-                BytesReference source = getResponse.getSourceAsBytesRef();
-                DatafeedConfig.Builder configBuilder;
-                try {
-                    configBuilder = parseLenientlyFromSource(source);
-                } catch (IOException e) {
-                    delegate.onFailure(new ElasticsearchParseException("Failed to parse datafeed config [" + datafeedId + "]", e));
-                    return;
-                }
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportGetAction.TYPE,
+            getRequest,
+            new DelegatingActionListener<>(updatedConfigListener) {
+                @Override
+                public void onResponse(GetResponse getResponse) {
+                    if (getResponse.isExists() == false) {
+                        delegate.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                        return;
+                    }
+                    final long seqNo = getResponse.getSeqNo();
+                    final long primaryTerm = getResponse.getPrimaryTerm();
+                    BytesReference source = getResponse.getSourceAsBytesRef();
+                    DatafeedConfig.Builder configBuilder;
+                    try {
+                        configBuilder = parseLenientlyFromSource(source);
+                    } catch (IOException e) {
+                        delegate.onFailure(new ElasticsearchParseException("Failed to parse datafeed config [" + datafeedId + "]", e));
+                        return;
+                    }
 
-                DatafeedConfig updatedConfig;
-                try {
-                    updatedConfig = update.apply(configBuilder.build(), headers, clusterService.state());
-                } catch (Exception e) {
-                    delegate.onFailure(e);
-                    return;
-                }
+                    DatafeedConfig updatedConfig;
+                    try {
+                        updatedConfig = update.apply(configBuilder.build(), headers, clusterService.state());
+                    } catch (Exception e) {
+                        delegate.onFailure(e);
+                        return;
+                    }
 
-                ActionListener<Boolean> validatedListener = ActionListener.wrap(
-                    ok -> indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(indexResponse -> {
-                        assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                        delegate.onResponse(updatedConfig);
-                    }, delegate::onFailure)),
-                    delegate::onFailure
-                );
-                validator.accept(updatedConfig, validatedListener);
+                    ActionListener<Boolean> validatedListener = ActionListener.wrap(
+                        ok -> indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(indexResponse -> {
+                            assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            delegate.onResponse(updatedConfig);
+                        }, delegate::onFailure)),
+                        delegate::onFailure
+                    );
+                    validator.accept(updatedConfig, validatedListener);
+                }
             }
-        });
+        );
     }
 
     private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm, ActionListener<DocWriteResponse> listener) {
@@ -362,7 +374,7 @@ public class DatafeedConfigProvider {
             indexRequest.setIfSeqNo(seqNo);
             indexRequest.setIfPrimaryTerm(primaryTerm);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, TransportIndexAction.TYPE, indexRequest, listener);
 
         } catch (IOException e) {
             listener.onFailure(
@@ -428,7 +440,7 @@ public class DatafeedConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(response -> {
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 SortedSet<String> datafeedIds = new TreeSet<>();
                 SearchHit[] hits = response.getHits().getHits();
                 for (SearchHit hit : hits) {
@@ -441,12 +453,12 @@ public class DatafeedConfigProvider {
                 requiredMatches.filterMatchedIds(datafeedIds);
                 if (requiredMatches.hasUnmatchedIds()) {
                     // some required datafeeds were not found
-                    listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
+                    delegate.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
                     return;
                 }
 
-                listener.onResponse(datafeedIds);
-            }, listener::onFailure),
+                delegate.onResponse(datafeedIds);
+            }),
             client::search
         );
 
@@ -490,7 +502,7 @@ public class DatafeedConfigProvider {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            ActionListener.<SearchResponse>wrap(response -> {
+            listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
                 Set<String> datafeedIds = new HashSet<>();
                 SearchHit[] hits = response.getHits().getHits();
@@ -509,12 +521,12 @@ public class DatafeedConfigProvider {
                 requiredMatches.filterMatchedIds(datafeedIds);
                 if (requiredMatches.hasUnmatchedIds()) {
                     // some required datafeeds were not found
-                    listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
+                    delegate.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
                     return;
                 }
 
-                listener.onResponse(datafeeds);
-            }, listener::onFailure),
+                delegate.onResponse(datafeeds);
+            }),
             client::search
         );
 
@@ -563,12 +575,8 @@ public class DatafeedConfigProvider {
     }
 
     private void parseLenientlyFromSource(BytesReference source, ActionListener<DatafeedConfig.Builder> datafeedConfigListener) {
-        try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
-        ) {
-            datafeedConfigListener.onResponse(DatafeedConfig.LENIENT_PARSER.apply(parser, null));
+        try {
+            datafeedConfigListener.onResponse(parseLenientlyFromSource(source));
         } catch (Exception e) {
             datafeedConfigListener.onFailure(e);
         }
@@ -576,11 +584,14 @@ public class DatafeedConfigProvider {
 
     private DatafeedConfig.Builder parseLenientlyFromSource(BytesReference source) throws IOException {
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                source,
+                XContentType.JSON
+            )
         ) {
             return DatafeedConfig.LENIENT_PARSER.apply(parser, null);
         }
     }
+
 }

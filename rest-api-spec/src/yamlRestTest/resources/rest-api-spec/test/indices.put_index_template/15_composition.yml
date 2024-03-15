@@ -492,3 +492,52 @@
         index: test-generic
   - match: { test-generic.mappings.properties.field.type: "keyword" }
   - match: { test-generic.mappings.properties.field.ignore_above: 1024 }
+---
+"Using deprecated component templates and pipelines in index template":
+  - skip:
+      version: ' - 8.11.99'
+      reason: 'The deprecated flags have been introduced in 8.12.0'
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: mapping
+        body:
+          template:
+            mappings:
+              properties:
+                field:
+                  type: long
+          deprecated: true
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_deprecated_pipeline"
+        body:
+          deprecated: true
+          processors: []
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.put_component_template:
+        name: setting
+        body:
+          template:
+            settings:
+              index:
+                default_pipeline: my_deprecated_pipeline
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-template] will take precedence during new index creation"
+        - "index template [test-composable-template] uses deprecated component template [mapping]"
+        - "index template [test-composable-template] uses deprecated ingest pipeline [my_deprecated_pipeline]"
+      indices.put_index_template:
+        name: test-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - mapping
+            - setting
+  - is_true: acknowledged

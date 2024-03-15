@@ -328,10 +328,14 @@ public class JobResultsPersister {
             shouldRetry,
             retryMessage -> logger.debug("[{}] {} {}", jobId, quantilesDocId, retryMessage)
         );
-        String indexOrAlias = searchResponse.getHits().getHits().length > 0
-            ? searchResponse.getHits().getHits()[0].getIndex()
-            : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
-
+        final String indexOrAlias;
+        try {
+            indexOrAlias = searchResponse.getHits().getHits().length > 0
+                ? searchResponse.getHits().getHits()[0].getIndex()
+                : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
+        } finally {
+            searchResponse.decRef();
+        }
         Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);
         persistable.persist(shouldRetry, AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
     }
@@ -541,7 +545,7 @@ public class JobResultsPersister {
         }
 
         BulkResponse persist(Supplier<Boolean> shouldRetry, boolean requireAlias) {
-            final PlainActionFuture<BulkResponse> getResponseFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<BulkResponse> getResponseFuture = new PlainActionFuture<>();
             persist(shouldRetry, requireAlias, getResponseFuture);
             return getResponseFuture.actionGet();
         }

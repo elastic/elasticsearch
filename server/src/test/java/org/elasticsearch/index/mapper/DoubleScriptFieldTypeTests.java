@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -226,6 +227,25 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(1.1), mockContext())), equalTo(0));
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(1.1, 2.1), mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of(2.1, 1), mockContext())), equalTo(2));
+            }
+        }
+    }
+
+    public void testBlockLoader() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                DoubleScriptFieldType fieldType = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType), equalTo(List.of(2d, 3d)));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(2d, 3d)));
             }
         }
     }

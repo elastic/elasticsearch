@@ -40,7 +40,8 @@ import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
-    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists", ListTasksResponse::new);
+
+    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists");
 
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {

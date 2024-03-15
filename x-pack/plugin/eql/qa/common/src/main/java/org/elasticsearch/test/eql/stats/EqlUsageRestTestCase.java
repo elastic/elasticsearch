@@ -8,7 +8,6 @@
 package org.elasticsearch.test.eql.stats;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -20,7 +19,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,10 +27,8 @@ import java.util.Set;
 /**
  * Tests a random number of queries that increase various (most of the times, one query will "touch" multiple metrics values) metrics.
  */
-@SuppressWarnings("removal")
 public abstract class EqlUsageRestTestCase extends ESRestTestCase {
 
-    private RestHighLevelClient highLevelClient;
     private Map<String, Integer> baseMetrics = new HashMap<>();
     private Integer baseAllTotalQueries = 0;
     private Integer baseAllFailedQueries = 0;
@@ -117,7 +113,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         // it doesn't matter if the index is already there (probably created by another test); _if_ its mapping is the expected one
         // it should be enough
         if (client().performRequest(new Request("HEAD", "/" + DataLoader.TEST_INDEX)).getStatusLine().getStatusCode() == 404) {
-            DataLoader.loadDatasetIntoEs(highLevelClient(), this::createParser);
+            DataLoader.loadDatasetIntoEs(client(), this::createParser);
         }
 
         String defaultPipe = "pipe_tail";
@@ -380,14 +376,6 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
                 assertEquals(baseMetrics.get(metricName), actualValue);
             }
         }
-    }
-
-    private RestHighLevelClient highLevelClient() {
-        if (highLevelClient == null) {
-            highLevelClient = new RestHighLevelClient(client(), ignore -> {}, Collections.emptyList()) {
-            };
-        }
-        return highLevelClient;
     }
 
     @Override

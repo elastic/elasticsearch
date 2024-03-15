@@ -1,6 +1,0 @@
-pr: 100647
-summary: "ESQL: Handle queries with non-existing enrich policies and no field"
-area: ES|QL
-type: bug
-issues:
- - 100593

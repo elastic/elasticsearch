@@ -1,5 +1,5 @@
 [versions]
-asm = "9.4"
+asm = "9.6"
 jackson = "2.15.0"
 junit5 = "5.8.1"
 spock = "2.1-groovy-3.0"
@@ -16,10 +16,11 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
 commons-codec = "commons-codec:commons-codec:1.11"
 commmons-io = "commons-io:commons-io:2.2"
 docker-compose = "com.avast.gradle:gradle-docker-compose-plugin:0.17.5"
-forbiddenApis = "de.thetaphi:forbiddenapis:3.5.1"
+forbiddenApis = "de.thetaphi:forbiddenapis:3.6"
+gradle-enterprise = "com.gradle:gradle-enterprise-gradle-plugin:3.16.2"
 hamcrest = "org.hamcrest:hamcrest:2.1"
 httpcore = "org.apache.httpcomponents:httpcore:4.4.12"
-httpclient = "org.apache.httpcomponents:httpclient:4.5.10"
+httpclient = "org.apache.httpcomponents:httpclient:4.5.14"
 idea-ext = "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.4"
 json-schema-validator = "com.networknt:json-schema-validator:1.0.72"
 json-assert = "org.skyscreamer:jsonassert:1.5.0"
@@ -36,6 +37,7 @@ junit5-vintage = { group = "org.junit.vintage", name="junit-vintage-engine", ver
 maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
+reflections = "org.reflections:reflections:0.9.12"
 shadow-plugin = "com.github.johnrengelman:shadow:8.1.1"
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }

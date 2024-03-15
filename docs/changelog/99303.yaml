@@ -1,5 +1,0 @@
-pr: 99303
-summary: Use DEBUG log level to report ESQL execution steps
-area: ES|QL
-type: enhancement
-issues: []

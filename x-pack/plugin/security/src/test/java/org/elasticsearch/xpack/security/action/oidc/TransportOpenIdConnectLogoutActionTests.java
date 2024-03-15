@@ -9,20 +9,17 @@ package org.elasticsearch.xpack.security.action.oidc;
 import com.nimbusds.jwt.JWT;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
@@ -118,22 +115,22 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         doAnswer(invocationOnMock -> {
-            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
+            GetRequestBuilder builder = new GetRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareGet(nullable(String.class), nullable(String.class));
         doAnswer(invocationOnMock -> {
-            IndexRequestBuilder builder = new IndexRequestBuilder(client, IndexAction.INSTANCE);
+            IndexRequestBuilder builder = new IndexRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]);
             return builder;
         }).when(client).prepareIndex(nullable(String.class));
         doAnswer(invocationOnMock -> {
-            UpdateRequestBuilder builder = new UpdateRequestBuilder(client, UpdateAction.INSTANCE);
+            UpdateRequestBuilder builder = new UpdateRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareUpdate(nullable(String.class), anyString());
         doAnswer(invocationOnMock -> {
-            BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
+            BulkRequestBuilder builder = new BulkRequestBuilder(client);
             return builder;
         }).when(client).prepareBulk();
         doAnswer(invocationOnMock -> {
@@ -153,7 +150,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             final IndexResponse response = new IndexResponse(new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             BulkRequest bulkRequest = (BulkRequest) invocationOnMock.getArguments()[0];
             @SuppressWarnings("unchecked")

@@ -1,0 +1,5 @@
+pr: 103387
+summary: Upgrade to Lucene 9.9.1
+area: Search
+type: upgrade
+issues: []

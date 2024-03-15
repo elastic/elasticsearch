@@ -11,11 +11,10 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -48,10 +47,10 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
@@ -170,7 +169,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getAvailableModelStateDocIds(), is(expectedModelStateDocIds));
     }
 
-    private List<String> getAvailableModelSnapshotDocIds(String jobId) {
+    private List<String> getAvailableModelSnapshotDocIds(String jobId) throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         QueryBuilder query = QueryBuilders.boolQuery()
@@ -180,7 +179,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         return getDocIdsFromSearch(searchRequest);
     }
 
-    private List<String> getAvailableModelStateDocIds() {
+    private List<String> getAvailableModelStateDocIds() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(AnomalyDetectorsIndex.jobStateIndexPattern());
         searchRequest.source(new SearchSourceBuilder().size(10000));
@@ -188,15 +187,13 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         return getDocIdsFromSearch(searchRequest);
     }
 
-    private List<String> getDocIdsFromSearch(SearchRequest searchRequest) {
-
-        SearchResponse searchResponse = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
-
+    private List<String> getDocIdsFromSearch(SearchRequest searchRequest) throws Exception {
         List<String> docIds = new ArrayList<>();
-        assertThat(searchResponse.getHits(), notNullValue());
-        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            docIds.add(searchHit.getId());
-        }
+        assertResponse(client().execute(TransportSearchAction.TYPE, searchRequest), searchResponse -> {
+            for (SearchHit searchHit : searchResponse.getHits()) {
+                docIds.add(searchHit.getId());
+            }
+        });
         Collections.sort(docIds);
         return docIds;
     }
@@ -240,7 +237,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         modelSnapshotBuilder.build().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         indexRequest.source(xContentBuilder);
 
-        DocWriteResponse indexResponse = client().execute(IndexAction.INSTANCE, indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().execute(TransportIndexAction.TYPE, indexRequest).actionGet();
         assertThat(indexResponse.getResult(), is(DocWriteResponse.Result.CREATED));
     }
 

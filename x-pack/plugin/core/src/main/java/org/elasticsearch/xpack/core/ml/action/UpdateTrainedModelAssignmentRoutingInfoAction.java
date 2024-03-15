@@ -24,7 +24,7 @@ public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<Ac
     public static final String NAME = "cluster:internal/xpack/ml/model_allocation/update";
 
     private UpdateTrainedModelAssignmentRoutingInfoAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

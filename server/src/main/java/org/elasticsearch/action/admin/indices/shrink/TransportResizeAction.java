@@ -8,11 +8,10 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -43,8 +42,7 @@ import java.util.Locale;
 /**
  * Main class to initiate resizing (shrink / split) an index into a new index
  */
-public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportResizeAction.class);
+public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, CreateIndexResponse> {
 
     private final MetadataCreateIndexService createIndexService;
     private final Client client;
@@ -89,7 +87,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             actionFilters,
             ResizeRequest::new,
             indexNameExpressionResolver,
-            ResizeResponse::new,
+            CreateIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.createIndexService = createIndexService;
@@ -106,7 +104,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         Task task,
         final ResizeRequest resizeRequest,
         final ClusterState state,
-        final ActionListener<ResizeResponse> listener
+        final ActionListener<CreateIndexResponse> listener
     ) {
 
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code
@@ -139,7 +137,11 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                 createIndexService.createIndex(
                     updateRequest,
                     delegatedListener.map(
-                        response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index())
+                        response -> new CreateIndexResponse(
+                            response.isAcknowledged(),
+                            response.isShardsAcknowledged(),
+                            updateRequest.index()
+                        )
                     )
                 );
             })

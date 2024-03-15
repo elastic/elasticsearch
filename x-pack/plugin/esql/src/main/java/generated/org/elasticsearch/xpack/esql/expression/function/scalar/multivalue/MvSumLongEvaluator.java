@@ -21,13 +21,10 @@ import org.elasticsearch.xpack.ql.tree.Source;
 public final class MvSumLongEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
   private final Warnings warnings;
 
-  private final DriverContext driverContext;
-
   public MvSumLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       DriverContext driverContext) {
-    super(field);
+    super(driverContext, field);
     this.warnings = new Warnings(source);
-    this.driverContext = driverContext;
   }
 
   @Override
@@ -39,34 +36,53 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block.Ref evalNullable(Block.Ref ref) {
-    try (ref) {
-      LongBlock v = (LongBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      try (LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
-        for (int p = 0; p < positionCount; p++) {
-          int valueCount = v.getValueCount(p);
-          if (valueCount == 0) {
-            builder.appendNull();
-            continue;
-          }
-          try {
-            int first = v.getFirstValueIndex(p);
-            int end = first + valueCount;
-            long value = v.getLong(first);
-            for (int i = first + 1; i < end; i++) {
-              long next = v.getLong(i);
-              value = MvSum.process(value, next);
-            }
-            long result = value;
-            builder.appendLong(result);
-          } catch (ArithmeticException e) {
-            warnings.registerException(e);
-            builder.appendNull();
-          }
+  public Block evalNullable(Block fieldVal) {
+    LongBlock v = (LongBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
         }
-        return Block.Ref.floating(builder.build());
+        try {
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          long value = v.getLong(first);
+          for (int i = first + 1; i < end; i++) {
+            long next = v.getLong(i);
+            value = MvSum.process(value, next);
+          }
+          long result = value;
+          builder.appendLong(result);
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+      this.source = source;
+      this.field = field;
+    }
+
+    @Override
+    public MvSumLongEvaluator get(DriverContext context) {
+      return new MvSumLongEvaluator(source, field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
     }
   }
 }

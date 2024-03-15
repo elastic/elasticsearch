@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
@@ -54,7 +55,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[] { shardRouting });
             DiscoveryNodeUtils.Builder node = DiscoveryNodeUtils.builder(shardRouting.currentNodeId())
                 .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-                .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current());
+                .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
             nodes.add(node.build());
             AliasFilter aliasFilter;
             if (randomBoolean()) {

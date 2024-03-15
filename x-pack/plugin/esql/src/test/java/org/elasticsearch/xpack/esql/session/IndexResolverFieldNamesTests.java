@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
+import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.ql.index.IndexResolver.ALL_FIELDS;
+import static org.elasticsearch.xpack.ql.index.IndexResolver.INDEX_METADATA_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexResolverFieldNamesTests extends ESTestCase {
@@ -24,7 +26,11 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicFromCommandWithMetadata() {
-        assertFieldNames("from test [metadata _index, _id, _version]", ALL_FIELDS);
+        assertFieldNames("from test metadata _index, _id, _version", ALL_FIELDS);
+    }
+
+    public void testBasicEvalAndDrop() {
+        assertFieldNames("from test | eval x = 1 | drop x", ALL_FIELDS);
     }
 
     public void testSimple1() {
@@ -192,7 +198,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | eval y = date_trunc(hire_date, 1 year)
             | stats count(emp_no) by y
             | sort y
-            | keep y, count(emp_no)
+            | keep y, `count(emp_no)`
             | limit 5""", Set.of("hire_date", "hire_date.*", "emp_no", "emp_no.*"));
     }
 
@@ -278,18 +284,24 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | keep emp_no, a, b, c""", Set.of("emp_no", "emp_no.*", "job_positions", "job_positions.*"));
     }
 
+    public void testLimitZero() {
+        assertFieldNames("""
+            FROM employees
+            | LIMIT 0""", ALL_FIELDS);
+    }
+
     public void testDocsDropHeight() {
         assertFieldNames("""
             FROM employees
             | DROP height
-            | LIMIT 0""", Set.of("*"));
+            | LIMIT 0""", ALL_FIELDS);
     }
 
     public void testDocsDropHeightWithWildcard() {
         assertFieldNames("""
             FROM employees
             | DROP height*
-            | LIMIT 0""", Set.of("*"));
+            | LIMIT 0""", ALL_FIELDS);
     }
 
     public void testDocsEval() {
@@ -312,7 +324,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             FROM employees
             | KEEP h*, *
-            | LIMIT 0""", Set.of("*"));
+            | LIMIT 0""", ALL_FIELDS);
     }
 
     public void testDocsRename() {
@@ -339,7 +351,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testSortWithLimitOne_DropHeight() {
-        assertFieldNames("from employees | sort languages | limit 1 | drop height*", Set.of("*"));
+        assertFieldNames("from employees | sort languages | limit 1 | drop height*", ALL_FIELDS);
     }
 
     public void testDropAllColumns() {
@@ -378,7 +390,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | eval x = "abc"
             | enrich languages_policy on x
-            | limit 1""", Set.of("*"));
+            | limit 1""", ALL_FIELDS);
     }
 
     public void testSimpleSortLimit() {
@@ -608,43 +620,43 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testSelectAll() {
-        assertFieldNames("FROM apps [metadata _id]", Set.of("*"));
+        assertFieldNames("FROM apps metadata _id", ALL_FIELDS);
     }
 
     public void testFilterById() {
-        assertFieldNames("FROM apps [metadata _id]| WHERE _id == \"4\"", Set.of("*"));
+        assertFieldNames("FROM apps metadata _id| WHERE _id == \"4\"", ALL_FIELDS);
     }
 
     public void testKeepId() {
-        assertFieldNames("FROM apps [metadata _id] | WHERE id == 3 | KEEP _id", Set.of("id", "id.*"));
+        assertFieldNames("FROM apps metadata _id | WHERE id == 3 | KEEP _id", Set.of("id", "id.*"));
     }
 
     public void testIdRangeAndSort() {
         assertFieldNames("""
-            FROM apps [metadata _id]
+            FROM apps metadata _id
             | WHERE _id >= "2" AND _id <= "7"
             | SORT _id
             | keep id, name, _id""", Set.of("id", "id.*", "name", "name.*"));
     }
 
     public void testOrderById() {
-        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id", Set.of("name", "name.*"));
     }
 
     public void testOrderByIdDesc() {
-        assertFieldNames("FROM apps [metadata _id] | KEEP _id, name | SORT _id DESC", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | KEEP _id, name | SORT _id DESC", Set.of("name", "name.*"));
     }
 
     public void testConcatId() {
-        assertFieldNames("FROM apps [metadata _id] | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | eval c = concat(_id, name) | SORT _id | KEEP c", Set.of("name", "name.*"));
     }
 
     public void testStatsOnId() {
-        assertFieldNames("FROM apps [metadata _id] | stats c = count(_id), d = count_distinct(_id)", Set.of("*"));
+        assertFieldNames("FROM apps metadata _id | stats c = count(_id), d = count_distinct(_id)", INDEX_METADATA_FIELD);
     }
 
     public void testStatsOnIdByGroup() {
-        assertFieldNames("FROM apps [metadata _id] | stats c = count(_id) by name | sort c desc, name | limit 5", Set.of("name", "name.*"));
+        assertFieldNames("FROM apps metadata _id | stats c = count(_id) by name | sort c desc, name | limit 5", Set.of("name", "name.*"));
     }
 
     public void testSimpleProject() {
@@ -697,10 +709,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMetaIndexAliasedInAggs() {
-        assertFieldNames(
-            "from employees [metadata _index] | eval _i = _index | stats max = max(emp_no) by _i",
-            Set.of("emp_no", "emp_no.*")
-        );
+        assertFieldNames("from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i", Set.of("emp_no", "emp_no.*"));
     }
 
     public void testCoalesceFolding() {
@@ -758,7 +767,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | rename hire_date as x, emp_no as y
             | drop first_name, last_name, gender, birth_date, salary, languages*, height*, still_hired, avg_worked_seconds,
             job_positions, is_rehired, salary_change*
-            | limit 5""", Set.of("*"));
+            | limit 5""", ALL_FIELDS);
     }
 
     public void testMaxOfLong() {
@@ -960,7 +969,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             from test
             | rename emp_no as e, first_name as e
-            """, Set.of("*"));
+            """, ALL_FIELDS);
     }
 
     public void testIfDuplicateNamesGroupingHasPriority() {
@@ -1027,7 +1036,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testBasicWildcardKeep() {
-        assertFieldNames("from test | keep *", Set.of("*"));
+        assertFieldNames("from test | keep *", ALL_FIELDS);
     }
 
     public void testBasicWildcardKeep2() {
@@ -1041,7 +1050,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             from test
             | keep first_name, *, last_name
-            """, Set.of("*"));
+            """, ALL_FIELDS);
     }
 
     public void testProjectThenDropName() {
@@ -1060,6 +1069,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("*name.*", "*name", "first_name", "first_name.*"));
     }
 
+    public void testProjectWithMixedQuoting() {
+        assertFieldNames("""
+            from test
+            | drop first_name
+            | keep *`name`
+            """, Set.of("*name.*", "*name", "first_name", "first_name.*"));
+    }
+
     public void testProjectKeepAndDropName() {
         assertFieldNames("""
             from test
@@ -1073,27 +1090,44 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from test
             | keep *
             | drop *_name
-            """, Set.of("*"));
+            """, ALL_FIELDS);
     }
 
     public void testProjectDropNoStarPattern() {
         assertFieldNames("""
             from test
             | drop *_name
-            """, Set.of("*"));
+            """, ALL_FIELDS);
     }
 
     public void testProjectOrderPatternWithRest() {
         assertFieldNames("""
             from test
             | keep *name, *, emp_no
-            """, Set.of("*"));
+            """, ALL_FIELDS);
+    }
+
+    public void testProjectQuotedPatterWithRest() {
+        assertFieldNames("""
+            from test
+            | eval `*alpha`= first_name
+            | drop `*alpha`
+            | keep *name, *, emp_no
+            """, ALL_FIELDS);
     }
 
     public void testProjectDropPatternAndKeepOthers() {
         assertFieldNames("""
             from test
             | drop l*
+            | keep first_name, salary
+            """, Set.of("l*", "first_name", "first_name.*", "salary", "salary.*"));
+    }
+
+    public void testProjectDropWithQuotedAndUnquotedPatternAndKeepOthers() {
+        assertFieldNames("""
+            from test
+            | drop `l`*
             | keep first_name, salary
             """, Set.of("l*", "first_name", "first_name.*", "salary", "salary.*"));
     }
@@ -1105,18 +1139,88 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | where first_name like "%A"
             | eval first_name = concat(first_name, "xyz")
             | drop first_name
-            """, Set.of("*"));
+            """, ALL_FIELDS);
     }
 
     public void testWhereClauseNoProjection() {
         assertFieldNames("""
             from test
             | where first_name is not null
-            """, Set.of("*"));
+            """, ALL_FIELDS);
+    }
+
+    public void testCountAllGrouped() {
+        assertFieldNames("""
+            from test
+            | stats c = count(*) by languages
+            | rename languages as l
+            | sort l DESC
+            """, Set.of("languages", "languages.*"));
+    }
+
+    public void testCountAllAndOtherStatGrouped() {
+        assertFieldNames("""
+            from test
+            | stats c = count(*), min = min(emp_no) by languages
+            | sort languages
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
+    public void testCountAllWithImplicitNameOtherStatGrouped() {
+        assertFieldNames("""
+            from test
+            | stats count(*), min = min(emp_no) by languages
+            | drop `count(*)`
+            | sort languages
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
+    public void testDropWithQuotedAndUnquotedName() {
+        assertFieldNames("""
+            from test
+            | stats count(*), min = min(emp_no) by languages
+            | drop count`(*)`
+            | sort languages
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*"));
+    }
+
+    public void testCountAllWithEval() {
+        assertFieldNames("""
+            from test
+            | rename languages as l
+            | stats min = min(salary) by l
+            | eval x = min + 1
+            | stats ca = count(*), cx = count(x) by l
+            | sort l
+            """, Set.of("languages", "languages.*", "salary", "salary.*"));
+    }
+
+    public void testCountStar() {
+        assertFieldNames("""
+            from test
+            | stats count=count(*)
+            | sort count desc
+            | limit 0
+            """, INDEX_METADATA_FIELD);
+    }
+
+    public void testEnrichOnDefaultFieldWithKeep() {
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+            from employees
+            | enrich languages_policy
+            | keep emp_no"""), Set.of("language_name"));
+        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
+    }
+
+    public void testEnrichOnDefaultField() {
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement("""
+            from employees
+            | enrich languages_policy"""), Set.of("language_name"));
+        assertThat(fieldNames, equalTo(ALL_FIELDS));
     }
 
     private void assertFieldNames(String query, Set<String> expected) {
-        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query));
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query), Collections.emptySet());
         assertThat(fieldNames, equalTo(expected));
     }
 }

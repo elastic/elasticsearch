@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -92,7 +92,7 @@ abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
     }
 
     @Override
-    public void process(Aggregations aggs) {
+    public void process(InternalAggregations aggs) {
         result = evaluate(aggs);
     }
 
@@ -103,7 +103,7 @@ abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
 
     protected abstract List<AggregationBuilder> aggsAt(String actualField, String predictedProbabilityField);
 
-    protected abstract EvaluationMetricResult evaluate(Aggregations aggs);
+    protected abstract EvaluationMetricResult evaluate(InternalAggregations aggs);
 
     enum Condition {
         TP(true, true),

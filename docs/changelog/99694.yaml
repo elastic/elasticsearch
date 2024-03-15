@@ -1,5 +1,0 @@
-pr: 99694
-summary: Remove shard data files when they fail to write for snapshot
-area: Snapshot/Restore
-type: enhancement
-issues: []

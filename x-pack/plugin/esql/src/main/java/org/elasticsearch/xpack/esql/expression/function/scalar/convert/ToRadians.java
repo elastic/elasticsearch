@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -30,39 +29,23 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
  * to <a href="https://en.wikipedia.org/wiki/Radian">radians</a>.
  */
 public class ToRadians extends AbstractConvertFunction implements EvaluatorMapper {
-    private static final Map<
-        DataType,
-        TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>> EVALUATORS = Map.of(
-            DOUBLE,
-            ToRadiansEvaluator::new,
-            INTEGER,
-            (field, source, driverContext) -> new ToRadiansEvaluator(
-                new ToDoubleFromIntEvaluator(field, source, driverContext),
-                source,
-                driverContext
-            ),
-            LONG,
-            (field, source, driverContext) -> new ToRadiansEvaluator(
-                new ToDoubleFromLongEvaluator(field, source, driverContext),
-                source,
-                driverContext
-            ),
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(DOUBLE, ToRadiansEvaluator.Factory::new),
+        Map.entry(INTEGER, (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromIntEvaluator.Factory(field, source), source)),
+        Map.entry(LONG, (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromLongEvaluator.Factory(field, source), source)),
+        Map.entry(
             UNSIGNED_LONG,
-            (field, source, driverContext) -> new ToRadiansEvaluator(
-                new ToDoubleFromUnsignedLongEvaluator(field, source, driverContext),
-                source,
-                driverContext
-            )
-        );
+            (field, source) -> new ToRadiansEvaluator.Factory(new ToDoubleFromUnsignedLongEvaluator.Factory(field, source), source)
+        )
+    );
 
-    public ToRadians(Source source, Expression field) {
+    @FunctionInfo(returnType = "double", description = "Converts a number in degrees to radians.")
+    public ToRadians(Source source, @Param(name = "v", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 
     @Override
-    protected
-        Map<DataType, TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>>
-        evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 

@@ -13,7 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -1006,7 +1008,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         assertThat(doc.docs().size(), equalTo(3));
         NestedObjectMapper nested1Mapper = (NestedObjectMapper) mapper;
-        if (version.before(IndexVersion.V_8_0_0)) {
+        if (version.before(IndexVersions.V_8_0_0)) {
             assertThat(doc.docs().get(0).get("_type"), equalTo(nested1Mapper.nestedTypePath()));
         } else {
             assertThat(doc.docs().get(0).get(NestedPathFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePath()));
@@ -1507,16 +1509,47 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstMapper.merge(secondMapper, MapperBuilderContext.root(false, false))
+            () -> firstMapper.merge(secondMapper, MapperMergeContext.root(false, false, Long.MAX_VALUE))
         );
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
         NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
             secondMapper,
             MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperBuilderContext.root(false, false)
+            MapperMergeContext.root(false, false, Long.MAX_VALUE)
         );
         assertFalse(result.isIncludeInParent());
         assertTrue(result.isIncludeInRoot());
+    }
+
+    public void testWithoutMappers() throws IOException {
+        ObjectMapper shallowObject = createNestedObjectMapperWithAllParametersSet(b -> {});
+        ObjectMapper object = createNestedObjectMapperWithAllParametersSet(b -> {
+            b.startObject("keyword");
+            {
+                b.field("type", "keyword");
+            }
+            b.endObject();
+        });
+        assertThat(object.withoutMappers().toString(), equalTo(shallowObject.toString()));
+    }
+
+    private NestedObjectMapper createNestedObjectMapperWithAllParametersSet(CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)
+        throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("nested_object");
+            {
+                b.field("type", "nested");
+                b.field("enabled", false);
+                b.field("dynamic", false);
+                b.field("include_in_parent", true);
+                b.field("include_in_root", true);
+                b.startObject("properties");
+                propertiesBuilder.accept(b);
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        return (NestedObjectMapper) mapper.mapping().getRoot().getMapper("nested_object");
     }
 }

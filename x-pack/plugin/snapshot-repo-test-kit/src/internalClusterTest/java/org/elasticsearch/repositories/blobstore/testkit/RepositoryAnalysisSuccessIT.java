@@ -31,6 +31,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -57,8 +58,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
+import static org.elasticsearch.repositories.blobstore.testkit.RepositoryAnalysisFailureIT.isContendedRegisterKey;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -109,6 +115,11 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             blobStore.setMaxBlobCount(request.getBlobCount());
         }
 
+        if (randomBoolean()) {
+            request.registerOperationCount(between(internalCluster().size(), request.getRegisterOperationCount() * 2));
+            blobStore.setExpectedRegisterOperationCount(request.getRegisterOperationCount());
+        }
+
         if (request.getBlobCount() > 3 || randomBoolean()) {
             // only use the default blob size of 10MB if writing a small number of blobs, since this is all in-memory
             request.maxBlobSize(ByteSizeValue.ofBytes(between(1, 2048)));
@@ -139,7 +150,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Map.of(
                 ASSERTING_REPO_TYPE,
@@ -162,6 +174,10 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         } else {
             return BlobPath.EMPTY.add(basePath);
         }
+    }
+
+    private static void assertPurpose(OperationPurpose purpose) {
+        assertEquals(OperationPurpose.REPOSITORY_ANALYSIS, purpose);
     }
 
     static class AssertingRepository extends BlobStoreRepository {
@@ -204,6 +220,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private int maxBlobCount = new RepositoryAnalyzeAction.Request("dummy").getBlobCount();
         private long maxBlobSize = new RepositoryAnalyzeAction.Request("dummy").getMaxBlobSize().getBytes();
         private long maxTotalBlobSize = new RepositoryAnalyzeAction.Request("dummy").getMaxTotalDataSize().getBytes();
+        private int expectedRegisterOperationCount = new RepositoryAnalyzeAction.Request("dummy").getRegisterOperationCount();
 
         AssertingBlobStore(@Nullable String basePath) {
             this.pathPrefix = basePath == null ? "" : basePath + "/";
@@ -222,7 +239,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                         writeSemaphore,
                         maxBlobCount,
                         maxBlobSize,
-                        maxTotalBlobSize
+                        maxTotalBlobSize,
+                        expectedRegisterOperationCount
                     );
                 }
                 assertThat(path.buildAsString(), equalTo(currentPath));
@@ -239,7 +257,9 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {}
+        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
+            assertPurpose(purpose);
+        }
 
         @Override
         public void close() {}
@@ -259,6 +279,10 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         public void setMaxTotalBlobSize(long maxTotalBlobSize) {
             this.maxTotalBlobSize = maxTotalBlobSize;
         }
+
+        public void setExpectedRegisterOperationCount(int expectedRegisterOperationCount) {
+            this.expectedRegisterOperationCount = expectedRegisterOperationCount;
+        }
     }
 
     static class AssertingBlobContainer implements BlobContainer {
@@ -271,10 +295,15 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final int maxBlobCount;
         private final long maxBlobSize;
         private final long maxTotalBlobSize;
+        private final long expectedRegisterOperationCount;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
         private final AtomicLong totalBytesWritten = new AtomicLong();
         private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
         private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
+
+        private final Object registerMutex = new Object();
+        private long contendedRegisterValue = 0L;
+        private long uncontendedRegisterValue = 0L;
 
         AssertingBlobContainer(
             BlobPath path,
@@ -282,7 +311,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             Semaphore writeSemaphore,
             int maxBlobCount,
             long maxBlobSize,
-            long maxTotalBlobSize
+            long maxTotalBlobSize,
+            long expectedRegisterOperationCount
         ) {
             this.path = path;
             this.deleteContainer = deleteContainer;
@@ -290,6 +320,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             this.maxBlobCount = maxBlobCount;
             this.maxBlobSize = maxBlobSize;
             this.maxTotalBlobSize = maxTotalBlobSize;
+            this.expectedRegisterOperationCount = expectedRegisterOperationCount;
         }
 
         @Override
@@ -299,11 +330,13 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public boolean blobExists(OperationPurpose purpose, String blobName) {
+            assertPurpose(purpose);
             return blobs.containsKey(blobName);
         }
 
         @Override
         public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+            assertPurpose(purpose);
             final byte[] contents = blobs.get(blobName);
             if (contents == null) {
                 throw new FileNotFoundException(blobName + " not found");
@@ -313,6 +346,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+            assertPurpose(purpose);
             final byte[] contents = blobs.get(blobName);
             if (contents == null) {
                 throw new FileNotFoundException(blobName + " not found");
@@ -329,6 +363,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             long blobSize,
             boolean failIfAlreadyExists
         ) throws IOException {
+            assertPurpose(purpose);
             assertTrue("must only write blob [" + blobName + "] non-atomically if it doesn't already exist", failIfAlreadyExists);
             assertNull("blob [" + blobName + "] must not exist", blobs.get(blobName));
 
@@ -339,7 +374,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
             throws IOException {
-            writeBlob(OperationPurpose.SNAPSHOT, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+            assertPurpose(purpose);
+            writeBlob(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         }
 
         @Override
@@ -350,18 +386,20 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             boolean atomic,
             CheckedConsumer<OutputStream, IOException> writer
         ) throws IOException {
+            assertPurpose(purpose);
             final BytesStreamOutput out = new BytesStreamOutput();
             writer.accept(out);
             if (atomic) {
-                writeBlobAtomic(OperationPurpose.SNAPSHOT, blobName, out.bytes(), failIfAlreadyExists);
+                writeBlobAtomic(purpose, blobName, out.bytes(), failIfAlreadyExists);
             } else {
-                writeBlob(OperationPurpose.SNAPSHOT, blobName, out.bytes(), failIfAlreadyExists);
+                writeBlob(purpose, blobName, out.bytes(), failIfAlreadyExists);
             }
         }
 
         @Override
         public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
             throws IOException {
+            assertPurpose(purpose);
             writeBlobAtomic(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         }
 
@@ -391,6 +429,11 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public DeleteResult delete(OperationPurpose purpose) {
+            assertPurpose(purpose);
+            synchronized (registerMutex) {
+                assertThat(contendedRegisterValue, equalTo(expectedRegisterOperationCount));
+                assertThat(uncontendedRegisterValue, greaterThanOrEqualTo(expectedRegisterOperationCount));
+            }
             deleteContainer.accept(this);
             final DeleteResult deleteResult = new DeleteResult(blobs.size(), blobs.values().stream().mapToLong(b -> b.length).sum());
             blobs.clear();
@@ -399,11 +442,13 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
+            assertPurpose(purpose);
             blobNames.forEachRemaining(blobs.keySet()::remove);
         }
 
         @Override
         public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) {
+            assertPurpose(purpose);
             return blobs.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> new BlobMetadata(e.getKey(), e.getValue().length)));
@@ -411,26 +456,32 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Map<String, BlobContainer> children(OperationPurpose purpose) {
+            assertPurpose(purpose);
             return Map.of();
         }
 
         @Override
         public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) {
-            final Map<String, BlobMetadata> blobMetadataByName = listBlobs(OperationPurpose.SNAPSHOT);
+            assertPurpose(purpose);
+            final Map<String, BlobMetadata> blobMetadataByName = listBlobs(purpose);
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
         }
 
         @Override
         public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
-            if (firstRegisterRead.compareAndSet(true, false) && randomBoolean() && randomBoolean()) {
+            assertPurpose(purpose);
+            if (isContendedRegisterKey(key) && firstRegisterRead.compareAndSet(true, false) && randomBoolean() && randomBoolean()) {
+                // it's ok if _contended_ register accesses are a little disrupted since they retry until success, however,
                 // only fail the first read, we must not fail the final check
                 listener.onResponse(OptionalBytesReference.EMPTY);
             } else if (randomBoolean()) {
+                // read the register directly
                 listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
             } else {
+                // read using a compare-and-exchange that cannot succeed, but which returns the current value anyway
                 final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
-                compareAndExchangeRegister(OperationPurpose.SNAPSHOT, key, bogus, bogus, listener);
+                compareAndExchangeRegister(purpose, key, bogus, bogus, listener);
             }
         }
 
@@ -442,17 +493,50 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             BytesReference updated,
             ActionListener<OptionalBytesReference> listener
         ) {
-            firstRegisterRead.set(false);
-            if (updated.length() > 1 && randomBoolean() && randomBoolean()) {
-                // updated.length() > 1 so we don't fail the final check because we know there can be no concurrent operations at that point
-                listener.onResponse(OptionalBytesReference.MISSING);
-            } else {
-                listener.onResponse(
-                    OptionalBytesReference.of(
-                        registers.computeIfAbsent(key, ignored -> new BytesRegister()).compareAndExchange(expected, updated)
-                    )
-                );
+            assertPurpose(purpose);
+            if (isContendedRegisterKey(key)) {
+                // it's ok if _contended_ register accesses are a little disrupted since they retry until success
+
+                firstRegisterRead.set(false);
+                if (updated.length() > 1 && randomBoolean() && randomBoolean()) {
+                    // updated.length() > 1 so the final check succeeds because we know there can be no concurrent operations at that point
+                    listener.onResponse(OptionalBytesReference.MISSING);
+                    return;
+                }
             }
+
+            final BytesReference witness;
+            synchronized (registerMutex) {
+                // synchronized to avoid concurrent updates from interfering with the assertions which follow this update, but NB we aren't
+                // testing the atomicity of this particular compareAndExchange() operation (itself implemented with a lock), we're testing
+                // the sequence of how these operations are executed, so the mutex here is fine.
+
+                witness = registers.computeIfAbsent(key, ignored -> new BytesRegister()).compareAndExchange(expected, updated);
+
+                if (isContendedRegisterKey(key)) {
+                    if (expected.equals(witness) // CAS succeeded
+                        && expected.equals(updated) == false // CAS was a genuine update
+                        && updated.length() != 1 // CAS was not the final verification step, which sometimes writes {0xff}
+                    ) {
+                        final var updatedValue = longFromBytes(updated);
+                        assertThat(
+                            updatedValue,
+                            allOf(greaterThan(0L), lessThanOrEqualTo(expectedRegisterOperationCount), equalTo(contendedRegisterValue + 1))
+                        );
+                        contendedRegisterValue = updatedValue;
+                    }
+                } else {
+                    assertEquals(expected, witness); // uncontended writes always succeed
+                    assertNotEquals(expected, updated); // uncontended register sees only updates
+                    if (updated.length() != 0) {
+                        final var updatedValue = longFromBytes(updated);
+                        assertThat(updatedValue, allOf(greaterThan(0L), equalTo(uncontendedRegisterValue + 1)));
+                        uncontendedRegisterValue = updatedValue;
+                    } // else this was the final step which writes an empty register
+                }
+            }
+
+            listener.onResponse(OptionalBytesReference.of(witness));
         }
     }
 

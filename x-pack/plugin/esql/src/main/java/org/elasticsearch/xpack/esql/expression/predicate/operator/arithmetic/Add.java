@@ -32,11 +32,11 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             left,
             right,
             ADD,
-            AddIntsEvaluator::new,
-            AddLongsEvaluator::new,
-            AddUnsignedLongsEvaluator::new,
-            (s, l, r, dvrCtx) -> new AddDoublesEvaluator(l, r, dvrCtx),
-            AddDatetimesEvaluator::new
+            AddIntsEvaluator.Factory::new,
+            AddLongsEvaluator.Factory::new,
+            AddUnsignedLongsEvaluator.Factory::new,
+            (s, lhs, rhs) -> new AddDoublesEvaluator.Factory(source, lhs, rhs),
+            AddDatetimesEvaluator.Factory::new
         );
     }
 

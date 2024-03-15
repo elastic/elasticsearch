@@ -63,8 +63,14 @@ avg(salary):double | always_false:boolean
 
 
 in
+required_feature: esql.mv_warn
+
 from employees | keep emp_no, is_rehired, still_hired | where is_rehired in (still_hired, true) | where is_rehired != still_hired;
 ignoreOrder:true
+warning:Line 1:63: evaluation of [is_rehired in (still_hired, true)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:63: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:105: evaluation of [is_rehired != still_hired] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:105: java.lang.IllegalArgumentException: single-value function encountered multi-value
 emp_no:integer |is_rehired:boolean |still_hired:boolean
 10021          |true               |false
 10029          |true               |false
@@ -227,4 +233,50 @@ emp_no:integer |languages:integer |byte2bool:boolean |short2bool:boolean
 10019          |1                 |true              |true
 10020          |null              |null              |null
 10030          |3                 |true              |true
+;
+
+mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+row a = [true, false, true, false] | eval sa = mv_sort(a), sb = mv_sort(a, "DESC");
+
+a:boolean                  | sa:boolean                 | sb:boolean
+[true, false, true, false] | [false, false, true, true] | [true, true, false, false]
+;
+
+mvSortEmp#[skip:-8.13.99, reason:newly added in 8.14]
+FROM employees
+| eval sd = mv_sort(is_rehired, "DESC"), sa = mv_sort(is_rehired)
+| sort emp_no
+| keep emp_no, is_rehired, sa, sd
+| limit 5
+;
+
+emp_no:integer | is_rehired:boolean       | sa:boolean               | sd:boolean
+10001          | [false, true]            | [false, true]            | [true, false]
+10002          | [false, false]           | [false, false]           | [false, false]
+10003          | null                     | null                     | null
+10004          | true                     | true                     | true
+10005          | [false,false,false,true] | [false,false,false,true] | [true,false,false,false]
+;
+
+mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+row a = [true, false, false, true]
+| eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3);
+
+a:boolean                  | a1:boolean | a2:boolean
+[true, false, false, true] | false      | [false, true]
+;
+
+mvSliceEmp#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(is_rehired, 0)
+| keep emp_no, is_rehired, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | is_rehired:boolean       | a1:boolean
+10001          | [false,true]             | false
+10002          | [false,false]            | false
+10003          | null                     | null
+10004          | true                     | true
+10005          | [false,false,false,true] | false
 ;

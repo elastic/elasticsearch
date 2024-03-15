@@ -11,32 +11,22 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.Join;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -45,8 +35,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
@@ -60,6 +48,10 @@ import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+/**
+ * A voting-only node is one with the 'master' and 'voting-only' roles, dictating
+ * that the node may vote in master elections but is ineligible to be master.
+ */
 public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationPlugin, NetworkPlugin, ActionPlugin {
 
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
@@ -84,23 +76,8 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
-        this.threadPool.set(threadPool);
+    public Collection<?> createComponents(PluginServices services) {
+        this.threadPool.set(services.threadPool());
         return Collections.emptyList();
     }
 
@@ -173,15 +150,15 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
         }
 
         private static Predicate<Join> fullMasterWithSameState(long localAcceptedTerm, long localAcceptedVersion) {
-            return join -> isFullMasterNode(join.getSourceNode())
-                && join.getLastAcceptedTerm() == localAcceptedTerm
-                && join.getLastAcceptedVersion() == localAcceptedVersion;
+            return join -> isFullMasterNode(join.votingNode())
+                && join.lastAcceptedTerm() == localAcceptedTerm
+                && join.lastAcceptedVersion() == localAcceptedVersion;
         }
 
         private static Predicate<Join> fullMasterWithOlderState(long localAcceptedTerm, long localAcceptedVersion) {
-            return join -> isFullMasterNode(join.getSourceNode())
-                && (join.getLastAcceptedTerm() < localAcceptedTerm
-                    || (join.getLastAcceptedTerm() == localAcceptedTerm && join.getLastAcceptedVersion() < localAcceptedVersion));
+            return join -> isFullMasterNode(join.votingNode())
+                && (join.lastAcceptedTerm() < localAcceptedTerm
+                    || (join.lastAcceptedTerm() == localAcceptedTerm && join.lastAcceptedVersion() < localAcceptedVersion));
         }
     }
 
@@ -223,8 +200,8 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
                         }
 
                         @Override
-                        public Executor executor(ThreadPool threadPool) {
-                            return handler.executor(threadPool);
+                        public Executor executor() {
+                            return handler.executor();
                         }
 
                         @Override

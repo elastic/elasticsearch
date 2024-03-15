@@ -28,10 +28,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestMultiGetActionTests extends RestActionTestCase {
-    @SuppressWarnings("this-escape")
+public final class RestMultiGetActionTests extends RestActionTestCase {
     XContentType VND_TYPE = randomVendorType();
-    @SuppressWarnings("this-escape")
     List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(VND_TYPE, RestApiVersion.V_7));
 
     @Before

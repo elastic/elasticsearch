@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -25,7 +24,6 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -73,11 +71,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     private static final Logger logger = LogManager.getLogger(TestTaskPlugin.class);
 
-    public static final ActionType<NodesResponse> TEST_TASK_ACTION = ActionType.localOnly("cluster:admin/tasks/test");
-    public static final ActionType<UnblockTestTasksResponse> UNBLOCK_TASK_ACTION = new ActionType<>(
-        "cluster:admin/tasks/testunblock",
-        UnblockTestTasksResponse::new
-    );
+    public static final ActionType<NodesResponse> TEST_TASK_ACTION = new ActionType<>("cluster:admin/tasks/test");
+    public static final ActionType<UnblockTestTasksResponse> UNBLOCK_TASK_ACTION = new ActionType<>("cluster:admin/tasks/testunblock");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -423,13 +418,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             listener.onResponse(new UnblockTestTaskResponse());
         }
 
-    }
-
-    public static class UnblockTestTasksRequestBuilder extends ActionRequestBuilder<UnblockTestTasksRequest, UnblockTestTasksResponse> {
-
-        protected UnblockTestTasksRequestBuilder(ElasticsearchClient client, ActionType<UnblockTestTasksResponse> action) {
-            super(client, action, new UnblockTestTasksRequest());
-        }
     }
 
     private static class OriginAssertingInterceptor implements TransportInterceptor {

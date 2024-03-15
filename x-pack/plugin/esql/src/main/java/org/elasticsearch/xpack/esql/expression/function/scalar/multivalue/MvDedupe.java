@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -23,7 +25,15 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  * Removes duplicate values from a multivalued field.
  */
 public class MvDedupe extends AbstractMultivalueFunction {
-    public MvDedupe(Source source, Expression field) {
+    // @TODO: add cartesian_point, geo_point, unsigned_long
+    @FunctionInfo(
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        description = "Remove duplicate values from a multivalued field."
+    )
+    public MvDedupe(
+        Source source,
+        @Param(name = "v", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression field
+    ) {
         super(source, field);
     }
 
@@ -34,7 +44,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return MultivalueDedupe.evaluator(LocalExecutionPlanner.toElementType(dataType()), fieldEval);
+        return MultivalueDedupe.evaluator(PlannerUtils.toElementType(dataType()), fieldEval);
     }
 
     @Override

@@ -8,116 +8,113 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.api.metrics.DoubleGaugeBuilder;
-import io.opentelemetry.api.metrics.LongGaugeBuilder;
-import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
-import io.opentelemetry.api.metrics.ObservableLongMeasurement;
-
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.apm.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
+import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class GaugeAdapterTests extends ESTestCase {
-    Meter testMeter = Mockito.mock(Meter.class);
-    LongGaugeBuilder longGaugeBuilder = Mockito.mock(LongGaugeBuilder.class);
-    DoubleGaugeBuilder mockDoubleGaugeBuilder = Mockito.mock(DoubleGaugeBuilder.class);
+    RecordingOtelMeter otelMeter;
+    APMMeterRegistry registry;
 
     @Before
     public void init() {
-        when(longGaugeBuilder.setDescription(Mockito.anyString())).thenReturn(longGaugeBuilder);
-        when(longGaugeBuilder.setUnit(Mockito.anyString())).thenReturn(longGaugeBuilder);
-
-
-        when(mockDoubleGaugeBuilder.ofLongs()).thenReturn(longGaugeBuilder);
-        when(mockDoubleGaugeBuilder.setUnit(Mockito.anyString())).thenReturn(mockDoubleGaugeBuilder);
-        when(mockDoubleGaugeBuilder.setDescription(Mockito.anyString())).thenReturn(mockDoubleGaugeBuilder);
-        when(testMeter.gaugeBuilder(anyString())).thenReturn(mockDoubleGaugeBuilder);
+        otelMeter = new RecordingOtelMeter();
+        registry = new APMMeterRegistry(otelMeter);
     }
 
     // testing that a value reported is then used in a callback
-    @SuppressWarnings("unchecked")
-    public void testLongGaugeRecord() {
-        LongGaugeAdapter longGaugeAdapter = new LongGaugeAdapter(testMeter, "name", "desc", "unit");
+    public void testLongGaugeRecord() throws Exception {
+        AtomicReference<LongWithAttributes> attrs = new AtomicReference<>();
+        LongGauge gauge = registry.registerLongGauge("es.test.name.total", "desc", "unit", attrs::get);
 
-        // recording a value
-        longGaugeAdapter.record(1L, Map.of("k", 1L));
+        attrs.set(new LongWithAttributes(1L, Map.of("k", 1L)));
 
-        // upon metric export, the consumer will be called
-        ArgumentCaptor<Consumer<ObservableLongMeasurement>> captor = ArgumentCaptor.forClass(Consumer.class);
-        verify(longGaugeBuilder).buildWithCallback(captor.capture());
+        otelMeter.collectMetrics();
 
-        Consumer<ObservableLongMeasurement> value = captor.getValue();
-        // making sure that a consumer will fetch the value passed down upon recording of a value
-        TestLongMeasurement testLongMeasurement = new TestLongMeasurement();
-        value.accept(testLongMeasurement);
+        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 1L)));
+        assertThat(metrics.get(0).getLong(), equalTo(1L));
 
-        assertThat(testLongMeasurement.value, Matchers.equalTo(1L));
-        assertThat(testLongMeasurement.attributes, Matchers.equalTo(Attributes.builder().put("k", 1).build()));
+        attrs.set(new LongWithAttributes(2L, Map.of("k", 5L)));
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 5L)));
+        assertThat(metrics.get(0).getLong(), equalTo(2L));
+
+        gauge.close();
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(0));
     }
 
     // testing that a value reported is then used in a callback
-    @SuppressWarnings("unchecked")
-    public void testDoubleGaugeRecord() {
-        DoubleGaugeAdapter doubleGaugeAdapter = new DoubleGaugeAdapter(testMeter, "name", "desc", "unit");
+    public void testDoubleGaugeRecord() throws Exception {
+        AtomicReference<DoubleWithAttributes> attrs = new AtomicReference<>();
+        DoubleGauge gauge = registry.registerDoubleGauge("es.test.name.total", "desc", "unit", attrs::get);
 
-        // recording a value
-        doubleGaugeAdapter.record(1.0, Map.of("k", 1.0));
+        attrs.set(new DoubleWithAttributes(1.0d, Map.of("k", 1L)));
 
-        // upon metric export, the consumer will be called
-        ArgumentCaptor<Consumer<ObservableDoubleMeasurement>> captor = ArgumentCaptor.forClass(Consumer.class);
-        verify(mockDoubleGaugeBuilder).buildWithCallback(captor.capture());
+        otelMeter.collectMetrics();
 
-        Consumer<ObservableDoubleMeasurement> value = captor.getValue();
-        // making sure that a consumer will fetch the value passed down upon recording of a value
-        TestDoubleMeasurement testLongMeasurement = new TestDoubleMeasurement();
-        value.accept(testLongMeasurement);
+        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 1L)));
+        assertThat(metrics.get(0).getDouble(), equalTo(1.0d));
 
-        assertThat(testLongMeasurement.value, Matchers.equalTo(1.0));
-        assertThat(testLongMeasurement.attributes, Matchers.equalTo(Attributes.builder().put("k", 1.0).build()));
+        attrs.set(new DoubleWithAttributes(2.0d, Map.of("k", 5L)));
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 5L)));
+        assertThat(metrics.get(0).getDouble(), equalTo(2.0d));
+
+        gauge.close();
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(0));
     }
 
-    private static class TestDoubleMeasurement implements ObservableDoubleMeasurement {
-        double value;
-        Attributes attributes;
+    public void testNullGaugeRecord() throws Exception {
+        DoubleGauge dgauge = registry.registerDoubleGauge(
+            "es.test.name.total",
+            "desc",
+            "unit",
+            new AtomicReference<DoubleWithAttributes>()::get
+        );
+        otelMeter.collectMetrics();
+        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(dgauge);
+        assertThat(metrics, hasSize(0));
 
-        @Override
-        public void record(double value) {
-            this.value = value;
-        }
-
-        @Override
-        public void record(double value, Attributes attributes) {
-            this.value = value;
-            this.attributes = attributes;
-
-        }
-    }
-
-    private static class TestLongMeasurement implements ObservableLongMeasurement {
-        long value;
-        Attributes attributes;
-
-        @Override
-        public void record(long value) {
-            this.value = value;
-        }
-
-        @Override
-        public void record(long value, Attributes attributes) {
-            this.value = value;
-            this.attributes = attributes;
-
-        }
+        LongGauge lgauge = registry.registerLongGauge("es.test.name.total", "desc", "unit", new AtomicReference<LongWithAttributes>()::get);
+        otelMeter.collectMetrics();
+        metrics = otelMeter.getRecorder().getMeasurements(lgauge);
+        assertThat(metrics, hasSize(0));
     }
 }

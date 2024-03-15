@@ -14,22 +14,20 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/part-3.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/part-3.*'
           github-hooks: true
           status-context: elasticsearch-ci/part-3
           cancel-builds-on-update: true
           excluded-regions:
             - ^docs/.*
             - ^x-pack/docs/.*
-          black-list-labels:
-            - '>test-mute'
-            - 'buildkite-opt-in'
           black-list-target-branches:
             - 6.8
             - 7.17
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             JAVA8_HOME=$HOME/.java/java8

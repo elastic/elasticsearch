@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 public class JoinRequest extends TransportRequest {
 
@@ -31,6 +32,11 @@ public class JoinRequest extends TransportRequest {
      * The compatibility versions used by the sending node.
      */
     private final CompatibilityVersions compatibilityVersions;
+
+    /**
+     * The features that are supported by the joining node.
+     */
+    private final Set<String> features;
 
     /**
      * The minimum term for which the joining node will accept any cluster state publications. If the joining node is in a strictly greater
@@ -50,12 +56,14 @@ public class JoinRequest extends TransportRequest {
     public JoinRequest(
         DiscoveryNode sourceNode,
         CompatibilityVersions compatibilityVersions,
+        Set<String> features,
         long minimumTerm,
         Optional<Join> optionalJoin
     ) {
-        assert optionalJoin.isPresent() == false || optionalJoin.get().getSourceNode().equals(sourceNode);
+        assert optionalJoin.isPresent() == false || optionalJoin.get().votingNode().equals(sourceNode);
         this.sourceNode = sourceNode;
         this.compatibilityVersions = compatibilityVersions;
+        this.features = features;
         this.minimumTerm = minimumTerm;
         this.optionalJoin = optionalJoin;
     }
@@ -68,7 +76,15 @@ public class JoinRequest extends TransportRequest {
         } else {
             // there's a 1-1 mapping from Version to TransportVersion before 8.8.0
             // no known mapping versions here
-            compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(sourceNode.getVersion().id), Map.of());
+            compatibilityVersions = new CompatibilityVersions(
+                TransportVersion.fromId(sourceNode.getPre811VersionId().getAsInt()),
+                Map.of()
+            );
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            features = in.readCollectionAsSet(StreamInput::readString);
+        } else {
+            features = Set.of();
         }
         minimumTerm = in.readLong();
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
@@ -80,6 +96,9 @@ public class JoinRequest extends TransportRequest {
         sourceNode.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             compatibilityVersions.writeTo(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeCollection(features, StreamOutput::writeString);
         }
         out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
@@ -93,6 +112,10 @@ public class JoinRequest extends TransportRequest {
         return compatibilityVersions;
     }
 
+    public Set<String> getFeatures() {
+        return features;
+    }
+
     public long getMinimumTerm() {
         return minimumTerm;
     }
@@ -101,7 +124,7 @@ public class JoinRequest extends TransportRequest {
         // If the join is also present then its term will normally equal the corresponding term, but we do not require callers to
         // obtain the term and the join in a synchronized fashion so it's possible that they disagree. Also older nodes do not share the
         // minimum term, so for BWC we can take it from the join if present.
-        return Math.max(minimumTerm, optionalJoin.map(Join::getTerm).orElse(0L));
+        return Math.max(minimumTerm, optionalJoin.map(Join::term).orElse(0L));
     }
 
     public Optional<Join> getOptionalJoin() {
@@ -118,12 +141,13 @@ public class JoinRequest extends TransportRequest {
         if (minimumTerm != that.minimumTerm) return false;
         if (sourceNode.equals(that.sourceNode) == false) return false;
         if (compatibilityVersions.equals(that.compatibilityVersions) == false) return false;
+        if (features.equals(that.features) == false) return false;
         return optionalJoin.equals(that.optionalJoin);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceNode, compatibilityVersions, minimumTerm, optionalJoin);
+        return Objects.hash(sourceNode, compatibilityVersions, features, minimumTerm, optionalJoin);
     }
 
     @Override
@@ -133,6 +157,8 @@ public class JoinRequest extends TransportRequest {
             + sourceNode
             + ", compatibilityVersions="
             + compatibilityVersions
+            + ", features="
+            + features
             + ", minimumTerm="
             + minimumTerm
             + ", optionalJoin="

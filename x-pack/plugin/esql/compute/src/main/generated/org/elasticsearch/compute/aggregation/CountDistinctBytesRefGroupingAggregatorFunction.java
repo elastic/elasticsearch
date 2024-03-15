@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -34,23 +33,19 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
   private final DriverContext driverContext;
 
-  private final BigArrays bigArrays;
-
   private final int precision;
 
   public CountDistinctBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays,
-      int precision) {
+      HllStates.GroupingState state, DriverContext driverContext, int precision) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
   public static CountDistinctBytesRefGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays, int precision) {
-    return new CountDistinctBytesRefGroupingAggregatorFunction(channels, CountDistinctBytesRefAggregator.initGrouping(bigArrays, precision), driverContext, bigArrays, precision);
+      DriverContext driverContext, int precision) {
+    return new CountDistinctBytesRefGroupingAggregatorFunction(channels, CountDistinctBytesRefAggregator.initGrouping(driverContext.bigArrays(), precision), driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -65,20 +60,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    Block uncastValuesBlock = page.getBlock(channels.get(0));
-    if (uncastValuesBlock.areAllValuesNull()) {
-      state.enableGroupIdTracking(seenGroupIds);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-        }
-      };
-    }
-    BytesRefBlock valuesBlock = (BytesRefBlock) uncastValuesBlock;
+    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
     BytesRefVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {

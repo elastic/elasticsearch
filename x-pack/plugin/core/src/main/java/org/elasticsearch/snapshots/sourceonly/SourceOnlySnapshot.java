@@ -234,6 +234,7 @@ public class SourceOnlySnapshot {
                     si.name,
                     si.maxDoc(),
                     false,
+                    si.getHasBlocks(),
                     si.getCodec(),
                     si.getDiagnostics(),
                     si.getId(),
@@ -261,7 +262,8 @@ public class SourceOnlySnapshot {
                             0,
                             VectorEncoding.FLOAT32,
                             VectorSimilarityFunction.EUCLIDEAN,
-                            fieldInfo.isSoftDeletesField()
+                            fieldInfo.isSoftDeletesField(),
+                            fieldInfo.isParentField()
                         )
                     );
                 }

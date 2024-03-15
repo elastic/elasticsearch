@@ -29,14 +29,13 @@ import java.util.Map;
  * The aggregation counts the number of values a histogram field has within the aggregation context
  * by adding the counts of the histograms.
  */
-public class HistoBackedValueCountAggregator extends NumericMetricsAggregator.SingleValue {
+public final class HistoBackedValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     final HistogramValuesSource.Histogram valuesSource;
 
     /** Count per bucket */
     LongArray counts;
 
-    @SuppressWarnings("this-escape")
     public HistoBackedValueCountAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

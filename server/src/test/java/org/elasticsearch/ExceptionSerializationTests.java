@@ -39,7 +39,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreadsTests;
@@ -60,11 +59,14 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.indices.FailureIndexNotSupportedException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.ingest.GraphStructureException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
@@ -76,9 +78,11 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.TooManyScrollContextsException;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -128,9 +132,8 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
 
-    public void testExceptionRegistration() throws ClassNotFoundException, IOException, URISyntaxException {
+    public void testExceptionRegistration() throws IOException, URISyntaxException {
         final Set<Class<?>> notRegistered = new HashSet<>();
-        final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();
         final String path = "/org/elasticsearch";
         final Path startPath = PathUtils.get(ElasticsearchException.class.getProtectionDomain().getCodeSource().getLocation().toURI())
@@ -145,13 +148,13 @@ public class ExceptionSerializationTests extends ESTestCase {
             private Path pkgPrefix = PathUtils.get(path).getParent();
 
             @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
                 pkgPrefix = pkgPrefix.resolve(dir.getFileName());
                 return FileVisitResult.CONTINUE;
             }
 
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                 checkFile(file.getFileName().toString());
                 return FileVisitResult.CONTINUE;
             }
@@ -179,13 +182,6 @@ public class ExceptionSerializationTests extends ESTestCase {
                     notRegistered.add(clazz);
                 } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), TransportVersion.current())) {
                     registered.add(clazz);
-                    try {
-                        if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
-                            hasDedicatedWrite.add(clazz);
-                        }
-                    } catch (Exception e) {
-                        // fair enough
-                    }
                 }
             }
 
@@ -198,7 +194,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                 for (Path p : pkgPrefix) {
                     pkg.append(p.getFileName().toString()).append(".");
                 }
-                pkg.append(filename.substring(0, filename.length() - 6));
+                pkg.append(filename, 0, filename.length() - 6);
                 return getClass().getClassLoader().loadClass(pkg.toString());
             }
 
@@ -208,7 +204,7 @@ public class ExceptionSerializationTests extends ESTestCase {
             }
 
             @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
                 pkgPrefix = pkgPrefix.getParent();
                 return FileVisitResult.CONTINUE;
             }
@@ -219,7 +215,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));
-        assertTrue("Classes subclassing ElasticsearchException must be registered \n" + notRegistered.toString(), notRegistered.isEmpty());
+        assertTrue("Classes subclassing ElasticsearchException must be registered \n" + notRegistered, notRegistered.isEmpty());
         assertTrue(registered.removeAll(ElasticsearchException.getRegisteredKeys())); // check
         assertEquals(registered.toString(), 0, registered.size());
     }
@@ -288,11 +284,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSearchException() throws IOException {
         SearchShardTarget target = new SearchShardTarget("foo", new ShardId("bar", "_na_", 1), null);
-        SearchException ex = serialize(new SearchException(target, "hello world"));
-        assertEquals(target, ex.shard());
-        assertEquals(ex.getMessage(), "hello world");
-
-        ex = serialize(new SearchException(null, "hello world", new NullPointerException()));
+        SearchException ex = serialize(new SearchException(null, "hello world", new NullPointerException()));
         assertNull(ex.shard());
         assertEquals(ex.getMessage(), "hello world");
         assertTrue(ex.getCause() instanceof NullPointerException);
@@ -343,7 +335,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(ex.name(), "foo");
         ex = serialize(new InvalidIndexTemplateException(null, "bar"));
         assertEquals(ex.getMessage(), "index_template [null] invalid, cause [bar]");
-        assertEquals(ex.name(), null);
+        assertNull(ex.name());
     }
 
     public void testActionTransportException() throws IOException {
@@ -354,14 +346,10 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSearchContextMissingException() throws IOException {
         ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
-        TransportVersion version = TransportVersionUtils.randomVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
-        if (version.onOrAfter(TransportVersions.V_7_7_0)) {
-            assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
-        } else {
-            assertThat(ex.contextId().getSessionId(), equalTo(""));
-        }
+        assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
     }
 
     public void testCircuitBreakingException() throws IOException {
@@ -420,7 +408,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchPhaseExecutionException() throws IOException {
-        ShardSearchFailure[] empty = new ShardSearchFailure[0];
+        ShardSearchFailure[] empty = ShardSearchFailure.EMPTY_ARRAY;
         SearchPhaseExecutionException ex = serialize(new SearchPhaseExecutionException("boom", "baam", new NullPointerException(), empty));
         assertEquals("boom", ex.getPhaseName());
         assertEquals("baam", ex.getMessage());
@@ -692,7 +680,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(24, org.elasticsearch.search.SearchContextMissingException.class);
         ids.put(25, org.elasticsearch.script.GeneralScriptException.class);
         ids.put(26, null);
-        ids.put(27, org.elasticsearch.snapshots.SnapshotCreationException.class);
+        ids.put(27, null); // was SnapshotCreationException
         ids.put(28, null); // was DeleteFailedEngineException, deprecated in 6.0 and removed in 7.0
         ids.put(29, org.elasticsearch.index.engine.DocumentMissingException.class);
         ids.put(30, org.elasticsearch.snapshots.SnapshotException.class);
@@ -836,6 +824,11 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(171, ApiNotAvailableException.class);
         ids.put(172, RecoveryCommitTooNewException.class);
         ids.put(173, TooManyScrollContextsException.class);
+        ids.put(174, AggregationExecutionException.InvalidPath.class);
+        ids.put(175, AutoscalingMissedIndicesUpdateException.class);
+        ids.put(176, SearchTimeoutException.class);
+        ids.put(177, GraphStructureException.class);
+        ids.put(178, FailureIndexNotSupportedException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

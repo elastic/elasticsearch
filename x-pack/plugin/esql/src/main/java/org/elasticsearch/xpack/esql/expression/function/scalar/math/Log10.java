@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -26,8 +26,9 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
-    public Log10(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+public class Log10 extends UnaryScalarFunction {
+    @FunctionInfo(returnType = "double", description = "Returns the log base 10.")
+    public Log10(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 
@@ -37,16 +38,16 @@ public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
         var fieldType = field().dataType();
 
         if (fieldType == DataTypes.DOUBLE) {
-            return dvrCtx -> new Log10DoubleEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new Log10DoubleEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return dvrCtx -> new Log10IntEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new Log10IntEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.LONG) {
-            return dvrCtx -> new Log10LongEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new Log10LongEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return dvrCtx -> new Log10UnsignedLongEvaluator(source(), field.get(dvrCtx), dvrCtx);
+            return new Log10UnsignedLongEvaluator.Factory(source(), field);
         }
 
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
@@ -97,11 +98,6 @@ public class Log10 extends UnaryScalarFunction implements EvaluatorMapper {
     @Override
     public DataType dataType() {
         return DataTypes.DOUBLE;
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Override

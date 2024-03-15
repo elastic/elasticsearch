@@ -11,10 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -31,13 +31,22 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
-public class Replace extends ScalarFunction implements EvaluatorMapper {
+public class Replace extends EsqlScalarFunction {
 
     private final Expression str;
     private final Expression newStr;
     private final Expression regex;
 
-    public Replace(Source source, Expression str, Expression regex, Expression newStr) {
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "The function substitutes in the string any match of the regular expression with the replacement string."
+    )
+    public Replace(
+        Source source,
+        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "regex", type = { "keyword", "text" }) Expression regex,
+        @Param(name = "newStr", type = { "keyword", "text" }) Expression newStr
+    ) {
         super(source, Arrays.asList(str, regex, newStr));
         this.str = str;
         this.regex = regex;
@@ -73,11 +82,6 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
         return str.foldable() && regex.foldable() && newStr.foldable();
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     @Evaluator(extraName = "Constant", warnExceptions = PatternSyntaxException.class)
     static BytesRef process(BytesRef str, @Fixed Pattern regex, BytesRef newStr) {
         if (str == null || regex == null || newStr == null) {
@@ -109,11 +113,6 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var strEval = toEvaluator.apply(str);
         var newStrEval = toEvaluator.apply(newStr);
@@ -128,10 +127,10 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
                 // but for the moment we let the exception through
                 throw pse;
             }
-            return (drvCtx) -> new ReplaceConstantEvaluator(source(), strEval.get(drvCtx), regexPattern, newStrEval.get(drvCtx), drvCtx);
+            return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
         }
 
         var regexEval = toEvaluator.apply(regex);
-        return (drvCtx) -> new ReplaceEvaluator(source(), strEval.get(drvCtx), regexEval.get(drvCtx), newStrEval.get(drvCtx), drvCtx);
+        return new ReplaceEvaluator.Factory(source(), strEval, regexEval, newStrEval);
     }
 }

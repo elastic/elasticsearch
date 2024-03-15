@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,7 +57,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ThrottlingAllocationTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(ThrottlingAllocationTests.class);
 
     public void testPrimaryRecoveryThrottling() {
 

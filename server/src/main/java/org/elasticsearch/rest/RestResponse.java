@@ -12,16 +12,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,15 +32,13 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 
-public class RestResponse {
+public final class RestResponse implements Releasable {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
 
-    private static final String STATUS = "status";
+    static final String STATUS = "status";
 
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
 
@@ -54,6 +51,9 @@ public class RestResponse {
     private final ChunkedRestResponseBody chunkedResponseBody;
     private final String responseMediaType;
     private Map<String, List<String>> customHeaders;
+
+    @Nullable
+    private final Releasable releasable;
 
     /**
      * Creates a new response based on {@link XContentBuilder}.
@@ -77,18 +77,18 @@ public class RestResponse {
     }
 
     public RestResponse(RestStatus status, String responseMediaType, BytesReference content) {
-        this(status, responseMediaType, content, null);
+        this(status, responseMediaType, content, null, null);
     }
 
-    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBody content) {
+    private RestResponse(RestStatus status, String responseMediaType, BytesReference content, @Nullable Releasable releasable) {
+        this(status, responseMediaType, content, null, releasable);
+    }
+
+    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBody content, @Nullable Releasable releasable) {
         if (content.isDone()) {
-            return new RestResponse(
-                restStatus,
-                content.getResponseContentTypeString(),
-                new ReleasableBytesReference(BytesArray.EMPTY, content)
-            );
+            return new RestResponse(restStatus, content.getResponseContentTypeString(), BytesArray.EMPTY, releasable);
         } else {
-            return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content);
+            return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content, releasable);
         }
     }
 
@@ -99,12 +99,14 @@ public class RestResponse {
         RestStatus status,
         String responseMediaType,
         @Nullable BytesReference content,
-        @Nullable ChunkedRestResponseBody chunkedResponseBody
+        @Nullable ChunkedRestResponseBody chunkedResponseBody,
+        @Nullable Releasable releasable
     ) {
         this.status = status;
         this.content = content;
         this.responseMediaType = responseMediaType;
         this.chunkedResponseBody = chunkedResponseBody;
+        this.releasable = releasable;
         assert (content == null) != (chunkedResponseBody == null);
     }
 
@@ -112,12 +114,10 @@ public class RestResponse {
         this(channel, ExceptionsHelper.status(e), e);
     }
 
-    @SuppressWarnings("this-escape")
     public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
-        ToXContent.Params params = paramsFromRequest(channel.request());
-        if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
-            // log exception only if it is not returned in the response
+        ToXContent.Params params = channel.request();
+        if (e != null) {
             Supplier<?> messageSupplier = () -> String.format(
                 Locale.ROOT,
                 "path: %s, params: %s, status: %d",
@@ -125,11 +125,19 @@ public class RestResponse {
                 channel.request().params(),
                 status.getStatus()
             );
-            if (status.getStatus() < 500) {
+            if (status.getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
             }
+        }
+        // if "error_trace" is turned on in the request, we want to render it in the rest response
+        // for that the REST_EXCEPTION_SKIP_STACK_TRACE flag that if "true" omits the stack traces is
+        // switched in the xcontent rendering parameters.
+        // For authorization problems (RestStatus.UNAUTHORIZED) we don't want to do this since this could
+        // leak information to the caller who is unauthorized to make this call
+        if (params.paramAsBoolean("error_trace", false) && status != RestStatus.UNAUTHORIZED) {
+            params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
@@ -140,6 +148,7 @@ public class RestResponse {
             copyHeaders(((ElasticsearchException) e));
         }
         this.chunkedResponseBody = null;
+        this.releasable = null;
     }
 
     public String contentType() {
@@ -164,18 +173,6 @@ public class RestResponse {
         return this.status;
     }
 
-    private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
-        ToXContent.Params params = restRequest;
-        if (restRequest.paramAsBoolean("error_trace", REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false) && skipStackTrace() == false) {
-            params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
-        }
-        return params;
-    }
-
-    protected boolean skipStackTrace() {
-        return status() == RestStatus.UNAUTHORIZED;
-    }
-
     private static void build(
         XContentBuilder builder,
         ToXContent.Params params,
@@ -194,42 +191,6 @@ public class RestResponse {
             status,
             channel.newErrorBuilder().startObject().field("error", errorMessage).field("status", status.getStatus()).endObject()
         );
-    }
-
-    public static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-
-        ElasticsearchException exception = null;
-        RestStatus status = null;
-
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            }
-            if (STATUS.equals(currentFieldName)) {
-                if (token != XContentParser.Token.FIELD_NAME) {
-                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                    status = RestStatus.fromCode(parser.intValue());
-                }
-            } else {
-                exception = ElasticsearchException.failureFromXContent(parser);
-            }
-        }
-
-        if (exception == null) {
-            throw new IllegalStateException("Failed to parse elasticsearch status exception: no exception was found");
-        }
-
-        ElasticsearchStatusException result = new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
-        for (String header : exception.getHeaderKeys()) {
-            result.addHeader(header, exception.getHeader(header));
-        }
-        for (String metadata : exception.getMetadataKeys()) {
-            result.addMetadata(metadata, exception.getMetadata(metadata));
-        }
-        return result;
     }
 
     public void copyHeaders(ElasticsearchException ex) {
@@ -269,5 +230,10 @@ public class RestResponse {
             }
         }
         return headers;
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(releasable);
     }
 }

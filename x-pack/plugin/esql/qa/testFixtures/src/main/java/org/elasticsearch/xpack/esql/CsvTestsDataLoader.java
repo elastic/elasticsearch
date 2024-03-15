@@ -42,33 +42,52 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 
 public class CsvTestsDataLoader {
+    private static final int BULK_DATA_SIZE = 100_000;
     private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv");
     private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
     private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
     private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs", "mapping-ul_logs.json", "ul_logs.csv");
-
-    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.of(
-        EMPLOYEES.indexName,
-        EMPLOYEES,
-        HOSTS.indexName,
-        HOSTS,
-        APPS.indexName,
-        APPS,
-        LANGUAGES.indexName,
-        LANGUAGES,
-        UL_LOGS.indexName,
-        UL_LOGS
+    private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data", "mapping-sample_data.json", "sample_data.csv");
+    private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
+    private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
+    private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
+    private static final TestsDataset COUNTRIES_BBOX = new TestsDataset(
+        "countries_bbox",
+        "mapping-countries_bbox.json",
+        "countries_bbox.csv"
+    );
+    private static final TestsDataset COUNTRIES_BBOX_WEB = new TestsDataset(
+        "countries_bbox_web",
+        "mapping-countries_bbox_web.json",
+        "countries_bbox_web.csv"
     );
 
-    private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enricy-policy-languages.json");
+    public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
+        Map.entry(EMPLOYEES.indexName, EMPLOYEES),
+        Map.entry(HOSTS.indexName, HOSTS),
+        Map.entry(APPS.indexName, APPS),
+        Map.entry(LANGUAGES.indexName, LANGUAGES),
+        Map.entry(UL_LOGS.indexName, UL_LOGS),
+        Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
+        Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
+        Map.entry(AIRPORTS.indexName, AIRPORTS),
+        Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
+        Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
+        Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB)
+    );
 
-    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH);
+    private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
+    private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
+
+    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips");
+    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH);
 
     /**
      * <p>
@@ -124,17 +143,33 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client);
+            loadDataSetIntoEs(client, (restClient, indexName, indexMapping) -> {
+                Request request = new Request("PUT", "/" + indexName);
+                request.setJsonEntity("{\"mappings\":" + indexMapping + "}");
+                restClient.performRequest(request);
+            });
         }
     }
 
+    private static void loadDataSetIntoEs(RestClient client, IndexCreator indexCreator) throws IOException {
+        loadDataSetIntoEs(client, LogManager.getLogger(CsvTestsDataLoader.class), indexCreator);
+    }
+
     public static void loadDataSetIntoEs(RestClient client) throws IOException {
-        loadDataSetIntoEs(client, LogManager.getLogger(CsvTestsDataLoader.class));
+        loadDataSetIntoEs(client, (restClient, indexName, indexMapping) -> {
+            ESRestTestCase.createIndex(restClient, indexName, null, indexMapping, null);
+        });
     }
 
     public static void loadDataSetIntoEs(RestClient client, Logger logger) throws IOException {
+        loadDataSetIntoEs(client, logger, (restClient, indexName, indexMapping) -> {
+            ESRestTestCase.createIndex(restClient, indexName, null, indexMapping, null);
+        });
+    }
+
+    private static void loadDataSetIntoEs(RestClient client, Logger logger, IndexCreator indexCreator) throws IOException {
         for (var dataSet : CSV_DATASET_MAP.values()) {
-            load(client, dataSet.indexName, "/" + dataSet.mappingFileName, "/" + dataSet.dataFileName, logger);
+            load(client, dataSet.indexName, "/" + dataSet.mappingFileName, "/" + dataSet.dataFileName, logger, indexCreator);
         }
         forceMerge(client, CSV_DATASET_MAP.keySet(), logger);
         for (var policy : ENRICH_POLICIES) {
@@ -156,7 +191,14 @@ public class CsvTestsDataLoader {
         client.performRequest(request);
     }
 
-    private static void load(RestClient client, String indexName, String mappingName, String dataName, Logger logger) throws IOException {
+    private static void load(
+        RestClient client,
+        String indexName,
+        String mappingName,
+        String dataName,
+        Logger logger,
+        IndexCreator indexCreator
+    ) throws IOException {
         URL mapping = CsvTestsDataLoader.class.getResource(mappingName);
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
@@ -165,12 +207,8 @@ public class CsvTestsDataLoader {
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
         }
-        createTestIndex(client, indexName, readTextFile(mapping));
+        indexCreator.createIndex(client, indexName, readTextFile(mapping));
         loadCsvData(client, indexName, data, CsvTestsDataLoader::createParser, logger);
-    }
-
-    private static void createTestIndex(RestClient client, String indexName, String mapping) throws IOException {
-        ESRestTestCase.createIndex(client, indexName, null, mapping, null);
     }
 
     public static String readTextFile(URL resource) throws IOException {
@@ -185,6 +223,20 @@ public class CsvTestsDataLoader {
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     * Loads a classic csv file in an ES cluster using a RestClient.
+     * The structure of the file is as follows:
+     * - commented lines should start with "//"
+     * - the first non-comment line from the file is the schema line (comma separated field_name:ES_data_type elements)
+     *   - sub-fields should be placed after the root field using a dot notation for the name:
+     *       root_field:long,root_field.sub_field:integer
+     *   - a special _id field can be used in the schema and the values of this field will be used in the bulk request as actual doc ids
+     * - all subsequent non-comment lines represent the values that will be used to build the _bulk request
+     * - an empty string "" refers to a null value
+     * - a value starting with an opening square bracket "[" and ending with a closing square bracket "]" refers to a multi-value field
+     *   - multi-values are comma separated
+     *   - commas inside multivalue fields can be escaped with \ (backslash) character
+     */
     private static void loadCsvData(
         RestClient client,
         String indexName,
@@ -192,7 +244,6 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
-        Request request = new Request("POST", "/_bulk");
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
             String line;
@@ -209,7 +260,7 @@ public class CsvTestsDataLoader {
                     if (columns == null) {
                         columns = new String[entries.length];
                         for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(":");
+                            int split = entries[i].indexOf(':');
                             String name, typeName;
 
                             if (split < 0) {
@@ -265,17 +316,27 @@ public class CsvTestsDataLoader {
                                     if (i > 0 && row.length() > 0) {
                                         row.append(",");
                                     }
-                                    if (entries[i].contains(",")) {// multi-value
+                                    // split on comma ignoring escaped commas
+                                    String[] multiValues = entries[i].split(COMMA_ESCAPING_REGEX);
+                                    if (multiValues.length > 0) {// multi-value
                                         StringBuilder rowStringValue = new StringBuilder("[");
-                                        for (String s : delimitedListToStringArray(entries[i], ",")) {
-                                            rowStringValue.append("\"" + s + "\",");
+                                        for (String s : multiValues) {
+                                            if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
+                                                rowStringValue.append("\"" + s + "\",");
+                                            } else {
+                                                rowStringValue.append(s + ",");
+                                            }
                                         }
                                         // remove the last comma and put a closing bracket instead
                                         rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
                                         entries[i] = rowStringValue.toString();
                                     } else {
-                                        entries[i] = "\"" + entries[i] + "\"";
+                                        if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
+                                            entries[i] = "\"" + entries[i] + "\"";
+                                        }
                                     }
+                                    // replace any escaped commas with single comma
+                                    entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
                                     row.append("\"" + columns[i] + "\":" + entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
@@ -297,10 +358,22 @@ public class CsvTestsDataLoader {
                     }
                 }
                 lineNumber++;
+                if (builder.length() > BULK_DATA_SIZE) {
+                    sendBulkRequest(indexName, builder, client, logger);
+                    builder.setLength(0);
+                }
             }
-            builder.append("\n");
         }
+        if (builder.length() > 0) {
+            sendBulkRequest(indexName, builder, client, logger);
+        }
+    }
 
+    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger) throws IOException {
+        // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
+        builder.append("\n");
+        logger.debug("Sending bulk request of [{}] bytes for [{}]", builder.length(), indexName);
+        Request request = new Request("POST", "/" + indexName + "/_bulk");
         request.setJsonEntity(builder.toString());
         request.addParameter("refresh", "false"); // will be _forcemerge'd next
         Response response = client.performRequest(request);
@@ -311,7 +384,7 @@ public class CsvTestsDataLoader {
                 Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
                 Object errors = result.get("errors");
                 if (Boolean.FALSE.equals(errors)) {
-                    logger.info("Data loading of [{}] OK", indexName);
+                    logger.info("Data loading of [{}] bytes into [{}] OK", builder.length(), indexName);
                 } else {
                     throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
                 }
@@ -343,4 +416,8 @@ public class CsvTestsDataLoader {
     public record TestsDataset(String indexName, String mappingFileName, String dataFileName) {}
 
     public record EnrichConfig(String policyName, String policyFileName) {}
+
+    private interface IndexCreator {
+        void createIndex(RestClient client, String indexName, String mapping) throws IOException;
+    }
 }

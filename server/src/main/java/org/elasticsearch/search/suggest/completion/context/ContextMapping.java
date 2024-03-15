@@ -165,41 +165,5 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
         }
     }
 
-    public static class InternalQueryContext {
-        public final String context;
-        public final int boost;
-        public final boolean isPrefix;
-
-        public InternalQueryContext(String context, int boost, boolean isPrefix) {
-            this.context = context;
-            this.boost = boost;
-            this.isPrefix = isPrefix;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            InternalQueryContext that = (InternalQueryContext) o;
-
-            if (boost != that.boost) return false;
-            if (isPrefix != that.isPrefix) return false;
-            return context != null ? context.equals(that.context) : that.context == null;
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = context != null ? context.hashCode() : 0;
-            result = 31 * result + boost;
-            result = 31 * result + (isPrefix ? 1 : 0);
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "QueryContext{" + "context='" + context + '\'' + ", boost=" + boost + ", isPrefix=" + isPrefix + '}';
-        }
-    }
+    public record InternalQueryContext(String context, int boost, boolean isPrefix) {}
 }

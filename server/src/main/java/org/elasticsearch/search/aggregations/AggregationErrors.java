@@ -16,7 +16,6 @@ import java.util.Optional;
  * Collection of helper methods for what to throw in common aggregation error scenarios.
  */
 public class AggregationErrors {
-    private static String parentType;
 
     private AggregationErrors() {}
 
@@ -68,7 +67,7 @@ public class AggregationErrors {
      * @param position - optional, for multisource aggregations.  Indicates the position of the field causing the problem.
      * @return - an appropriate exception
      */
-    public static RuntimeException reduceTypeMissmatch(String aggregationName, Optional<Integer> position) {
+    public static RuntimeException reduceTypeMismatch(String aggregationName, Optional<Integer> position) {
         String fieldString;
         if (position.isPresent()) {
             fieldString = "the field in position" + position.get().toString();
@@ -105,11 +104,57 @@ public class AggregationErrors {
     }
 
     /**
+     * Indicates the given values source is not suitable for use in a multivalued aggregation.  This is not retryable.
+     * @param source a string describing the Values Source
+     * @return an appropriate exception
+     */
+    public static RuntimeException unsupportedMultivalueValuesSource(String source) {
+        throw new IllegalArgumentException("ValuesSource type " + source + "is not supported for multi-valued aggregation");
+    }
+
+    /**
      * Indicates an attempt to use date rounding on a non-date values source
      * @param typeName - name of the type we're attempting to round
      * @return an appropriate exception
      */
     public static RuntimeException unsupportedRounding(String typeName) {
         return new IllegalArgumentException("can't round a [" + typeName + "]");
+    }
+
+    /**
+     * Indicates that an aggregation path (e.g. from a pipeline agg) references an aggregation of the wrong type, for example
+     * attempting to take a cumulative cardinality of something other than a cardinality aggregation.
+     *
+     * @param aggPath    the path element found to be invalid
+     * @param expected
+     * @param got        What we actually got; this may be null.
+     * @param currentAgg The name of the aggregation in question
+     * @return an appropriate exception
+     */
+    public static RuntimeException incompatibleAggregationType(String aggPath, String expected, String got, String currentAgg) {
+
+        return new AggregationExecutionException.InvalidPath(
+            aggPath
+                + " must reference a "
+                + expected
+                + " aggregation, got: ["
+                + (got == null ? "null" : got)
+                + "] at aggregation ["
+                + currentAgg
+                + "]"
+        );
+    }
+
+    /**
+     * This is a 500 class error indicating a programming error.  Hopefully we never see this outside of tests.
+     * @param bucketOrds - the ords we are processing
+     * @param got - the ordinal we got
+     * @param expected - the ordinal we expected
+     * @return an appropriate exception
+     */
+    public static RuntimeException iterationOrderChangedWithoutMutating(String bucketOrds, long got, long expected) {
+        return new AggregationExecutionException(
+            "Iteration order of [" + bucketOrds + "] changed without mutating. [" + got + "] should have been [" + expected + "]"
+        );
     }
 }

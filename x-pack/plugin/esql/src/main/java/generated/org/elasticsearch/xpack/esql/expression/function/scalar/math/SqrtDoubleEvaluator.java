@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -36,24 +37,27 @@ public final class SqrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      DoubleBlock valBlock = (DoubleBlock) valRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock valBlock = (DoubleBlock) val.eval(page)) {
       DoubleVector valVector = valBlock.asVector();
       if (valVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), valBlock));
+        return eval(page.getPositionCount(), valBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), valVector));
+      return eval(page.getPositionCount(), valVector);
     }
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
+        if (valBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (valBlock.getValueCount(p) != 1) {
+          if (valBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -69,7 +73,7 @@ public final class SqrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector valVector) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendDouble(Sqrt.process(valVector.getDouble(p)));
@@ -90,5 +94,26 @@ public final class SqrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
+      this.val = val;
+    }
+
+    @Override
+    public SqrtDoubleEvaluator get(DriverContext context) {
+      return new SqrtDoubleEvaluator(source, val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SqrtDoubleEvaluator[" + "val=" + val + "]";
+    }
   }
 }

@@ -15,11 +15,9 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -28,20 +26,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -55,7 +44,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -256,7 +244,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 )
                 .setMapping(mapping)
                 .setTimeout("60s")
-                .get()
         );
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
         MappingMetadata masterMappingMetadata = indicesAdmin().prepareGetMappings("test").get().getMappings().get("test");
@@ -403,22 +390,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         private final AtomicBoolean installed = new AtomicBoolean();
 
         @Override
-        public Collection<Object> createComponents(
-            final Client client,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final ResourceWatcherService resourceWatcherService,
-            final ScriptService scriptService,
-            final NamedXContentRegistry xContentRegistry,
-            final Environment environment,
-            final NodeEnvironment nodeEnvironment,
-            final NamedWriteableRegistry namedWriteableRegistry,
-            final IndexNameExpressionResolver expressionResolver,
-            final Supplier<RepositoriesService> repositoriesServiceSupplier,
-            TelemetryProvider telemetryProvider,
-            AllocationService allocationService,
-            IndicesService indicesService
-        ) {
+        public Collection<?> createComponents(PluginServices services) {
+            ClusterService clusterService = services.clusterService();
+
             clusterService.addListener(event -> {
                 final ClusterState state = event.state();
                 if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {

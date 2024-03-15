@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -372,6 +373,31 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
                 Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(searchExecutionContext);
                 assertThat(searcher.count(query), equalTo(1));
+            }
+        }
+    }
+
+    public void testBlockLoader() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), OnScriptError.FAIL);
+                assertThat(
+                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType),
+                    equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
+                );
+                assertThat(
+                    blockLoaderReadValuesFromRowStrideReader(reader, fieldType),
+                    equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
+                );
             }
         }
     }

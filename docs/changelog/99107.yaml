@@ -1,5 +1,0 @@
-pr: 99107
-summary: Wait to gracefully stop deployments until alternative allocation exists
-area: Machine Learning
-type: bug
-issues: []

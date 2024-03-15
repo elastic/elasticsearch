@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -84,9 +85,8 @@ public class PluginsServiceTests extends ESTestCase {
     // This test uses a mock in order to use plugins from the classpath
     public void testFilterPlugins() {
         PluginsService service = newMockPluginsService(List.of(FakePlugin.class, FilterablePlugin.class));
-        List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class);
-        assertEquals(1, scriptPlugins.size());
-        assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
+        List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class).toList();
+        assertThat(scriptPlugins, contains(instanceOf(FilterablePlugin.class)));
     }
 
     // This test uses a mock in order to use plugins from the classpath

@@ -17,7 +17,8 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/packaging-tests-windows.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/packaging-tests-windows.*'
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-windows
           cancel-builds-on-update: true
@@ -28,11 +29,6 @@
           excluded-regions:
             - ^docs/.*
             - ^x-pack/docs/.*
-          white-list-labels:
-            - ':Delivery/Packaging'
-          black-list-labels:
-            - '>test-mute'
-            - 'buildkite-opt-in'
     axes:
       - axis:
           type: label-expression
@@ -46,11 +42,11 @@
           type: user-defined
           name: PACKAGING_TASK
           values:
-            - 'default-windows-archive'
-            - 'default-windows-archive-no-jdk'
+            - "default-windows-archive"
+            - "default-windows-archive-no-jdk"
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
       - batch: |

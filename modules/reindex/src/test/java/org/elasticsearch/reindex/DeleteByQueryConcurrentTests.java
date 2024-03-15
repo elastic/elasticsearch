@@ -32,7 +32,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
             for (int t = 0; t < threads.length; t++) {
-                builders.add(client().prepareIndex("test").setSource("field", t));
+                builders.add(prepareIndex("test").setSource("field", t));
             }
         }
         indexRandom(true, true, true, builders);
@@ -40,7 +40,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
         final CountDownLatch start = new CountDownLatch(1);
         for (int t = 0; t < threads.length; t++) {
             final int threadNum = t;
-            assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", threadNum)), docs);
+            assertHitCount(prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", threadNum)), docs);
 
             Runnable r = () -> {
                 try {
@@ -64,7 +64,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
         }
 
         for (int t = 0; t < threads.length; t++) {
-            assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", t)), 0);
+            assertHitCount(prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", t)), 0);
         }
     }
 
@@ -73,7 +73,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < docs; i++) {
-            builders.add(client().prepareIndex("test").setId(String.valueOf(i)).setSource("foo", "bar"));
+            builders.add(prepareIndex("test").setId(String.valueOf(i)).setSource("foo", "bar"));
         }
         indexRandom(true, true, true, builders);
 
@@ -105,7 +105,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
             thread.join();
         }
 
-        assertHitCount(client().prepareSearch("test").setSize(0), 0L);
+        assertHitCount(prepareSearch("test").setSize(0), 0L);
         assertThat(deleted.get(), equalTo(docs));
     }
 }

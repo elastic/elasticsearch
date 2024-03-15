@@ -131,7 +131,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.IndexAction} and BwC
+     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.TransportIndexAction} and BwC
      * deserialization path
      */
     protected DocWriteResponse(StreamInput in) throws IOException {

@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -39,38 +40,44 @@ public final class ModUnsignedLongsEvaluator implements EvalOperator.ExpressionE
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      LongBlock lhsBlock = (LongBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        LongBlock rhsBlock = (LongBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (LongBlock lhsBlock = (LongBlock) lhs.eval(page)) {
+      try (LongBlock rhsBlock = (LongBlock) rhs.eval(page)) {
         LongVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         LongVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector));
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
       }
     }
   }
 
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+        if (lhsBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+        if (lhsBlock.getValueCount(p) != 1) {
+          if (lhsBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.getValueCount(p) != 1) {
+          if (rhsBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -86,7 +93,7 @@ public final class ModUnsignedLongsEvaluator implements EvalOperator.ExpressionE
   }
 
   public LongBlock eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Mod.processUnsignedLongs(lhsVector.getLong(p), rhsVector.getLong(p)));
@@ -107,5 +114,30 @@ public final class ModUnsignedLongsEvaluator implements EvalOperator.ExpressionE
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.source = source;
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public ModUnsignedLongsEvaluator get(DriverContext context) {
+      return new ModUnsignedLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "ModUnsignedLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
   }
 }

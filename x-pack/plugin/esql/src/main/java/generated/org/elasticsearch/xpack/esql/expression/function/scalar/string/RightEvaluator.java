@@ -4,8 +4,10 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.data.Block;
@@ -17,12 +19,16 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Right}.
  * This class is generated. Do not edit it.
  */
 public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final BytesRef out;
 
   private final UnicodeUtil.UTF8CodePoint cp;
@@ -33,9 +39,10 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final DriverContext driverContext;
 
-  public RightEvaluator(BytesRef out, UnicodeUtil.UTF8CodePoint cp,
+  public RightEvaluator(Source source, BytesRef out, UnicodeUtil.UTF8CodePoint cp,
       EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator length,
       DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.out = out;
     this.cp = cp;
     this.str = str;
@@ -44,39 +51,45 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref lengthRef = length.eval(page)) {
-        if (lengthRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        IntBlock lengthBlock = (IntBlock) lengthRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (IntBlock lengthBlock = (IntBlock) length.eval(page)) {
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, lengthBlock));
+          return eval(page.getPositionCount(), strBlock, lengthBlock);
         }
         IntVector lengthVector = lengthBlock.asVector();
         if (lengthVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), strBlock, lengthBlock));
+          return eval(page.getPositionCount(), strBlock, lengthBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), strVector, lengthVector).asBlock());
+        return eval(page.getPositionCount(), strVector, lengthVector).asBlock();
       }
     }
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock lengthBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        if (strBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (lengthBlock.isNull(p) || lengthBlock.getValueCount(p) != 1) {
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (lengthBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (lengthBlock.getValueCount(p) != 1) {
+          if (lengthBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -87,7 +100,7 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector lengthVector) {
-    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(Right.process(out, cp, strVector.getBytesRef(p, strScratch), lengthVector.getInt(p)));
@@ -104,5 +117,38 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, length);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final Function<DriverContext, BytesRef> out;
+
+    private final Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory length;
+
+    public Factory(Source source, Function<DriverContext, BytesRef> out,
+        Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp,
+        EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory length) {
+      this.source = source;
+      this.out = out;
+      this.cp = cp;
+      this.str = str;
+      this.length = length;
+    }
+
+    @Override
+    public RightEvaluator get(DriverContext context) {
+      return new RightEvaluator(source, out.apply(context), cp.apply(context), str.get(context), length.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "RightEvaluator[" + "str=" + str + ", length=" + length + "]";
+    }
   }
 }

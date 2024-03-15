@@ -12,41 +12,31 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -54,10 +44,7 @@ import static java.util.Collections.singletonList;
 public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "reindex";
 
-    public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>(
-        "cluster:admin/reindex/rethrottle",
-        ListTasksResponse::new
-    );
+    public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -79,39 +66,28 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestReindexAction(),
-            new RestUpdateByQueryAction(),
-            new RestDeleteByQueryAction(),
+            new RestReindexAction(namedWriteableRegistry, clusterSupportsFeature),
+            new RestUpdateByQueryAction(namedWriteableRegistry, clusterSupportsFeature),
+            new RestDeleteByQueryAction(namedWriteableRegistry, clusterSupportsFeature),
             new RestRethrottleAction(nodesInCluster)
         );
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
-        return Collections.singletonList(new ReindexSslConfig(environment.settings(), environment, resourceWatcherService));
+    public Collection<?> createComponents(PluginServices services) {
+        return Collections.singletonList(
+            new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService())
+        );
     }
 
     @Override

@@ -37,6 +37,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -68,7 +69,15 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
 
 /**
- * Service responsible for maintaining and providing access to snapshot repositories on nodes.
+ * Service responsible for maintaining and providing access to multiple repositories.
+ *
+ * The elected master creates new repositories on request and persists the {@link RepositoryMetadata} in the cluster state. The cluster
+ * state update then goes out to the rest of the cluster nodes so that all nodes know how to access the new repository. This class contains
+ * factory information to create new repositories, and provides access to and maintains the lifecycle of repositories. New nodes can easily
+ * find all the repositories via the cluster state after joining a cluster.
+ *
+ * {@link #repository(String)} can be used to fetch a repository. {@link #createRepository(RepositoryMetadata)} does the heavy lifting of
+ * creation. {@link #applyClusterState(ClusterChangedEvent)} handles adding and removing repositories per cluster state updates.
  */
 public class RepositoriesService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
@@ -182,7 +191,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             verifyStep.addListener(
                 listener.delegateFailureAndWrap(
                     (l, ignored) -> threadPool.generic()
-                        .execute(ActionRunnable.wrap(getRepositoryDataStep, ll -> repository(request.name()).getRepositoryData(ll)))
+                        .execute(
+                            ActionRunnable.wrap(
+                                getRepositoryDataStep,
+                                ll -> repository(request.name()).getRepositoryData(
+                                    EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading, do we need to fork, see #101445?
+                                    ll
+                                )
+                            )
+                        )
                 )
             );
 
@@ -630,7 +647,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         try {
             Repository repository = repository(repositoryName);
             assert repository != null; // should only be called once we've validated the repository exists
-            repository.getRepositoryData(listener);
+            repository.getRepositoryData(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
+                listener
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         }

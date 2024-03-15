@@ -68,6 +68,8 @@ class LinearProgrammingPlanSolver {
     private final Map<Node, Double> normalizedMemoryPerNode;
     private final Map<Node, Integer> coresPerNode;
     private final Map<AssignmentPlan.Deployment, Double> normalizedMemoryPerModel;
+    private final Map<AssignmentPlan.Deployment, Double> normalizedMemoryPerAllocation;
+    private final Map<AssignmentPlan.Deployment, Double> normalizedMinimumDeploymentMemoryRequired;
 
     private final int maxNodeCores;
     private final long maxModelMemoryBytes;
@@ -84,12 +86,17 @@ class LinearProgrammingPlanSolver {
             .filter(m -> m.threadsPerAllocation() <= maxNodeCores)
             .toList();
 
-        maxModelMemoryBytes = this.deployments.stream().map(AssignmentPlan.Deployment::memoryBytes).max(Long::compareTo).orElse(1L);
+        // We use the maximum memory to deploy a model with one allocation as the normalization factor.
+        maxModelMemoryBytes = this.deployments.stream().map(m -> m.minimumMemoryRequiredBytes()).max(Long::compareTo).orElse(1L);
         normalizedMemoryPerNode = this.nodes.stream()
             .collect(Collectors.toMap(Function.identity(), n -> n.availableMemoryBytes() / (double) maxModelMemoryBytes));
         coresPerNode = this.nodes.stream().collect(Collectors.toMap(Function.identity(), Node::cores));
         normalizedMemoryPerModel = this.deployments.stream()
-            .collect(Collectors.toMap(Function.identity(), m -> m.memoryBytes() / (double) maxModelMemoryBytes));
+            .collect(Collectors.toMap(Function.identity(), m -> m.estimateMemoryUsageBytes(0) / (double) maxModelMemoryBytes));
+        normalizedMemoryPerAllocation = this.deployments.stream()
+            .collect(Collectors.toMap(Function.identity(), m -> m.perAllocationMemoryBytes() / (double) maxModelMemoryBytes));
+        normalizedMinimumDeploymentMemoryRequired = this.deployments.stream()
+            .collect(Collectors.toMap(Function.identity(), m -> m.minimumMemoryRequiredBytes() / (double) maxModelMemoryBytes));
     }
 
     AssignmentPlan solvePlan(boolean useBinPackingOnly) {
@@ -133,8 +140,8 @@ class LinearProgrammingPlanSolver {
         Node n,
         Map<Tuple<AssignmentPlan.Deployment, Node>, Double> weights
     ) {
-        return (1 + weights.get(Tuple.tuple(m, n)) - (m.memoryBytes() > n.availableMemoryBytes() ? 10 : 0)) - L1 * normalizedMemoryPerModel
-            .get(m) / maxNodeCores;
+        return (1 + weights.get(Tuple.tuple(m, n)) - (m.minimumMemoryRequiredBytes() > n.availableMemoryBytes() ? 10 : 0)) - L1
+            * normalizedMemoryPerModel.get(m) / maxNodeCores;
     }
 
     private Tuple<Map<Tuple<Deployment, Node>, Double>, AssignmentPlan> calculateWeightsAndBinPackingPlan() {
@@ -156,9 +163,9 @@ class LinearProgrammingPlanSolver {
                     .sorted(Comparator.comparingDouble(n -> descendingSizeAnyFitsNodeOrder(n, m, assignmentPlan)))
                     .toList();
                 for (Node n : orderedNodes) {
-                    int allocations = Math.min(
-                        assignmentPlan.getRemainingCores(n) / m.threadsPerAllocation(),
-                        assignmentPlan.getRemainingAllocations(m)
+                    int allocations = m.findOptimalAllocations(
+                        Math.min(assignmentPlan.getRemainingCores(n) / m.threadsPerAllocation(), assignmentPlan.getRemainingAllocations(m)),
+                        assignmentPlan.getRemainingMemory(n)
                     );
                     if (allocations > 0 && assignmentPlan.canAssign(m, n, allocations)) {
                         assignmentPlan.assignModelToNode(m, n, allocations);
@@ -185,7 +192,8 @@ class LinearProgrammingPlanSolver {
     }
 
     private double descendingSizeAnyFitsModelOrder(AssignmentPlan.Deployment m) {
-        return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -normalizedMemoryPerModel.get(m) * m.threadsPerAllocation();
+        return (m.currentAllocationsByNodeId().isEmpty() ? 1 : 2) * -normalizedMinimumDeploymentMemoryRequired.get(m) * m
+            .threadsPerAllocation();
     }
 
     private double descendingSizeAnyFitsNodeOrder(Node n, AssignmentPlan.Deployment m, AssignmentPlan.Builder assignmentPlan) {
@@ -307,7 +315,10 @@ class LinearProgrammingPlanSolver {
             List<Double> modelMemories = new ArrayList<>();
             deployments.stream().filter(m -> m.currentAllocationsByNodeId().containsKey(n.id()) == false).forEach(m -> {
                 allocations.add(allocationVars.get(Tuple.tuple(m, n)));
-                modelMemories.add(normalizedMemoryPerModel.get(m) * m.threadsPerAllocation() / (double) coresPerNode.get(n));
+                modelMemories.add(
+                    (normalizedMemoryPerModel.get(m) / (double) coresPerNode.get(n) + normalizedMemoryPerAllocation.get(m)) * m
+                        .threadsPerAllocation()
+                );
             });
             model.addExpression("used_memory_on_node_" + n.id() + "_not_more_than_available")
                 .upper(normalizedMemoryPerNode.get(n))

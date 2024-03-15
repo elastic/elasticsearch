@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.action.admin.indices.readonly;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -47,8 +45,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
     ReplicationResponse> {
 
     public static final String NAME = AddIndexBlockAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
-    protected Logger logger = LogManager.getLogger(getClass());
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
 
     @Inject
     public TransportVerifyShardIndexBlockAction(
@@ -157,7 +154,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         }
     }
 
-    public static class ShardRequest extends ReplicationRequest<ShardRequest> {
+    public static final class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;
 
@@ -166,7 +163,6 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             clusterBlock = new ClusterBlock(in);
         }
 
-        @SuppressWarnings("this-escape")
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
             super(shardId);
             this.clusterBlock = Objects.requireNonNull(clusterBlock);

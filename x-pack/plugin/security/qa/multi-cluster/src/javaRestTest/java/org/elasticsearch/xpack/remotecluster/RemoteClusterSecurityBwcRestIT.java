@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
@@ -189,14 +190,21 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 ? performRequestWithRemoteAccessUser(searchRequest)
                 : performRequestWithApiKey(searchRequest, apiKeyEncoded);
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-                .map(SearchHit::getIndex)
-                .collect(Collectors.toList());
-            if (alsoSearchLocally) {
-                assertThat(actualIndices, containsInAnyOrder("remote_index1", "local_index"));
-            } else {
-                assertThat(actualIndices, containsInAnyOrder("remote_index1"));
+            final SearchResponse searchResponse;
+            try (var parser = responseAsParser(response)) {
+                searchResponse = SearchResponseUtils.parseSearchResponse(parser);
+            }
+            try {
+                final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                    .map(SearchHit::getIndex)
+                    .collect(Collectors.toList());
+                if (alsoSearchLocally) {
+                    assertThat(actualIndices, containsInAnyOrder("remote_index1", "local_index"));
+                } else {
+                    assertThat(actualIndices, containsInAnyOrder("remote_index1"));
+                }
+            } finally {
+                searchResponse.decRef();
             }
         }
     }

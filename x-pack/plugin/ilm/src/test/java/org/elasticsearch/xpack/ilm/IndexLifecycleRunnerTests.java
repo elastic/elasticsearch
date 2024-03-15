@@ -131,7 +131,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     @After
     public void shutdown() {
         historyStore.close();
-        noopClient.close();
         threadPool.shutdownNow();
     }
 

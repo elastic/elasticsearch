@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -51,8 +52,9 @@ public class SecuritySystemIndices {
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
     public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
+    public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
 
-    private final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
+    private static final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;

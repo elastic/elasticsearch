@@ -20,7 +20,9 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSearchShardsRequest> implements IndicesRequest.Replaceable {
+public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSearchShardsRequest>
+    implements
+        IndicesRequest.Replaceable {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     @Nullable
@@ -31,7 +33,6 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
 
     public ClusterSearchShardsRequest() {}
 
-    @SuppressWarnings("this-escape")
     public ClusterSearchShardsRequest(String... indices) {
         indices(indices);
     }

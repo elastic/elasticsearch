@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -64,7 +64,7 @@ public class RestPluginsActionTests extends ESTestCase {
         for (int i = 0; i < 3; i++) {
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
+                    Build.current().version(),
                     TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),

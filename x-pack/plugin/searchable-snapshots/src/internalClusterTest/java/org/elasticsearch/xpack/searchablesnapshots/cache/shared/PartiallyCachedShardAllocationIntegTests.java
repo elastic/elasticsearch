@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -198,10 +198,10 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
 
         final MountSearchableSnapshotRequest req = prepareMountRequest();
 
-        final Map<String, ListenableActionFuture<Void>> cacheInfoBlocks = ConcurrentCollections.newConcurrentMap();
-        final Function<String, ListenableActionFuture<Void>> cacheInfoBlockGetter = nodeName -> cacheInfoBlocks.computeIfAbsent(
+        final Map<String, SubscribableListener<Void>> cacheInfoBlocks = ConcurrentCollections.newConcurrentMap();
+        final Function<String, SubscribableListener<Void>> cacheInfoBlockGetter = nodeName -> cacheInfoBlocks.computeIfAbsent(
             nodeName,
-            ignored -> new ListenableActionFuture<>()
+            ignored -> new SubscribableListener<>()
         );
         // Unblock all the existing nodes
         for (final String nodeName : internalCluster().getNodeNames()) {
@@ -271,18 +271,15 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         );
 
         // Unblock the other new node, but maybe inject a few errors
-        final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            newNodes.get(0)
-        );
         final Semaphore failurePermits = new Semaphore(between(0, 2));
-        transportService.addRequestHandlingBehavior(FrozenCacheInfoNodeAction.NAME, (handler, request, channel, task) -> {
-            if (failurePermits.tryAcquire()) {
-                channel.sendResponse(new ElasticsearchException("simulated"));
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-        });
+        MockTransportService.getInstance(newNodes.get(0))
+            .addRequestHandlingBehavior(FrozenCacheInfoNodeAction.NAME, (handler, request, channel, task) -> {
+                if (failurePermits.tryAcquire()) {
+                    channel.sendResponse(new ElasticsearchException("simulated"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
         cacheInfoBlockGetter.apply(newNodes.get(0)).onResponse(null);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = responseFuture.actionGet(10, TimeUnit.SECONDS);

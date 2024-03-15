@@ -9,12 +9,9 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
-import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -31,7 +28,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
     public static final String NAME = "cluster:admin/xpack/deprecation/nodes/info";
 
     private NodesDeprecationCheckAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     public static class NodeRequest extends TransportRequest {
@@ -92,17 +89,4 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
         }
     }
 
-    public static class RequestBuilder extends NodesOperationRequestBuilder<
-        NodesDeprecationCheckRequest,
-        NodesDeprecationCheckResponse,
-        RequestBuilder> {
-
-        protected RequestBuilder(
-            ElasticsearchClient client,
-            ActionType<NodesDeprecationCheckResponse> action,
-            NodesDeprecationCheckRequest request
-        ) {
-            super(client, action, request);
-        }
-    }
 }

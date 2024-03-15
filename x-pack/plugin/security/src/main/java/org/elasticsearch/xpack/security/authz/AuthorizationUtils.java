@@ -20,12 +20,15 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
 import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST_WRITE_REFRESH_ORIGIN;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.APM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.CONNECTORS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
@@ -132,6 +135,9 @@ public final class AuthorizationUtils {
             case DATA_STREAM_LIFECYCLE_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.DATA_STREAM_LIFECYCLE_USER, version, consumer);
                 break;
+            case LAZY_ROLLOVER_ORIGIN:
+                securityContext.executeAsInternalUser(InternalUsers.LAZY_ROLLOVER_USER, version, consumer);
+                break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
             case MONITORING_ORIGIN:
@@ -144,11 +150,13 @@ public final class AuthorizationUtils {
             case IDP_ORIGIN:
             case INGEST_ORIGIN:
             case PROFILING_ORIGIN:
+            case APM_ORIGIN:
             case STACK_ORIGIN:
             case SEARCHABLE_SNAPSHOTS_ORIGIN:
             case LOGSTASH_MANAGEMENT_ORIGIN:
             case FLEET_ORIGIN:
             case ENT_SEARCH_ORIGIN:
+            case CONNECTORS_ORIGIN:
             case INFERENCE_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
                 securityContext.executeAsInternalUser(InternalUsers.XPACK_USER, version, consumer);

@@ -30,7 +30,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class MlAutoscalingDeciderService implements AutoscalingDeciderService, LocalNodeMasterListener {
+public final class MlAutoscalingDeciderService implements AutoscalingDeciderService, LocalNodeMasterListener {
 
     private static final Logger logger = LogManager.getLogger(MlAutoscalingDeciderService.class);
 
@@ -46,7 +46,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     private volatile boolean isMaster;
     private volatile int allocatedProcessorsScale;
 
-    @SuppressWarnings("this-escape")
     public MlAutoscalingDeciderService(
         MlMemoryTracker memoryTracker,
         Settings settings,
@@ -56,7 +55,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         this(new NodeLoadDetector(memoryTracker), settings, nodeAvailabilityZoneMapper, clusterService, System::currentTimeMillis);
     }
 
-    @SuppressWarnings("this-escape")
     MlAutoscalingDeciderService(
         NodeLoadDetector nodeLoadDetector,
         Settings settings,

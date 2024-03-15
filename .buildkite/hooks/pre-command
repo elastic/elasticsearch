@@ -92,7 +92,7 @@ fi
 
 # Initialize the build scan and gobld annotations with empty/open <details> tags
 # This ensures that they are collapsible when they get appended to
-if [[ "${BUILDKITE_LABEL:-}" == *"Pipeline upload"* ]]; then
+if [[ "${BUILDKITE_LABEL:-}" == *"Pipeline upload"* || "${BUILDKITE_LABEL:-}" == *"Upload Pipeline"* ]]; then
   cat << EOF | buildkite-agent annotate --context "gradle-build-scans" --style "info"
 <details>
 

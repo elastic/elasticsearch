@@ -9,9 +9,9 @@
 package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 
@@ -20,8 +20,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -43,19 +43,18 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-            ).get()
+            )
         );
 
-        client().prepareIndex("test").setId("1").setSource("test", 5, "body", "foo").get();
-        client().prepareIndex("test").setId("2").setSource("test", 17, "body", "foo").get();
-        client().prepareIndex("test").setId("3").setSource("body", "bar").get();
+        prepareIndex("test").setId("1").setSource("test", 5, "body", "foo").get();
+        prepareIndex("test").setId("2").setSource("test", 17, "body", "foo").get();
+        prepareIndex("test").setId("3").setSource("body", "bar").get();
 
         refresh();
 
         // document 2 scores higher because 17 > 5
         assertOrderedSearchHits(
-            client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(functionScoreQuery(simpleQueryStringQuery("foo"), fieldValueFactorFunction("test"))),
             "2",
             "1"
@@ -63,8 +62,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
         // try again, but this time explicitly use the do-nothing modifier
         assertOrderedSearchHits(
-            client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(
                     functionScoreQuery(
                         simpleQueryStringQuery("foo"),
@@ -77,8 +75,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
         // document 1 scores higher because 1/5 > 1/17
         assertOrderedSearchHits(
-            client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(
                     functionScoreQuery(
                         simpleQueryStringQuery("foo"),
@@ -91,19 +88,18 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
         // doc 3 doesn't have a "test" field, so an exception will be thrown
         try {
-            SearchResponse response = client().prepareSearch("test")
-                .setExplain(randomBoolean())
-                .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("test")))
-                .get();
-            assertFailures(response);
+            assertResponse(
+                prepareSearch("test").setExplain(randomBoolean())
+                    .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("test"))),
+                ElasticsearchAssertions::assertFailures
+            );
         } catch (SearchPhaseExecutionException e) {
             // We are expecting an exception, because 3 has no field
         }
 
         // doc 3 doesn't have a "test" field but we're defaulting it to 100 so it should be last
         assertOrderedSearchHits(
-            client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(
                     functionScoreQuery(
                         matchAllQuery(),
@@ -116,32 +112,32 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
         );
 
         // field is not mapped but we're defaulting it to 100 so all documents should have the same score
-        SearchResponse response = client().prepareSearch("test")
-            .setExplain(randomBoolean())
-            .setQuery(
-                functionScoreQuery(
-                    matchAllQuery(),
-                    fieldValueFactorFunction("notmapped").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).missing(100)
-                )
-            )
-            .get();
-        assertEquals(response.getHits().getAt(0).getScore(), response.getHits().getAt(2).getScore(), 0);
+        assertResponse(
+            prepareSearch("test").setExplain(randomBoolean())
+                .setQuery(
+                    functionScoreQuery(
+                        matchAllQuery(),
+                        fieldValueFactorFunction("notmapped").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).missing(100)
+                    )
+                ),
+            response -> assertEquals(response.getHits().getAt(0).getScore(), response.getHits().getAt(2).getScore(), 0)
+        );
 
-        client().prepareIndex("test").setId("2").setSource("test", -1, "body", "foo").get();
+        prepareIndex("test").setId("2").setSource("test", -1, "body", "foo").get();
         refresh();
 
         // -1 divided by 0 is infinity, which should provoke an exception.
         try {
-            response = client().prepareSearch("test")
-                .setExplain(randomBoolean())
-                .setQuery(
-                    functionScoreQuery(
-                        simpleQueryStringQuery("foo"),
-                        fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).factor(0)
-                    )
-                )
-                .get();
-            assertFailures(response);
+            assertResponse(
+                prepareSearch("test").setExplain(randomBoolean())
+                    .setQuery(
+                        functionScoreQuery(
+                            simpleQueryStringQuery("foo"),
+                            fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).factor(0)
+                        )
+                    ),
+                ElasticsearchAssertions::assertFailures
+            );
         } catch (SearchPhaseExecutionException e) {
             // This is fine, the query will throw an exception if executed
             // locally, instead of just having failures

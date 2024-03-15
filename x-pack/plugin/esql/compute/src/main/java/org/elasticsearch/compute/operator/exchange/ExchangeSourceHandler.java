@@ -7,13 +7,15 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.TransportException;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,24 +29,25 @@ import java.util.concurrent.atomic.AtomicReference;
  * @see #createExchangeSource()
  * @see #addRemoteSink(RemoteSink, int)
  */
-public final class ExchangeSourceHandler extends AbstractRefCounted {
+public final class ExchangeSourceHandler {
     private final ExchangeBuffer buffer;
     private final Executor fetchExecutor;
 
-    private final PendingInstances outstandingSinks = new PendingInstances();
-    private final PendingInstances outstandingSources = new PendingInstances();
+    private final PendingInstances outstandingSinks;
+    private final PendingInstances outstandingSources;
     private final AtomicReference<Exception> failure = new AtomicReference<>();
-    private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
 
     public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.fetchExecutor = fetchExecutor;
+        this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
+        this.outstandingSources = new PendingInstances(() -> buffer.finish(true));
     }
 
-    private class LocalExchangeSource implements ExchangeSource {
+    private class ExchangeSourceImpl implements ExchangeSource {
         private boolean finished;
 
-        LocalExchangeSource() {
+        ExchangeSourceImpl() {
             outstandingSources.trackNewInstance();
         }
 
@@ -76,9 +79,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
         public void finish() {
             if (finished == false) {
                 finished = true;
-                if (outstandingSources.finishInstance()) {
-                    buffer.finish(true);
-                }
+                outstandingSources.finishInstance();
             }
         }
 
@@ -94,7 +95,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
      * @see ExchangeSinkOperator
      */
     public ExchangeSource createExchangeSource() {
-        return new LocalExchangeSource();
+        return new ExchangeSourceImpl();
     }
 
     /**
@@ -154,7 +155,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
             final LoopControl loopControl = new LoopControl();
             while (loopControl.isRunning()) {
                 loopControl.exiting();
-                // finish other sinks if one of them failed or sources no longer need pages.
+                // finish other sinks if one of them failed or source no longer need pages.
                 boolean toFinishSinks = buffer.noMoreInputs() || failure.get() != null;
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();
@@ -182,7 +183,10 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
             loopControl.exited();
         }
 
-        void onSinkFailed(Exception e) {
+        void onSinkFailed(Exception originEx) {
+            final Exception e = originEx instanceof TransportException
+                ? (originEx.getCause() instanceof Exception cause ? cause : new ElasticsearchException(originEx.getCause()))
+                : originEx;
             failure.getAndUpdate(first -> {
                 if (first == null) {
                     return e;
@@ -205,9 +209,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
         void onSinkComplete() {
             if (finished == false) {
                 finished = true;
-                if (outstandingSinks.finishInstance()) {
-                    buffer.finish(false);
-                }
+                outstandingSinks.finishInstance();
             }
         }
     }
@@ -237,35 +239,36 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
         }
     }
 
-    @Override
-    protected void closeInternal() {
-        Exception error = failure.get();
-        if (error != null) {
-            completionFuture.onFailure(error);
-        } else {
-            completionFuture.onResponse(null);
-        }
-    }
-
     /**
-     * Add a listener, which will be notified when this exchange source handler is completed. An exchange source
-     * handler is consider completed when all exchange sources and sinks are completed and de-attached.
+     * Links this exchange source with an empty/dummy remote sink. The purpose of this is to prevent this exchange source from finishing
+     * until we have performed other async actions, such as linking actual remote sinks.
+     *
+     * @return a Releasable that should be called when the caller no longer needs to prevent the exchange source from completing.
      */
-    public void addCompletionListener(ActionListener<Void> listener) {
-        completionFuture.addListener(listener);
+    public Releasable addEmptySink() {
+        outstandingSinks.trackNewInstance();
+        return outstandingSinks::finishInstance;
     }
 
-    private final class PendingInstances {
+    private static class PendingInstances {
         private final AtomicInteger instances = new AtomicInteger();
+        private final Releasable onComplete;
+
+        PendingInstances(Releasable onComplete) {
+            this.onComplete = onComplete;
+        }
 
         void trackNewInstance() {
-            incRef();
-            instances.incrementAndGet();
+            int refs = instances.incrementAndGet();
+            assert refs > 0;
         }
 
-        boolean finishInstance() {
-            decRef();
-            return instances.decrementAndGet() == 0;
+        void finishInstance() {
+            int refs = instances.decrementAndGet();
+            assert refs >= 0;
+            if (refs == 0) {
+                onComplete.close();
+            }
         }
     }
 

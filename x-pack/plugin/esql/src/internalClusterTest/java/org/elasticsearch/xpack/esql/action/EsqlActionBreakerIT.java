@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -15,22 +17,26 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105543")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class EsqlActionBreakerIT extends EsqlActionIT {
 
     public static class InternalTransportSettingPlugin extends Plugin {
@@ -67,41 +73,38 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
             )
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
+            .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofBytes(between(0, 256)))
+            .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofBytes(between(0, 1024)))
             // allow reading pages from network can trip the circuit breaker
             .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
             .build();
     }
 
-    private void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
-        if (limit != null) {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit).build()
-                    )
-            );
-        } else {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build()
-                    )
-            );
-        }
-    }
-
-    @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    private EsqlQueryResponse runWithBreaking(EsqlQueryRequest request) throws CircuitBreakingException {
         setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 2048)));
         try {
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         } catch (Exception e) {
             logger.info("request failed", e);
             ensureBlocksReleased();
+            throw e;
         } finally {
             setRequestCircuitBreakerLimit(null);
         }
-        return super.run(request);
+    }
+
+    @Override
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        try {
+            return runWithBreaking(request);
+        } catch (Exception e) {
+            try (EsqlQueryResponse resp = super.run(request)) {
+                assertThat(e, instanceOf(CircuitBreakingException.class));
+                assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                resp.incRef();
+                return resp;
+            }
+        }
     }
 
     /**
@@ -117,8 +120,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
             .get();
         int numDocs = between(1000, 5000);
         for (int i = 0; i < numDocs; i++) {
-            DocWriteResponse response = client().prepareIndex("test_breaker")
-                .setId(Integer.toString(i))
+            DocWriteResponse response = prepareIndex("test_breaker").setId(Integer.toString(i))
                 .setSource("foo", "foo-" + i, "bar", "bar-" + (i * 2))
                 .get();
             assertThat(Strings.toString(response), response.getResult(), equalTo(DocWriteResponse.Result.CREATED));

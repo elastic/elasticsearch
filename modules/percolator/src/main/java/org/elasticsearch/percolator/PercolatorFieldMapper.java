@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -60,6 +61,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
@@ -133,10 +135,10 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public PercolatorFieldMapper build(MapperBuilderContext context) {
-            PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(name), meta.getValue());
+            PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(name()), meta.getValue());
             // TODO should percolator even allow multifields?
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            context = context.createChildContext(name);
+            context = context.createChildContext(name(), null);
             KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(
                 EXTRACTED_TERMS_FIELD_NAME,
                 context,
@@ -437,6 +439,8 @@ public class PercolatorFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
                 } else if (queryName.equals("has_parent")) {
                     throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
+                } else if (queryName.equals(KnnVectorQueryBuilder.NAME)) {
+                    throw new IllegalArgumentException("the [knn] query is unsupported inside a percolator query");
                 }
             });
         } catch (IOException e) {
@@ -457,7 +461,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(stream)
         ) {
-            if (indexVersion.before(IndexVersion.V_8_8_0)) {
+            if (indexVersion.before(IndexVersions.V_8_8_0)) {
                 // just use the index version directly
                 // there's a direct mapping from IndexVersion to TransportVersion before 8.8.0
                 out.setTransportVersion(TransportVersion.fromId(indexVersion.id()));
@@ -526,6 +530,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         // as an analyzed string.
         wrapped.setAllowUnmappedFields(false);
         wrapped.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
+        // We need to rewrite queries with name to Lucene NamedQuery to find matched sub-queries of percolator query
+        wrapped.setRewriteToNamedQueries();
         return wrapped;
     }
 

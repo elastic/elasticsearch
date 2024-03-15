@@ -54,7 +54,6 @@ import org.elasticsearch.transport.TransportSettings;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -76,7 +75,7 @@ public class MockNode extends Node {
             PageCacheRecycler pageCacheRecycler,
             CircuitBreakerService circuitBreakerService
         ) {
-            if (pluginsService.filterPlugins(NodeMocksPlugin.class).isEmpty()) {
+            if (pluginsService.filterPlugins(NodeMocksPlugin.class).findAny().isEmpty()) {
                 return super.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
             }
             return new MockBigArrays(pageCacheRecycler, circuitBreakerService);
@@ -84,7 +83,7 @@ public class MockNode extends Node {
 
         @Override
         PageCacheRecycler newPageCacheRecycler(PluginsService pluginsService, Settings settings) {
-            if (pluginsService.filterPlugins(NodeMocksPlugin.class).isEmpty()) {
+            if (pluginsService.filterPlugins(NodeMocksPlugin.class).findAny().isEmpty()) {
                 return super.newPageCacheRecycler(pluginsService, settings);
             }
             return new MockPageCacheRecycler(settings);
@@ -104,7 +103,7 @@ public class MockNode extends Node {
             ExecutorSelector executorSelector,
             Tracer tracer
         ) {
-            if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
+            if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newSearchService(
                     pluginsService,
                     clusterService,
@@ -141,7 +140,7 @@ public class MockNode extends Node {
             Map<String, ScriptContext<?>> contexts,
             LongSupplier timeProvider
         ) {
-            if (pluginsService.filterPlugins(MockScriptService.TestPlugin.class).isEmpty()) {
+            if (pluginsService.filterPlugins(MockScriptService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newScriptService(pluginsService, settings, engines, contexts, timeProvider);
             }
             return new MockScriptService(settings, engines, contexts);
@@ -149,7 +148,7 @@ public class MockNode extends Node {
 
         @Override
         ReadinessService newReadinessService(PluginsService pluginsService, ClusterService clusterService, Environment environment) {
-            if (pluginsService.filterPlugins(MockReadinessService.TestPlugin.class).isEmpty()) {
+            if (pluginsService.filterPlugins(MockReadinessService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newReadinessService(pluginsService, clusterService, environment);
             }
             return new MockReadinessService(clusterService, environment);
@@ -171,7 +170,7 @@ public class MockNode extends Node {
             // module with this MockNetworkService. NetworkService is such an integral part of the systme
             // we don't allow to plug it in from plugins or anything. this is a test-only override and
             // can't be done in a production env.
-            if (pluginsService.filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {
+            if (pluginsService.filterPlugins(MockTransportService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newTransportService(
                     pluginsService,
                     settings,
@@ -191,14 +190,14 @@ public class MockNode extends Node {
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    new HashSet<>(taskManager.getTaskHeaders())
+                    taskManager.getTaskHeaders()
                 );
             }
         }
 
         @Override
         void processRecoverySettings(PluginsService pluginsService, ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
-            if (pluginsService.filterPlugins(RecoverySettingsChunkSizePlugin.class).isEmpty() == false) {
+            if (pluginsService.filterPlugins(RecoverySettingsChunkSizePlugin.class).findAny().isEmpty() == false) {
                 clusterSettings.addSettingsUpdateConsumer(
                     RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING,
                     recoverySettings::setChunkSize
@@ -214,7 +213,7 @@ public class MockNode extends Node {
             ThreadPool threadPool,
             NodeClient client
         ) {
-            if (pluginsService.filterPlugins(MockInternalClusterInfoService.TestPlugin.class).isEmpty()) {
+            if (pluginsService.filterPlugins(MockInternalClusterInfoService.TestPlugin.class).findAny().isEmpty()) {
                 return super.newClusterInfoService(pluginsService, settings, clusterService, threadPool, client);
             } else {
                 final MockInternalClusterInfoService service = new MockInternalClusterInfoService(
@@ -230,7 +229,7 @@ public class MockNode extends Node {
 
         @Override
         protected HttpServerTransport newHttpTransport(PluginsService pluginsService, NetworkModule networkModule) {
-            if (pluginsService.filterPlugins(MockHttpTransport.TestPlugin.class).isEmpty()) {
+            if (pluginsService.filterPlugins(MockHttpTransport.TestPlugin.class).findAny().isEmpty()) {
                 return super.newHttpTransport(pluginsService, networkModule);
             } else {
                 return new MockHttpTransport();
@@ -277,8 +276,8 @@ public class MockNode extends Node {
     ) {
         super(NodeConstruction.prepareConstruction(environment, new MockServiceProvider() {
             @Override
-            Function<Settings, PluginsService> pluginsServiceCtor(Environment initialEnvironment) {
-                return settings -> new MockPluginsService(settings, initialEnvironment, classpathPlugins);
+            PluginsService newPluginService(Environment environment, Settings settings) {
+                return new MockPluginsService(settings, environment, classpathPlugins);
             }
         }, forbidPrivateIndexSettings));
 

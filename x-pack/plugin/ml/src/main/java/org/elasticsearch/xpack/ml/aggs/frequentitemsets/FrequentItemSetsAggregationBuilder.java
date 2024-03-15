@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValue
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.common.Strings.format;
 
@@ -264,4 +265,8 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         return TransportVersions.V_8_4_0;
     }
 
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
+    }
 }

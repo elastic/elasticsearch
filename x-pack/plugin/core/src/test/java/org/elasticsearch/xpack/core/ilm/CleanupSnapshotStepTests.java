@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
@@ -108,21 +109,22 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
-        try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getDeleteSnapshotRequestAssertingClient(threadPool, snapshotName);
             CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client);
             step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 
-    private NoOpClient getDeleteSnapshotRequestAssertingClient(String expectedSnapshotName) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getDeleteSnapshotRequestAssertingClient(ThreadPool threadPool, String expectedSnapshotName) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(DeleteSnapshotAction.NAME));
+                assertThat(action.name(), is(TransportDeleteSnapshotAction.TYPE.name()));
                 assertTrue(request instanceof DeleteSnapshotRequest);
                 assertThat(((DeleteSnapshotRequest) request).snapshots(), arrayContaining(expectedSnapshotName));
             }

@@ -1,6 +1,0 @@
-pr: 100779
-summary: Fix NullPointerException in RotableSecret
-area: Security
-type: bug
-issues:
- - 99759

@@ -36,23 +36,14 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
     DoubleVector vector = (DoubleVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
-      }
+      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0), positionCount);
     }
-    BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
         builder.appendBytesRef(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static BytesRef evalValue(DoubleVector container, int index) {
@@ -64,7 +55,7 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
   public Block evalBlock(Block b) {
     DoubleBlock block = (DoubleBlock) b;
     int positionCount = block.getPositionCount();
-    try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -72,17 +63,13 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            BytesRef value = evalValue(block, i);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendBytesRef(value);
-            valuesAppended = true;
-          } catch (Exception e) {
-            registerException(e);
+          BytesRef value = evalValue(block, i);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendBytesRef(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();
@@ -97,5 +84,26 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
   private static BytesRef evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToString.fromDouble(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToStringFromDoubleEvaluator get(DriverContext context) {
+      return new ToStringFromDoubleEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToStringFromDoubleEvaluator[field=" + field + "]";
+    }
   }
 }

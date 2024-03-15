@@ -95,7 +95,7 @@ public class NestedWithMinScoreIT extends ESIntegTestCase {
         doc.endArray();
         doc.endObject();
 
-        client().prepareIndex("test").setId("d1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(doc).get();
+        prepareIndex("test").setId("d1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(doc).get();
         final BoolQueryBuilder childQuery = new BoolQueryBuilder().filter(
             new MatchPhraseQueryBuilder("toolTracks.data", "cash dispenser, automated teller machine, automatic teller machine")
         ).filter(new RangeQueryBuilder("toolTracks.confidence").from(0.8));
@@ -111,6 +111,6 @@ public class NestedWithMinScoreIT extends ESIntegTestCase {
         if (randomBoolean()) {
             source.trackTotalHitsUpTo(randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(1, 1000));
         }
-        ElasticsearchAssertions.assertSearchHits(client().prepareSearch("test").setSource(source), "d1");
+        ElasticsearchAssertions.assertSearchHits(prepareSearch("test").setSource(source), "d1");
     }
 }

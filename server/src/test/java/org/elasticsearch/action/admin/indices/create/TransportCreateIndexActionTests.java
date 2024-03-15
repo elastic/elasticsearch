@@ -67,7 +67,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
                 )
                 .build()
         )
-        .compatibilityVersions(
+        .nodeIdsToCompatibilityVersions(
             Map.of(
                 "node-1",
                 new CompatibilityVersions(

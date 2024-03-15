@@ -111,6 +111,11 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return new KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader(leafFactory(blContext.lookup()));
+    }
+
+    @Override
     public StringScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         return new StringScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), KeywordDocValuesField::new);
     }

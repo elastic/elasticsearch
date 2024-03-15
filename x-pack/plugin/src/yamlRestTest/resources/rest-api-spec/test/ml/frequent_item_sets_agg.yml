@@ -540,3 +540,48 @@ setup:
   - match: { aggregations.fi.buckets.1.doc_count: 4 }
   - match: { aggregations.fi.buckets.1.support: 0.4 }
   - match: { aggregations.fi.buckets.1.key.error_message: ["engine overheated"] }
+
+---
+"Test frequent items on empty index":
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: unavailable-data
+        body:
+          mappings:
+            properties:
+              features:
+                type: keyword
+              error_message:
+                type: keyword
+              timestamp:
+                type: date
+              geo_point:
+                type: geo_point
+              histogram:
+                type: histogram
+
+  - do:
+      search:
+        index: unavailable-data
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_item_sets": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.3,
+                  "fields": [
+                    {"field": "features"},
+                    {"field": "error_message"}
+                  ]
+                }
+              }
+            }
+          }
+  - length: { aggregations.fi.buckets: 0 }

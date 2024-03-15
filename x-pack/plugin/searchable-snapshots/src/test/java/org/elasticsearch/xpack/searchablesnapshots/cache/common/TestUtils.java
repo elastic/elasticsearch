@@ -271,11 +271,6 @@ public final class TestUtils {
         }
 
         @Override
-        protected boolean useLegacyCachedBlobSizes() {
-            return false;
-        }
-
-        @Override
         protected void innerGet(GetRequest request, ActionListener<GetResponse> listener) {
             listener.onFailure(new IndexNotFoundException(request.index()));
         }
@@ -297,11 +292,6 @@ public final class TestUtils {
 
         public SimpleBlobStoreCacheService() {
             super(null, mock(Client.class), SNAPSHOT_BLOB_CACHE_INDEX);
-        }
-
-        @Override
-        protected boolean useLegacyCachedBlobSizes() {
-            return false;
         }
 
         @Override

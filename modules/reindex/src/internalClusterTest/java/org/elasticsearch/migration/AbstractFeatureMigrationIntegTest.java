@@ -153,7 +153,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
     public <T extends Plugin> T getPlugin(Class<T> type) {
         final PluginsService pluginsService = internalCluster().getCurrentMasterNodeInstance(PluginsService.class);
-        return pluginsService.filterPlugins(type).stream().findFirst().get();
+        return pluginsService.filterPlugins(type).findFirst().get();
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {
@@ -192,7 +192,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
 
         List<IndexRequestBuilder> docs = new ArrayList<>(INDEX_DOC_COUNT);
         for (int i = 0; i < INDEX_DOC_COUNT; i++) {
-            docs.add(ESIntegTestCase.client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
+            docs.add(ESIntegTestCase.prepareIndex(indexName).setId(Integer.toString(i)).setSource("some_field", "words words"));
         }
         indexRandom(true, docs);
         IndicesStatsResponse indexStats = ESIntegTestCase.indicesAdmin().prepareStats(indexName).setDocs(true).get();

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -92,23 +94,16 @@ public class MvExpandOperator implements Operator {
              */
             logger.trace("starting {}", prev);
             expandingBlock = prev.getBlock(channel);
-            if (expandingBlock.mayHaveMultivaluedFields() == false) {
-                logger.trace("can't have multivalued fields");
-                noops++;
-                Page result = prev;
-                prev = null;
-                expandingBlock = null;
-                return result;
-            }
             expandedBlock = expandingBlock.expand();
+
             if (expandedBlock == expandingBlock) {
                 // The expand was a noop - just return the previous page and clear state.
                 logger.trace("expanded to same");
                 noops++;
                 Page result = prev;
                 prev = null;
-                expandingBlock = null;
-                expandedBlock = null;
+
+                releaseAndClearState();
                 return result;
             }
             if (prev.getBlockCount() == 1) {
@@ -119,11 +114,10 @@ public class MvExpandOperator implements Operator {
                  */
                 logger.trace("single block output");
                 assert channel == 0;
-                prev.releaseBlocks();
-                prev = null;
-                expandingBlock = null;
                 Page result = new Page(expandedBlock);
                 expandedBlock = null;
+
+                releaseAndClearState();
                 return result;
             }
         }
@@ -156,14 +150,7 @@ public class MvExpandOperator implements Operator {
             nextItemOnExpanded = 0;
         }
         if (prevCompleted) {
-            Releasables.closeExpectNoException(() -> {
-                if (prev != null) {
-                    prev.releaseBlocks();
-                    prev = null;
-                }
-            }, expandedBlock);
-            expandingBlock = null;
-            expandedBlock = null;
+            releaseAndClearState();
         }
         return new Page(result);
     }
@@ -204,6 +191,17 @@ public class MvExpandOperator implements Operator {
                 return n < pageSize ? Arrays.copyOfRange(duplicateFilter, 0, n) : duplicateFilter;
             }
         }
+    }
+
+    private void releaseAndClearState() {
+        Releasables.closeExpectNoException(() -> {
+            if (prev != null) {
+                prev.releaseBlocks();
+                prev = null;
+            }
+        }, expandedBlock);
+        expandingBlock = null;
+        expandedBlock = null;
     }
 
     @Override
@@ -325,6 +323,11 @@ public class MvExpandOperator implements Operator {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_11_X;
         }
     }
 }

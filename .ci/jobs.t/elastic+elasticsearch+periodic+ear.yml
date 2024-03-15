@@ -2,7 +2,8 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+periodic+ear
     display-name: "elastic / elasticsearch # %BRANCH% - encryption at rest"
-    description: "The Elasticsearch %BRANCH% branch encryption at rest compatibility tests.\n\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     node: packaging-large
     builders:
       - inject:

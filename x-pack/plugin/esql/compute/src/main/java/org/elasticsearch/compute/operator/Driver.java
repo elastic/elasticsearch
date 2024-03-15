@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -48,20 +50,48 @@ public class Driver implements Releasable, Describable {
     public static final TimeValue DEFAULT_STATUS_INTERVAL = TimeValue.timeValueSeconds(1);
 
     private final String sessionId;
+
+    /**
+     * The wall clock time when this driver was created in milliseconds since epoch.
+     * Compared to {@link #startNanos} this is less accurate and is measured by a
+     * timer that can go backwards. This is only useful for presenting times to a
+     * user, like over the status API.
+     */
+    private final long startTime;
+
+    /**
+     * The time when this driver was created in nanos. This time is relative to
+     * some arbitrary point - imagine its program startup. The timer that generates
+     * this is monotonically increasing so even if NTP or something changes the
+     * clock it won't change. As such, this is only useful for measuring durations.
+     */
+    private final long startNanos;
     private final DriverContext driverContext;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
+    private final List<DriverStatus.OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
 
     private final AtomicReference<String> cancelReason = new AtomicReference<>();
     private final AtomicReference<SubscribableListener<Void>> blocked = new AtomicReference<>();
+
+    private final AtomicBoolean started = new AtomicBoolean();
+    private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
+
     /**
      * Status reported to the tasks API. We write the status at most once every
      * {@link #statusNanos}, as soon as loop has finished and after {@link #statusNanos}
      * have passed.
      */
     private final AtomicReference<DriverStatus> status;
+
+    /**
+     * The time this driver finished. Only set once the driver is finished, defaults to 0
+     * which is *possibly* a valid value, so always use the driver status to check
+     * if the driver is actually finished.
+     */
+    private long finishNanos;
 
     /**
      * Creates a new driver with a chain of operators.
@@ -75,6 +105,8 @@ public class Driver implements Releasable, Describable {
      */
     public Driver(
         String sessionId,
+        long startTime,
+        long startNanos,
         DriverContext driverContext,
         Supplier<String> description,
         SourceOperator source,
@@ -84,6 +116,8 @@ public class Driver implements Releasable, Describable {
         Releasable releasable
     ) {
         this.sessionId = sessionId;
+        this.startTime = startTime;
+        this.startNanos = startNanos;
         this.driverContext = driverContext;
         this.description = description;
         this.activeOperators = new ArrayList<>();
@@ -92,7 +126,9 @@ public class Driver implements Releasable, Describable {
         this.activeOperators.add(sink);
         this.statusNanos = statusInterval.nanos();
         this.releasable = releasable;
-        this.status = new AtomicReference<>(new DriverStatus(sessionId, System.currentTimeMillis(), DriverStatus.Status.QUEUED, List.of()));
+        this.status = new AtomicReference<>(
+            new DriverStatus(sessionId, startTime, System.currentTimeMillis(), 0, 0, DriverStatus.Status.QUEUED, List.of(), List.of())
+        );
     }
 
     /**
@@ -110,7 +146,18 @@ public class Driver implements Releasable, Describable {
         SinkOperator sink,
         Releasable releasable
     ) {
-        this("unset", driverContext, () -> null, source, intermediateOperators, sink, DEFAULT_STATUS_INTERVAL, releasable);
+        this(
+            "unset",
+            System.currentTimeMillis(),
+            System.nanoTime(),
+            driverContext,
+            () -> null,
+            source,
+            intermediateOperators,
+            sink,
+            DEFAULT_STATUS_INTERVAL,
+            releasable
+        );
     }
 
     public DriverContext driverContext() {
@@ -122,50 +169,65 @@ public class Driver implements Releasable, Describable {
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
-    private SubscribableListener<Void> run(TimeValue maxTime, int maxIterations) {
+    SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier nowSupplier) {
         long maxTimeNanos = maxTime.nanos();
-        long startTime = System.nanoTime();
+        long startTime = nowSupplier.getAsLong();
         long nextStatus = startTime + statusNanos;
         int iter = 0;
-        while (isFinished() == false) {
+        while (true) {
             SubscribableListener<Void> fut = runSingleLoopIteration();
+            iter++;
             if (fut.isDone() == false) {
-                status.set(updateStatus(DriverStatus.Status.ASYNC));
+                updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC);
                 return fut;
             }
-            if (iter >= maxIterations) {
-                break;
+            if (isFinished()) {
+                finishNanos = nowSupplier.getAsLong();
+                updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE);
+                driverContext.finish();
+                Releasables.close(releasable, driverContext.getSnapshot());
+                return Operator.NOT_BLOCKED;
             }
-            long now = System.nanoTime();
+            long now = nowSupplier.getAsLong();
+            if (iter >= maxIterations) {
+                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING);
+                return Operator.NOT_BLOCKED;
+            }
+            if (now - startTime >= maxTimeNanos) {
+                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING);
+                return Operator.NOT_BLOCKED;
+            }
             if (now > nextStatus) {
-                status.set(updateStatus(DriverStatus.Status.RUNNING));
+                updateStatus(now - startTime, iter, DriverStatus.Status.RUNNING);
                 nextStatus = now + statusNanos;
             }
-            iter++;
-            if (now - startTime > maxTimeNanos) {
-                break;
-            }
         }
-        if (isFinished()) {
-            status.set(updateStatus(DriverStatus.Status.DONE));
-            driverContext.finish();
-            releasable.close();
-        } else {
-            status.set(updateStatus(DriverStatus.Status.WAITING));
-        }
-        return Operator.NOT_BLOCKED;
     }
 
     /**
      * Whether the driver has run the chain of operators to completion.
      */
-    public boolean isFinished() {
+    private boolean isFinished() {
         return activeOperators.isEmpty();
     }
 
     @Override
     public void close() {
         drainAndCloseOperators(null);
+    }
+
+    /**
+     * Abort the driver and wait for it to finish
+     */
+    public void abort(Exception reason, ActionListener<Void> listener) {
+        finishNanos = System.nanoTime();
+        completionListener.addListener(listener);
+        if (started.compareAndSet(false, true)) {
+            drainAndCloseOperators(reason);
+            completionListener.onFailure(reason);
+        } else {
+            cancel(reason.getMessage());
+        }
     }
 
     private SubscribableListener<Void> runSingleLoopIteration() {
@@ -211,7 +273,9 @@ public class Driver implements Releasable, Describable {
                 List<Operator> finishedOperators = this.activeOperators.subList(0, index + 1);
                 Iterator<Operator> itr = finishedOperators.iterator();
                 while (itr.hasNext()) {
-                    itr.next().close();
+                    Operator op = itr.next();
+                    statusOfCompletedOperators.add(new DriverStatus.OperatorStatus(op.toString(), op.status()));
+                    op.close();
                     itr.remove();
                 }
 
@@ -261,8 +325,11 @@ public class Driver implements Releasable, Describable {
         int maxIterations,
         ActionListener<Void> listener
     ) {
-        driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
-        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, listener);
+        driver.completionListener.addListener(listener);
+        if (driver.started.compareAndSet(false, true)) {
+            driver.updateStatus(0, 0, DriverStatus.Status.STARTING);
+            schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
+        }
     }
 
     // Drains all active operators and closes them.
@@ -279,7 +346,7 @@ public class Driver implements Releasable, Describable {
             itr.remove();
         }
         driverContext.finish();
-        Releasables.closeWhileHandlingException(releasable);
+        Releasables.closeWhileHandlingException(releasable, driverContext.getSnapshot());
     }
 
     private static void schedule(
@@ -295,10 +362,10 @@ public class Driver implements Releasable, Describable {
             @Override
             protected void doRun() {
                 if (driver.isFinished()) {
-                    listener.onResponse(null);
+                    onComplete(listener);
                     return;
                 }
-                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
+                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, System::nanoTime);
                 if (fut.isDone()) {
                     schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
                 } else {
@@ -318,7 +385,11 @@ public class Driver implements Releasable, Describable {
             @Override
             public void onFailure(Exception e) {
                 driver.drainAndCloseOperators(e);
-                listener.onFailure(e);
+                onComplete(ActionListener.running(() -> listener.onFailure(e)));
+            }
+
+            void onComplete(ActionListener<Void> listener) {
+                driver.driverContext.waitForAsyncActions(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
             }
         });
     }
@@ -354,22 +425,42 @@ public class Driver implements Releasable, Describable {
     /**
      * Get the last status update from the driver. These updates are made
      * when the driver is queued and after every
-     * processing {@link #run(TimeValue, int) batch}.
+     * processing {@link #run batch}.
      */
     public DriverStatus status() {
         return status.get();
     }
 
     /**
+     * Build a "profile" of this driver's operations after it's been completed.
+     * This doesn't make sense to call before the driver is done.
+     */
+    public DriverProfile profile() {
+        DriverStatus status = status();
+        if (status.status() != DriverStatus.Status.DONE) {
+            throw new IllegalStateException("can only get profile from finished driver");
+        }
+        return new DriverProfile(finishNanos - startNanos, status.cpuNanos(), status.iterations(), status.completedOperators());
+    }
+
+    /**
      * Update the status.
+     * @param extraCpuNanos how many cpu nanoseconds to add to the previous status
+     * @param extraIterations how many iterations to add to the previous status
      * @param status the status of the overall driver request
      */
-    private DriverStatus updateStatus(DriverStatus.Status status) {
-        return new DriverStatus(
-            sessionId,
-            System.currentTimeMillis(),
-            status,
-            activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
-        );
+    private void updateStatus(long extraCpuNanos, int extraIterations, DriverStatus.Status status) {
+        this.status.getAndUpdate(prev -> {
+            return new DriverStatus(
+                sessionId,
+                startTime,
+                System.currentTimeMillis(),
+                prev.cpuNanos() + extraCpuNanos,
+                prev.iterations() + extraIterations,
+                status,
+                statusOfCompletedOperators,
+                activeOperators.stream().map(op -> new DriverStatus.OperatorStatus(op.toString(), op.status())).toList()
+            );
+        });
     }
 }

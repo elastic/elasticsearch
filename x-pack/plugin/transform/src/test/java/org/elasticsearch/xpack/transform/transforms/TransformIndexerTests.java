@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -27,7 +26,6 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +34,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -76,16 +75,14 @@ import static org.mockito.Mockito.mock;
 public class TransformIndexerTests extends ESTestCase {
 
     private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = new SearchResponse(
-        new InternalSearchResponse(
-            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-            // Simulate completely null aggs
-            null,
-            new Suggest(Collections.emptyList()),
-            new SearchProfileResults(Collections.emptyMap()),
-            false,
-            false,
-            1
-        ),
+        new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+        // Simulate completely null aggs
+        null,
+        new Suggest(Collections.emptyList()),
+        false,
+        false,
+        new SearchProfileResults(Collections.emptyMap()),
+        1,
         "",
         1,
         1,
@@ -200,8 +197,8 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
-            responseListener.onResponse(new RefreshResponse(1, 1, 0, Collections.emptyList()));
+        void refreshDestinationIndex(ActionListener<Void> responseListener) {
+            responseListener.onResponse(null);
         }
 
         @Override
@@ -258,6 +255,11 @@ public class TransformIndexerTests extends ESTestCase {
             fieldMappingsListener.onResponse(Collections.emptyMap());
         }
 
+        @Override
+        void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
         public boolean waitingForNextSearch() {
             return super.getScheduledNextSearch() != null;
         }
@@ -272,7 +274,7 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        void validate(ActionListener<Void> listener) {
+        void validate(ActionListener<ValidateTransformAction.Response> listener) {
             listener.onResponse(null);
         }
     }
@@ -281,13 +283,12 @@ public class TransformIndexerTests extends ESTestCase {
     public void setUpMocks() {
         auditor = MockTransformAuditor.createMockAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
-        client = new NoOpClient(getTestName());
         threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);
+        client = new NoOpClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
@@ -453,7 +454,7 @@ public class TransformIndexerTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

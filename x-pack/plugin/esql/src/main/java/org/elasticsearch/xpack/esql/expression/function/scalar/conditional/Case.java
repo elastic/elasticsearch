@@ -16,14 +16,14 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -37,22 +37,62 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
-public class Case extends ScalarFunction implements EvaluatorMapper {
+public final class Case extends EsqlScalarFunction {
     record Condition(Expression condition, Expression value) {}
 
     private final List<Condition> conditions;
     private final Expression elseValue;
     private DataType dataType;
 
-    @SuppressWarnings("this-escape")
-    public Case(Source source, Expression first, List<Expression> rest) {
+    @FunctionInfo(
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "date",
+            "double",
+            "geo_point",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "text",
+            "unsigned_long",
+            "version" },
+        description = """
+            Accepts pairs of conditions and values.
+            The function returns the value that belongs to the first condition that evaluates to true."""
+    )
+    public Case(
+        Source source,
+        @Param(name = "condition", type = { "boolean" }) Expression first,
+        @Param(
+            name = "rest",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "date",
+                "double",
+                "geo_point",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
+        ) List<Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
         int conditionCount = children().size() / 2;
         conditions = new ArrayList<>(conditionCount);
         for (int c = 0; c < conditionCount; c++) {
             conditions.add(new Condition(children().get(c * 2), children().get(c * 2 + 1)));
         }
-        elseValue = children().size() % 2 == 0 ? new Literal(source, null, NULL) : children().get(children().size() - 1);
+        elseValue = elseValueIsExplicit() ? children().get(children().size() - 1) : new Literal(source, null, NULL);
+    }
+
+    private boolean elseValueIsExplicit() {
+        return children().size() % 2 == 1;
     }
 
     @Override
@@ -114,11 +154,6 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new Case(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
@@ -144,7 +179,6 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public Object fold() {
-        // TODO can we partially fold? like CASE(false, foo, bar) -> bar
         for (Condition condition : conditions) {
             Boolean b = (Boolean) condition.condition.fold();
             if (b != null && b) {
@@ -154,19 +188,84 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
         return elseValue.fold();
     }
 
+    /**
+     * Fold the arms of {@code CASE} statements.
+     * <ol>
+     *     <li>
+     *         Conditions that evaluate to {@code false} are removed so
+     *         {@code EVAL c=CASE(false, foo, b, bar, bort)} becomes
+     *         {@code EVAL c=CASE(b, bar, bort)}.
+     *     </li>
+     *     <li>
+     *         Conditions that evaluate to {@code true} stop evaluation and
+     *         return themselves so {@code EVAL c=CASE(true, foo, bar)} becomes
+     *         {@code EVAL c=foo}.
+     *     </li>
+     * </ol>
+     * And those two combine so {@code EVAL c=CASE(false, foo, b, bar, true, bort, el)} becomes
+     * {@code EVAL c=CASE(b, bar, bort)}.
+     */
+    public Expression partiallyFold() {
+        List<Expression> newChildren = new ArrayList<>(children().size());
+        boolean modified = false;
+        for (Condition condition : conditions) {
+            if (condition.condition.foldable() == false) {
+                newChildren.add(condition.condition);
+                newChildren.add(condition.value);
+                continue;
+            }
+            modified = true;
+            Boolean b = (Boolean) condition.condition.fold();
+            if (b != null && b) {
+                newChildren.add(condition.value);
+                return finishPartialFold(newChildren);
+            }
+        }
+        if (modified == false) {
+            return this;
+        }
+        if (elseValueIsExplicit()) {
+            newChildren.add(elseValue);
+        }
+        return finishPartialFold(newChildren);
+    }
+
+    private Expression finishPartialFold(List<Expression> newChildren) {
+        if (newChildren.size() == 1) {
+            return newChildren.get(0);
+        }
+        return replaceChildren(newChildren);
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-
-        List<ConditionEvaluatorSupplier> conditionsEval = conditions.stream()
+        ElementType resultType = PlannerUtils.toElementType(dataType());
+        List<ConditionEvaluatorSupplier> conditionsFactories = conditions.stream()
             .map(c -> new ConditionEvaluatorSupplier(toEvaluator.apply(c.condition), toEvaluator.apply(c.value)))
             .toList();
-        var elseValueEval = toEvaluator.apply(elseValue);
-        return dvrCtx -> new CaseEvaluator(
-            dvrCtx,
-            LocalExecutionPlanner.toElementType(dataType()),
-            conditionsEval.stream().map(x -> x.apply(dvrCtx)).toList(),
-            elseValueEval.get(dvrCtx)
-        );
+        ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new CaseEvaluator(
+                    context,
+                    resultType,
+                    conditionsFactories.stream().map(x -> x.apply(context)).toList(),
+                    elseValueFactory.get(context)
+                );
+            }
+
+            @Override
+            public String toString() {
+                return "CaseEvaluator[resultType="
+                    + resultType
+                    + ", conditions="
+                    + conditionsFactories
+                    + ", elseVal="
+                    + elseValueFactory
+                    + ']';
+            }
+        };
     }
 
     record ConditionEvaluatorSupplier(ExpressionEvaluator.Factory condition, ExpressionEvaluator.Factory value)
@@ -175,6 +274,11 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
         @Override
         public ConditionEvaluator apply(DriverContext driverContext) {
             return new ConditionEvaluator(condition.get(driverContext), value.get(driverContext));
+        }
+
+        @Override
+        public String toString() {
+            return "ConditionEvaluator[" + "condition=" + condition + ", value=" + value + ']';
         }
     }
 
@@ -192,7 +296,7 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
         EvalOperator.ExpressionEvaluator elseVal
     ) implements EvalOperator.ExpressionEvaluator {
         @Override
-        public Block.Ref eval(Page page) {
+        public Block eval(Page page) {
             /*
              * We have to evaluate lazily so any errors or warnings that would be
              * produced by the right hand side are avoided. And so if anything
@@ -211,29 +315,25 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (ConditionEvaluator condition : conditions) {
-                            try (Block.Ref conditionRef = condition.condition.eval(limited)) {
-                                if (conditionRef.block().areAllValuesNull()) {
-                                    continue;
-                                }
-                                BooleanBlock b = (BooleanBlock) conditionRef.block();
+                            try (BooleanBlock b = (BooleanBlock) condition.condition.eval(limited)) {
                                 if (b.isNull(0)) {
                                     continue;
                                 }
                                 if (false == b.getBoolean(b.getFirstValueIndex(0))) {
                                     continue;
                                 }
-                                try (Block.Ref valueRef = condition.value.eval(limited)) {
-                                    result.copyFrom(valueRef.block(), 0, 1);
+                                try (Block values = condition.value.eval(limited)) {
+                                    result.copyFrom(values, 0, 1);
                                     continue position;
                                 }
                             }
                         }
-                        try (Block.Ref elseRef = elseVal.eval(limited)) {
-                            result.copyFrom(elseRef.block(), 0, 1);
+                        try (Block values = elseVal.eval(limited)) {
+                            result.copyFrom(values, 0, 1);
                         }
                     }
                 }
-                return Block.Ref.floating(result.build());
+                return result.build();
             }
         }
 

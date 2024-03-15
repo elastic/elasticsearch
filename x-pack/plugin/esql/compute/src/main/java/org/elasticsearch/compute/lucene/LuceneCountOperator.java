@@ -13,12 +13,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -47,8 +48,8 @@ public class LuceneCountOperator extends LuceneOperator {
         private final LuceneSliceQueue sliceQueue;
 
         public Factory(
-            List<SearchContext> searchContexts,
-            Function<SearchContext, Query> queryFunction,
+            List<? extends ShardContext> contexts,
+            Function<ShardContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
             int limit
@@ -56,13 +57,13 @@ public class LuceneCountOperator extends LuceneOperator {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             var weightFunction = weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
-            this.sliceQueue = LuceneSliceQueue.create(searchContexts, weightFunction, dataPartitioning, taskConcurrency);
+            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneCountOperator(sliceQueue, limit);
+            return new LuceneCountOperator(driverContext.blockFactory(), sliceQueue, limit);
         }
 
         @Override
@@ -80,8 +81,8 @@ public class LuceneCountOperator extends LuceneOperator {
         }
     }
 
-    public LuceneCountOperator(LuceneSliceQueue sliceQueue, int limit) {
-        super(PAGE_SIZE, sliceQueue);
+    public LuceneCountOperator(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int limit) {
+        super(blockFactory, PAGE_SIZE, sliceQueue);
         this.remainingDocs = limit;
         this.leafCollector = new LeafCollector() {
             @Override
@@ -122,6 +123,7 @@ public class LuceneCountOperator extends LuceneOperator {
             assert remainingDocs <= 0 : remainingDocs;
             return null;
         }
+        long start = System.nanoTime();
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             // no scorer means no more docs
@@ -155,15 +157,23 @@ public class LuceneCountOperator extends LuceneOperator {
             // emit only one page
             if (remainingDocs <= 0 && pagesEmitted == 0) {
                 pagesEmitted++;
-                page = new Page(
-                    PAGE_SIZE,
-                    LongBlock.newConstantBlockWith(totalHits, PAGE_SIZE),
-                    BooleanBlock.newConstantBlockWith(true, PAGE_SIZE)
-                );
+                LongBlock count = null;
+                BooleanBlock seen = null;
+                try {
+                    count = blockFactory.newConstantLongBlockWith(totalHits, PAGE_SIZE);
+                    seen = blockFactory.newConstantBooleanBlockWith(true, PAGE_SIZE);
+                    page = new Page(PAGE_SIZE, count, seen);
+                } finally {
+                    if (page == null) {
+                        Releasables.closeExpectNoException(count, seen);
+                    }
+                }
             }
             return page;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            processingNanos += System.nanoTime() - start;
         }
     }
 

@@ -280,6 +280,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
     }
 
     public boolean supportsParallelCollection() {
-        return true;
+        return false;
     }
 }

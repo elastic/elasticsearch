@@ -26,8 +26,9 @@ Instantiates a {dfeed}.
 [[ml-put-datafeed-desc]]
 == {api-description-title}
 
-{ml-docs}/ml-dfeeds.html[{dfeeds-cap}] retrieve data from {es} for analysis by
-an {anomaly-job}. You can associate only one {dfeed} to each {anomaly-job}.
+{ml-docs}/ml-ad-run-jobs.html#ml-ad-datafeeds[{dfeeds-cap}] retrieve data from 
+{es} for analysis by an {anomaly-job}. You can associate only one {dfeed} to 
+each {anomaly-job}.
 
 The {dfeed} contains a query that runs at a defined interval (`frequency`). If
 you are concerned about delayed data, you can add a delay (`query_delay`) at
@@ -66,8 +67,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
-+
-deprecated:[7.16.0]
 
 `ignore_unavailable`::
 (Optional, Boolean) If `true`, unavailable indices (missing or closed) are

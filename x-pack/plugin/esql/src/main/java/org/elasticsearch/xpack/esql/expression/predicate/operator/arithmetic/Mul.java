@@ -12,10 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongMultiplyExact;
 
@@ -27,28 +24,11 @@ public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInve
             left,
             right,
             MUL,
-            MulIntsEvaluator::new,
-            MulLongsEvaluator::new,
-            MulUnsignedLongsEvaluator::new,
-            (s, l, r, dvrCtx) -> new MulDoublesEvaluator(l, r, dvrCtx)
+            MulIntsEvaluator.Factory::new,
+            MulLongsEvaluator.Factory::new,
+            MulUnsignedLongsEvaluator.Factory::new,
+            (s, lhs, rhs) -> new MulDoublesEvaluator.Factory(source, lhs, rhs)
         );
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
-        }
-
-        DataType l = left().dataType();
-        DataType r = right().dataType();
-
-        // 1. both are numbers
-        if (DataTypes.isNullOrNumeric(l) && DataTypes.isNullOrNumeric(r)) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-
-        return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
     }
 
     @Override

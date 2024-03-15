@@ -10,8 +10,10 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.List;
 
@@ -21,19 +23,19 @@ import java.util.List;
  * position.
  *
  * <p> Blocks can represent various shapes of underlying data. A Block can represent either sparse
- * or dense data. A Block can represent either single or multi valued data. A Block that represents
+ * or dense data. A Block can represent either single or multivalued data. A Block that represents
  * dense single-valued data can be viewed as a {@link Vector}.
  *
- * TODO: update comment
- * <p> All Blocks share the same set of data retrieval methods, but actual concrete implementations
- * effectively support a subset of these, throwing {@code UnsupportedOperationException} where a
- * particular data retrieval method is not supported. For example, a Block of primitive longs may
- * not support retrieval as an integer, {code getInt}. This greatly simplifies Block usage and
- * avoids cumbersome use-site casting.
+ * <p> Blocks are reference counted; to make a shallow copy of a block (e.g. if a {@link Page} contains
+ * the same column twice), use {@link Block#incRef()}. Before a block is garbage collected,
+ * {@link Block#close()} must be called to release a block's resources; it must also be called one
+ * additional time for each time {@link Block#incRef()} was called. Calls to {@link Block#decRef()} and
+ * {@link Block#close()} are equivalent.
  *
- * <p> Block are immutable and can be passed between threads.
+ * <p> Block are immutable and can be passed between threads as long as no two threads hold a reference to
+ * the same block at the same time.
  */
-public interface Block extends Accountable, NamedWriteable, Releasable {
+public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, RefCounted, Releasable {
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -60,16 +62,26 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     ElementType elementType();
 
     /** The block factory associated with this block. */
+    // TODO: renaming this to owning blockFactory once we pass blockFactory for filter and expand
     BlockFactory blockFactory();
 
-    /** Tells if this block has been released. A block is released by calling its {@link Block#close()} method. */
+    /**
+     * Before passing a Block to another Driver, it is necessary to switch the owning block factory to its parent, which is associated
+     * with the global circuit breaker. This ensures that when the new driver releases this Block, it returns memory directly to the
+     * parent block factory instead of the local block factory of this Block. This is important because the local block factory is
+     * not thread safe and doesn't support simultaneous access by more than one thread.
+     */
+    void allowPassingToDifferentDriver();
+
+    /**
+     * Tells if this block has been released. A block is released by calling its {@link Block#close()} or {@link Block#decRef()} methods.
+     * @return true iff the block's reference count is zero.
+     * */
     boolean isReleased();
 
     /**
-     * Returns true if the value stored at the given position is null, false otherwise.
-     *
      * @param position the position
-     * @return true or false
+     * @return true if the value stored at the given position is null, false otherwise
      */
     boolean isNull(int position);
 
@@ -95,9 +107,10 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     boolean mayHaveMultivaluedFields();
 
     /**
-     * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
+     * Creates a new block that only exposes the positions provided.
      * @param positions the positions to retain
      * @return a filtered block
+     * TODO: pass BlockFactory
      */
     Block filter(int... positions);
 
@@ -139,28 +152,17 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     }
 
     /**
-     * Expand multivalued fields into one row per value. Returns the
-     * block if there aren't any multivalued fields to expand.
+     * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued
+     * fields to expand. The returned block needs to be closed by the caller to release the block's resources.
+     * TODO: pass BlockFactory
      */
     Block expand();
-
-    /**
-     * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
-     */
-    // Eventually, this should use the GLOBAL breaking instance
-    static Block constantNullBlock(int positions) {
-        return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantNullBlock(positions);
-    }
 
     /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
      * This is {@link Releasable} and should be released after building the block or if building the block fails.
      */
-    interface Builder extends Releasable {
+    interface Builder extends BlockLoader.Builder, Releasable {
 
         /**
          * Appends a null value to the block.
@@ -207,47 +209,23 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
          * Builds the block. This method can be called multiple times.
          */
         Block build();
-    }
-
-    /**
-     * A reference to a {@link Block}. This is {@link Releasable} and
-     * {@link Ref#close closing} it will {@link Block#close release}
-     * the underlying {@link Block} if it wasn't borrowed from a {@link Page}.
-     *
-     * The usual way to use this is:
-     * <pre>{@code
-     *   try (Block.Ref ref = eval.eval(page)) {
-     *     return ref.block().doStuff;
-     *   }
-     * }</pre>
-     *
-     * The {@code try} block will return the memory used by the block to the
-     * breaker if it was "free floating", but if it was attached to a {@link Page}
-     * then it'll do nothing.
-     *
-     * @param block the block referenced
-     * @param containedIn the page containing it or null, if it is "free floating".
-     */
-    record Ref(Block block, @Nullable Page containedIn) implements Releasable {
-        /**
-         * Create a "free floating" {@link Ref}.
-         */
-        public static Ref floating(Block block) {
-            return new Ref(block, null);
-        }
 
         /**
-         * Is this block "free floating" or attached to a page?
+         * Build many {@link Block}s at once, releasing any partially built blocks
+         * if any fail.
          */
-        public boolean floating() {
-            return containedIn == null;
-        }
-
-        @Override
-        public void close() {
-            if (floating()) {
-                block.close();
+        static Block[] buildAll(Block.Builder... builders) {
+            Block[] blocks = new Block[builders.length];
+            try {
+                for (int b = 0; b < blocks.length; b++) {
+                    blocks[b] = builders[b].build();
+                }
+            } finally {
+                if (blocks[blocks.length - 1] == null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
             }
+            return blocks;
         }
     }
 
@@ -261,4 +239,12 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
             ConstantNullBlock.ENTRY
         );
     }
+
+    /**
+     * Serialization type for blocks: 0 and 1 replace false/true used in pre-8.14
+     */
+    byte SERIALIZE_BLOCK_VALUES = 0;
+    byte SERIALIZE_BLOCK_VECTOR = 1;
+    byte SERIALIZE_BLOCK_ARRAY = 2;
+    byte SERIALIZE_BLOCK_BIG_ARRAY = 3;
 }

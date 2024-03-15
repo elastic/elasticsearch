@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -37,20 +36,16 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   private final DriverContext driverContext;
 
-  private final BigArrays bigArrays;
-
   public SumDoubleGroupingAggregatorFunction(List<Integer> channels,
-      SumDoubleAggregator.GroupingSumState state, DriverContext driverContext,
-      BigArrays bigArrays) {
+      SumDoubleAggregator.GroupingSumState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.bigArrays = bigArrays;
   }
 
   public static SumDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays) {
-    return new SumDoubleGroupingAggregatorFunction(channels, SumDoubleAggregator.initGrouping(bigArrays), driverContext, bigArrays);
+      DriverContext driverContext) {
+    return new SumDoubleGroupingAggregatorFunction(channels, SumDoubleAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -65,20 +60,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    Block uncastValuesBlock = page.getBlock(channels.get(0));
-    if (uncastValuesBlock.areAllValuesNull()) {
-      state.enableGroupIdTracking(seenGroupIds);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-        }
-      };
-    }
-    DoubleBlock valuesBlock = (DoubleBlock) uncastValuesBlock;
+    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     DoubleVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {

@@ -91,7 +91,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -99,6 +98,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
@@ -175,6 +175,7 @@ import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.index.engine.Engine.ES_VERSION;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
@@ -185,6 +186,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
@@ -690,8 +692,8 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             @Override
-            public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-                super.flush(force, waitIfOngoing, listener);
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+                super.flushHoldingLock(force, waitIfOngoing, listener);
                 postFlushSegmentInfoGen.set(getLastCommittedSegmentInfos().getGeneration());
                 assertThat(getPreCommitSegmentGeneration(), equalTo(preCommitGen.get()));
             }
@@ -1346,7 +1348,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     void syncFlush(IndexWriter writer, InternalEngine engine, String syncId) throws IOException {
-        try (ReleasableLock ignored = engine.writeLock.acquire()) {
+        try (var ignored = engine.acquireEnsureOpenRef()) {
             Map<String, String> userData = new HashMap<>();
             writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
             userData.put(Engine.SYNC_COMMIT_ID, syncId);
@@ -2572,28 +2574,40 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private static class MockMTAppender extends AbstractAppender {
+    private static class MockMergeThreadAppender extends AbstractAppender {
+
         private final List<String> messages = Collections.synchronizedList(new ArrayList<>());
+        private final AtomicBoolean luceneMergeSchedulerEnded = new AtomicBoolean();
 
         List<String> messages() {
             return List.copyOf(messages);
         }
 
-        MockMTAppender(final String name) throws IllegalAccessException {
+        public boolean mergeCompleted() {
+            return luceneMergeSchedulerEnded.get();
+        }
+
+        MockMergeThreadAppender(final String name) throws IllegalAccessException {
             super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false, Property.EMPTY_ARRAY);
         }
 
         @Override
         public void append(LogEvent event) {
             final String formattedMessage = event.getMessage().getFormattedMessage();
-            if (event.getLevel() == Level.TRACE && formattedMessage.startsWith("merge thread")) {
-                messages.add(formattedMessage);
+            if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0]")) {
+                if (formattedMessage.startsWith("merge thread")) {
+                    messages.add(formattedMessage);
+                } else if (event.getLoggerName().endsWith(".MS")
+                    && formattedMessage.contains("MS: merge thread")
+                    && formattedMessage.endsWith("end")) {
+                        luceneMergeSchedulerEnded.set(true);
+                    }
             }
         }
     }
 
     public void testMergeThreadLogging() throws Exception {
-        final MockMTAppender mockAppender = new MockMTAppender("testMergeThreadLogging");
+        final MockMergeThreadAppender mockAppender = new MockMergeThreadAppender("testMergeThreadLogging");
         mockAppender.start();
 
         Logger rootLogger = LogManager.getRootLogger();
@@ -2612,26 +2626,29 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.index(indexForDoc(testParsedDocument("3", null, testDocument(), B_1, null)));
                 engine.index(indexForDoc(testParsedDocument("4", null, testDocument(), B_1, null)));
                 engine.forceMerge(true, 1, false, UUIDs.randomBase64UUID());
-                engine.flushAndClose();
 
                 assertBusy(() -> {
                     assertThat(engine.getMergeStats().getTotal(), greaterThan(0L));
                     assertThat(engine.getMergeStats().getCurrent(), equalTo(0L));
                 });
-            }
 
-            assertBusy(() -> {
-                List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge thread")).toList();
-                assertThat("messages:" + threadMsgs, threadMsgs.size(), greaterThanOrEqualTo(3));
-                assertThat(
-                    threadMsgs,
-                    containsInRelativeOrder(
-                        matchesRegex("^merge thread .* start$"),
-                        matchesRegex("^merge thread .* merge segment.*$"),
-                        matchesRegex("^merge thread .* end$")
-                    )
-                );
-            });
+                assertBusy(() -> {
+                    List<String> threadMsgs = mockAppender.messages().stream().filter(line -> line.startsWith("merge thread")).toList();
+                    assertThat("messages:" + threadMsgs, threadMsgs.size(), greaterThanOrEqualTo(3));
+                    assertThat(
+                        threadMsgs,
+                        containsInRelativeOrder(
+                            matchesRegex("^merge thread .* start$"),
+                            matchesRegex("^merge thread .* merge segment.*$"),
+                            matchesRegex("^merge thread .* end$")
+                        )
+                    );
+                    assertThat(mockAppender.mergeCompleted(), is(true));
+                });
+
+                Loggers.setLevel(rootLogger, savedLevel);
+                engine.close();
+            }
         } finally {
             Loggers.setLevel(rootLogger, savedLevel);
             Loggers.removeAppender(rootLogger, mockAppender);
@@ -2654,14 +2671,9 @@ public class InternalEngineTests extends EngineTestCase {
 
         try {
             initialEngine = createEngine(defaultSettings, store, createTempDir(), newLogMergePolicy(), null);
-            final ShardRouting primary = TestShardRouting.newShardRouting(
-                shardId,
-                "node1",
-                null,
-                true,
-                ShardRoutingState.STARTED,
+            final ShardRouting primary = shardRoutingBuilder(shardId, "node1", true, ShardRoutingState.STARTED).withAllocationId(
                 allocationId
-            );
+            ).build();
             final ShardRouting initializingReplica = TestShardRouting.newShardRouting(
                 shardId,
                 "node2",
@@ -3432,17 +3444,6 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(topDocs.totalHits.value, equalTo(0L));
             }
         }
-    }
-
-    private Path[] filterExtraFSFiles(Path[] files) {
-        List<Path> paths = new ArrayList<>();
-        for (Path p : files) {
-            if (p.getFileName().toString().startsWith("extra")) {
-                continue;
-            }
-            paths.add(p);
-        }
-        return paths.toArray(new Path[0]);
     }
 
     public void testTranslogReplay() throws IOException {
@@ -6677,7 +6678,7 @@ public class InternalEngineTests extends EngineTestCase {
                     .put(defaultSettings.getSettings())
                     .put(
                         IndexMetadata.SETTING_VERSION_CREATED,
-                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0)
+                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0)
                     )
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
             )
@@ -7440,7 +7441,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine = new InternalEngine(engine.config()) {
             @Override
             protected Map<String, String> getCommitExtraUserData() {
-                return Map.of("userkey", "userdata", ES_VERSION, IndexVersion.ZERO.toString());
+                return Map.of("userkey", "userdata", ES_VERSION, IndexVersions.ZERO.toString());
             }
         };
         engine.skipTranslogRecovery();
@@ -7502,14 +7503,14 @@ public class InternalEngineTests extends EngineTestCase {
                 .setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
             try (IndexWriter indexWriter = new IndexWriter(store.directory(), indexWriterConfig)) {
                 Map<String, String> commitUserDataWithOlderVersion = new HashMap<>(committedSegmentsInfo.userData);
-                commitUserDataWithOlderVersion.put(ES_VERSION, IndexVersion.V_7_0_0.toString());
+                commitUserDataWithOlderVersion.put(ES_VERSION, IndexVersions.V_7_0_0.toString());
                 indexWriter.setLiveCommitData(commitUserDataWithOlderVersion.entrySet());
                 indexWriter.commit();
             }
 
             Map<String, String> userDataBeforeTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
             assertThat(userDataBeforeTrimUnsafeCommits, hasKey(ES_VERSION));
-            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersion.V_7_0_0.toString())));
+            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersions.V_7_0_0.toString())));
 
             store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
 
@@ -7686,7 +7687,7 @@ public class InternalEngineTests extends EngineTestCase {
             InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
         ) {
             Engine.IndexResult result1 = engine.index(indexForDoc(createParsedDoc("a", null)));
-            PlainActionFuture<Long> future1 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future1 = new PlainActionFuture<>();
             engine.addFlushListener(result1.getTranslogLocation(), future1);
             assertFalse(future1.isDone());
             engine.flush();
@@ -7694,7 +7695,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             Engine.IndexResult result2 = engine.index(indexForDoc(createParsedDoc("a", null)));
             engine.flush();
-            PlainActionFuture<Long> future2 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future2 = new PlainActionFuture<>();
             engine.addFlushListener(result2.getTranslogLocation(), future2);
             assertTrue(future2.isDone());
             assertThat(future2.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));
@@ -7715,7 +7716,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {
         var releasable = commits.keySet().stream().filter(c -> c.getGeneration() == generation).findFirst();
-        assertThat(releasable.isPresent(), is(true));
+        assertThat(releasable, isPresent());
         Engine.IndexCommitRef indexCommitRef = commits.get(releasable.get());
         try {
             indexCommitRef.close();

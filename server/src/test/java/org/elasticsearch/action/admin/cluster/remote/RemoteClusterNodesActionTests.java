@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.remote;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -75,7 +76,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             }
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
+                    Build.current().version(),
                     TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),
@@ -114,6 +115,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                     Request request,
                     ActionListener<Response> listener
                 ) {
+                    assertThat(threadContext.isSystemContext(), is(true));
                     assertSame(TransportNodesInfoAction.TYPE, action);
                     assertThat(
                         asInstanceOf(NodesInfoRequest.class, request).requestedMetrics(),
@@ -121,14 +123,14 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                     );
                     listener.onResponse((Response) nodesInfoResponse);
                 }
-
-                @Override
-                public void close() {}
             }
         );
 
         final PlainActionFuture<RemoteClusterNodesAction.Response> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES, future);
+        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES, ActionListener.wrap(response -> {
+            assertThat(threadContext.isSystemContext(), is(false));
+            future.onResponse(response);
+        }, future::onFailure));
 
         final List<DiscoveryNode> actualNodes = future.actionGet().getNodes();
         assertThat(Set.copyOf(actualNodes), equalTo(expectedRemoteServerNodes));
@@ -152,7 +154,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             expectedRemoteNodes.add(node);
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
+                    Build.current().version(),
                     TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),
@@ -191,18 +193,19 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                     Request request,
                     ActionListener<Response> listener
                 ) {
+                    assertThat(threadContext.isSystemContext(), is(true));
                     assertSame(TransportNodesInfoAction.TYPE, action);
                     assertThat(asInstanceOf(NodesInfoRequest.class, request).requestedMetrics(), empty());
                     listener.onResponse((Response) nodesInfoResponse);
                 }
-
-                @Override
-                public void close() {}
             }
         );
 
         final PlainActionFuture<RemoteClusterNodesAction.Response> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.ALL_NODES, future);
+        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.ALL_NODES, ActionListener.wrap(response -> {
+            assertThat(threadContext.isSystemContext(), is(false));
+            future.onResponse(response);
+        }, future::onFailure));
 
         final List<DiscoveryNode> actualNodes = future.actionGet().getNodes();
         assertThat(Set.copyOf(actualNodes), equalTo(expectedRemoteNodes));

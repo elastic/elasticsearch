@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HEALTH_FAIL
  *
  * SLM must be running to fix warning reported by this indicator.
  */
-public class SlmHealthIndicatorService implements HealthIndicatorService {
+public final class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "slm";
 
@@ -83,7 +83,6 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     private final ClusterService clusterService;
     private volatile long failedSnapshotWarnThreshold;
 
-    @SuppressWarnings("this-escape")
     public SlmHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
         this.failedSnapshotWarnThreshold = clusterService.getClusterSettings().get(SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING);

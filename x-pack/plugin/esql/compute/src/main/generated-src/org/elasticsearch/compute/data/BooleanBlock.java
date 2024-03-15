@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -17,7 +19,7 @@ import java.io.IOException;
  * Block that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock {
+public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.
@@ -48,10 +50,20 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     }
 
     private static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return BooleanVector.readFrom(in.blockFactory(), in).asBlock();
-        }
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> BooleanBlock.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> BooleanVector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> BooleanArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> BooleanBigArrayBlock.readArrayBlock(in.blockFactory(), in);
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
+            }
+        };
+    }
+
+    private static BooleanBlock readValues(BlockStreamInput in) throws IOException {
         final int positions = in.readVInt();
         try (BooleanBlock.Builder builder = in.blockFactory().newBooleanBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -73,22 +85,34 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         BooleanVector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof BooleanArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof BooleanBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
+            b.writeArrayBlock(out);
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        out.writeBoolean(getBoolean(getFirstValueIndex(pos) + valueIndex));
-                    }
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            BooleanBlock.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues(BooleanBlock block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    out.writeBoolean(block.getBoolean(block.getFirstValueIndex(pos) + valueIndex));
                 }
             }
         }
@@ -165,31 +189,14 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         return result;
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newBooleanBlockBuilder(estimatedSize);
-    }
-
-    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    static BooleanBlock newConstantBlockWith(boolean value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    static BooleanBlock newConstantBlockWith(boolean value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantBooleanBlockWith(value, positions);
-    }
-
-    sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {
-
+    /**
+     * Builder for {@link BooleanBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.BooleanBuilder permits BooleanBlockBuilder {
         /**
          * Appends a boolean to the current entry.
          */
+        @Override
         Builder appendBoolean(boolean value);
 
         /**
@@ -213,12 +220,11 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

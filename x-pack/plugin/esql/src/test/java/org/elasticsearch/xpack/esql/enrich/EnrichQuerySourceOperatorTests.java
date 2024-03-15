@@ -19,7 +19,13 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
@@ -31,6 +37,8 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +50,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class EnrichQuerySourceOperatorTests extends ESTestCase {
+
+    private BlockFactory blockFactory;
+
+    @Before
+    public void setupBlockFactory() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        this.blockFactory = new BlockFactory(breaker, bigArrays);
+    }
+
+    @After
+    public void allBreakersEmpty() throws Exception {
+        MockBigArrays.ensureAllArraysAreReleased();
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
 
     public void testQueries() throws Exception {
         MockDirectoryWrapper dir = newMockDirectory();
@@ -66,18 +89,19 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         writer.close();
 
-        BytesRefBlock inputTerms = BytesRefBlock.newBlockBuilder(6)
-            .appendBytesRef(new BytesRef("b2"))
-            .beginPositionEntry()
-            .appendBytesRef(new BytesRef("c1"))
-            .appendBytesRef(new BytesRef("a2"))
-            .endPositionEntry()
-            .appendBytesRef(new BytesRef("z2"))
-            .appendNull()
-            .appendBytesRef(new BytesRef("a3"))
-            .appendNull()
-            .build();
-
+        final BytesRefBlock inputTerms;
+        try (BytesRefBlock.Builder termBuilder = blockFactory.newBytesRefBlockBuilder(6)) {
+            termBuilder.appendBytesRef(new BytesRef("b2"))
+                .beginPositionEntry()
+                .appendBytesRef(new BytesRef("c1"))
+                .appendBytesRef(new BytesRef("a2"))
+                .endPositionEntry()
+                .appendBytesRef(new BytesRef("z2"))
+                .appendNull()
+                .appendBytesRef(new BytesRef("a3"))
+                .appendNull();
+            inputTerms = termBuilder.build();
+        }
         MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
         QueryList queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
         assertThat(queryList.getPositionCount(), equalTo(6));
@@ -95,7 +119,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         // 3 -> [] -> []
         // 4 -> [a1] -> [3]
         // 5 -> [] -> []
-        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(queryList, reader);
+        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, queryList, reader);
         {
             Page p0 = queryOperator.getOutput();
             assertNotNull(p0);
@@ -106,6 +130,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             Block positions = p0.getBlock(1);
             assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(0));
             assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(0));
+            p0.releaseBlocks();
         }
         {
             Page p1 = queryOperator.getOutput();
@@ -119,6 +144,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(1));
             assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(1));
             assertThat(BlockUtils.toJavaObject(positions, 2), equalTo(1));
+            p1.releaseBlocks();
         }
         {
             Page p2 = queryOperator.getOutput();
@@ -136,6 +162,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             assertThat(docs.getInt(0), equalTo(3));
             Block positions = p4.getBlock(1);
             assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(4));
+            p4.releaseBlocks();
         }
         {
             Page p5 = queryOperator.getOutput();
@@ -147,7 +174,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             assertNull(p6);
         }
         assertTrue(queryOperator.isFinished());
-        IOUtils.close(reader, dir);
+        IOUtils.close(reader, dir, inputTerms);
     }
 
     public void testRandomMatchQueries() throws Exception {
@@ -171,25 +198,28 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
 
         Map<Integer, Set<Integer>> expectedPositions = new HashMap<>();
         int numPositions = randomIntBetween(1, 1000);
-        BytesRefBlock.Builder inputTerms = BytesRefBlock.newBlockBuilder(numPositions);
-        for (int i = 0; i < numPositions; i++) {
-            if (randomBoolean()) {
-                String term = randomFrom(terms.keySet());
-                inputTerms.appendBytesRef(new BytesRef(term));
-                Integer position = terms.get(term);
-                expectedPositions.put(i, Set.of(position));
-            } else {
+        final BytesRefBlock inputTerms;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(numPositions)) {
+            for (int i = 0; i < numPositions; i++) {
                 if (randomBoolean()) {
-                    inputTerms.appendNull();
+                    String term = randomFrom(terms.keySet());
+                    builder.appendBytesRef(new BytesRef(term));
+                    Integer position = terms.get(term);
+                    expectedPositions.put(i, Set.of(position));
                 } else {
-                    String term = "other-" + randomIntBetween(1, 100);
-                    inputTerms.appendBytesRef(new BytesRef(term));
+                    if (randomBoolean()) {
+                        builder.appendNull();
+                    } else {
+                        String term = "other-" + randomIntBetween(1, 100);
+                        builder.appendBytesRef(new BytesRef(term));
+                    }
                 }
             }
+            inputTerms = builder.build();
         }
         MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-        QueryList queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms.build());
-        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(queryList, reader);
+        var queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
+        EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, queryList, reader);
         Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
         while (queryOperator.isFinished() == false) {
             Page page = queryOperator.getOutput();
@@ -201,10 +231,11 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     int position = positions.getInt(i);
                     actualPositions.computeIfAbsent(position, k -> new HashSet<>()).add(doc);
                 }
+                page.releaseBlocks();
             }
         }
         assertThat(actualPositions, equalTo(expectedPositions));
-        IOUtils.close(reader, dir);
+        IOUtils.close(reader, dir, inputTerms);
     }
 
     private static IntVector getDocVector(Page page, int blockIndex) {

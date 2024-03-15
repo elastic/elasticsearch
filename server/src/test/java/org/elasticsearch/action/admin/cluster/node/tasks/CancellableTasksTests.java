@@ -14,7 +14,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -31,6 +30,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TestTransportChannels;
@@ -288,7 +288,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         request.setReason("Testing Cancellation");
         request.setTargetTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
         // And send the cancellation request to a random node
-        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+        ListTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
             request
         );
@@ -367,7 +367,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         request.setReason("Testing Cancellation");
         request.setTargetParentTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
         // And send the cancellation request to a random node
-        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+        ListTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(1, testNodes.length - 1)].transportCancelTasksAction,
             request
         );
@@ -486,7 +486,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 request.setReason("Testing Cancellation");
                 request.setTargetTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
                 // And send the cancellation request to a random node
-                CancelTasksResponse response = ActionTestUtils.executeBlocking(testNodes[0].transportCancelTasksAction, request);
+                ListTasksResponse response = ActionTestUtils.executeBlocking(testNodes[0].transportCancelTasksAction, request);
                 logger.info("--> Done simulating issuing cancel request on the node that is about to leave the cluster");
                 // This node still thinks that's part of the cluster, so cancelling should look successful
                 assertThat(response.getTasks().size(), lessThanOrEqualTo(1));
@@ -543,7 +543,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             randomSubsetOf(randomIntBetween(1, testNodes.length - 1), testNodes).stream().map(TestNode::getNodeId).toArray(String[]::new)
         );
         // And send the cancellation request to a random node
-        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+        ListTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(1, testNodes.length - 1)].transportCancelTasksAction,
             request
         );
@@ -647,6 +647,18 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         assertThat(expectThrows(TaskCancelledException.class, future::actionGet).getMessage(), equalTo("task cancelled [simulated]"));
         safeAwait(barrier);
         concurrentNotify.join();
+    }
+
+    public void testReleaseListenersOnCancellation() {
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final AtomicBoolean cancelNotified = new AtomicBoolean();
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+        task.addListener(reachabilityChecker.register(() -> assertTrue(cancelNotified.compareAndSet(false, true))));
+
+        reachabilityChecker.checkReachable();
+        TaskCancelHelper.cancel(task, "simulated");
+        reachabilityChecker.ensureUnreachable();
+        assertTrue(cancelNotified.get());
     }
 
 }

@@ -1,6 +1,0 @@
-pr: 100238
-summary: "ESQL: Remove aliasing inside Eval"
-area: ES|QL
-type: bug
-issues:
- - 100174

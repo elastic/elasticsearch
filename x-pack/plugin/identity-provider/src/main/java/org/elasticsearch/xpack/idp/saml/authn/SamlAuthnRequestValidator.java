@@ -60,7 +60,7 @@ public class SamlAuthnRequestValidator {
 
     private final SamlFactory samlFactory;
     private final SamlIdentityProvider idp;
-    private final Logger logger = LogManager.getLogger(SamlAuthnRequestValidator.class);
+    private static final Logger logger = LogManager.getLogger(SamlAuthnRequestValidator.class);
     private static final String[] XSD_FILES = new String[] {
         "/org/elasticsearch/xpack/idp/saml/support/saml-schema-protocol-2.0.xsd",
         "/org/elasticsearch/xpack/idp/saml/support/saml-schema-assertion-2.0.xsd",
@@ -101,16 +101,20 @@ public class SamlAuthnRequestValidator {
                 return;
             }
             final AuthnRequest authnRequest = SamlFactory.buildXmlObject(root, AuthnRequest.class);
-            getSpFromAuthnRequest(authnRequest.getIssuer(), authnRequest.getAssertionConsumerServiceURL(), ActionListener.wrap(sp -> {
-                try {
-                    validateAuthnRequest(authnRequest, sp, parsedQueryString, listener);
-                } catch (ElasticsearchSecurityException e) {
-                    logger.debug("Could not validate AuthnRequest", e);
-                    listener.onFailure(e);
-                } catch (Exception e) {
-                    logAndRespond("Could not validate AuthnRequest", e, listener);
-                }
-            }, listener::onFailure));
+            getSpFromAuthnRequest(
+                authnRequest.getIssuer(),
+                authnRequest.getAssertionConsumerServiceURL(),
+                listener.delegateFailureAndWrap((l, sp) -> {
+                    try {
+                        validateAuthnRequest(authnRequest, sp, parsedQueryString, l);
+                    } catch (ElasticsearchSecurityException e) {
+                        logger.debug("Could not validate AuthnRequest", e);
+                        l.onFailure(e);
+                    } catch (Exception e) {
+                        logAndRespond("Could not validate AuthnRequest", e, l);
+                    }
+                })
+            );
         } catch (ElasticsearchSecurityException e) {
             logger.debug("Could not process AuthnRequest", e);
             listener.onFailure(e);
@@ -277,7 +281,7 @@ public class SamlAuthnRequestValidator {
             throw new ElasticsearchSecurityException("SAML authentication request has no issuer", RestStatus.BAD_REQUEST);
         }
         final String issuerString = issuer.getValue();
-        idp.resolveServiceProvider(issuerString, acs, false, ActionListener.wrap(serviceProvider -> {
+        idp.resolveServiceProvider(issuerString, acs, false, listener.delegateFailureAndWrap((delegate, serviceProvider) -> {
             if (null == serviceProvider) {
                 throw new ElasticsearchSecurityException(
                     "Service Provider with Entity ID [{}] and ACS [{}] is not known to this Identity Provider",
@@ -286,8 +290,8 @@ public class SamlAuthnRequestValidator {
                     acs
                 );
             }
-            listener.onResponse(serviceProvider);
-        }, listener::onFailure));
+            delegate.onResponse(serviceProvider);
+        }));
     }
 
     private void checkDestination(AuthnRequest request) {

@@ -1,5 +1,5 @@
 [[esql-string-functions]]
-=== {esql} string functions
+==== {esql} string functions
 
 ++++
 <titleabbrev>String functions</titleabbrev>
@@ -7,7 +7,7 @@
 
 {esql} supports these string functions:
 
-// tag::list[]
+// tag::string_list[]
 * <<esql-concat>>
 * <<esql-left>>
 * <<esql-length>>
@@ -17,8 +17,10 @@
 * <<esql-rtrim>>
 * <<esql-split>>
 * <<esql-substring>>
+* <<esql-to_lower>>
+* <<esql-to_upper>>
 * <<esql-trim>>
-// end::list[]
+// end::string_list[]
 
 include::concat.asciidoc[]
 include::left.asciidoc[]
@@ -29,4 +31,6 @@ include::right.asciidoc[]
 include::rtrim.asciidoc[]
 include::split.asciidoc[]
 include::substring.asciidoc[]
+include::to_lower.asciidoc[]
+include::to_upper.asciidoc[]
 include::trim.asciidoc[]

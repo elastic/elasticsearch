@@ -11,22 +11,24 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
-import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -45,11 +47,6 @@ import static org.mockito.Mockito.when;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class BlockHashRandomizedTests extends ESTestCase {
-
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
-
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
@@ -101,19 +98,33 @@ public class BlockHashRandomizedTests extends ESTestCase {
         this.allowedTypes = allowedTypes;
     }
 
-    @After
-    public void checkBreaker() {
-        assertThat(breaker.getUsed(), is(0L));
+    public void test() {
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+        test(new MockBlockFactory(breaker, bigArrays));
     }
 
-    public void test() {
+    public void testWithCranky() {
+        CircuitBreakerService service = new CrankyCircuitBreakerService();
+        CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, service);
+        try {
+            test(new MockBlockFactory(breaker, bigArrays));
+            logger.info("cranky let us finish!");
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void test(MockBlockFactory blockFactory) {
         List<ElementType> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
         BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.size()];
         Block[] blocks = new Block[types.size()];
         int pageCount = between(1, 10);
         int positionCount = 100;
         int emitBatchSize = 100;
-        try (BlockHash blockHash = newBlockHash(emitBatchSize, types)) {
+        try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, types)) {
             /*
              * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
              */
@@ -129,7 +140,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                     randomBlocks[g] = BasicBlockTests.randomBlock(
                         types.get(g),
                         positionCount,
-                        randomBoolean(),
+                        types.get(g) == ElementType.NULL ? true : randomBoolean(),
                         1,
                         maxValuesPerPosition,
                         0,
@@ -146,7 +157,6 @@ public class BlockHashRandomizedTests extends ESTestCase {
                         assertThat(ordsAndKeys.ords().getTotalValueCount(), lessThanOrEqualTo(emitBatchSize));
                     }
                     batchCount[0]++;
-                    Releasables.closeExpectNoException(ordsAndKeys.nonEmpty().asBlock());
                 }, blocks);
                 if (usingSingle) {
                     assertThat(batchCount[0], equalTo(1));
@@ -184,14 +194,15 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 blockFactory.ensureAllBlocksAreReleased();
             }
         }
+        assertThat(blockFactory.breaker().getUsed(), is(0L));
     }
 
-    private BlockHash newBlockHash(int emitBatchSize, List<ElementType> types) {
+    private BlockHash newBlockHash(BlockFactory blockFactory, int emitBatchSize, List<ElementType> types) {
         List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(types.size());
         for (int c = 0; c < types.size(); c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
         }
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
         return forcePackedHash
             ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
             : BlockHash.build(specs, driverContext, emitBatchSize, true);

@@ -74,7 +74,7 @@ public abstract class TransportHealthNodeAction<Request extends HealthNodeReques
         Writeable.Reader<Response> response,
         Executor executor
     ) {
-        super(actionName, true, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, false, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

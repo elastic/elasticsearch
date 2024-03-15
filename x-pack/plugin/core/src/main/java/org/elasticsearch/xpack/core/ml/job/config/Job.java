@@ -291,7 +291,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
         modelSnapshotRetentionDays = in.readOptionalLong();
         dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
-        Map<String, Object> readCustomSettings = in.readMap();
+        Map<String, Object> readCustomSettings = in.readGenericMap();
         customSettings = readCustomSettings == null ? null : Collections.unmodifiableMap(readCustomSettings);
         modelSnapshotId = in.readOptionalString();
         if (in.readBoolean()) {
@@ -483,6 +483,10 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
 
     public boolean isDeleting() {
         return deleting;
+    }
+
+    public boolean isResetting() {
+        return blocked != null && Blocked.Reason.RESET.equals(blocked.getReason());
     }
 
     public boolean allowLazyOpen() {
@@ -843,7 +847,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             modelSnapshotRetentionDays = in.readOptionalLong();
             dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
             resultsRetentionDays = in.readOptionalLong();
-            customSettings = in.readMap();
+            customSettings = in.readGenericMap();
             modelSnapshotId = in.readOptionalString();
             if (in.readBoolean()) {
                 modelSnapshotMinVersion = MlConfigVersion.readVersion(in);

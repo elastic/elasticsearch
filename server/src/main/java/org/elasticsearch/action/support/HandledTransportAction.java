@@ -31,6 +31,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
         this(actionName, true, transportService, actionFilters, requestReader, executor);
     }
 
+    @SuppressWarnings("this-escape")
     protected HandledTransportAction(
         String actionName,
         boolean canTripCircuitBreaker,

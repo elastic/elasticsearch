@@ -13,9 +13,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -116,7 +116,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             .query(query);
         SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).source(source);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, forecastStatsHandler);
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, forecastStatsHandler);
     }
 
     static List<String> extractForecastIds(SearchHit[] forecastsToDelete, JobState jobState, String jobId) {
@@ -249,7 +249,17 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                 );
             }
         } else {
-            listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e));
+            if (e instanceof ElasticsearchException elasticsearchException) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "An error occurred while searching forecasts to delete",
+                        elasticsearchException.status(),
+                        elasticsearchException
+                    )
+                );
+            } else {
+                listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e));
+            }
         }
     }
 }

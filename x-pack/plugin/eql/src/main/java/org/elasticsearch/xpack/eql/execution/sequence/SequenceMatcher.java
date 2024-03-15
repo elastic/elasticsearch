@@ -32,7 +32,7 @@ public class SequenceMatcher {
     private static final String CB_INFLIGHT_LABEL = "sequence_inflight";
     private static final String CB_COMPLETED_LABEL = "sequence_completed";
 
-    private final Logger log = LogManager.getLogger(SequenceMatcher.class);
+    private static final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
     static class Stats {
 
@@ -168,7 +168,7 @@ public class SequenceMatcher {
 
             if (isFirstPositiveStage(stage)) {
                 log.trace("Matching hit {}  - track sequence", ko.ordinal);
-                Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
+                Sequence seq = new Sequence(ko.key, numberOfStages, stage, ko.ordinal, hit);
                 if (lastPositiveStage == stage) {
                     tryComplete(seq);
                 } else {

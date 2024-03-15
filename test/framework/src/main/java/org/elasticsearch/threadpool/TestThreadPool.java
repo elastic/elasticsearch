@@ -10,14 +10,17 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
-public class TestThreadPool extends ThreadPool {
+public class TestThreadPool extends ThreadPool implements Releasable {
 
     private final CountDownLatch blockingLatch = new CountDownLatch(1);
     private volatile boolean returnRejectingExecutor = false;
@@ -28,7 +31,7 @@ public class TestThreadPool extends ThreadPool {
     }
 
     public TestThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
-        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), customBuilders);
+        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(), MeterRegistry.NOOP, customBuilders);
     }
 
     @Override
@@ -97,5 +100,10 @@ public class TestThreadPool extends ThreadPool {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void close() {
+        ThreadPool.terminate(this, 10, TimeUnit.SECONDS);
     }
 }

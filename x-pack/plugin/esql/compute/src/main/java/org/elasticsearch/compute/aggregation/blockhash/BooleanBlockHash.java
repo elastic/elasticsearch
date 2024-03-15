@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -52,8 +51,8 @@ final class BooleanBlockHash extends BlockHash {
                     addInput.add(0, groupIds);
                 }
             } else {
-                try (IntBlock groupIds = add(booleanVector).asBlock()) {
-                    addInput.add(0, groupIds.asVector());
+                try (IntVector groupIds = add(booleanVector)) {
+                    addInput.add(0, groupIds);
                 }
             }
         }
@@ -61,7 +60,7 @@ final class BooleanBlockHash extends BlockHash {
 
     private IntVector add(BooleanVector vector) {
         int positions = vector.getPositionCount();
-        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(MultivalueDedupeBoolean.hashOrd(everSeen, vector.getBoolean(i)));
             }
@@ -70,35 +69,38 @@ final class BooleanBlockHash extends BlockHash {
     }
 
     private IntBlock add(BooleanBlock block) {
-        return new MultivalueDedupeBoolean(Block.Ref.floating(block)).hash(everSeen);
+        return new MultivalueDedupeBoolean(block).hash(blockFactory, everSeen);
     }
 
     @Override
     public BooleanBlock[] getKeys() {
-        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(everSeen.length);
-        if (everSeen[NULL_ORD]) {
-            builder.appendNull();
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(everSeen.length)) {
+            if (everSeen[NULL_ORD]) {
+                builder.appendNull();
+            }
+            if (everSeen[FALSE_ORD]) {
+                builder.appendBoolean(false);
+            }
+            if (everSeen[TRUE_ORD]) {
+                builder.appendBoolean(true);
+            }
+            return new BooleanBlock[] { builder.build() };
         }
-        if (everSeen[FALSE_ORD]) {
-            builder.appendBoolean(false);
-        }
-        if (everSeen[TRUE_ORD]) {
-            builder.appendBoolean(true);
-        }
-        return new BooleanBlock[] { builder.build() };
     }
 
     @Override
     public IntVector nonEmpty() {
-        IntVector.Builder builder = IntVector.newVectorBuilder(everSeen.length);
-        for (int i = 0; i < everSeen.length; i++) {
-            if (everSeen[i]) {
-                builder.appendInt(i);
+        try (IntVector.Builder builder = blockFactory.newIntVectorBuilder(everSeen.length)) {
+            for (int i = 0; i < everSeen.length; i++) {
+                if (everSeen[i]) {
+                    builder.appendInt(i);
+                }
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         BitArray seen = new BitArray(everSeen.length, bigArrays);
         for (int i = 0; i < everSeen.length; i++) {

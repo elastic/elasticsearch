@@ -8,7 +8,10 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.Meter;
+
+import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,18 +19,12 @@ import java.util.Objects;
 /**
  * DoubleHistogramAdapter wraps an otel DoubleHistogram
  */
-public class DoubleHistogramAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.DoubleHistogram>
+public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
     implements
         org.elasticsearch.telemetry.metric.DoubleHistogram {
 
     public DoubleHistogramAdapter(Meter meter, String name, String description, String unit) {
-        super(meter, name, description, unit);
-    }
-
-    @Override
-    io.opentelemetry.api.metrics.DoubleHistogram buildInstrument(Meter meter) {
-        var builder = Objects.requireNonNull(meter).histogramBuilder(getName());
-        return builder.setDescription(getDescription()).setUnit(getUnit()).build();
+        super(meter, new Builder(name, description, unit));
     }
 
     @Override
@@ -38,5 +35,16 @@ public class DoubleHistogramAdapter extends AbstractInstrument<io.opentelemetry.
     @Override
     public void record(double value, Map<String, Object> attributes) {
         getInstrument().record(value, OtelHelper.fromMap(attributes));
+    }
+
+    private static class Builder extends AbstractInstrument.Builder<DoubleHistogram> {
+        private Builder(String name, String description, String unit) {
+            super(name, description, unit);
+        }
+
+        @Override
+        public DoubleHistogram build(Meter meter) {
+            return Objects.requireNonNull(meter).histogramBuilder(name).setDescription(description).setUnit(unit).build();
+        }
     }
 }

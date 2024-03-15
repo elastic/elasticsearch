@@ -113,10 +113,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public static final int DEPTH_LIMIT = 20;
     }
 
-    private static FlattenedFieldMapper toType(FieldMapper in) {
-        return (FlattenedFieldMapper) in;
-    }
-
     private static Builder builder(Mapper in) {
         return ((FlattenedFieldMapper) in).builder;
     }
@@ -206,13 +202,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public FlattenedFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [fields]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [fields]");
             }
             if (copyTo.copyToFields().isEmpty() == false) {
-                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name + "] does not support [copy_to]");
+                throw new IllegalArgumentException(CONTENT_TYPE + " field [" + name() + "] does not support [copy_to]");
             }
             MappedFieldType ft = new RootFlattenedFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.get(),
                 hasDocValues.get(),
                 meta.get(),
@@ -220,7 +216,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 eagerGlobalOrdinals.get(),
                 dimensions.get()
             );
-            return new FlattenedFieldMapper(name, ft, this);
+            return new FlattenedFieldMapper(name(), ft, this);
         }
     }
 

@@ -40,12 +40,12 @@ import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
@@ -58,18 +58,16 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
@@ -80,22 +78,17 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -279,7 +272,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
         doTestContextIndexSearcher(true, true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94615")
     public void testContextIndexSearcherDenseWithDeletions() throws IOException {
         doTestContextIndexSearcher(false, true);
     }
@@ -332,7 +324,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         if (sparse) {
             assertThat(bitSet, instanceOf(SparseFixedBitSet.class));
         } else {
-            assertThat(bitSet, instanceOf(FixedBitSet.class));
+            assertThat(bitSet, anyOf(instanceOf(FixedBitSet.class), instanceOf(MatchAllBitSet.class)));
         }
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
@@ -524,327 +516,78 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
     }
 
-    /**
-     * Simulate one or more exceptions being thrown while collecting, through a custom query that throws IOException in its Weight#scorer.
-     * Verify that the slices that had to wait because there were no available threads in the pool are not started following the exception,
-     * which triggers a cancellation of all the tasks that are part of the running search.
-     * Simulate having N threads busy doing other work (e.g. other searches) otherwise all slices can be executed directly, given that
-     * the number of slices is dependent on the max pool size.
-     */
-    public void testCancelSliceTasksOnException() throws Exception {
+    public void testTimeoutOnRewriteStandalone() throws IOException {
         try (Directory dir = newDirectory()) {
             indexDocs(dir);
-            int numThreads = randomIntBetween(4, 6);
-            int numBusyThreads = randomIntBetween(0, 3);
-            int numAvailableThreads = numThreads - numBusyThreads;
-            ThreadPoolExecutor executor = EsExecutors.newFixed(
-                ContextIndexSearcherTests.class.getName(),
-                numThreads,
-                -1,
-                EsExecutors.daemonThreadFactory(""),
-                new ThreadContext(Settings.EMPTY),
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
-            );
-            ExecutorTestWrapper executorTestWrapper = new ExecutorTestWrapper(executor, numBusyThreads);
+            ThreadPoolExecutor executor = null;
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
-                Set<LeafReaderContext> throwingLeaves = new HashSet<>();
-                Set<LeafReaderContext> scoredLeaves = new CopyOnWriteArraySet<>();
-                final int[] newCollectorsCalls;
-                final boolean[] reduceCalled;
-                LeafSlice[] leafSlices;
-                try (
-                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
-                        directoryReader,
-                        IndexSearcher.getDefaultSimilarity(),
-                        IndexSearcher.getDefaultQueryCache(),
-                        IndexSearcher.getDefaultQueryCachingPolicy(),
-                        true,
-                        executorTestWrapper,
-                        executor.getMaximumPoolSize(),
-                        1
-                    )
-                ) {
-                    leafSlices = contextIndexSearcher.getSlicesForCollection();
-                    int numThrowingLeafSlices = randomIntBetween(1, 3);
-                    for (int i = 0; i < numThrowingLeafSlices; i++) {
-                        LeafSlice throwingLeafSlice = leafSlices[randomIntBetween(0, Math.min(leafSlices.length, numAvailableThreads) - 1)];
-                        throwingLeaves.add(randomFrom(throwingLeafSlice.leaves));
-                    }
-                    Query query = new TestQuery() {
-                        @Override
-                        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
-                            return new ConstantScoreWeight(this, boost) {
-                                @Override
-                                public Scorer scorer(LeafReaderContext context) throws IOException {
-                                    if (throwingLeaves.contains(context)) {
-                                        // a random segment of some random slices throws exception. Other slices may or may not have started
-                                        throw new IOException();
-                                    }
-                                    scoredLeaves.add(context);
-                                    return new ConstantScoreScorer(
-                                        this,
-                                        boost,
-                                        ScoreMode.COMPLETE,
-                                        DocIdSetIterator.all(context.reader().maxDoc())
-                                    );
-                                }
-
-                                @Override
-                                public boolean isCacheable(LeafReaderContext ctx) {
-                                    return false;
-                                }
-                            };
-                        }
-                    };
-                    newCollectorsCalls = new int[] { 0 };
-                    reduceCalled = new boolean[] { false };
-                    CollectorManager<Collector, Integer> collectorManager = new CollectorManager<>() {
-                        @Override
-                        public Collector newCollector() {
-                            newCollectorsCalls[0]++;
-                            return new SimpleCollector() {
-                                @Override
-                                public void collect(int doc) {
-
-                                }
-
-                                @Override
-                                public ScoreMode scoreMode() {
-                                    return ScoreMode.COMPLETE;
-                                }
-                            };
-                        }
-
-                        @Override
-                        public Integer reduce(Collection<Collector> collectors) {
-                            reduceCalled[0] = true;
-                            return null;
-                        }
-                    };
-                    expectThrows(IOException.class, () -> contextIndexSearcher.search(query, collectorManager));
-                    assertBusy(() -> {
-                        // active count is approximate, wait until it converges to the expected number
-                        if (executor.getActiveCount() > numBusyThreads) {
-                            throw new AssertionError("no search tasks should be left running");
-                        }
-                    });
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
                 }
-                // as many tasks as slices have been created
-                assertEquals(leafSlices.length, newCollectorsCalls[0]);
-                // unexpected exception thrown, reduce is not called, there are no results to return
-                assertFalse(reduceCalled[0]);
-                Set<LeafReaderContext> expectedScoredLeaves = new HashSet<>();
-                // the first N slices, where N is the number of available permits, will run straight-away, the others will be cancelled
-                for (int i = 0; i < leafSlices.length; i++) {
-                    if (i == numAvailableThreads) {
-                        break;
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                TestQuery testQuery = new TestQuery() {
+                    @Override
+                    public Query rewrite(IndexSearcher indexSearcher) {
+                        contextIndexSearcher.throwTimeExceededException();
+                        assert false;
+                        return null;
                     }
-                    LeafSlice leafSlice = leafSlices[i];
-                    for (LeafReaderContext context : leafSlice.leaves) {
-                        // collect the segments that we expect to score in each slice, and stop at those that throw
-                        if (throwingLeaves.contains(context)) {
-                            break;
-                        }
-                        expectedScoredLeaves.add(context);
-                    }
-                }
-                // The slice that threw exception is not counted. The others that could be executed directly are, but they may have been
-                // cancelled before they could even start, hence we are going to score at most the segments that the slices that can be
-                // executed straight-away (before reaching the max pool size) are made of. We can't guarantee that we score all of them.
-                // We do want to guarantee that the remaining slices won't even start and none of their leaves are scored.
-                assertTrue(expectedScoredLeaves.containsAll(scoredLeaves));
+                };
+                Query rewrite = contextIndexSearcher.rewrite(testQuery);
+                assertThat(rewrite, instanceOf(MatchNoDocsQuery.class));
+                assertEquals("MatchNoDocsQuery(\"rewrite timed out\")", rewrite.toString());
+                assertTrue(contextIndexSearcher.timeExceeded());
             } finally {
-                executorTestWrapper.stopBusyThreads();
-                terminate(executor);
+                if (executor != null) {
+                    terminate(executor);
+                }
             }
         }
     }
 
-    /**
-     * Simulate one or more timeout being thrown while collecting, through a custom query that times out in its Weight#scorer.
-     * Verify that the slices that had to wait because there were no available threads in the pool are not started following the timeout,
-     * which triggers a cancellation of all the tasks that are part of the running search.
-     * Simulate having N threads busy doing other work (e.g. other searches) otherwise all slices can be executed directly, given that
-     * the number of slices is dependent on the max pool size.
-     */
-    public void testCancelSliceTasksOnTimeout() throws Exception {
+    public void testTimeoutOnRewriteDuringSearch() throws IOException {
         try (Directory dir = newDirectory()) {
             indexDocs(dir);
-            int numThreads = randomIntBetween(4, 6);
-            int numBusyThreads = randomIntBetween(0, 3);
-            int numAvailableThreads = numThreads - numBusyThreads;
-            ThreadPoolExecutor executor = EsExecutors.newFixed(
-                ContextIndexSearcherTests.class.getName(),
-                numThreads,
-                -1,
-                EsExecutors.daemonThreadFactory(""),
-                new ThreadContext(Settings.EMPTY),
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
-            );
-            ExecutorTestWrapper executorTestWrapper = new ExecutorTestWrapper(executor, numBusyThreads);
+            ThreadPoolExecutor executor = null;
             try (DirectoryReader directoryReader = DirectoryReader.open(dir)) {
-                Set<LeafReaderContext> throwingLeaves = new HashSet<>();
-                Set<LeafReaderContext> scoredLeaves = new CopyOnWriteArraySet<>();
-                final int[] newCollectorsCalls;
-                final boolean[] reduceCalled;
-                LeafSlice[] leafSlices;
-                try (
-                    ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
-                        directoryReader,
-                        IndexSearcher.getDefaultSimilarity(),
-                        IndexSearcher.getDefaultQueryCache(),
-                        IndexSearcher.getDefaultQueryCachingPolicy(),
-                        true,
-                        executorTestWrapper,
-                        executor.getMaximumPoolSize(),
-                        1
-                    )
-                ) {
-                    leafSlices = contextIndexSearcher.getSlicesForCollection();
-                    int numThrowingLeafSlices = randomIntBetween(1, 3);
-                    for (int i = 0; i < numThrowingLeafSlices; i++) {
-                        LeafSlice throwingLeafSlice = leafSlices[randomIntBetween(0, Math.min(leafSlices.length, numAvailableThreads) - 1)];
-                        throwingLeaves.add(randomFrom(throwingLeafSlice.leaves));
-                    }
-                    Query query = new TestQuery() {
-                        @Override
-                        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
-                            return new ConstantScoreWeight(this, boost) {
-                                @Override
-                                public Scorer scorer(LeafReaderContext context) {
-                                    if (throwingLeaves.contains(context)) {
-                                        // a random segment of some random slices throws exception. Other slices may or may not have
-                                        // started.
-                                        contextIndexSearcher.throwTimeExceededException();
-                                    }
-                                    scoredLeaves.add(context);
-                                    return new ConstantScoreScorer(
-                                        this,
-                                        boost,
-                                        ScoreMode.COMPLETE,
-                                        DocIdSetIterator.all(context.reader().maxDoc())
-                                    );
-                                }
-
-                                @Override
-                                public boolean isCacheable(LeafReaderContext ctx) {
-                                    return false;
-                                }
-                            };
-                        }
-                    };
-                    newCollectorsCalls = new int[] { 0 };
-                    reduceCalled = new boolean[] { false };
-                    CollectorManager<Collector, Integer> collectorManager = new CollectorManager<>() {
-                        @Override
-                        public Collector newCollector() {
-                            newCollectorsCalls[0]++;
-                            return new SimpleCollector() {
-                                @Override
-                                public void collect(int doc) {
-
-                                }
-
-                                @Override
-                                public ScoreMode scoreMode() {
-                                    return ScoreMode.COMPLETE;
-                                }
-                            };
-                        }
-
-                        @Override
-                        public Integer reduce(Collection<Collector> collectors) {
-                            reduceCalled[0] = true;
-                            return null;
-                        }
-                    };
-                    contextIndexSearcher.search(query, collectorManager);
-                    assertBusy(() -> {
-                        // active count is approximate, wait until it converges to the expected number
-                        if (executor.getActiveCount() > numBusyThreads) {
-                            throw new AssertionError("no search tasks should be left running");
-                        }
-                    });
-                    assertTrue(contextIndexSearcher.timeExceeded());
+                if (randomBoolean()) {
+                    executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
                 }
-                // as many tasks as slices have been created
-                assertEquals(leafSlices.length, newCollectorsCalls[0]);
-                assertTrue(reduceCalled[0]);
-                Set<LeafReaderContext> expectedScoredLeaves = new HashSet<>();
-                // the first N slices, where N is the number of available permits, will run straight-away, the others will be cancelled
-                for (int i = 0; i < leafSlices.length; i++) {
-                    if (i == numAvailableThreads) {
-                        break;
+                ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    executor,
+                    executor == null ? -1 : executor.getMaximumPoolSize(),
+                    1
+                );
+                TestQuery testQuery = new TestQuery() {
+                    @Override
+                    public Query rewrite(IndexSearcher indexSearcher) {
+                        contextIndexSearcher.throwTimeExceededException();
+                        assert false;
+                        return null;
                     }
-                    LeafSlice leafSlice = leafSlices[i];
-                    for (LeafReaderContext context : leafSlice.leaves) {
-                        // collect the segments that we expect to score in each slice, and stop at those that throw
-                        if (throwingLeaves.contains(context)) {
-                            break;
-                        }
-                        expectedScoredLeaves.add(context);
-                    }
-                }
-                // The slice that timed out is not counted. The others that could be executed directly are, but they may have been
-                // cancelled before they could even start, hence we are going to score at most the segments that the slices that can be
-                // executed straight-away (before reaching the max pool size) are made of. We can't guarantee that we score all of them.
-                // We do want to guarantee that the remaining slices won't even start and none of their leaves are scored.
-                assertTrue(expectedScoredLeaves.containsAll(scoredLeaves));
+                };
+                Integer hitCount = contextIndexSearcher.search(testQuery, new TotalHitCountCollectorManager());
+                assertEquals(0, hitCount.intValue());
+                assertTrue(contextIndexSearcher.timeExceeded());
             } finally {
-                executorTestWrapper.stopBusyThreads();
-                terminate(executor);
-            }
-        }
-    }
-
-    private static class ExecutorTestWrapper implements Executor {
-        private final ThreadPoolExecutor executor;
-        private final AtomicInteger startedTasks = new AtomicInteger(0);
-        private final CountDownLatch busyThreadsLatch = new CountDownLatch(1);
-
-        ExecutorTestWrapper(ThreadPoolExecutor executor, int numBusyThreads) {
-            this.executor = executor;
-            // keep some of the threads occupied to simulate the situation where the slices tasks get queued up.
-            // This is a realistic scenario that does not get tested otherwise by executing a single concurrent search, given that the
-            // number of slices is capped by max pool size.
-            for (int i = 0; i < numBusyThreads; i++) {
-                execute(() -> {
-                    try {
-                        busyThreadsLatch.await();
-                    } catch (InterruptedException e) {
-                        throw new ThreadInterruptedException(e);
-                    }
-                });
-            }
-        }
-
-        void stopBusyThreads() {
-            busyThreadsLatch.countDown();
-        }
-
-        @Override
-        public void execute(Runnable command) {
-            int started = startedTasks.incrementAndGet();
-            if (started > executor.getMaximumPoolSize()) {
-                try {
-                    /*
-                    There could be tasks that complete quickly before the exception is handled, which leaves room for new tasks that are
-                    about to get cancelled to start before their cancellation becomes effective. We can accept that cancellation may or may
-                    not be effective for the slices that belong to the first batch of tasks until all threads are busy and adjust the
-                    test expectations accordingly, but for the subsequent slices, we want to assert that they are cancelled and never
-                    executed. The only way to guarantee that is waiting for cancellation to kick in.
-                    */
-                    assertBusy(() -> {
-                        Future<?> future = (Future<?>) command;
-                        if (future.isCancelled() == false) {
-                            throw new AssertionError("task should be cancelled");
-                        }
-                    });
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+                if (executor != null) {
+                    terminate(executor);
                 }
             }
-            executor.execute(command);
         }
     }
 

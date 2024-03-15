@@ -68,8 +68,8 @@ final class BytesRefBlockHash extends BlockHash {
                     addInput.add(0, groupIds);
                 }
             } else {
-                try (IntBlock groupIds = add(bytesVector).asBlock()) {
-                    addInput.add(0, groupIds.asVector());
+                try (IntVector groupIds = add(bytesVector)) {
+                    addInput.add(0, groupIds);
                 }
             }
         }
@@ -77,7 +77,7 @@ final class BytesRefBlockHash extends BlockHash {
 
     private IntVector add(BytesRefVector vector) {
         int positions = vector.getPositionCount();
-        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(bytesRefHash.add(vector.getBytesRef(i, bytes)))));
             }
@@ -87,7 +87,7 @@ final class BytesRefBlockHash extends BlockHash {
 
     private IntBlock add(BytesRefBlock block) {
         // TODO: use block factory
-        MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(Block.Ref.floating(block)).hash(bytesRefHash);
+        MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hash(blockFactory, bytesRefHash);
         seenNull |= result.sawNull();
         return result.ords();
     }

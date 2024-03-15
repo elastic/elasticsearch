@@ -25,7 +25,7 @@ import java.util.Objects;
  * the engine).
  * As such the field is marked as unresolved (so the verifier can pick up its usage outside project).
  */
-public class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
+public final class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
 
     private final String message;
     private final boolean hasCustomMessage;
@@ -42,7 +42,6 @@ public class UnsupportedAttribute extends FieldAttribute implements Unresolvable
         this(source, name, field, customMessage, null);
     }
 
-    @SuppressWarnings("this-escape")
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage, NameId id) {
         super(source, null, name, field, null, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;

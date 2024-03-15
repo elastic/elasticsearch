@@ -19,6 +19,6 @@ public class CreateSnapshotAction extends ActionType<CreateSnapshotResponse> {
     public static final String NAME = "cluster:admin/snapshot/create";
 
     private CreateSnapshotAction() {
-        super(NAME, CreateSnapshotResponse::new);
+        super(NAME);
     }
 }

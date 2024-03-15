@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.template.post.SimulateTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -41,10 +41,12 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
         simulateRequest.templateName(request.param("name"));
         simulateRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         if (request.hasContent()) {
-            PutComposableIndexTemplateAction.Request indexTemplateRequest = new PutComposableIndexTemplateAction.Request(
+            TransportPutComposableIndexTemplateAction.Request indexTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(
                 "simulating_template"
             );
-            indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(request.contentParser()));
+            try (var parser = request.contentParser()) {
+                indexTemplateRequest.indexTemplate(ComposableIndexTemplate.parse(parser));
+            }
             indexTemplateRequest.create(request.paramAsBoolean("create", false));
             indexTemplateRequest.cause(request.param("cause", "api"));
 

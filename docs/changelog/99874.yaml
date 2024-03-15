@@ -1,6 +1,0 @@
-pr: 99874
-summary: "ESQL: Use exact attributes for data source extraction"
-area: ES|QL
-type: bug
-issues:
- - 99183

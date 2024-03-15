@@ -1,5 +1,0 @@
-pr: 98590
-summary: "ESQL: LTRIM, RTRIM and fix unicode whitespace"
-area: ES|QL
-type: feature
-issues: []

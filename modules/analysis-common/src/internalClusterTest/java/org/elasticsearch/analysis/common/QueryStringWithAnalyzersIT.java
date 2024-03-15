@@ -49,12 +49,11 @@ public class QueryStringWithAnalyzersIT extends ESIntegTestCase {
                 .setMapping("field1", "type=text,analyzer=my_analyzer", "field2", "type=text,analyzer=my_analyzer")
         );
 
-        client().prepareIndex("test").setId("1").setSource("field1", "foo bar baz", "field2", "not needed").get();
+        prepareIndex("test").setId("1").setSource("field1", "foo bar baz", "field2", "not needed").get();
         refresh();
 
         assertHitCount(
-            client().prepareSearch("test")
-                .setQuery(queryStringQuery("foo.baz").defaultOperator(Operator.AND).field("field1").field("field2")),
+            prepareSearch("test").setQuery(queryStringQuery("foo.baz").defaultOperator(Operator.AND).field("field1").field("field2")),
             1L
         );
     }

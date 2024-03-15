@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -46,6 +47,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
     private static final Logger logger = LogManager.getLogger(TransportMigrateToDataTiersAction.class);
 
+    private final RerouteService rerouteService;
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
@@ -54,6 +56,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
     public TransportMigrateToDataTiersAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -72,6 +75,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             MigrateToDataTiersResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;
@@ -141,20 +145,19 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                clusterService.getRerouteService()
-                    .reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<Void>() {
-                        @Override
-                        public void onResponse(Void ignored) {}
+                rerouteService.reroute("cluster migrated to data tiers routing", Priority.NORMAL, new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void ignored) {}
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.log(
-                                MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
-                                "unsuccessful reroute after migration to data tiers routing",
-                                e
-                            );
-                        }
-                    });
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.log(
+                            MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                            "unsuccessful reroute after migration to data tiers routing",
+                            e
+                        );
+                    }
+                });
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(

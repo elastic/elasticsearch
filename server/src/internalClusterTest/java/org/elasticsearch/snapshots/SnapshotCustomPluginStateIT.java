@@ -157,8 +157,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state")
             .setWaitForCompletion(true)
             .setRestoreGlobalState(false)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         logger.info("--> check that template wasn't restored");
@@ -169,8 +168,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-with-global-state")
             .setWaitForCompletion(true)
             .setRestoreGlobalState(true)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(0));
 
         if (testTemplate) {
@@ -226,8 +224,7 @@ public class SnapshotCustomPluginStateIT extends AbstractSnapshotIntegTestCase {
         restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "test-snap-no-global-state-with-index")
             .setWaitForCompletion(true)
             .setRestoreGlobalState(false)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 

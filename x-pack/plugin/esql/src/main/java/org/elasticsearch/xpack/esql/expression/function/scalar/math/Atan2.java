@@ -9,13 +9,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -29,14 +28,18 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 /**
  * Inverse cosine trigonometric function.
  */
-public class Atan2 extends ScalarFunction implements EvaluatorMapper {
+public class Atan2 extends EsqlScalarFunction {
     private final Expression y;
     private final Expression x;
 
+    @FunctionInfo(
+        returnType = "double",
+        description = "The angle between the positive x-axis and the ray from the origin to the point (x , y) in the Cartesian plane."
+    )
     public Atan2(
         Source source,
-        @Param(name = "y", type = { "integer", "long", "double", "unsigned_long" }) Expression y,
-        @Param(name = "x", type = { "integer", "long", "double", "unsigned_long" }) Expression x
+        @Param(name = "y", type = { "double", "integer", "long", "unsigned_long" }, description = "y coordinate") Expression y,
+        @Param(name = "x", type = { "double", "integer", "long", "unsigned_long" }, description = "x coordinate") Expression x
     ) {
         super(source, List.of(y, x));
         this.y = y;
@@ -83,19 +86,9 @@ public class Atan2 extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var yEval = Cast.cast(y.dataType(), DataTypes.DOUBLE, toEvaluator.apply(y));
-        var xEval = Cast.cast(x.dataType(), DataTypes.DOUBLE, toEvaluator.apply(x));
-        return dvrCtx -> new Atan2Evaluator(yEval.get(dvrCtx), xEval.get(dvrCtx), dvrCtx);
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
+        var yEval = Cast.cast(source(), y.dataType(), DataTypes.DOUBLE, toEvaluator.apply(y));
+        var xEval = Cast.cast(source(), x.dataType(), DataTypes.DOUBLE, toEvaluator.apply(x));
+        return new Atan2Evaluator.Factory(source(), yEval, xEval);
     }
 
     public Expression y() {

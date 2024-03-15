@@ -42,13 +42,11 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
 
     @Override
     protected final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel -> new GetCertificateInfoAction.RequestBuilder(client, GetCertificateInfoAction.INSTANCE).execute(
-            new RestBuilderListener<Response>(channel) {
-                @Override
-                public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-                    return new RestResponse(RestStatus.OK, response.toXContent(builder, request));
-                }
+        return channel -> new GetCertificateInfoAction.RequestBuilder(client).execute(new RestBuilderListener<>(channel) {
+            @Override
+            public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
+                return new RestResponse(RestStatus.OK, response.toXContent(builder, request));
             }
-        );
+        });
     }
 }

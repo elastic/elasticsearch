@@ -8,20 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.MockBlockFactory;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -29,12 +17,12 @@ import static org.hamcrest.Matchers.matchesPattern;
 /**
  * Superclass for testing any {@link Operator}, including {@link SourceOperator}s.
  */
-public abstract class AnyOperatorTestCase extends ESTestCase {
+public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * The operator configured a "simple" or basic way, used for smoke testing
-     * descriptions and {@link BigArrays} and scatter/gather.
+     * descriptions, {@link CircuitBreaker}s, and scatter/gather.
      */
-    protected abstract Operator.OperatorFactory simple(BigArrays bigArrays);
+    protected abstract Operator.OperatorFactory simple();
 
     /**
      * The description of the operator produced by {@link #simple}.
@@ -65,7 +53,7 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleDescription() {
-        Operator.OperatorFactory factory = simple(nonBreakingBigArrays());
+        Operator.OperatorFactory factory = simple();
         String description = factory.describe();
         assertThat(description, equalTo(expectedDescriptionOfSimple()));
         try (Operator op = factory.get(driverContext())) {
@@ -81,56 +69,21 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
     public final void testSimpleToString() {
-        try (Operator operator = simple(nonBreakingBigArrays()).get(driverContext())) {
+        try (Operator operator = simple().get(driverContext())) {
             assertThat(operator.toString(), equalTo(expectedToStringOfSimple()));
         }
     }
 
     /**
-     * A {@link BigArrays} that won't throw {@link CircuitBreakingException}.
-     * <p>
-     *     Rather than using the {@link NoneCircuitBreakerService} we use a
-     *     very large limit so tests can call {@link CircuitBreaker#getUsed()}.
-     * </p>
-     */
-    protected final BigArrays nonBreakingBigArrays() {
-        return new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Integer.MAX_VALUE)).withCircuitBreaking();
-    }
-
-    /**
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
-    protected DriverContext driverContext() { // TODO make this final and return a breaking block factory
-        return new DriverContext(nonBreakingBigArrays(), BlockFactory.getNonBreakingInstance());
+    protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
+        BlockFactory blockFactory = blockFactory();
+        return new DriverContext(blockFactory.bigArrays(), blockFactory);
     }
 
-    private final List<CircuitBreaker> breakers = new ArrayList<>();
-    private final List<BlockFactory> blockFactories = new ArrayList<>();
-
-    /**
-     * A {@link DriverContext} with a breaking {@link BigArrays} and {@link BlockFactory}.
-     */
-    protected DriverContext breakingDriverContext() { // TODO move this to driverContext once everyone supports breaking
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
-        blockFactories.add(factory);
-        return new DriverContext(bigArrays, factory);
-    }
-
-    @After
-    public void allBreakersEmpty() throws Exception {
-        // first check that all big arrays are released, which can affect breakers
-        MockBigArrays.ensureAllArraysAreReleased();
-
-        for (CircuitBreaker breaker : breakers) {
-            for (var factory : blockFactories) {
-                if (factory instanceof MockBlockFactory mockBlockFactory) {
-                    mockBlockFactory.ensureAllBlocksAreReleased();
-                }
-            }
-            assertThat("Unexpected used in breaker: " + breaker, breaker.getUsed(), equalTo(0L));
-        }
+    protected final DriverContext crankyDriverContext() {
+        BlockFactory blockFactory = crankyBlockFactory();
+        return new DriverContext(blockFactory.bigArrays(), blockFactory);
     }
 }

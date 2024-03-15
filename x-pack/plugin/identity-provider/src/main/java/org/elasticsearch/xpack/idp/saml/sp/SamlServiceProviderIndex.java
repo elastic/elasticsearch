@@ -32,16 +32,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -65,7 +64,7 @@ import java.util.stream.Stream;
  */
 public class SamlServiceProviderIndex implements Closeable {
 
-    private final Logger logger = LogManager.getLogger(SamlServiceProviderIndex.class);
+    private static final Logger logger = LogManager.getLogger(SamlServiceProviderIndex.class);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -208,14 +207,14 @@ public class SamlServiceProviderIndex implements Closeable {
         }
         final String template = TemplateUtils.loadTemplate(TEMPLATE_RESOURCE, Version.CURRENT.toString(), TEMPLATE_VERSION_SUBSTITUTE);
         final PutIndexTemplateRequest request = new PutIndexTemplateRequest(TEMPLATE_NAME).source(template, XContentType.JSON);
-        client.admin().indices().putTemplate(request, ActionListener.wrap(response -> {
+        client.admin().indices().putTemplate(request, listener.delegateFailureAndWrap((l, response) -> {
             logger.info("Installed template [{}]", TEMPLATE_NAME);
-            listener.onResponse(true);
-        }, listener::onFailure));
+            l.onResponse(true);
+        }));
     }
 
     private boolean isTemplateUpToDate(ClusterState state) {
-        return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger, null);
+        return TemplateUtils.checkTemplateExistsAndIsUpToDate(TEMPLATE_NAME, TEMPLATE_META_VERSION_KEY, state, logger);
     }
 
     public void deleteDocument(DocumentVersion version, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<DeleteResponse> listener) {
@@ -223,10 +222,10 @@ public class SamlServiceProviderIndex implements Closeable {
             .setIfSeqNo(version.seqNo)
             .setIfPrimaryTerm(version.primaryTerm)
             .setRefreshPolicy(refreshPolicy);
-        client.delete(request, ActionListener.wrap(response -> {
+        client.delete(request, listener.delegateFailureAndWrap((l, response) -> {
             logger.debug("Deleted service provider document [{}] ({})", version.id, response.getResult());
-            listener.onResponse(response);
-        }, listener::onFailure));
+            l.onResponse(response);
+        }));
     }
 
     public void writeDocument(
@@ -244,9 +243,7 @@ public class SamlServiceProviderIndex implements Closeable {
         if (templateInstalled) {
             _writeDocument(document, opType, refreshPolicy, listener);
         } else {
-            installIndexTemplate(
-                ActionListener.wrap(installed -> _writeDocument(document, opType, refreshPolicy, listener), listener::onFailure)
-            );
+            installIndexTemplate(listener.delegateFailureAndWrap((l, installed) -> _writeDocument(document, opType, refreshPolicy, l)));
         }
     }
 
@@ -268,7 +265,7 @@ public class SamlServiceProviderIndex implements Closeable {
                 .source(xContentBuilder)
                 .id(document.docId)
                 .setRefreshPolicy(refreshPolicy);
-            client.index(request, ActionListener.wrap(response -> {
+            client.index(request, listener.delegateFailureAndWrap((l, response) -> {
                 logger.debug(
                     "Wrote service provider [{}][{}] as document [{}] ({})",
                     document.name,
@@ -276,8 +273,8 @@ public class SamlServiceProviderIndex implements Closeable {
                     response.getId(),
                     response.getResult()
                 );
-                listener.onResponse(response);
-            }, listener::onFailure));
+                l.onResponse(response);
+            }));
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -285,15 +282,15 @@ public class SamlServiceProviderIndex implements Closeable {
 
     public void readDocument(String documentId, ActionListener<DocumentSupplier> listener) {
         final GetRequest request = new GetRequest(ALIAS_NAME, documentId);
-        client.get(request, ActionListener.wrap(response -> {
+        client.get(request, listener.delegateFailureAndWrap((l, response) -> {
             if (response.isExists()) {
-                listener.onResponse(
+                l.onResponse(
                     new DocumentSupplier(new DocumentVersion(response), () -> toDocument(documentId, response.getSourceAsBytesRef()))
                 );
             } else {
-                listener.onResponse(null);
+                l.onResponse(null);
             }
-        }, listener::onFailure));
+        }));
     }
 
     public void findByEntityId(String entityId, ActionListener<Set<DocumentSupplier>> listener) {
@@ -309,7 +306,7 @@ public class SamlServiceProviderIndex implements Closeable {
     public void refresh(ActionListener<Void> listener) {
         client.admin()
             .indices()
-            .refresh(new RefreshRequest(ALIAS_NAME), ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure));
+            .refresh(new RefreshRequest(ALIAS_NAME), listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
     }
 
     private void findDocuments(QueryBuilder query, ActionListener<Set<DocumentSupplier>> listener) {
@@ -334,9 +331,11 @@ public class SamlServiceProviderIndex implements Closeable {
 
     private static SamlServiceProviderDocument toDocument(String documentId, BytesReference source) {
         try (
-            StreamInput in = source.streamInput();
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, in)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                source,
+                XContentType.JSON
+            )
         ) {
             return SamlServiceProviderDocument.fromXContent(documentId, parser);
         } catch (IOException e) {

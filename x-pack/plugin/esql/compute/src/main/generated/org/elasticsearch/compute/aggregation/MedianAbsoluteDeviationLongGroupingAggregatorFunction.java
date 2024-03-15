@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -36,19 +35,16 @@ public final class MedianAbsoluteDeviationLongGroupingAggregatorFunction impleme
 
   private final DriverContext driverContext;
 
-  private final BigArrays bigArrays;
-
   public MedianAbsoluteDeviationLongGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays) {
+      QuantileStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.bigArrays = bigArrays;
   }
 
   public static MedianAbsoluteDeviationLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays) {
-    return new MedianAbsoluteDeviationLongGroupingAggregatorFunction(channels, MedianAbsoluteDeviationLongAggregator.initGrouping(bigArrays), driverContext, bigArrays);
+      DriverContext driverContext) {
+    return new MedianAbsoluteDeviationLongGroupingAggregatorFunction(channels, MedianAbsoluteDeviationLongAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -63,20 +59,7 @@ public final class MedianAbsoluteDeviationLongGroupingAggregatorFunction impleme
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    Block uncastValuesBlock = page.getBlock(channels.get(0));
-    if (uncastValuesBlock.areAllValuesNull()) {
-      state.enableGroupIdTracking(seenGroupIds);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-        }
-      };
-    }
-    LongBlock valuesBlock = (LongBlock) uncastValuesBlock;
+    LongBlock valuesBlock = page.getBlock(channels.get(0));
     LongVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {

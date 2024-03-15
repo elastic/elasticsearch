@@ -37,7 +37,7 @@ import java.util.Map;
 public class URLHttpClient implements Closeable {
     public static final int MAX_ERROR_MESSAGE_BODY_SIZE = 1024;
     private static final int MAX_CONNECTIONS = 50;
-    private final Logger logger = LogManager.getLogger(URLHttpClient.class);
+    private static final Logger logger = LogManager.getLogger(URLHttpClient.class);
 
     private final CloseableHttpClient client;
     private final URLHttpClientSettings httpClientSettings;
@@ -142,7 +142,7 @@ public class URLHttpClient implements Closeable {
         };
     }
 
-    private void handleInvalidResponse(CloseableHttpResponse response) {
+    private static void handleInvalidResponse(CloseableHttpResponse response) {
         int statusCode = response.getStatusLine().getStatusCode();
         String errorBody = parseBodyAsString(response, MAX_ERROR_MESSAGE_BODY_SIZE);
         throw new URLHttpClientException(statusCode, createErrorMessage(statusCode, errorBody));
@@ -156,7 +156,7 @@ public class URLHttpClient implements Closeable {
         }
     }
 
-    private String parseBodyAsString(CloseableHttpResponse response, int maxSize) {
+    private static String parseBodyAsString(CloseableHttpResponse response, int maxSize) {
         String errorMessage = "";
         InputStream bodyContent = null;
         try {

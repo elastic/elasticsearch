@@ -11,7 +11,8 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
  * In 8.2 we also added the ability to filter fields by type and metadata, with some post-hoc filtering applied on
  * the co-ordinating node if older nodes were included in the system
  */
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103473")
 public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
 
     public FieldCapsIT(@Name("upgradedNodes") int upgradedNodes) {
@@ -272,18 +274,19 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     @SuppressWarnings("unchecked")
     // Returns a client connected to one of the upgraded nodes.
     private RestClient getUpgradedNodeClient() throws IOException {
+        var currentVersion = Build.current().version();
         for (HttpHost host : getClusterHosts()) {
             RestClient client = RestClient.builder(host).build();
             Request nodesRequest = new Request("GET", "_nodes/_local/_none");
             Map<String, ?> nodeMap = (Map<String, ?>) entityAsMap(client.performRequest(nodesRequest)).get("nodes");
             Map<String, ?> nameMap = (Map<String, ?>) nodeMap.values().iterator().next();
             String version = (String) nameMap.get("version");
-            if (version.equals(Version.CURRENT.toString())) {
+            if (version.equals(currentVersion)) {
                 return client;
             }
             client.close();
         }
-        throw new IllegalStateException("Couldn't find node on version " + Version.CURRENT);
+        throw new IllegalStateException("Couldn't find node on version " + currentVersion);
     }
 
     // Test field type filtering on mixed cluster

@@ -28,9 +28,9 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
-    private DocValueFormat formatter;
-    private GapPolicy gapPolicy;
-    private int lag;
+    private final DocValueFormat formatter;
+    private final GapPolicy gapPolicy;
+    private final int lag;
 
     SerialDiffPipelineAggregator(
         String name,
@@ -85,7 +85,6 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
                 double diff = thisBucketValue - lagValue;
 
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .map((p) -> (InternalAggregation) p)
                     .collect(Collectors.toCollection(ArrayList::new));
                 aggs.add(new InternalSimpleValue(name(), diff, formatter, metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));

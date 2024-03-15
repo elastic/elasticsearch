@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -13,40 +14,49 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Neg}.
  * This class is generated. Do not edit it.
  */
 public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
   private final EvalOperator.ExpressionEvaluator v;
 
   private final DriverContext driverContext;
 
-  public NegDoublesEvaluator(EvalOperator.ExpressionEvaluator v, DriverContext driverContext) {
+  public NegDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
+      DriverContext driverContext) {
+    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
-      DoubleBlock vBlock = (DoubleBlock) vRef.block();
+  public Block eval(Page page) {
+    try (DoubleBlock vBlock = (DoubleBlock) v.eval(page)) {
       DoubleVector vVector = vBlock.asVector();
       if (vVector == null) {
-        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+        return eval(page.getPositionCount(), vBlock);
       }
-      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock vBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+        if (vBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (vBlock.getValueCount(p) != 1) {
+          if (vBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
@@ -57,7 +67,7 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public DoubleVector eval(int positionCount, DoubleVector vVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Neg.processDoubles(vVector.getDouble(p)));
       }
@@ -73,5 +83,26 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+      this.source = source;
+      this.v = v;
+    }
+
+    @Override
+    public NegDoublesEvaluator get(DriverContext context) {
+      return new NegDoublesEvaluator(source, v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NegDoublesEvaluator[" + "v=" + v + "]";
+    }
   }
 }

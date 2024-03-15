@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.common.notifications;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
@@ -98,7 +98,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.info("foo", "Here is my info");
 
-        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -117,7 +117,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.warning("bar", "Here is my warning");
 
-        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -136,7 +136,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.error("foobar", "Here is my error");
 
-        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -157,7 +157,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.audit(level, "r_id", "Here is my audit");
 
-        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -182,7 +182,7 @@ public class AbstractAuditorTests extends ESTestCase {
         auditor.warning("foobar", "Here is my warning to queue");
         auditor.info("foobar", "Here is my info to queue");
 
-        verify(client, never()).execute(eq(IndexAction.INSTANCE), any(), any());
+        verify(client, never()).execute(eq(TransportIndexAction.TYPE), any(), any());
         // fire the put template response
         writeSomeDocsBeforeTemplateLatch.countDown();
 
@@ -194,7 +194,7 @@ public class AbstractAuditorTests extends ESTestCase {
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
 
         auditor.info("foobar", "Here is another message");
-        verify(client, times(1)).execute(eq(IndexAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(TransportIndexAction.TYPE), any(), any());
     }
 
     public void testMaxBufferSize() throws Exception {
@@ -262,7 +262,7 @@ public class AbstractAuditorTests extends ESTestCase {
             threadPool.generic().submit(onPutTemplate);
 
             return null;
-        }).when(client).execute(eq(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
 
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         AdminClient adminClient = mock(AdminClient.class);

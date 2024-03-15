@@ -23,12 +23,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,20 +86,21 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             )
             .put(
                 "index_templatev2",
-                new ComposableIndexTemplate(
-                    Arrays.asList("foo", "bar*"),
-                    new Template(
-                        Settings.builder().put("setting", "value").build(),
-                        new CompressedXContent("{\"baz\":\"eggplant\"}"),
-                        Collections.singletonMap("alias", AliasMetadata.builder("alias").build())
-                    ),
-                    Collections.singletonList("component_template"),
-                    5L,
-                    4L,
-                    Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")),
-                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate(),
-                    null
-                )
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(Arrays.asList("foo", "bar*"))
+                    .template(
+                        new Template(
+                            Settings.builder().put("setting", "value").build(),
+                            new CompressedXContent("{\"baz\":\"eggplant\"}"),
+                            Collections.singletonMap("alias", AliasMetadata.builder("alias").build())
+                        )
+                    )
+                    .componentTemplates(Collections.singletonList("component_template"))
+                    .priority(5L)
+                    .version(4L)
+                    .metadata(Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")))
+                    .dataStreamTemplate(randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
             )
             .put(
                 IndexMetadata.builder("test12")
@@ -137,7 +135,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         Metadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
 
-        Metadata parsedMetadata = Metadata.Builder.fromXContent(createParser(builder));
+        Metadata parsedMetadata;
+        try (var parser = createParser(builder)) {
+            parsedMetadata = Metadata.Builder.fromXContent(parser);
+        }
 
         // templates
         assertThat(parsedMetadata.templates().get("foo").name(), is("foo"));
@@ -215,13 +216,14 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     private static final String ALIAS_FILTER2 = "{\"field2\":\"value2\"}";
 
     public void testToXContentGateway_FlatSettingTrue_ReduceMappingFalse() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_GATEWAY);
-                put("flat_settings", "true");
-                put("reduce_mappings", "false");
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            Metadata.CONTEXT_MODE_PARAM,
+            CONTEXT_MODE_GATEWAY,
+            "flat_settings",
+            "true",
+            "reduce_mappings",
+            "false"
+        );
 
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
@@ -278,11 +280,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     }
 
     public void testToXContentAPI_SameTypeName() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
-            }
-        };
+        Map<String, String> mapParams = Map.of(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
 
         Metadata metadata = Metadata.builder()
             .clusterUUID("clusterUUID")
@@ -296,15 +294,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                             "type",
                             // the type name is the root value,
                             // the original logic in ClusterState.toXContent will reduce
-                            new HashMap<>() {
-                                {
-                                    put("type", new HashMap<String, Object>() {
-                                        {
-                                            put("key", "value");
-                                        }
-                                    });
-                                }
-                            }
+                            Map.of("type", Map.of("key", "value"))
                         )
                     )
                     .numberOfShards(1)
@@ -374,13 +364,14 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     }
 
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_GATEWAY);
-                put("flat_settings", "false");
-                put("reduce_mappings", "true");
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            Metadata.CONTEXT_MODE_PARAM,
+            CONTEXT_MODE_GATEWAY,
+            "flat_settings",
+            "false",
+            "reduce_mappings",
+            "true"
+        );
 
         Metadata metadata = buildMetadata();
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
@@ -439,13 +430,14 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     }
 
     public void testToXContentAPI_FlatSettingTrue_ReduceMappingFalse() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
-                put("flat_settings", "true");
-                put("reduce_mappings", "false");
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            Metadata.CONTEXT_MODE_PARAM,
+            CONTEXT_MODE_API,
+            "flat_settings",
+            "true",
+            "reduce_mappings",
+            "false"
+        );
 
         final Metadata metadata = buildMetadata();
 
@@ -542,13 +534,14 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     }
 
     public void testToXContentAPI_FlatSettingFalse_ReduceMappingTrue() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
-                put("flat_settings", "false");
-                put("reduce_mappings", "true");
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            Metadata.CONTEXT_MODE_PARAM,
+            CONTEXT_MODE_API,
+            "flat_settings",
+            "false",
+            "reduce_mappings",
+            "true"
+        );
 
         final Metadata metadata = buildMetadata();
 
@@ -651,13 +644,14 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
     }
 
     public void testToXContentAPIReservedMetadata() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put(Metadata.CONTEXT_MODE_PARAM, CONTEXT_MODE_API);
-                put("flat_settings", "false");
-                put("reduce_mappings", "true");
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            Metadata.CONTEXT_MODE_PARAM,
+            CONTEXT_MODE_API,
+            "flat_settings",
+            "false",
+            "reduce_mappings",
+            "true"
+        );
 
         Metadata metadata = buildMetadata();
 
@@ -836,16 +830,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .coordinationMetadata(
                 CoordinationMetadata.builder()
                     .term(1)
-                    .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>() {
-                        {
-                            add("commitedConfigurationNodeId");
-                        }
-                    }))
-                    .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>() {
-                        {
-                            add("acceptedConfigurationNodeId");
-                        }
-                    }))
+                    .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("commitedConfigurationNodeId")))
+                    .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("acceptedConfigurationNodeId")))
                     .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
                     .build()
             )
@@ -855,25 +841,13 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 IndexMetadata.builder("index")
                     .state(IndexMetadata.State.OPEN)
                     .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-                    .putMapping(new MappingMetadata("type", new HashMap<>() {
-                        {
-                            put("type1", new HashMap<String, Object>() {
-                                {
-                                    put("key", "value");
-                                }
-                            });
-                        }
-                    }))
+                    .putMapping(new MappingMetadata("type", Map.of("type1", Map.of("key", "value"))))
                     .putAlias(AliasMetadata.builder("alias").indexRouting("indexRouting").build())
                     .numberOfShards(1)
                     .primaryTerm(0, 1L)
-                    .putInSyncAllocationIds(0, new HashSet<>() {
-                        {
-                            add("allocationId");
-                        }
-                    })
+                    .putInSyncAllocationIds(0, Set.of("allocationId"))
                     .numberOfReplicas(2)
-                    .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
+                    .putRolloverInfo(new RolloverInfo("rolloveAlias", List.of(), 1L))
             )
             .put(
                 IndexTemplateMetadata.builder("template")

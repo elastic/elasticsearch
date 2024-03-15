@@ -78,7 +78,12 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             Settings settings = builder.build();
             indexScopedSettings.validate(settings, true);
             template = new Template(settings, template.mappings(), template.aliases(), template.lifecycle());
-            componentTemplate = new ComponentTemplate(template, componentTemplate.version(), componentTemplate.metadata());
+            componentTemplate = new ComponentTemplate(
+                template,
+                componentTemplate.version(),
+                componentTemplate.metadata(),
+                componentTemplate.deprecated()
+            );
         }
 
         return componentTemplate;

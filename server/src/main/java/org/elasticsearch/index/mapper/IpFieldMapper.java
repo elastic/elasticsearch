@@ -29,6 +29,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -68,7 +69,7 @@ public class IpFieldMapper extends FieldMapper {
         return (IpFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -88,7 +89,6 @@ public class IpFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
 
-        @SuppressWarnings("this-escape")
         public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -130,7 +130,7 @@ public class IpFieldMapper extends FieldMapper {
             try {
                 return InetAddresses.forString(nullValueAsString);
             } catch (Exception e) {
-                if (indexCreatedVersion.onOrAfter(IndexVersion.V_8_0_0)) {
+                if (indexCreatedVersion.onOrAfter(IndexVersions.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
                     DEPRECATION_LOGGER.warn(
@@ -154,7 +154,7 @@ public class IpFieldMapper extends FieldMapper {
             IpFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), IpFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -166,10 +166,13 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
+            if (context.parentObjectContainsDimensions()) {
+                dimension.setValue(true);
+            }
             return new IpFieldMapper(
-                name,
+                name(),
                 new IpFieldType(
-                    context.buildFullName(name),
+                    context.buildFullName(name()),
                     indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                     stored.getValue(),
                     hasDocValues.getValue(),
@@ -406,6 +409,14 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(name());
+            }
+            return null;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.IP, IpDocValuesField::new);
@@ -547,7 +558,7 @@ public class IpFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
         if (dimension) {
-            context.getDimensions().addIp(fieldType().name(), address);
+            context.getDimensions().addIp(fieldType().name(), address).validate(context.indexSettings());
         }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);

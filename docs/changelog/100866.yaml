@@ -1,6 +1,0 @@
-pr: 100866
-summary: "ESQL: Preserve intermediate aggregation output in local relation"
-area: ES|QL
-type: bug
-issues:
- - 100807

@@ -22,7 +22,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ChunkedLoggingStream;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +37,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -49,6 +48,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -60,9 +60,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -198,7 +196,7 @@ public final class NodeEnvironment implements Closeable {
      */
     static final String SEARCHABLE_SHARED_CACHE_FILE = "shared_snapshot_cache";
 
-    public static class NodeLock implements Releasable {
+    public static final class NodeLock implements Releasable {
 
         private final Lock[] locks;
         private final DataPath[] dataPaths;
@@ -212,7 +210,6 @@ public final class NodeEnvironment implements Closeable {
          * Tries to acquire a node lock for a node id, throws {@code IOException} if it is unable to acquire it
          * @param pathFunction function to check node path before attempt of acquiring a node lock
          */
-        @SuppressWarnings("this-escape")
         public NodeLock(
             final Logger logger,
             final Environment environment,
@@ -537,7 +534,7 @@ public final class NodeEnvironment implements Closeable {
                     + "] is incompatible. Revert this node to version ["
                     + bestDowngradeVersion
                     + "] and delete any indices with versions earlier than ["
-                    + IndexVersion.MINIMUM_COMPATIBLE
+                    + IndexVersions.MINIMUM_COMPATIBLE
                     + "] before upgrading to version ["
                     + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["
@@ -630,7 +627,7 @@ public final class NodeEnvironment implements Closeable {
                 assert nodeIds.isEmpty() : nodeIds;
                 // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
                 // when we are starting a new node and there are no indices to worry about.
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, IndexVersion.current());
+                metadata = new NodeMetadata(generateNodeId(settings), BuildVersion.current(), IndexVersion.current());
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;
@@ -638,7 +635,7 @@ public final class NodeEnvironment implements Closeable {
         }
 
         metadata = metadata.upgradeToCurrentVersion();
-        assert metadata.nodeVersion().equals(Version.CURRENT) : metadata.nodeVersion() + " != " + Version.CURRENT;
+        assert metadata.nodeVersion().equals(BuildVersion.current()) : metadata.nodeVersion() + " != " + Build.current();
 
         return metadata;
     }
@@ -956,13 +953,7 @@ public final class NodeEnvironment implements Closeable {
                     return;
                 }
                 nextShardLockHotThreadsNanos = now + TimeUnit.SECONDS.toNanos(60);
-                final var hotThreads = new HotThreads().busiestThreads(500).ignoreIdleThreads(false).detect();
-                try (
-                    var stream = ChunkedLoggingStream.create(logger, Level.DEBUG, prefix, ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING);
-                    var writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)
-                ) {
-                    writer.write(hotThreads);
-                }
+                HotThreads.logLocalHotThreads(logger, Level.DEBUG, prefix, ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING);
             } catch (Exception e) {
                 logger.error(format("could not obtain %s", prefix), e);
             } finally {
@@ -989,7 +980,7 @@ public final class NodeEnvironment implements Closeable {
             lockDetails = Tuple.tuple(System.nanoTime(), details);
         }
 
-        protected void release() {
+        private void release() {
             mutex.release();
             decWaitCount();
         }
@@ -1128,7 +1119,7 @@ public final class NodeEnvironment implements Closeable {
      * Returns all folder names in ${data.paths}/indices folder
      */
     public Set<String> availableIndexFolders() throws IOException {
-        return availableIndexFolders(p -> false);
+        return availableIndexFolders(Predicates.never());
     }
 
     /**
@@ -1156,7 +1147,7 @@ public final class NodeEnvironment implements Closeable {
      * @throws IOException if an I/O exception occurs traversing the filesystem
      */
     public Set<String> availableIndexFoldersForPath(final DataPath dataPath) throws IOException {
-        return availableIndexFoldersForPath(dataPath, p -> false);
+        return availableIndexFoldersForPath(dataPath, Predicates.never());
     }
 
     /**

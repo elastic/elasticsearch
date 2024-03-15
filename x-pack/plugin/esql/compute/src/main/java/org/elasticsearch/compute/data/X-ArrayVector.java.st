@@ -10,22 +10,34 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
+
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.util.Arrays;
 $endif$
 
 /**
  * Vector implementation that stores an array of $type$ values.
+$if(BytesRef)$
+ * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
+$endif$
  * This class is generated. Do not edit it.
  */
-public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
+final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance($Type$VectorBlock.class);
 
 $if(BytesRef)$
     private final BytesRefArray values;
@@ -34,21 +46,64 @@ $else$
     private final $type$[] values;
 $endif$
 
-    private final $Type$Block block;
-
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
+    $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new $Type$VectorBlock(this);
+    }
+
+    static $Type$ArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+$if(BytesRef)$
+        final BytesRefArray values = new BytesRefArray(in, blockFactory.bigArrays());
+        boolean success = false;
+        try {
+            final var block = new BytesRefArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - values.bigArraysRamBytesUsed());
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+$else$
+        final long preAdjustedBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) positions * $BYTES$;
+        blockFactory.adjustBreaker(preAdjustedBytes);
+        boolean success = false;
+        try {
+            $type$[] values = new $type$[positions];
+            for (int i = 0; i < positions; i++) {
+                values[i] = in.read$Type$();
+            }
+            final var block = new $Type$ArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - preAdjustedBytes);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+$endif$
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+$if(BytesRef)$
+        values.writeTo(out);
+$elseif(boolean)$
+        // TODO: One bit for each boolean
+        for (int i = 0; i < positions; i++) {
+            out.writeBoolean(values[i]);
+        }
+$else$
+        for (int i = 0; i < positions; i++) {
+            out.write$Type$(values[i]);
+        }
+$endif$
     }
 
     @Override
     public $Type$Block asBlock() {
-        return block;
+        return new $Type$VectorBlock(this);
     }
 
 $if(BytesRef)$
@@ -79,7 +134,7 @@ $endif$
     $if(BytesRef)$
         final var scratch = new BytesRef();
     $endif$
-        try ($Type$Vector.Builder builder = blockFactory.new$Type$VectorBuilder(positions.length)) {
+        try ($Type$Vector.Builder builder = blockFactory().new$Type$VectorBuilder(positions.length)) {
             for (int pos : positions) {
             $if(BytesRef)$
                 builder.append$Type$(values.get(pos, scratch));
@@ -124,12 +179,10 @@ $endif$
 
 $if(BytesRef)$
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
-        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BytesRefArray} is adjusted outside
+        // of this class.
+        blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed());
         Releasables.closeExpectNoException(values);
     }
 $endif$

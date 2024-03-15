@@ -48,6 +48,7 @@ import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
@@ -81,7 +82,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -158,7 +158,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -192,11 +191,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Engine.IndexCommitListener indexCommitListener,
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+        Engine.IndexCommitListener indexCommitListener
     ) {
         super(indexSettings);
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
             : "IndexCreationContext.RELOAD_ANALYZERS should only be used when reloading analysers";
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -221,8 +218,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // we parse all percolator queries as they would be parsed on shard 0
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
                 idFieldMapper,
-                scriptService,
-                documentParsingObserverSupplier
+                scriptService
             );
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
@@ -231,7 +227,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, FieldDataContext.noRuntimeFields("index sort"))
+                        (fieldType, searchLookup) -> loadFielddata(fieldType, FieldDataContext.noRuntimeFields("index sort"))
                     );
             } else {
                 this.indexSortSupplier = () -> null;
@@ -329,7 +325,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (mapperService == null) {
             return null;
         }
-        long totalCount = mapperService().mappingLookup().getTotalFieldsCount();
+        long totalCount = mapperService().mappingLookup().getTotalMapperCount();
         long totalEstimatedOverhead = totalCount * 1024L; // 1KiB estimated per mapping
         NodeMappingStats indexNodeMappingStats = new NodeMappingStats(totalCount, totalEstimatedOverhead);
         return indexNodeMappingStats;
@@ -651,6 +647,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         String clusterAlias,
         Map<String, Object> runtimeMappings
     ) {
+        return newSearchExecutionContext(shardId, shardRequestIndex, searcher, nowInMillis, clusterAlias, runtimeMappings, null);
+    }
+
+    public SearchExecutionContext newSearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Map<String, Object> runtimeMappings,
+        Integer requestSize
+    ) {
         final SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(
             index().getName(),
             clusterAlias,
@@ -662,7 +670,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shardRequestIndex,
             indexSettings,
             indexCache.bitsetFilterCache(),
-            indexFieldData::getForField,
+            this::loadFielddata,
             mapperService(),
             mapperService().mappingLookup(),
             similarityService(),
@@ -676,7 +684,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexNameMatcher,
             allowExpensiveQueries,
             valuesSourceRegistry,
-            runtimeMappings
+            runtimeMappings,
+            requestSize
         );
     }
 
@@ -1293,4 +1302,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return runtimeFieldTypes;
     }
 
+    public IndexFieldData<?> loadFielddata(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+        return indexFieldData.getForField(fieldType, fieldDataContext);
+    }
 }

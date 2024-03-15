@@ -12,9 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
@@ -73,7 +72,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
     protected List<SearchBlockPlugin> initBlockFactory(boolean searchBlock, boolean fieldCapsBlock) {
         List<SearchBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(SearchBlockPlugin.class));
+            pluginsService.filterPlugins(SearchBlockPlugin.class).forEach(plugins::add);
         }
         for (SearchBlockPlugin plugin : plugins) {
             plugin.reset();
@@ -213,7 +212,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
                     ActionFilterChain<Request, Response> chain
                 ) {
 
-                    if (action.equals(FieldCapabilitiesAction.NAME)) {
+                    if (action.equals(TransportFieldCapabilitiesAction.NAME)) {
                         final Consumer<Response> actionWrapper = resp -> {
                             try {
                                 fieldCaps.incrementAndGet();
@@ -271,7 +270,7 @@ public abstract class AbstractSqlBlockingIntegTestCase extends ESIntegTestCase {
         TaskId taskId = findTaskWithXOpaqueId(id, action);
         assertNotNull(taskId);
         logger.trace("Cancelling task " + taskId);
-        CancelTasksResponse response = clusterAdmin().prepareCancelTasks().setTargetTaskId(taskId).get();
+        ListTasksResponse response = clusterAdmin().prepareCancelTasks().setTargetTaskId(taskId).get();
         assertThat(response.getTasks(), hasSize(1));
         assertThat(response.getTasks().get(0).action(), equalTo(action));
         logger.trace("Task is cancelled " + taskId);

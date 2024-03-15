@@ -23,13 +23,14 @@ import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
-import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -149,8 +150,8 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> READ_ILM_PATTERN = Set.of(GetLifecycleAction.NAME, GetStatusAction.NAME);
     private static final Set<String> MANAGE_SLM_PATTERN = Set.of(
         "cluster:admin/slm/*",
-        StartILMAction.NAME,
-        StopILMAction.NAME,
+        ILMActions.START.name(),
+        ILMActions.STOP.name(),
         GetStatusAction.NAME
     );
     private static final Set<String> READ_SLM_PATTERN = Set.of(GetSnapshotLifecycleAction.NAME, GetStatusAction.NAME);
@@ -166,7 +167,9 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
         RemoteClusterNodesAction.TYPE.name(),
-        XPackInfoAction.NAME
+        XPackInfoAction.NAME,
+        // esql enrich
+        "cluster:monitor/xpack/enrich/esql/resolve_policy"
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
@@ -235,6 +238,7 @@ public class ClusterPrivilegeResolver {
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME + "*",
             GetUsersAction.NAME,
+            ActionTypes.QUERY_USER_ACTION.name(),
             GetUserPrivilegesAction.NAME, // normally authorized under the "same-user" authz check, but added here for uniformity
             HasPrivilegesAction.NAME,
             GetSecuritySettingsAction.NAME
@@ -325,6 +329,20 @@ public class ClusterPrivilegeResolver {
         CROSS_CLUSTER_REPLICATION_PATTERN
     );
 
+    public static final NamedClusterPrivilege READ_CONNECTOR_SECRETS = new ActionClusterPrivilege(
+        "read_connector_secrets",
+        Set.of("cluster:admin/xpack/connector/secret/get")
+    );
+
+    public static final NamedClusterPrivilege WRITE_CONNECTOR_SECRETS = new ActionClusterPrivilege(
+        "write_connector_secrets",
+        Set.of(
+            "cluster:admin/xpack/connector/secret/delete",
+            "cluster:admin/xpack/connector/secret/post",
+            "cluster:admin/xpack/connector/secret/put"
+        )
+    );
+
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(
         Stream.of(
             NONE,
@@ -379,7 +397,9 @@ public class ClusterPrivilegeResolver {
             POST_BEHAVIORAL_ANALYTICS_EVENT,
             MANAGE_SEARCH_QUERY_RULES,
             CROSS_CLUSTER_SEARCH,
-            CROSS_CLUSTER_REPLICATION
+            CROSS_CLUSTER_REPLICATION,
+            READ_CONNECTOR_SECRETS,
+            WRITE_CONNECTOR_SECRETS
         ).filter(Objects::nonNull).toList()
     );
 
@@ -409,6 +429,11 @@ public class ClusterPrivilegeResolver {
         logger.debug(errorMessage);
         throw new IllegalArgumentException(errorMessage);
 
+    }
+
+    @Nullable
+    public static NamedClusterPrivilege getNamedOrNull(String name) {
+        return VALUES.get(Objects.requireNonNull(name).toLowerCase(Locale.ROOT));
     }
 
     public static Set<String> names() {
@@ -442,7 +467,7 @@ public class ClusterPrivilegeResolver {
      * Sorts the collection of privileges from least-privilege to most-privilege (to the extent possible),
      * returning them in a sorted map keyed by name.
      */
-    static SortedMap<String, NamedClusterPrivilege> sortByAccessLevel(Collection<NamedClusterPrivilege> privileges) {
+    public static SortedMap<String, NamedClusterPrivilege> sortByAccessLevel(Collection<NamedClusterPrivilege> privileges) {
         // How many other privileges does this privilege imply. Those with a higher count are considered to be a higher privilege
         final Map<String, Long> impliesCount = Maps.newMapWithExpectedSize(privileges.size());
         privileges.forEach(

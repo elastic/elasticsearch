@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
@@ -22,7 +21,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.maxBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
 public class MetadataIT extends ESIntegTestCase {
 
@@ -31,7 +30,7 @@ public class MetadataIT extends ESIntegTestCase {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomInt(30)];
         for (int i = 0; i < builders.length; i++) {
             String name = "name_" + randomIntBetween(1, 10);
-            builders[i] = client().prepareIndex("idx").setSource("name", name, "value", randomInt());
+            builders[i] = prepareIndex("idx").setSource("name", name, "value", randomInt());
         }
         indexRandom(true, builders);
         ensureSearchable();
@@ -39,35 +38,33 @@ public class MetadataIT extends ESIntegTestCase {
         final var nestedMetadata = Map.of("nested", "value");
         var metadata = Map.of("key", "value", "numeric", 1.2, "bool", true, "complex", nestedMetadata);
 
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
                 terms("the_terms").setMetadata(metadata).field("name").subAggregation(sum("the_sum").setMetadata(metadata).field("value"))
-            )
-            .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata))
-            .get();
+            ).addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata)),
+            response -> {
+                InternalAggregations aggs = response.getAggregations();
+                assertNotNull(aggs);
 
-        assertSearchResponse(response);
+                Terms terms = aggs.get("the_terms");
+                assertNotNull(terms);
+                assertMetadata(terms.getMetadata());
 
-        Aggregations aggs = response.getAggregations();
-        assertNotNull(aggs);
+                List<? extends Terms.Bucket> buckets = terms.getBuckets();
+                for (Terms.Bucket bucket : buckets) {
+                    InternalAggregations subAggs = bucket.getAggregations();
+                    assertNotNull(subAggs);
 
-        Terms terms = aggs.get("the_terms");
-        assertNotNull(terms);
-        assertMetadata(terms.getMetadata());
+                    Sum sum = subAggs.get("the_sum");
+                    assertNotNull(sum);
+                    assertMetadata(sum.getMetadata());
+                }
 
-        List<? extends Terms.Bucket> buckets = terms.getBuckets();
-        for (Terms.Bucket bucket : buckets) {
-            Aggregations subAggs = bucket.getAggregations();
-            assertNotNull(subAggs);
-
-            Sum sum = subAggs.get("the_sum");
-            assertNotNull(sum);
-            assertMetadata(sum.getMetadata());
-        }
-
-        InternalBucketMetricValue maxBucket = aggs.get("the_max_bucket");
-        assertNotNull(maxBucket);
-        assertMetadata(maxBucket.getMetadata());
+                InternalBucketMetricValue maxBucket = aggs.get("the_max_bucket");
+                assertNotNull(maxBucket);
+                assertMetadata(maxBucket.getMetadata());
+            }
+        );
     }
 
     private void assertMetadata(Map<String, Object> returnedMetadata) {

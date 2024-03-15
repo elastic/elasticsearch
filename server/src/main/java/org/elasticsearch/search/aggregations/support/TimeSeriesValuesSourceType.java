@@ -14,6 +14,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 
 import java.util.Locale;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.search.aggregations.support.CoreValuesSourceType.GEOPOINT;
 
@@ -51,7 +52,7 @@ public enum TimeSeriesValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             throw new IllegalArgumentException("Cannot replace missing values for time-series counters");
         }
@@ -77,15 +78,11 @@ public enum TimeSeriesValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
-            return GEOPOINT.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return GEOPOINT.replaceMissing(valuesSource, rawMissing, docValueFormat, nowInMillis);
         }
     };
-
-    public static ValuesSourceType fromString(String name) {
-        return valueOf(name.trim().toUpperCase(Locale.ROOT));
-    }
 
     public String value() {
         return name().toLowerCase(Locale.ROOT);

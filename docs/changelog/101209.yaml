@@ -1,0 +1,6 @@
+pr: 101209
+summary: "Making `k` and `num_candidates` optional for knn search"
+area: Vector Search
+type: enhancement
+issues:
+ - 97533

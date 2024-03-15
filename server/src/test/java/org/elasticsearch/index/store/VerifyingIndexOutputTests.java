@@ -14,7 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -28,7 +28,7 @@ public class VerifyingIndexOutputTests extends ESTestCase {
 
     private static final int CHECKSUM_LENGTH = 8;
 
-    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
     private static final Matcher<String> VERIFICATION_FAILURE = containsString("verification failed (hardware problem?)");
     private static final Matcher<String> FOOTER_NOT_CHECKED = allOf(VERIFICATION_FAILURE, containsString("footer=<not checked>"));
     private static final Matcher<String> INVALID_LENGTH = allOf(VERIFICATION_FAILURE, containsString("footer=<invalid length>"));

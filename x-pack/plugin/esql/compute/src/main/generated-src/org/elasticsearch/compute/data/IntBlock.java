@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -17,7 +19,7 @@ import java.io.IOException;
  * Block that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock {
+public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock {
 
     /**
      * Retrieves the int value stored at the given value index.
@@ -48,10 +50,20 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     }
 
     private static IntBlock readFrom(BlockStreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return IntVector.readFrom(in.blockFactory(), in).asBlock();
-        }
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> IntBlock.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> IntVector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> IntArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> IntBigArrayBlock.readArrayBlock(in.blockFactory(), in);
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
+            }
+        };
+    }
+
+    private static IntBlock readValues(BlockStreamInput in) throws IOException {
         final int positions = in.readVInt();
         try (IntBlock.Builder builder = in.blockFactory().newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -73,22 +85,34 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         IntVector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof IntArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof IntBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
+            b.writeArrayBlock(out);
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        out.writeInt(getInt(getFirstValueIndex(pos) + valueIndex));
-                    }
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            IntBlock.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues(IntBlock block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    out.writeInt(block.getInt(block.getFirstValueIndex(pos) + valueIndex));
                 }
             }
         }
@@ -165,31 +189,14 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         return result;
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    static Builder newBlockBuilder(int estimatedSize) {
-        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
-    }
-
-    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newIntBlockBuilder(estimatedSize);
-    }
-
-    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    static IntBlock newConstantBlockWith(int value, int positions) {
-        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    static IntBlock newConstantBlockWith(int value, int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantIntBlockWith(value, positions);
-    }
-
-    sealed interface Builder extends Block.Builder permits IntBlockBuilder {
-
+    /**
+     * Builder for {@link IntBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.IntBuilder permits IntBlockBuilder {
         /**
          * Appends a int to the current entry.
          */
+        @Override
         Builder appendInt(int value);
 
         /**
@@ -213,12 +220,11 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

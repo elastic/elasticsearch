@@ -1,0 +1,6 @@
+pr: 105403
+summary: "ESQL: make `cidr_match` foldable"
+area: ES|QL
+type: bug
+issues:
+ - 105376

@@ -47,7 +47,7 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                       "processors": [
                         {
                           "pipeline" : {
-                            "name": "logs@json-message",
+                            "name": "logs@json-pipeline",
                             "description": "A pipeline that automatically parses JSON log events into top-level fields if they are such"
                           }
                         }

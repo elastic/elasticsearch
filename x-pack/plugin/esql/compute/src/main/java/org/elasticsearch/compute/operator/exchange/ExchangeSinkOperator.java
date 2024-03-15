@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -73,10 +75,9 @@ public class ExchangeSinkOperator extends SinkOperator {
     }
 
     @Override
-    public void addInput(Page page) {
+    protected void doAddInput(Page page) {
         pagesAccepted++;
-        var newPage = transformer.apply(page);
-        sink.addPage(newPage);
+        sink.addPage(transformer.apply(page));
     }
 
     @Override
@@ -148,6 +149,11 @@ public class ExchangeSinkOperator extends SinkOperator {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_11_X;
         }
     }
 }

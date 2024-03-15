@@ -37,7 +37,7 @@ import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
 
-public class CoordinationStateTestCluster {
+public final class CoordinationStateTestCluster {
 
     public static ClusterState clusterState(
         long term,
@@ -181,7 +181,6 @@ public class CoordinationStateTestCluster {
     final CoordinationMetadata.VotingConfiguration initialConfiguration;
     final long initialValue;
 
-    @SuppressWarnings("this-escape")
     public CoordinationStateTestCluster(List<DiscoveryNode> nodes, ElectionStrategy electionStrategy) {
         this.electionStrategy = electionStrategy;
         messages = new ArrayList<>();
@@ -244,7 +243,7 @@ public class CoordinationStateTestCluster {
                 if (rarely() && nextTerm < maxTerm) {
                     final long term = rarely() ? randomLongBetween(0, maxTerm + 1) : nextTerm++;
                     final StartJoinRequest startJoinRequest = new StartJoinRequest(randomFrom(clusterNodes).localNode, term);
-                    broadcast(startJoinRequest.getSourceNode(), startJoinRequest);
+                    broadcast(startJoinRequest.getMasterCandidateNode(), startJoinRequest);
                 } else if (rarely()) {
                     randomFrom(clusterNodes).setInitialState(initialConfiguration, initialValue);
                 } else if (rarely() && rarely()) {

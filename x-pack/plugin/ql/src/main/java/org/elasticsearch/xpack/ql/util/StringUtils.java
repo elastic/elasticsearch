@@ -17,7 +17,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -42,7 +42,9 @@ public final class StringUtils {
 
     private static final String[] INTEGER_ORDINALS = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
 
-    // CamelCase to camel_case
+    private static final String INVALID_REGEX_SEQUENCE = "Invalid sequence - escape character is not followed by special wildcard char";
+
+    // CamelCase to camel_case (and isNaN to is_nan)
     public static String camelCaseToUnderscore(String string) {
         if (Strings.hasText(string) == false) {
             return EMPTY;
@@ -55,7 +57,8 @@ public final class StringUtils {
             char ch = s.charAt(i);
             if (Character.isAlphabetic(ch)) {
                 if (Character.isUpperCase(ch)) {
-                    if (i > 0 && previousCharWasUp == false) {
+                    // append `_` when encountering a capital after a small letter, but only if not the last letter.
+                    if (i > 0 && i < s.length() - 1 && previousCharWasUp == false) {
                         sb.append("_");
                     }
                     previousCharWasUp = true;
@@ -109,7 +112,7 @@ public final class StringUtils {
             if (escaped == false && (curr == escape) && escape != 0) {
                 escaped = true;
                 if (i + 1 == pattern.length()) {
-                    throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
+                    throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                 }
             } else {
                 switch (curr) {
@@ -117,9 +120,7 @@ public final class StringUtils {
                     case '_' -> regex.append(escaped ? "_" : ".");
                     default -> {
                         if (escaped) {
-                            throw new QlIllegalArgumentException(
-                                "Invalid sequence - escape character is not followed by special wildcard char"
-                            );
+                            throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                         }
                         // escape special regex characters
                         switch (curr) {
@@ -139,7 +140,8 @@ public final class StringUtils {
     // * -> .*
     // ? -> .
     // escape character - can be 0 (in which case no regex gets escaped) or
-    // should be followed by % or _ (otherwise an exception is thrown)
+    // should be followed by * or ? or the escape character itself (otherwise an exception is thrown).
+    // Using * or ? as escape characters should be avoided because it will make it impossible to enter them as literals
     public static String wildcardToJavaPattern(String pattern, char escape) {
         StringBuilder regex = new StringBuilder(pattern.length() + 4);
 
@@ -150,17 +152,15 @@ public final class StringUtils {
             if (escaped == false && (curr == escape) && escape != 0) {
                 escaped = true;
                 if (i + 1 == pattern.length()) {
-                    throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
+                    throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                 }
             } else {
                 switch (curr) {
                     case '*' -> regex.append(escaped ? "\\*" : ".*");
                     case '?' -> regex.append(escaped ? "\\?" : ".");
                     default -> {
-                        if (escaped) {
-                            throw new QlIllegalArgumentException(
-                                "Invalid sequence - escape character is not followed by special wildcard char"
-                            );
+                        if (escaped && escape != curr) {
+                            throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                         }
                         // escape special regex characters
                         switch (curr) {
@@ -196,7 +196,7 @@ public final class StringUtils {
 
             if (escaped == false && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
-                    throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
+                    throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                 }
                 escaped = true;
             } else {
@@ -205,9 +205,7 @@ public final class StringUtils {
                     case '_' -> wildcard.append(escaped ? "_" : "?");
                     default -> {
                         if (escaped) {
-                            throw new QlIllegalArgumentException(
-                                "Invalid sequence - escape character is not followed by special wildcard char"
-                            );
+                            throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                         }
                         // escape special regex characters
                         switch (curr) {
@@ -237,7 +235,7 @@ public final class StringUtils {
 
             if (escaped == false && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
-                    throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
+                    throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                 }
                 escaped = true;
             } else {
@@ -246,9 +244,7 @@ public final class StringUtils {
                     case '_' -> wildcard.append(escaped ? "_" : "*");
                     default -> {
                         if (escaped) {
-                            throw new QlIllegalArgumentException(
-                                "Invalid sequence - escape character is not followed by special wildcard char"
-                            );
+                            throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                         }
                         // the resolver doesn't support escaping...
                         wildcard.append(curr);
@@ -310,24 +306,24 @@ public final class StringUtils {
         return scoredMatches.stream().map(a -> a.v2()).collect(toList());
     }
 
-    public static double parseDouble(String string) throws QlIllegalArgumentException {
+    public static double parseDouble(String string) throws InvalidArgumentException {
         double value;
         try {
             value = Double.parseDouble(string);
         } catch (NumberFormatException nfe) {
-            throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
+            throw new InvalidArgumentException(nfe, "Cannot parse number [{}]", string);
         }
 
         if (Double.isInfinite(value)) {
-            throw new QlIllegalArgumentException("Number [{}] is too large", string);
+            throw new InvalidArgumentException("Number [{}] is too large", string);
         }
         if (Double.isNaN(value)) {
-            throw new QlIllegalArgumentException("[{}] cannot be parsed as a number (NaN)", string);
+            throw new InvalidArgumentException("[{}] cannot be parsed as a number (NaN)", string);
         }
         return value;
     }
 
-    public static long parseLong(String string) throws QlIllegalArgumentException {
+    public static long parseLong(String string) throws InvalidArgumentException {
         try {
             return Long.parseLong(string);
         } catch (NumberFormatException nfe) {
@@ -336,25 +332,25 @@ public final class StringUtils {
                 try {
                     bi.longValueExact();
                 } catch (ArithmeticException ae) {
-                    throw new QlIllegalArgumentException("Number [{}] is too large", string);
+                    throw new InvalidArgumentException("Number [{}] is too large", string);
                 }
             } catch (NumberFormatException ex) {
                 // parsing fails, go through
             }
-            throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
+            throw new InvalidArgumentException("Cannot parse number [{}]", string);
         }
     }
 
-    public static Number parseIntegral(String string) throws QlIllegalArgumentException {
+    public static Number parseIntegral(String string) throws InvalidArgumentException {
         BigInteger bi;
         try {
             bi = new BigInteger(string);
         } catch (NumberFormatException ex) {
-            throw new QlIllegalArgumentException("Cannot parse number [{}]", string);
+            throw new InvalidArgumentException(ex, "Cannot parse number [{}]", string);
         }
         if (bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
             if (isUnsignedLong(bi) == false) {
-                throw new QlIllegalArgumentException("Number [{}] is too large", string);
+                throw new InvalidArgumentException("Number [{}] is too large", string);
             }
             return bi;
         }

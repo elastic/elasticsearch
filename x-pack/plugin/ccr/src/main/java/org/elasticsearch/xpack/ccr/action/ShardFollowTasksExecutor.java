@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -26,6 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -86,9 +88,10 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
+import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapRemoteClusterClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
 
-public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
+public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
     private static final Logger logger = LogManager.getLogger(ShardFollowTasksExecutor.class);
 
@@ -100,12 +103,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final TimeValue retentionLeaseRenewInterval;
     private volatile TimeValue waitForMetadataTimeOut;
 
-    @SuppressWarnings("this-escape")
     public ShardFollowTasksExecutor(Client client, ThreadPool threadPool, ClusterService clusterService, SettingsModule settingsModule) {
-        super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
+        super(ShardFollowTask.NAME, threadPool.executor(Ccr.CCR_THREAD_POOL_NAME));
         this.client = client;
         this.threadPool = threadPool;
-        this.ccrExecutor = threadPool.executor(getExecutor());
+        this.ccrExecutor = getExecutor();
         this.clusterService = clusterService;
         this.indexScopedSettings = settingsModule.getIndexScopedSettings();
         this.retentionLeaseRenewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(settingsModule.getSettings());
@@ -245,9 +247,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     }
                 };
                 try {
-                    remoteClient(params).admin()
-                        .cluster()
-                        .state(CcrRequests.metadataRequest(leaderIndex.getName()), ActionListener.wrap(onResponse, errorHandler));
+                    remoteClient(params).execute(
+                        ClusterStateAction.REMOTE_TYPE,
+                        CcrRequests.metadataRequest(leaderIndex.getName()),
+                        ActionListener.wrap(onResponse, errorHandler)
+                    );
                 } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
@@ -372,9 +376,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 };
 
                 try {
-                    remoteClient(params).admin()
-                        .cluster()
-                        .state(CcrRequests.metadataRequest(leaderIndex.getName()), ActionListener.wrap(onResponse, errorHandler));
+                    remoteClient(params).execute(
+                        ClusterStateAction.REMOTE_TYPE,
+                        CcrRequests.metadataRequest(leaderIndex.getName()),
+                        ActionListener.wrap(onResponse, errorHandler)
+                    );
                 } catch (final NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
@@ -447,7 +453,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 request.setMaxBatchSize(params.getMaxReadRequestSize());
                 request.setPollTimeout(params.getReadPollTimeout());
                 try {
-                    remoteClient(params).execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
+                    remoteClient(params).execute(
+                        ShardChangesAction.REMOTE_TYPE,
+                        request,
+                        ActionListener.wrap(handler::accept, errorHandler)
+                    );
                 } catch (NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
@@ -555,9 +565,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         return recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
     }
 
-    private Client remoteClient(ShardFollowTask params) {
+    private RemoteClusterClient remoteClient(ShardFollowTask params) {
         // TODO: do we need minNodeVersion here since it is for remote cluster
-        return wrapClient(
+        return wrapRemoteClusterClient(
+            client.threadPool().getThreadContext(),
             client.getRemoteClusterClient(
                 params.getRemoteCluster(),
                 // this client is only used for lightweight single-index metadata responses and for the shard-changes actions themselves

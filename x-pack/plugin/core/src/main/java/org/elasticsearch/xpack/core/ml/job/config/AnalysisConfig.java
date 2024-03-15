@@ -448,7 +448,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         );
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         public static final TimeValue DEFAULT_BUCKET_SPAN = TimeValue.timeValueMinutes(5);
 
@@ -464,7 +464,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         private Boolean multivariateByFields;
         private TimeValue modelPruneWindow;
 
-        @SuppressWarnings("this-escape")
         public Builder(List<Detector> detectors) {
             setDetectors(detectors);
         }

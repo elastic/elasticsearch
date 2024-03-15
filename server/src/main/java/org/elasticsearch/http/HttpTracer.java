@@ -30,7 +30,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 class HttpTracer {
 
-    private final Logger logger = LogManager.getLogger(HttpTracer.class);
+    private static final Logger logger = LogManager.getLogger(HttpTracer.class);
 
     private volatile String[] tracerLogInclude;
     private volatile String[] tracerLogExclude;

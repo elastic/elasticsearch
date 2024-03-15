@@ -47,7 +47,7 @@ public class RetentionLeaseStatsTests extends ESSingleNodeTestCase {
             latch.await();
         }
 
-        final IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("index").execute().actionGet();
+        final IndicesStatsResponse indicesStats = client().admin().indices().prepareStats("index").get();
         assertThat(indicesStats.getShards(), arrayWithSize(1));
         final RetentionLeaseStats retentionLeaseStats = indicesStats.getShards()[0].getRetentionLeaseStats();
         assertThat(

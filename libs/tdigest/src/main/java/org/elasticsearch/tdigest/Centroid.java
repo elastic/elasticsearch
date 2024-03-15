@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * A single centroid which represents a number of data points.
  */
-public class Centroid implements Comparable<Centroid> {
+public final class Centroid implements Comparable<Centroid> {
     private static final AtomicInteger uniqueCount = new AtomicInteger(1);
 
     private double centroid = 0;
@@ -40,19 +40,16 @@ public class Centroid implements Comparable<Centroid> {
         id = uniqueCount.getAndIncrement();
     }
 
-    @SuppressWarnings("this-escape")
     public Centroid(double x) {
         this();
         start(x, 1, uniqueCount.getAndIncrement());
     }
 
-    @SuppressWarnings("this-escape")
     public Centroid(double x, long w) {
         this();
         start(x, w, uniqueCount.getAndIncrement());
     }
 
-    @SuppressWarnings("this-escape")
     public Centroid(double x, long w, int id) {
         this();
         start(x, w, id);

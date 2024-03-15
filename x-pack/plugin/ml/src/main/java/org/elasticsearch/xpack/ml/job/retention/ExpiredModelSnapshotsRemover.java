@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.retention;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -230,7 +231,14 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("[{}] Search for expired snapshots failed", e, job.getId()));
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "[{}] Search for expired snapshots failed",
+                        RestStatus.TOO_MANY_REQUESTS,
+                        e,
+                        job.getId()
+                    )
+                );
             }
         };
     }
@@ -241,7 +249,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
             return;
         }
         JobDataDeleter deleter = new JobDataDeleter(client, jobId);
-        deleter.deleteModelSnapshots(modelSnapshots, ActionListener.wrap(bulkResponse -> {
+        deleter.deleteModelSnapshots(modelSnapshots, listener.delegateFailureAndWrap((l, bulkResponse) -> {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOTS_DELETED, modelSnapshots.size()));
             LOGGER.debug(
                 () -> format(
@@ -251,8 +259,8 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
                     modelSnapshots.stream().map(ModelSnapshot::getDescription).collect(toList())
                 )
             );
-            listener.onResponse(true);
-        }, listener::onFailure));
+            l.onResponse(true);
+        }));
     }
 
 }

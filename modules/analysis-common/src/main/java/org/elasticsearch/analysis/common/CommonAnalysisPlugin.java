@@ -91,6 +91,7 @@ import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
+import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
@@ -99,19 +100,13 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
@@ -120,21 +115,15 @@ import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
-import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.tartarus.snowball.ext.DutchStemmer;
 import org.tartarus.snowball.ext.FrenchStemmer;
 
@@ -144,7 +133,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
 
@@ -156,24 +144,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
-        this.scriptServiceHolder.set(scriptService);
-        this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(client));
+    public Collection<?> createComponents(PluginServices services) {
+        this.scriptServiceHolder.set(services.scriptService());
+        this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
         return Collections.emptyList();
     }
 
@@ -225,6 +198,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.put("portuguese", PortugueseAnalyzerProvider::new);
         analyzers.put("romanian", RomanianAnalyzerProvider::new);
         analyzers.put("russian", RussianAnalyzerProvider::new);
+        analyzers.put("serbian", SerbianAnalyzerProvider::new);
         analyzers.put("sorani", SoraniAnalyzerProvider::new);
         analyzers.put("spanish", SpanishAnalyzerProvider::new);
         analyzers.put("swedish", SwedishAnalyzerProvider::new);
@@ -260,7 +234,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             return new EdgeNGramTokenFilterFactory(indexSettings, environment, name, settings) {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
                         throw new IllegalArgumentException(
                             "The [edgeNGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                                 + "Please change the filter name to [edge_ngram] instead."
@@ -301,7 +275,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             return new NGramTokenFilterFactory(indexSettings, environment, name, settings) {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
                         throw new IllegalArgumentException(
                             "The [nGram] token filter name was deprecated in 6.4 and cannot be used in new indices. "
                                 + "Please change the filter name to [ngram] instead."
@@ -371,12 +345,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         tokenizers.put("thai", ThaiTokenizerFactory::new);
         tokenizers.put("nGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
                 throw new IllegalArgumentException(
                     "The [nGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
                 );
-            } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_6_0)) {
+            } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "nGram_tokenizer_deprecation",
@@ -388,12 +362,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         });
         tokenizers.put("ngram", NGramTokenizerFactory::new);
         tokenizers.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_8_0_0)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_8_0_0)) {
                 throw new IllegalArgumentException(
                     "The [edgeNGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [edge_nGram] for indices created in versions 8 or higher instead."
                 );
-            } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersion.V_7_6_0)) {
+            } else if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "edgeNGram_tokenizer_deprecation",
@@ -475,6 +449,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.add(new PreBuiltAnalyzerProviderFactory("portuguese", CachingStrategy.LUCENE, PortugueseAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("romanian", CachingStrategy.LUCENE, RomanianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("russian", CachingStrategy.LUCENE, RussianAnalyzer::new));
+        analyzers.add(new PreBuiltAnalyzerProviderFactory("serbian", CachingStrategy.LUCENE, SerbianAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("sorani", CachingStrategy.LUCENE, SoraniAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("spanish", CachingStrategy.LUCENE, SpanishAnalyzer::new));
         analyzers.add(new PreBuiltAnalyzerProviderFactory("swedish", CachingStrategy.LUCENE, SwedishAnalyzer::new));
@@ -588,7 +563,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             )
         );
         filters.add(PreConfiguredTokenFilter.indexVersion("word_delimiter_graph", false, false, (input, version) -> {
-            boolean adjustOffsets = version.onOrAfter(IndexVersion.V_7_3_0);
+            boolean adjustOffsets = version.onOrAfter(IndexVersions.V_7_3_0);
             return new WordDelimiterGraphFilter(
                 input,
                 adjustOffsets,
@@ -613,7 +588,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.add(PreConfiguredTokenizer.singleton("whitespace", WhitespaceTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.singleton("ngram", NGramTokenizer::new));
         tokenizers.add(PreConfiguredTokenizer.indexVersion("edge_ngram", (version) -> {
-            if (version.onOrAfter(IndexVersion.V_7_3_0)) {
+            if (version.onOrAfter(IndexVersions.V_7_3_0)) {
                 return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
             }
             return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
@@ -626,12 +601,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
 
         // Temporary shim for aliases. TODO deprecate after they are moved
         tokenizers.add(PreConfiguredTokenizer.indexVersion("nGram", (version) -> {
-            if (version.onOrAfter(IndexVersion.V_8_0_0)) {
+            if (version.onOrAfter(IndexVersions.V_8_0_0)) {
                 throw new IllegalArgumentException(
                     "The [nGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [ngram] for indices created in versions 8 or higher instead."
                 );
-            } else if (version.onOrAfter(IndexVersion.V_7_6_0)) {
+            } else if (version.onOrAfter(IndexVersions.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "nGram_tokenizer_deprecation",
@@ -642,12 +617,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             return new NGramTokenizer();
         }));
         tokenizers.add(PreConfiguredTokenizer.indexVersion("edgeNGram", (version) -> {
-            if (version.onOrAfter(IndexVersion.V_8_0_0)) {
+            if (version.onOrAfter(IndexVersions.V_8_0_0)) {
                 throw new IllegalArgumentException(
                     "The [edgeNGram] tokenizer name was deprecated in 7.6. "
                         + "Please use the tokenizer name to [edge_ngram] for indices created in versions 8 or higher instead."
                 );
-            } else if (version.onOrAfter(IndexVersion.V_7_6_0)) {
+            } else if (version.onOrAfter(IndexVersions.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "edgeNGram_tokenizer_deprecation",
@@ -655,7 +630,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                         + "Please change the tokenizer name to [edge_ngram] instead."
                 );
             }
-            if (version.onOrAfter(IndexVersion.V_7_3_0)) {
+            if (version.onOrAfter(IndexVersions.V_7_3_0)) {
                 return new EdgeNGramTokenizer(NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE, NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
             }
             return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);

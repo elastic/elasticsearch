@@ -579,9 +579,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
-                if (resolved.resolved()) {
+                if (resolved.resolved() && enrich.policy() != null) {
                     final DataType dataType = resolved.dataType();
-                    String matchType = enrich.policy() == null ? "<unknown>" : enrich.policy().getType();
+                    String matchType = enrich.policy().getType();
                     DataType[] allowed = allowedEnrichTypes(matchType);
                     if (Arrays.asList(allowed).contains(dataType) == false) {
                         String suffix = "only " + Arrays.toString(allowed) + " allowed for type [" + matchType + "]";

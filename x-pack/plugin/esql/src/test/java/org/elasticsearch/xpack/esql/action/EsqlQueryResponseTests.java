@@ -583,6 +583,42 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public void testRowValues() {
+        for (int times = 0; times < 10; times++) {
+            int numColumns = randomIntBetween(1, 10);
+            List<ColumnInfo> columns = randomList(numColumns, numColumns, this::randomColumnInfo);
+            int noPages = randomIntBetween(1, 20);
+            List<Page> pages = randomList(noPages, noPages, () -> randomPage(columns));
+            try (var resp = new EsqlQueryResponse(columns, pages, null, false, "", false, false)) {
+                var rowValues = getValuesList(resp.rows());
+                var valValues = getValuesList(resp.values());
+                for (int i = 0; i < rowValues.size(); i++) {
+                    assertThat(rowValues.get(i), equalTo(valValues.get(i)));
+                }
+            }
+        }
+    }
+
+    static List<List<Object>> getValuesList(Iterator<Iterator<Object>> values) {
+        var valuesList = new ArrayList<List<Object>>();
+        values.forEachRemaining(row -> {
+            var rowValues = new ArrayList<>();
+            row.forEachRemaining(rowValues::add);
+            valuesList.add(rowValues);
+        });
+        return valuesList;
+    }
+
+    static List<List<Object>> getValuesList(Iterable<Iterable<Object>> values) {
+        var valuesList = new ArrayList<List<Object>>();
+        values.forEach(row -> {
+            var rowValues = new ArrayList<>();
+            row.forEach(rowValues::add);
+            valuesList.add(rowValues);
+        });
+        return valuesList;
+    }
+
     static List<Object> columnValues(Iterator<Object> values) {
         List<Object> l = new ArrayList<>();
         values.forEachRemaining(l::add);

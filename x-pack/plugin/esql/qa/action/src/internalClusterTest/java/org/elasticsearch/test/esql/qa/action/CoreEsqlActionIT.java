@@ -22,7 +22,6 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -141,11 +140,11 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         }
     }
 
-    static List<List<Object>> getValuesList(Iterable<Iterator<Object>> values) {
+    static List<List<Object>> getValuesList(Iterable<Iterable<Object>> values) {
         var valuesList = new ArrayList<List<Object>>();
         values.forEach(row -> {
             var rowValues = new ArrayList<>();
-            row.forEachRemaining(rowValues::add);
+            row.forEach(rowValues::add);
             valuesList.add(rowValues);
         });
         return valuesList;

@@ -134,6 +134,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return ResponseValueUtils.pagesToValues(dataTypes, pages);
     }
 
+    public Iterable<Iterable<Object>> rows() {
+        List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
+        return ResponseValueUtils.valuesForRowsInPages(dataTypes, pages);
+    }
+
     public Iterator<Object> column(int columnIndex) {
         if (columnIndex < 0 || columnIndex >= columns.size()) throw new IllegalArgumentException();
         return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages);

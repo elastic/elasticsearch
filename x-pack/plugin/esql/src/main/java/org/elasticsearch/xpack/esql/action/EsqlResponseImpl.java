@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 
-import java.util.Iterator;
 import java.util.List;
 
 /** View over the response, that supports the xpack core transport API. */
@@ -29,11 +28,11 @@ public class EsqlResponseImpl implements EsqlResponse {
     }
 
     @Override
-    public Iterable<Iterator<Object>> rows() {
+    public Iterable<Iterable<Object>> rows() {
         ensureOpen();
         return () -> {
             ensureOpen();
-            return queryResponse.values();
+            return queryResponse.rows().iterator();
         };
     }
 

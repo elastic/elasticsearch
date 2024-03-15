@@ -59,54 +59,63 @@ public final class ResponseValueUtils {
         BytesRef scratch = new BytesRef();
         return Iterators.flatMap(
             pages.iterator(),
-            page -> Iterators.forRange(0, page.getPositionCount(), p -> Iterators.forRange(0, page.getBlockCount(), b -> {
-                Block block = page.getBlock(b);
-                if (block.isNull(p)) {
-                    return null;
-                }
-                /*
-                 * Use the ESQL data type to map to the output to make sure compute engine
-                 * respects its types. See the INTEGER clause where is doesn't always
-                 * respect it.
-                 */
-                int count = block.getValueCount(p);
-                int start = block.getFirstValueIndex(p);
-                String dataType = dataTypes.get(b);
-                if (count == 1) {
-                    return valueAt(dataType, block, start, scratch);
-                }
-                List<Object> thisResult = new ArrayList<>(count);
-                int end = count + start;
-                for (int i = start; i < end; i++) {
-                    thisResult.add(valueAt(dataType, block, i, scratch));
-                }
-                return thisResult;
-            }))
+            page -> Iterators.forRange(
+                0,
+                page.getPositionCount(),
+                pos -> Iterators.forRange(0, page.getBlockCount(), b -> valueAtPosition(page.getBlock(b), pos, dataTypes.get(b), scratch))
+            )
         );
     }
 
-    /**
-     * Returns an iterator of values for the given column.
-     */
+    /** Returns an iterable of iterables over the values in the given pages. There is one iterables for each row. */
+    static Iterable<Iterable<Object>> valuesForRowsInPages(List<String> dataTypes, List<Page> pages) {
+        BytesRef scratch = new BytesRef();
+        return () -> Iterators.flatMap(pages.iterator(), page -> valuesForRowsInPage(dataTypes, page, scratch));
+    }
+
+    /** Returns an iterable of iterables over the values in the given page. There is one iterables for each row. */
+    static Iterator<Iterable<Object>> valuesForRowsInPage(List<String> dataTypes, Page page, BytesRef scratch) {
+        return Iterators.forRange(0, page.getPositionCount(), position -> valuesForRow(dataTypes, page, position, scratch));
+    }
+
+    /** Returns an iterable over the values in the given row in a page. */
+    static Iterable<Object> valuesForRow(List<String> dataTypes, Page page, int position, BytesRef scratch) {
+        return () -> Iterators.forRange(
+            0,
+            page.getBlockCount(),
+            blockIdx -> valueAtPosition(page.getBlock(blockIdx), position, dataTypes.get(blockIdx), scratch)
+        );
+    }
+
+    /**  Returns an iterator of values for the given column. */
     static Iterator<Object> valuesForColumn(int columnIndex, String dataType, List<Page> pages) {
         BytesRef scratch = new BytesRef();
-        return Iterators.flatMap(pages.iterator(), page -> Iterators.forRange(0, page.getPositionCount(), pos -> {
-            Block block = page.getBlock(columnIndex);
-            if (block.isNull(pos)) {
-                return null;
-            }
-            int count = block.getValueCount(pos);
-            int start = block.getFirstValueIndex(pos);
-            if (count == 1) {
-                return valueAt(dataType, block, start, scratch);
-            }
-            List<Object> thisResult = new ArrayList<>(count);
-            int end = count + start;
-            for (int i = start; i < end; i++) {
-                thisResult.add(valueAt(dataType, block, i, scratch));
-            }
-            return thisResult;
-        }));
+        return Iterators.flatMap(
+            pages.iterator(),
+            page -> Iterators.forRange(
+                0,
+                page.getPositionCount(),
+                pos -> valueAtPosition(page.getBlock(columnIndex), pos, dataType, scratch)
+            )
+        );
+    }
+
+    /** Returns the value that the position and with the given data type, in the block. */
+    static Object valueAtPosition(Block block, int position, String dataType, BytesRef scratch) {
+        if (block.isNull(position)) {
+            return null;
+        }
+        int count = block.getValueCount(position);
+        int start = block.getFirstValueIndex(position);
+        if (count == 1) {
+            return valueAt(dataType, block, start, scratch);
+        }
+        List<Object> values = new ArrayList<>(count);
+        int end = count + start;
+        for (int i = start; i < end; i++) {
+            values.add(valueAt(dataType, block, i, scratch));
+        }
+        return values;
     }
 
     private static Object valueAt(String dataType, Block block, int offset, BytesRef scratch) {

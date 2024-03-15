@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.esql.action;
 
 import org.elasticsearch.core.Releasable;
 
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -41,7 +40,7 @@ public interface EsqlResponse extends Releasable {
      * retrieved from the rows-iterator, which iterates over the actual values
      * in the row, one row at a time, column-wise from left to right.
      */
-    Iterable<Iterator<Object>> rows();
+    Iterable<Iterable<Object>> rows();
 
     /** Returns an iterable over the values in the given column. */
     Iterable<Object> column(int columnIndex);

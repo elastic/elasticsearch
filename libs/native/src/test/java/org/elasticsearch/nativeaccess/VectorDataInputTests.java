@@ -19,7 +19,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
-import static org.elasticsearch.nativeaccess.VectorSimilarityType.DOT_PRODUCT;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESTestCase.WithoutSecurityManager

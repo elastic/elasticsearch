@@ -27,7 +27,13 @@ public class JdkVectorLibrary implements VectorLibrary {
     }
 
     @Override
-    public VectorScorer getScalarQuantizedVectorScorer(int dims, int maxOrd, float scoreCorrectionConstant, VectorSimilarityType similarityType, Path path) throws IOException {
+    public VectorScorer getScalarQuantizedVectorScorer(
+        int dims,
+        int maxOrd,
+        float scoreCorrectionConstant,
+        VectorSimilarityType similarityType,
+        Path path
+    ) throws IOException {
         VectorDataInput data = VectorDataInput.createVectorDataInput(path);
         return switch (similarityType) {
             case COSINE, DOT_PRODUCT -> new DotProduct(dims, maxOrd, scoreCorrectionConstant, data);

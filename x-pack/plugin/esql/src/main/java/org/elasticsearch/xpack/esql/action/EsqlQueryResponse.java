@@ -38,7 +38,6 @@ import java.util.Optional;
 public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse
     implements
         ChunkedToXContentObject,
-        EsqlResponse,
         Releasable {
 
     @SuppressWarnings("this-escape")
@@ -122,7 +121,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         out.writeBoolean(columnar);
     }
 
-    @Override
     public List<ColumnInfo> columns() {
         return columns;
     }
@@ -131,18 +129,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return pages;
     }
 
-    @Override
-    public Iterator<Iterator<Object>> rows() {
-        return values();
-    }
-
-    // TODO: eventually refactor usages of values to rows, then remove values
     public Iterator<Iterator<Object>> values() {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         return ResponseValueUtils.pagesToValues(dataTypes, pages);
     }
 
-    @Override
     public Iterator<Object> column(int columnIndex) {
         if (columnIndex < 0 || columnIndex >= columns.size()) throw new IllegalArgumentException();
         return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages);
@@ -280,31 +271,28 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     @Override
     public void close() {
         decRef();
+        if (esqlResponse != null) {
+            esqlResponse.setClosedState();
+        }
     }
 
     void closeInternal() {
         Releasables.close(() -> Iterators.map(pages.iterator(), p -> p::releaseBlocks));
     }
 
+    // singleton lazy set view over this response
+    private EsqlResponseImpl esqlResponse;
+
     @Override
     public EsqlResponse response() {
-        var outer = this;
-        return new EsqlResponse() {
-            @Override
-            public List<? extends ColumnInfo> columns() {
-                return outer.columns();
-            }
-
-            @Override
-            public Iterator<Iterator<Object>> rows() {
-                return outer.rows();
-            }
-
-            @Override
-            public Iterator<Object> column(int columnIndex) {
-                return outer.column(columnIndex);
-            }
-        };
+        if (hasReferences() == false) {
+            throw new IllegalStateException("closed");
+        }
+        if (esqlResponse != null) {
+            return esqlResponse;
+        }
+        esqlResponse = new EsqlResponseImpl(this);
+        return esqlResponse;
     }
 
     public static class Profile implements Writeable, ChunkedToXContentObject {

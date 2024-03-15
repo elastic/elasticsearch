@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -78,32 +79,50 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         var query = "from test | keep item, cost, color, sale | sort item";
         var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
         try (var queryResp = run(request)) {
-            logger.info("response=" + queryResp);
             var resp = queryResp.response();
+            logger.info("response=" + queryResp);
             assertThat(resp.columns().stream().map(ColumnInfo::name).toList(), contains("item", "cost", "color", "sale"));
             assertThat(resp.columns().stream().map(ColumnInfo::type).toList(), contains("long", "double", "keyword", "date"));
+            // columnar values
             assertThat(columnValues(resp.column(0)), contains(1L, 2L, 3L, 4L));
             assertThat(columnValues(resp.column(1)), contains(1.1d, 2.1d, 3.1d, 4.1d));
             assertThat(columnValues(resp.column(2)), contains("red", "blue", "green", "red"));
             var d = List.of("2004-03-02T00:00:00.000Z", "1992-06-01T00:00:00.000Z", "1965-06-01T00:00:00.000Z", "2000-03-15T00:00:00.000Z");
             assertThat(columnValues(resp.column(3)), contains(d.toArray()));
+            // row values
+            List<List<Object>> values = getValuesList(resp.rows());
+            assertThat(values.get(0), contains(1L, 1.1d, "red", "2004-03-02T00:00:00.000Z"));
+            assertThat(values.get(1), contains(2L, 2.1d, "blue", "1992-06-01T00:00:00.000Z"));
+            assertThat(values.get(2), contains(3L, 3.1d, "green", "1965-06-01T00:00:00.000Z"));
+            assertThat(values.get(3), contains(4L, 4.1d, "red", "2000-03-15T00:00:00.000Z"));
         }
     }
 
-    static List<List<Object>> getValuesList(Iterator<Iterator<Object>> values) {
-        var valuesList = new ArrayList<List<Object>>();
-        values.forEachRemaining(row -> {
-            var rowValues = new ArrayList<>();
-            row.forEachRemaining(rowValues::add);
-            valuesList.add(rowValues);
-        });
-        return valuesList;
-    }
+    public void testAccessAfterClose() {
+        for (var closedQueryResp : new boolean[] {true, false}) {
+            var query = "row a = 1";
+            var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
+            var queryResp = run(request);
+            var resp = queryResp.response();
+            var rows = resp.rows();
+            var cols = resp.column(0);
 
-    static List<Object> columnValues(Iterator<Object> values) {
-        List<Object> l = new ArrayList<>();
-        values.forEachRemaining(l::add);
-        return l;
+            // must close at least one of them
+            if (closedQueryResp) queryResp.close();
+            if (randomBoolean() || closedQueryResp == false) resp.close();
+
+            assertThrows(IllegalStateException.class, resp::rows);
+            assertThrows(IllegalStateException.class, () -> resp.column(0));
+            assertThrows(IllegalStateException.class, () -> rows.iterator());
+            assertThrows(IllegalStateException.class, () -> cols.iterator());
+            assertThrows(IllegalStateException.class, () -> queryResp.response().rows());
+            assertThrows(IllegalStateException.class, () -> queryResp.response().column(0));
+            if (closedQueryResp) {
+                assertThrows(IllegalStateException.class, () -> queryResp.response());
+            }
+
+            if (closedQueryResp == false) queryResp.close(); // we must close the query response if not already closed
+        }
     }
 
     protected EsqlQueryResponse run(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {
@@ -121,6 +140,22 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }
+    }
+
+    static List<List<Object>> getValuesList(Iterable<Iterator<Object>> values) {
+        var valuesList = new ArrayList<List<Object>>();
+        values.forEach(row -> {
+            var rowValues = new ArrayList<>();
+            row.forEachRemaining(rowValues::add);
+            valuesList.add(rowValues);
+        });
+        return valuesList;
+    }
+
+    static List<Object> columnValues(Iterable<Object> values) {
+        List<Object> l = new ArrayList<>();
+        values.forEach(l::add);
+        return l;
     }
 
     private void createAndPopulateIndex(String indexName) {

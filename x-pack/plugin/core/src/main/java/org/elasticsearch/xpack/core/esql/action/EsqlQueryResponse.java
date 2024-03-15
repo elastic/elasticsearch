@@ -12,9 +12,14 @@ import org.elasticsearch.core.Releasable;
 
 /**
  * Response to an ES|QL query request.
+ *
+ * This query response must be closed when the consumer of its response
+ * object is finished. Closing the query response closes and invalidates
+ * the response object. Calling {@link #response()} on a closed query
+ * response results in an IllegalStateException.
  */
 public abstract class EsqlQueryResponse extends ActionResponse implements Releasable {
 
-    /** Returns the response. */
+    /** Returns the response object. */
     public abstract EsqlResponse response();
 }

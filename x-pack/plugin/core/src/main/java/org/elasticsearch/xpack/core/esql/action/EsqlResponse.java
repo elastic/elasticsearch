@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.core.esql.action;
 
+import org.elasticsearch.core.Releasable;
+
 import java.util.Iterator;
 import java.util.List;
 
 /**
- * An ES|QL Response.
+ * An ES|QL Response object.
  *
  * <p> Iterator based access to values of type T has the following properties:
  * <ol>
@@ -19,19 +21,28 @@ import java.util.List;
  *   <li>multi-value is of type {@code List<T>}</li>
  *   <li>absent value is {@code null}</li>
  * </ol>
+ *
+ * <p> This response object should be closed when the consumer of its values
+ * is finished. Closing the response object invalidates any iterators of its
+ * values. An invalidated iterator, if not already exhausted, will eventually
+ * throw an IllegalStateException. Once a response object is closed, calling
+ * {@link #rows()}, {@link #column(int)}, or operating on an Iterable return
+ * from the aforementioned value accessor methods, results in an
+ * IllegalStateException.
  */
-public interface EsqlResponse {
+public interface EsqlResponse extends Releasable {
 
     /** Returns the column info. */
     List<? extends ColumnInfo> columns();
 
     /**
-     * Returns an iterator over the values in all rows of the response. The outer
-     * iterator returns an inner row-iterator - one per row. The row-iterator
-     * iterates over the actual values in the row, column-wise from left to right.
+     * Returns an iterable that allows to iterator over the values in all rows
+     * of the response, this is the rows-iterator. A further iterator can be
+     * retrieved from the rows-iterator, which iterates over the actual values
+     * in the row, one row at a time, column-wise from left to right.
      */
-    Iterator<Iterator<Object>> rows();
+    Iterable<Iterator<Object>> rows();
 
-    /** Returns an iterator over the values in the given column. */
-    Iterator<Object> column(int columnIndex);
+    /** Returns an iterable over the values in the given column. */
+    Iterable<Object> column(int columnIndex);
 }

@@ -111,7 +111,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                     versionType,
                     origin,
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+                    SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                    delete.routing()
                 );
             }
             case NO_OP -> {

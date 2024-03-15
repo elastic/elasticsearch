@@ -103,7 +103,9 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
             var queryResp = run(request);
             var resp = queryResp.response();
             var rows = resp.rows();
+            var rowItr = rows.iterator();
             var cols = resp.column(0);
+            var colItr = cols.iterator();
 
             // must close at least one of them
             if (closedQueryResp) queryResp.close();
@@ -117,6 +119,8 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
             assertThrows(IllegalStateException.class, () -> queryResp.response().column(0));
             if (closedQueryResp) {
                 assertThrows(IllegalStateException.class, () -> queryResp.response());
+                assertThrows(IllegalStateException.class, () -> rowItr.next().iterator().next());
+                assertThrows(IllegalStateException.class, () -> colItr.next());
             }
 
             if (closedQueryResp == false) queryResp.close(); // we must close the query response if not already closed

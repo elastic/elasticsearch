@@ -24,7 +24,6 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -34,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 
 /**
@@ -150,7 +150,7 @@ abstract class QueryList {
                 }
                 case LONG -> {
                     LongBlock longBlock = (LongBlock) block;
-                    if (field instanceof RangeFieldMapper.RangeFieldType rangeFieldType && rangeFieldType.rangeType() == RangeType.DATE) {
+                    if (inputDataType == DATETIME && field instanceof RangeFieldMapper.RangeFieldType rangeFieldType) {
                         yield offset -> rangeFieldType.dateTimeFormatter().formatMillis(longBlock.getLong(offset));
                     }
                     yield longBlock::getLong;

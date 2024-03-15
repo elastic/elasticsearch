@@ -52,6 +52,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
     private final ResultStrategy<?, ?> resultStrategy;
     private final BytesKeyedBucketOrds bucketOrds;
     private final IncludeExclude.StringFilter includeExclude;
+    private final boolean excludeDeletedDocs;
 
     public MapStringTermsAggregator(
         String name,
@@ -67,7 +68,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        boolean excludeDeletedDocs
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
@@ -75,6 +77,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
         // set last because if there is an error during construction the collector gets release outside the constructor.
         this.collectorSource = collectorSource;
+        this.excludeDeletedDocs = excludeDeletedDocs;
     }
 
     @Override
@@ -244,7 +247,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCounts = new long[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
+                collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx], excludeDeletedDocs);
                 int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
                 PriorityQueue<B> ordered = buildPriorityQueue(size);
@@ -296,7 +299,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
          * Collect extra entries for "zero" hit documents if they were requested
          * and required.
          */
-        abstract void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException;
+        abstract void collectZeroDocEntriesIfNeeded(long owningBucketOrd, boolean excludeDeletedDocs) throws IOException;
 
         /**
          * Build an empty temporary bucket.
@@ -371,7 +374,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
+        void collectZeroDocEntriesIfNeeded(long owningBucketOrd, boolean excludeDeletedDocs) throws IOException {
             if (bucketCountThresholds.getMinDocCount() != 0) {
                 return;
             }
@@ -383,6 +386,9 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                 SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
                 // brute force
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
+                    if (excludeDeletedDocs && ctx.reader().getLiveDocs() != null && ctx.reader().getLiveDocs().get(docId) == false) {
+                        continue;
+                    }
                     if (values.advanceExact(docId)) {
                         int valueCount = values.docValueCount();
                         for (int i = 0; i < valueCount; ++i) {
@@ -519,7 +525,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {}
+        void collectZeroDocEntriesIfNeeded(long owningBucketOrd, boolean excludeDeletedDocs) throws IOException {}
 
         @Override
         Supplier<SignificantStringTerms.Bucket> emptyBucketBuilder(long owningBucketOrd) {

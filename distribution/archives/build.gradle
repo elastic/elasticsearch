@@ -17,17 +17,6 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
       into('lib') {
         with libFiles(os, architecture)
       }
-      //        if ("aarch64".equals(architecture)) {
-//          if ("darwin".equals(platform)) {
-//            into('lib/darwin-aarch64') {
-//              with libsNative
-//            }
-//          } else if ("linux".equals(platform)) {
-//            into('lib/linux-aarch64') {
-//              with libsNative
-//            }
-//          }
-//        }
       into('config') {
         dirMode 0750
         fileMode 0660

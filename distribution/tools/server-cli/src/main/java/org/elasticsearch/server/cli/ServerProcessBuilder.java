@@ -103,7 +103,7 @@ public class ServerProcessBuilder {
 
     private List<String> getJvmArgs() {
         Path esHome = processInfo.workingDir();
-        var args = List.of(
+        return List.of(
             "--module-path",
             esHome.resolve("lib").toString(),
             // Special circumstances require some modules (not depended on by the main server module) to be explicitly added:
@@ -113,7 +113,6 @@ public class ServerProcessBuilder {
             "-m",
             "org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch"
         );
-        return args;
     }
 
     private String getCommand() {

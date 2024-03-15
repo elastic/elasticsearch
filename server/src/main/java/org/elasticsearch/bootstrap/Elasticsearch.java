@@ -270,11 +270,6 @@ class Elasticsearch {
         }
     }
 
-    @SuppressForbidden(reason = "ignore")
-    static Path getPath() {  // TODO remove - hack just for testing. Ensures that the native lib can be loaded
-        return org.elasticsearch.core.PathUtils.get("/tmp/x");
-    }
-
     /**
      * Initialize native resources.
      *

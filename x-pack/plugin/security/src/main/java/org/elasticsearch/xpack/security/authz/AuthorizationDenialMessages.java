@@ -48,7 +48,6 @@ public interface AuthorizationDenialMessages {
     );
 
     class Default implements AuthorizationDenialMessages {
-
         public Default() {}
 
         @Override

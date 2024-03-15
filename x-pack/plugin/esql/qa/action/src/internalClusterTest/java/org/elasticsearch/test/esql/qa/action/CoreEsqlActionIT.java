@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -99,7 +98,7 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
     }
 
     public void testAccessAfterClose() {
-        for (var closedQueryResp : new boolean[] {true, false}) {
+        for (var closedQueryResp : new boolean[] { true, false }) {
             var query = "row a = 1";
             var request = EsqlQueryRequestBuilder.newRequestBuilder(client()).query(query);
             var queryResp = run(request);

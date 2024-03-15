@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.vec;
+package org.elasticsearch.nativeaccess;
 
 import java.io.Closeable;
 

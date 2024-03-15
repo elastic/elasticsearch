@@ -56,7 +56,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.mapper.vectors.VectorScorerSupplierAdapter;
 import org.elasticsearch.index.mapper.vectors.VectorSimilarityTypeConverter;
-import org.elasticsearch.vec.VectorScorerProvider;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.VectorScorerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -428,16 +429,16 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
             // -- chegar here --
             RandomVectorScorerSupplier scorerSupplier;
-            VectorScorerProvider provider = VectorScorerProvider.getInstanceOrNull();
+            VectorScorerFactory factory = NativeAccess.instance().getVectorScorerFactory();
             var unwrappedDir = FilterDirectory.unwrap(segmentWriteState.directory);
             // assert unwrappedDir instanceof FSDirectory : "Expected FSDirectory, got: " + unwrappedDir ;
-            if (provider != null && unwrappedDir instanceof FSDirectory dir) {
+            if (factory != null && unwrappedDir instanceof FSDirectory dir) {
                 var similarity = VectorSimilarityTypeConverter.of(fieldInfo.getVectorSimilarityFunction());
                 var path = dir.getDirectory().resolve(tempQuantizedVectorData.getName());
                 var sc = mergedQuantizationState.getConstantMultiplier();
                 var dim = byteVectorValues.dimension();
                 var maxOrd = docsWithField.cardinality();
-                var scorer = provider.getScalarQuantizedVectorScorer(dim, maxOrd, sc, similarity, path);
+                var scorer = factory.getScalarQuantizedVectorScorer(dim, maxOrd, sc, similarity, path);
                 scorerSupplier = new VectorScorerSupplierAdapter(scorer);
                 // System.out.println("HEGO using new impl, " + unwrappedDir);
                 // var x = scorerSupplier.scorer(0);

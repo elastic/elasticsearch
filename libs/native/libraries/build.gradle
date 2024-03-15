@@ -48,15 +48,20 @@ dependencies {
 }
 
 def extractLibs = tasks.register('extractLibs', Copy) {
-  from configurations.libs
+
   into layout.buildDirectory.dir('platform')
-  // TODO: fix architecture in uploaded libs
-  filesMatching("*-x86-64/*") {
-    it.path = it.path.replace("x86-64", "x64")
+
+  from configurations.libs {
+    // TODO: fix architecture in uploaded libs
+    filesMatching("*-x86-64/*") {
+      it.path = it.path.replace("x86-64", "x64")
+    }
+    filesMatching("win32*/*") {
+      it.path = it.path.replace("win32", "windows")
+    }
   }
-  filesMatching("win32*/*") {
-    it.path = it.path.replace("win32", "windows")
-  }
+
+  from layout.projectDirectory.dir('static')
 }
 
 artifacts {

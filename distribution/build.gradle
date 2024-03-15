@@ -282,8 +282,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libs project(':server')
     // this is a special circumstance of a jar that is not a dependency of server, but needs to be in the module path
     libs project(':libs:elasticsearch-preallocate')
-    libsNativeDarwinAarch64 project(path: ':libs:elasticsearch-vec', configuration: 'darwinAarch64')
-    libsNativeLinuxAarch64 project(path: ':libs:elasticsearch-vec', configuration: 'linuxAarch64')
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
@@ -339,16 +337,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             include (os + '-' + architecture + '/*')
           }
         }
-      }
-    }
-
-    libNativeFiles = { // platform ->
-      copySpec {
-        //if (platform == 'darwin-aarch64') {
-          from(configurations.libsNativeDarwinAarch64)
-       //}
-        // else linux-aarch64 ...
-        from(configurations.libsNativeLinuxAarch64)
       }
     }
 

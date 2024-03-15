@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.elasticsearch.vec.VectorSimilarityType;
+import org.elasticsearch.nativeaccess.VectorSimilarityType;
 
 public final class VectorSimilarityTypeConverter {
 

@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.elasticsearch.vec.VectorScorer;
+import org.elasticsearch.nativeaccess.VectorScorer;
 
 import java.io.IOException;
 

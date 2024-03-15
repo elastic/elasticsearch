@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.vec.internal;
+package org.elasticsearch.nativeaccess.jdk.vec;
 
-import org.elasticsearch.vec.VectorScorer;
+import org.elasticsearch.nativeaccess.VectorScorer;
 
 public abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScorer permits DotProduct, Euclidean,
     MaximumInnerProduct {

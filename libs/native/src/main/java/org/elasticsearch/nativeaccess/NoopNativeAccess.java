@@ -40,4 +40,10 @@ class NoopNativeAccess implements NativeAccess {
         logger.warn("cannot allocate buffer because native access is not available");
         return null;
     }
+
+    @Override
+    public VectorScorerFactory getVectorScorerFactory() {
+        logger.warn("cannot get vector scorer because native access is not available");
+        return null;
+    }
 }

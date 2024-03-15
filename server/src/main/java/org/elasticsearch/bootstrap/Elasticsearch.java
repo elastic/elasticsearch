@@ -41,8 +41,6 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.vec.VectorScorerProvider;
-import org.elasticsearch.vec.VectorSimilarityType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -269,13 +267,6 @@ class Elasticsearch {
             bootstrap.closeStreams();
         } else {
             startCliMonitorThread(System.in);
-        }
-
-        // TODO remove - hack just for testing. Ensures that the native lib can be loaded
-        var scorerProvider = VectorScorerProvider.getInstanceOrNull();
-        if (scorerProvider != null) {
-            var scorer = scorerProvider.getScalarQuantizedVectorScorer(1, 2, 1, VectorSimilarityType.DOT_PRODUCT, getPath());
-            scorer.score(0, 1);
         }
     }
 

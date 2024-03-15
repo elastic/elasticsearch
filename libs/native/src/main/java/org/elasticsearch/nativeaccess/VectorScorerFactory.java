@@ -6,15 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.vec;
+package org.elasticsearch.nativeaccess;
 
-public enum VectorSimilarityType {
+import java.io.IOException;
+import java.nio.file.Path;
 
-    COSINE,
+public interface VectorScorerFactory {
 
-    DOT_PRODUCT,
-
-    EUCLIDEAN,
-
-    MAXIMUM_INNER_PRODUCT
+    VectorScorer getScalarQuantizedVectorScorer(
+        int dims,
+        int maxOrd,
+        float scoreCorrectionConstant,
+        VectorSimilarityType similarityType,
+        Path path
+    ) throws IOException;
 }

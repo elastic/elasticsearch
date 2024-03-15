@@ -67,12 +67,6 @@ grant codeBase "${codebase.elasticsearch-cli}" {
   permission java.util.PropertyPermission "*", "read,write";
 };
 
-grant codeBase "${codebase.elasticsearch-vec}" {
-  permission java.lang.RuntimePermission "loadLibrary.vec";
-   // TODO remove - hack just for testing.
-  permission java.io.FilePermission "/tmp/x", "read";
-};
-
 grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";

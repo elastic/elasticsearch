@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.vec;
+package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -18,10 +18,10 @@ import java.util.List;
 import java.util.function.Function;
 
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
-import static org.elasticsearch.vec.VectorSimilarityType.DOT_PRODUCT;
+import static org.elasticsearch.nativeaccess.VectorSimilarityType.DOT_PRODUCT;
 import static org.hamcrest.Matchers.equalTo;
 
-public class VectorScorerProviderTests extends AbstractVectorTestCase {
+public class VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     // Tests that the provider instance is null or not null on expected platforms/architectures
     public void testSupport() {
@@ -33,7 +33,6 @@ public class VectorScorerProviderTests extends AbstractVectorTestCase {
     public void testDotProductSimple() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         Path topLevelDir = createTempDir(getTestName());
-        var provider = VectorScorerProvider.getInstanceOrNull();
 
         // dimensions that cross the scalar / native boundary (stride)
         for (int dims : List.of(31, 32, 33)) {
@@ -48,7 +47,7 @@ public class VectorScorerProviderTests extends AbstractVectorTestCase {
             Path path = topLevelDir.resolve("data-" + dims + ".vec");
             Files.write(path, bytes, CREATE_NEW);
 
-            try (var scorer = provider.getScalarQuantizedVectorScorer(dims, 2, 1, DOT_PRODUCT, path)) {
+            try (var scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, DOT_PRODUCT, path)) {
                 assertThat(scorer.score(0, 1), equalTo(scalarQuantizedDotProductScore(vec1, vec2, 1, 1, 1)));
             }
         }
@@ -83,7 +82,6 @@ public class VectorScorerProviderTests extends AbstractVectorTestCase {
     }
 
     static void testDotProductRandom(Path topLevelDir, Function<Integer, byte[]> byteArraySupplier) throws IOException {
-        var provider = VectorScorerProvider.getInstanceOrNull();
 
         for (int times = 0; times < TIMES; times++) {
             final int dims = randomIntBetween(1, 4096);
@@ -103,7 +101,7 @@ public class VectorScorerProviderTests extends AbstractVectorTestCase {
                     offsets[i] = off;
                 }
             }
-            try (var scorer = provider.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, path)) {
+            try (var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, path)) {
                 int idx0 = randomIntBetween(0, size - 1);
                 int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
                 float expected = scalarQuantizedDotProductScore(vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);

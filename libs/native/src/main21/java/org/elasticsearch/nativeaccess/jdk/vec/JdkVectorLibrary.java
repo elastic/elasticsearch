@@ -6,28 +6,28 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.vec.internal;
+package org.elasticsearch.nativeaccess.jdk.vec;
 
-import org.elasticsearch.vec.VectorScorer;
-import org.elasticsearch.vec.VectorScorerProvider;
-import org.elasticsearch.vec.VectorSimilarityType;
+import org.elasticsearch.nativeaccess.VectorScorer;
+import org.elasticsearch.nativeaccess.VectorSimilarityType;
+import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.nio.file.Path;
 
-public final class NativeVectorScorerProvider implements VectorScorerProvider {
+public class JdkVectorLibrary implements VectorLibrary {
 
-    // Invoked by provider lookup mechanism
-    public NativeVectorScorerProvider() {}
+    static {
+        try {
+            MethodHandles.lookup().ensureInitialized(NativeVectorDistance.class);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     @Override
-    public VectorScorer getScalarQuantizedVectorScorer(
-        int dims,
-        int maxOrd,
-        float scoreCorrectionConstant,
-        VectorSimilarityType similarityType,
-        Path path
-    ) throws IOException {
+    public VectorScorer getScalarQuantizedVectorScorer(int dims, int maxOrd, float scoreCorrectionConstant, VectorSimilarityType similarityType, Path path) throws IOException {
         VectorDataInput data = VectorDataInput.createVectorDataInput(path);
         return switch (similarityType) {
             case COSINE, DOT_PRODUCT -> new DotProduct(dims, maxOrd, scoreCorrectionConstant, data);

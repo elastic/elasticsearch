@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.vec.internal;
+package org.elasticsearch.nativeaccess.jdk.vec;
 
 import java.lang.foreign.MemorySegment;
 

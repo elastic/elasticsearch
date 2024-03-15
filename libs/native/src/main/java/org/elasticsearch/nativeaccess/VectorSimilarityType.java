@@ -6,6 +6,15 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.vec {
-    exports org.elasticsearch.vec; // to org.elasticsearch.server;
+package org.elasticsearch.nativeaccess;
+
+public enum VectorSimilarityType {
+
+    COSINE,
+
+    DOT_PRODUCT,
+
+    EUCLIDEAN,
+
+    MAXIMUM_INNER_PRODUCT
 }

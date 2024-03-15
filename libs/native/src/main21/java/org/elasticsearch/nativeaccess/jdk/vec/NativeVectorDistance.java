@@ -6,17 +6,34 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.vec.internal;
+package org.elasticsearch.nativeaccess.jdk.vec;
 
-import org.elasticsearch.vec.internal.gen.vec_h;
-
+import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.lang.invoke.MethodHandle;
 
+import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
-public final class NativeVectorDistance {
+final class NativeVectorDistance {
+
+    static {
+        System.loadLibrary("vec");
+    }
+
+    private static final MethodHandle stride$mh = downcallHandle("stride", FunctionDescriptor.of(JAVA_INT));
+    private static final MethodHandle dot8s$mh = downcallHandle("dot8s", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+
+    // Stride of the native implementation - consumes this number of bytes per loop invocation.
+    // There must be at least this number of bytes/elements available when going native
+    static final int STRIDE = 32;
+
+    static {
+        assert STRIDE > 0 && (STRIDE & (STRIDE - 1)) == 0 : "Not a power of two";
+        assert stride() == STRIDE;
+    }
 
     /**
      * Computes the dot product of given byte vectors.
@@ -36,7 +53,7 @@ public final class NativeVectorDistance {
         int res = 0;
         if (length >= STRIDE) {
             i += length & ~(STRIDE - 1);
-            res = vec_h.dot8s(a, b, i);
+            res = dot8s(a, b, i);
         }
 
         // tail
@@ -51,24 +68,20 @@ public final class NativeVectorDistance {
         return 0f; // TODO
     }
 
-    static {
-        loadLibrary();
+    private static int stride() {
+        try {
+            return (int) stride$mh.invokeExact();
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
     }
 
-    @SuppressWarnings("removal")
-    private static void loadLibrary() {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            System.loadLibrary("vec");
-            return null;
-        });
+    private static int dot8s(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return (int) dot8s$mh.invokeExact(a, b, length);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
     }
 
-    // Stride of the native implementation - consumes this number of bytes per loop invocation.
-    // There must be at least this number of bytes/elements available when going native
-    static final int STRIDE = 32;
-
-    static {
-        assert STRIDE > 0 && (STRIDE & (STRIDE - 1)) == 0 : "Not a power of two";
-        assert vec_h.stride() == STRIDE;
-    }
 }

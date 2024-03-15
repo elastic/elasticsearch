@@ -8,5 +8,11 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-/** A marker interface for libraries that can be loaded by {@link org.elasticsearch.nativeaccess.lib.NativeLibraryProvider} */
-public sealed interface NativeLibrary permits JavaLibrary, PosixCLibrary, SystemdLibrary, VectorLibrary, ZstdLibrary {}
+import org.elasticsearch.nativeaccess.VectorScorerFactory;
+
+/**
+ * A VectorLibrary is just an adaptation of the factory for a NativeLibrary.
+ * It is needed so the NativeLibraryProvider can be the single point of construction
+ * for native implementations.
+ */
+public non-sealed interface VectorLibrary extends NativeLibrary, VectorScorerFactory {}

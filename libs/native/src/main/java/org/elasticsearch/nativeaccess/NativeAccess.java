@@ -35,5 +35,7 @@ public interface NativeAccess {
      */
     Zstd getZstd();
 
+    VectorScorerFactory getVectorScorerFactory();
+
     CloseableByteBuffer newBuffer(int len);
 }

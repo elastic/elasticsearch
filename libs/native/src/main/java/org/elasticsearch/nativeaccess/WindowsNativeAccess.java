@@ -20,4 +20,9 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     public boolean definitelyRunningAsRoot() {
         return false; // don't know
     }
+
+    @Override
+    public VectorScorerFactory getVectorScorerFactory() {
+        return null; // not supported yet
+    }
 }

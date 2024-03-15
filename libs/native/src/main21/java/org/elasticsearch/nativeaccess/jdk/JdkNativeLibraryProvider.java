@@ -8,10 +8,12 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.nativeaccess.jdk.vec.JdkVectorLibrary;
 import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.SystemdLibrary;
+import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 
 import java.util.Map;
@@ -29,7 +31,9 @@ public class JdkNativeLibraryProvider extends NativeLibraryProvider {
                 SystemdLibrary.class,
                 JdkSystemdLibrary::new,
                 ZstdLibrary.class,
-                JdkZstdLibrary::new
+                JdkZstdLibrary::new,
+                VectorLibrary.class,
+                JdkVectorLibrary::new
             )
         );
     }

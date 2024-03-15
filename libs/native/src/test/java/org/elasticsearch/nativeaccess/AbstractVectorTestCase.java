@@ -6,9 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.vec;
+package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -20,6 +21,13 @@ import static org.hamcrest.Matchers.startsWith;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
+    static VectorScorerFactory factory;
+
+    @BeforeClass
+    public static void getZstd() {
+        factory = NativeAccess.instance().getVectorScorerFactory();
+    }
+
     protected AbstractVectorTestCase() {
         logger.info(platformMsg());
     }
@@ -30,10 +38,10 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         var osName = System.getProperty("os.name");
 
         if (jdkVersion >= 21 && arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))) {
-            assertNotNull(VectorScorerProvider.getInstanceOrNull());
+            assertNotNull(factory);
             return true;
         } else {
-            assertNull(VectorScorerProvider.getInstanceOrNull());
+            assertNull(factory);
             assertThat(osName, either(startsWith("Mac")).or(startsWith("Linux")));
             return false;
         }

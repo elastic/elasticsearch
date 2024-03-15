@@ -24,7 +24,7 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
     static VectorScorerFactory factory;
 
     @BeforeClass
-    public static void getZstd() {
+    public static void getVectorScorerFactory() {
         factory = NativeAccess.instance().getVectorScorerFactory();
     }
 

@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -169,16 +170,7 @@ public final class CsvAssert {
         assertData(expected, EsqlTestUtils.getValuesList(actualValuesIterator), ignoreOrder, logger, valueTransformer);
     }
 
-    private record DataFailure(int row, int column, Object expected, Object actual) {
-        private boolean wouldFail() {
-            try {
-                assertEquals(expected, actual);
-                return false;
-            } catch (AssertionError ae) {
-                return true;
-            }
-        }
-    }
+    private record DataFailure(int row, int column, Object expected, Object actual) {}
 
     public static void assertData(
         ExpectedResults expected,
@@ -232,14 +224,10 @@ public final class CsvAssert {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
                         }
                     }
-                    var dataFailure = new DataFailure(
-                        row,
-                        column,
-                        valueTransformer.apply(expectedType, expectedValue),
-                        valueTransformer.apply(expectedType, actualValue)
-                    );
-                    if (dataFailure.wouldFail()) {
-                        dataFailures.add(dataFailure);
+                    var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
+                    var transformedActual = valueTransformer.apply(expectedType, actualValue);
+                    if (Objects.equals(transformedExpected, transformedActual) == false) {
+                        dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
                         fail("Data mismatch: " + dataFailures);

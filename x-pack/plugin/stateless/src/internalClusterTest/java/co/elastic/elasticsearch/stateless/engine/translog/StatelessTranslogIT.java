@@ -18,12 +18,14 @@
 package co.elastic.elasticsearch.stateless.engine.translog;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,7 +48,9 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
     public void testTranslogFileHoldDirectoryOfReferencedFiles() throws Exception {
         startMasterOnlyNode();
 
-        String indexNode = startIndexNode();
+        String indexNode = startIndexNode(
+            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
+        );
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -91,7 +95,9 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
     public void testTranslogFileHoldDirectoryForIdleShards() throws Exception {
         startMasterOnlyNode();
 
-        String indexNode = startIndexNode();
+        String indexNode = startIndexNode(
+            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
+        );
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -157,18 +163,16 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1505")
     public void testTranslogFileHoldDirectoryReflectsWhenFilesPruned() throws Exception {
         startMasterOnlyNode();
 
-        String indexNode = startIndexNode();
+        String indexNode = startIndexNode(
+            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
+        );
         ensureStableCluster(2);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L)).build()
-        );
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
         ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         ensureGreen(indexName);
 
@@ -181,7 +185,6 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
 
         Set<TranslogReplicator.BlobTranslogFile> firstActiveTranslogFiles = translogReplicator.getActiveTranslogFiles();
         int firstFileCount = firstActiveTranslogFiles.size();
-        long maxUploadedFileAfterFirstIndex = translogReplicator.getMaxUploadedFile();
         assertThat(firstFileCount, greaterThan(0));
 
         var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
@@ -191,6 +194,10 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         flush(indexName);
 
         assertBusy(() -> assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0)));
+        assertBusy(() -> assertTrue(translogBlobContainer.listBlobs(operationPurpose).isEmpty()));
+
+        indexDocs(indexName, randomIntBetween(1, 20));
+        long onlyReferencedFile = translogReplicator.getMaxUploadedFile();
 
         final int iters2 = randomIntBetween(1, 10);
         for (int i = 0; i < iters2; i++) {
@@ -198,7 +205,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         }
 
         Set<TranslogReplicator.BlobTranslogFile> secondActiveTranslogFiles = translogReplicator.getActiveTranslogFiles();
-        assertThat(translogReplicator.getMaxUploadedFile(), greaterThan(maxUploadedFileAfterFirstIndex));
+        assertThat(translogReplicator.getMaxUploadedFile(), greaterThan(onlyReferencedFile));
         assertTranslogBlobsExist(secondActiveTranslogFiles, translogBlobContainer);
 
         List<BlobMetadata> blobs = translogBlobContainer.listBlobs(operationPurpose)
@@ -218,7 +225,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                 .mapToLong(r -> generation - r)
                 .min()
                 .getAsLong();
-            assertThat(minReferenced, greaterThan(maxUploadedFileAfterFirstIndex));
+            assertThat(minReferenced, equalTo(onlyReferencedFile));
         }
     }
 

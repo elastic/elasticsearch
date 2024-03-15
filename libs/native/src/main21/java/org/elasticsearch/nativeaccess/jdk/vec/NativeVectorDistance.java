@@ -11,6 +11,8 @@ package org.elasticsearch.nativeaccess.jdk.vec;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
@@ -20,7 +22,15 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 final class NativeVectorDistance {
 
     static {
-        System.loadLibrary("vec");
+        loadLibrary();
+    }
+
+    @SuppressWarnings("removal")
+    private static void loadLibrary() {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            System.loadLibrary("vec");
+            return null;
+        });
     }
 
     private static final MethodHandle stride$mh = downcallHandle("stride", FunctionDescriptor.of(JAVA_INT));
@@ -83,5 +93,4 @@ final class NativeVectorDistance {
             throw new AssertionError(t);
         }
     }
-
 }

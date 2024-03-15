@@ -21,6 +21,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.elasticsearch.common.logging.LogConfigurator;
 
 import java.nio.file.Path;
 
@@ -28,6 +29,10 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 50) // tests.directory sys property?
 public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
+
+    static {
+        LogConfigurator.configureESLogging(); // TODO: strange initialization issue if I don't enable this.
+    }
 
     @Override
     protected Codec getCodec() {

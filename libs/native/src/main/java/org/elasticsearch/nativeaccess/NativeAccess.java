@@ -35,6 +35,9 @@ public interface NativeAccess {
      */
     Zstd getZstd();
 
+    /**
+     * Returns the vector scorer factory, or null.
+     */
     VectorScorerFactory getVectorScorerFactory();
 
     CloseableByteBuffer newBuffer(int len);

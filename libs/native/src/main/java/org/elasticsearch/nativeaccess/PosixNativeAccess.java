@@ -12,6 +12,9 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+
 abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     protected final PosixCLibrary libc;
@@ -33,7 +36,18 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         return vectorScorerFactory;
     }
 
-    private static boolean isNativeVectorLibSupported() {
-        return Runtime.version().feature() >= 21 && System.getProperty("os.arch").equals("aarch64");
+    static boolean isNativeVectorLibSupported() {
+        return Runtime.version().feature() >= 21 && getProperty("os.arch").equals("aarch64") && isMacOrLinux();
+    }
+
+    static boolean isMacOrLinux() {
+        String name = getProperty("os.name");
+        return name.startsWith("Mac") || name.startsWith("Linux");
+    }
+
+    @SuppressWarnings("removal")
+    static String getProperty(String name) {
+        PrivilegedAction<String> pa = () -> System.getProperty(name);
+        return AccessController.doPrivileged(pa);
     }
 }

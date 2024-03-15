@@ -10,8 +10,7 @@ package org.elasticsearch.nativeaccess.jdk.vec;
 
 import org.elasticsearch.nativeaccess.VectorScorer;
 
-public abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScorer permits DotProduct, Euclidean,
-    MaximumInnerProduct {
+abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScorer permits DotProduct, Euclidean, MaximumInnerProduct {
 
     protected final int dims;
     protected final int maxOrd;
@@ -26,17 +25,17 @@ public abstract sealed class AbstractScalarQuantizedVectorScorer implements Vect
     }
 
     @Override
-    public int dims() {
+    public final int dims() {
         return dims;
     }
 
     @Override
-    public int maxOrd() {
+    public final int maxOrd() {
         return maxOrd;
     }
 
     @Override
-    public void close() {
+    public final void close() {
         data.close();
     }
 }

@@ -462,7 +462,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
                 final IndexAbstraction rolloverTargetAbstraction = currentState.metadata()
                     .getIndicesLookup()
-                    .get(rolloverRequest.getRolloverTarget());
+                    .get(rolloverRequest.getRolloverTarget())
+                    .resolveDataStreamAlias(currentState.metadata());
 
                 final IndexMetadataStats sourceIndexStats = rolloverTargetAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
                     ? IndexMetadataStats.fromStatsResponse(rolloverSourceIndex, rolloverTask.statsResponse())
@@ -471,7 +472,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // Perform the actual rollover
                 final var rolloverResult = rolloverService.rolloverClusterState(
                     currentState,
-                    rolloverRequest.getRolloverTarget(),
+                    rolloverTargetAbstraction.getName(),
                     rolloverRequest.getNewIndexName(),
                     rolloverRequest.getCreateIndexRequest(),
                     metConditions,

@@ -12,11 +12,14 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -32,11 +35,13 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -54,11 +59,13 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.CombinableMatcher.both;
 import static org.hamcrest.number.OrderingComparison.greaterThanOrEqualTo;
@@ -68,7 +75,7 @@ public class RolloverIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(InternalSettingsPlugin.class);
+        return List.of(DataStreamsPlugin.class, InternalSettingsPlugin.class);
     }
 
     public void testRolloverOnEmptyIndex() throws Exception {
@@ -869,4 +876,39 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
+    public void testRolloverDataStreamAlias() throws Exception {
+        TransportPutComposableIndexTemplateAction.Request templateRequest = new TransportPutComposableIndexTemplateAction.Request(
+            "ds-template"
+        );
+        templateRequest.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("logs-*"))
+                .template(new Template(null, null, Map.of("ds-alias", AliasMetadata.builder("ds-alias").writeIndex(true).build()), null))
+                .metadata(null)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, templateRequest).actionGet();
+        String dataStreamName = "logs-ds";
+        CreateDataStreamAction.Request dataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, dataStreamRequest).actionGet();
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
+        String aliasToDataStream = "ds-alias";
+        aliasesRequest.addAliasAction(
+            new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD).alias(aliasToDataStream)
+                .index(dataStreamName)
+        );
+        assertAcked(indicesAdmin().aliases(aliasesRequest).actionGet());
+        prepareIndex(dataStreamName).setSource("{\"@timestamp\": \"2024-03-18\"}", XContentType.JSON)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .get();
+        final RolloverResponse response = indicesAdmin().prepareRolloverIndex(aliasToDataStream).get();
+        assertThat(response.getOldIndex(), startsWith(".ds-logs-ds"));
+        assertThat(response.getOldIndex(), endsWith("-000001"));
+        assertThat(response.getNewIndex(), startsWith(".ds-logs-ds"));
+        assertThat(response.getNewIndex(), endsWith("-000002"));
+        assertThat(response.isDryRun(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(0));
+    }
 }

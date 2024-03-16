@@ -78,6 +78,16 @@ public interface IndexAbstraction {
     }
 
     /**
+     * Resolves the data stream this alias points to.
+     * @param metadata The current metadata
+     * @return the data stream to which this alias points to or <code>this</code> if this is not an alias or if it
+     * is an alias that does not point to a data stream.
+     */
+    default IndexAbstraction resolveDataStreamAlias(Metadata metadata) {
+        return this;
+    }
+
+    /**
      * An index abstraction type.
      */
     enum Type {
@@ -283,6 +293,14 @@ public interface IndexAbstraction {
         @Override
         public boolean isDataStreamRelated() {
             return dataStreamAlias;
+        }
+
+        @Override
+        public IndexAbstraction resolveDataStreamAlias(Metadata metadata) {
+            if (dataStreamAlias) {
+                return metadata.getIndicesLookup().get(getWriteIndex().getName()).getParentDataStream();
+            }
+            return this;
         }
 
         @Override

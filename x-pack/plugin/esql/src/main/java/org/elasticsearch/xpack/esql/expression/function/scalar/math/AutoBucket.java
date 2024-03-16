@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -22,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -35,6 +32,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_DATETIME_TO_LONG;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convert;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -110,8 +109,8 @@ public class AutoBucket extends EsqlScalarFunction implements Validatable {
         int b = ((Number) buckets.fold()).intValue();
 
         if (field.dataType() == DataTypes.DATETIME) {
-            long f = foldToLong(from);
-            long t = foldToLong(to);
+            long f = (long) STRING_DATETIME_TO_LONG.convert(from);
+            long t = (long) STRING_DATETIME_TO_LONG.convert(to);
             return DateTrunc.evaluator(
                 source(),
                 toEvaluator.apply(field),
@@ -119,8 +118,8 @@ public class AutoBucket extends EsqlScalarFunction implements Validatable {
             );
         }
         if (field.dataType().isNumeric()) {
-            double f = ((Number) from.fold()).doubleValue();
-            double t = ((Number) to.fold()).doubleValue();
+            double f = (double) convert(from.fold(), DataTypes.DOUBLE);
+            double t = (double) convert(to.fold(), DataTypes.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
             Literal rounding = new Literal(source(), pickRounding(b, f, t), DataTypes.DOUBLE);
@@ -209,13 +208,6 @@ public class AutoBucket extends EsqlScalarFunction implements Validatable {
         String operation = sourceText();
 
         failures.add(isFoldable(buckets, operation, SECOND)).add(isFoldable(from, operation, THIRD)).add(isFoldable(to, operation, FOURTH));
-    }
-
-    private long foldToLong(Expression e) {
-        Object value = Foldables.valueOf(e);
-        return DataTypes.isDateTime(e.dataType())
-            ? ((Number) value).longValue()
-            : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(BytesRefs.toString(value));
     }
 
     @Override

@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ESQL_DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeStringToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
@@ -36,7 +38,6 @@ import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 
 public class DateParse extends EsqlScalarFunction implements OptionalArgument {
 
-    public static final DateFormatter DEFAULT_FORMATTER = toFormatter(new BytesRef("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), UTC);
     private final Expression field;
     private final Expression format;
 
@@ -83,13 +84,12 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
     public static long process(BytesRef val, @Fixed DateFormatter formatter) throws IllegalArgumentException {
-        String dateString = val.utf8ToString();
-        return formatter.parseMillis(dateString);
+        return convertDatetimeStringToLong(val.utf8ToString(), formatter);
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static long process(BytesRef val, BytesRef formatter, @Fixed ZoneId zoneId) throws IllegalArgumentException {
-        return process(val, toFormatter(formatter, zoneId));
+        return convertDatetimeStringToLong(val.utf8ToString(), toFormatter(formatter, zoneId));
     }
 
     @Override
@@ -97,7 +97,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         ZoneId zone = UTC; // TODO session timezone?
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_FORMATTER);
+            return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, ESQL_DEFAULT_DATE_TIME_FORMATTER);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");

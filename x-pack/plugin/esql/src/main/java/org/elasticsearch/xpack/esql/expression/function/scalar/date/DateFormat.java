@@ -28,11 +28,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ESQL_DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeLongToString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
 public class DateFormat extends EsqlConfigurationFunction implements OptionalArgument {
 
@@ -83,19 +84,24 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     @Evaluator(extraName = "Constant")
     static BytesRef process(long val, @Fixed DateFormatter formatter) {
-        return new BytesRef(formatter.formatMillis(val));
+        return new BytesRef(convertDatetimeLongToString(val, formatter));
     }
 
     @Evaluator
     static BytesRef process(long val, BytesRef formatter, @Fixed Locale locale) {
-        return process(val, toFormatter(formatter, locale));
+        return new BytesRef(convertDatetimeLongToString(val, toFormatter(formatter, locale)));
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), UTC_DATE_TIME_FORMATTER, dvrCtx);
+            return dvrCtx -> new DateFormatConstantEvaluator(
+                source(),
+                fieldEvaluator.get(dvrCtx),
+                ESQL_DEFAULT_DATE_TIME_FORMATTER,
+                dvrCtx
+            );
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
@@ -115,7 +121,9 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     }
 
     private static DateFormatter toFormatter(Object format, Locale locale) {
-        DateFormatter result = format == null ? UTC_DATE_TIME_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
+        DateFormatter result = format == null
+            ? ESQL_DEFAULT_DATE_TIME_FORMATTER
+            : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
         return result.withLocale(locale);
     }
 

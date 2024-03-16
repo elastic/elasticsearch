@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -145,6 +147,7 @@ public class EnrichLookupService {
         String sessionId,
         CancellableTask parentTask,
         String index,
+        DataType inputDataType,
         String matchType,
         String matchField,
         List<NamedExpression> extractFields,
@@ -169,7 +172,7 @@ public class EnrichLookupService {
                 return;
             }
             DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
-            var lookupRequest = new LookupRequest(sessionId, shardId, matchType, matchField, inputPage, extractFields);
+            var lookupRequest = new LookupRequest(sessionId, shardId, inputDataType, matchType, matchField, inputPage, extractFields);
             // TODO: handle retry and avoid forking for the local lookup
             try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                 transportService.sendChildRequest(
@@ -237,6 +240,7 @@ public class EnrichLookupService {
         String sessionId,
         CancellableTask task,
         ShardId shardId,
+        DataType inputDataType,
         String matchType,
         String matchField,
         Page inputPage,
@@ -336,7 +340,15 @@ public class EnrichLookupService {
                 System.currentTimeMillis(),
                 System.nanoTime(),
                 driverContext,
-                () -> lookupDescription(sessionId, shardId, matchType, matchField, extractFields, inputPage.getPositionCount()),
+                () -> lookupDescription(
+                    sessionId,
+                    shardId,
+                    inputDataType,
+                    matchType,
+                    matchField,
+                    extractFields,
+                    inputPage.getPositionCount()
+                ),
                 queryOperator,
                 intermediateOperators,
                 outputOperator,
@@ -398,6 +410,7 @@ public class EnrichLookupService {
                 request.sessionId,
                 (CancellableTask) task,
                 request.shardId,
+                request.inputDataType,
                 request.matchType,
                 request.matchField,
                 request.inputPage,
@@ -412,6 +425,7 @@ public class EnrichLookupService {
     private static class LookupRequest extends TransportRequest implements IndicesRequest {
         private final String sessionId;
         private final ShardId shardId;
+        private final DataType inputDataType;
         private final String matchType;
         private final String matchField;
         private final Page inputPage;
@@ -423,6 +437,7 @@ public class EnrichLookupService {
         LookupRequest(
             String sessionId,
             ShardId shardId,
+            DataType inputDataType,
             String matchType,
             String matchField,
             Page inputPage,
@@ -430,6 +445,7 @@ public class EnrichLookupService {
         ) {
             this.sessionId = sessionId;
             this.shardId = shardId;
+            this.inputDataType = inputDataType;
             this.matchType = matchType;
             this.matchField = matchField;
             this.inputPage = inputPage;
@@ -441,6 +457,10 @@ public class EnrichLookupService {
             super(in);
             this.sessionId = in.readString();
             this.shardId = new ShardId(in);
+            String inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_INPUT_TYPE))
+                ? in.readString()
+                : "unknown";
+            this.inputDataType = EsqlDataTypes.fromTypeName(inputDataType);
             this.matchType = in.readString();
             this.matchField = in.readString();
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
@@ -456,6 +476,9 @@ public class EnrichLookupService {
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_EXTENDED_ENRICH_INPUT_TYPE)) {
+                out.writeString(inputDataType.typeName());
+            }
             out.writeString(matchType);
             out.writeString(matchField);
             out.writeWriteable(inputPage);
@@ -478,7 +501,15 @@ public class EnrichLookupService {
             return new CancellableTask(id, type, action, "", parentTaskId, headers) {
                 @Override
                 public String getDescription() {
-                    return lookupDescription(sessionId, shardId, matchType, matchField, extractFields, inputPage.getPositionCount());
+                    return lookupDescription(
+                        sessionId,
+                        shardId,
+                        inputDataType,
+                        matchType,
+                        matchField,
+                        extractFields,
+                        inputPage.getPositionCount()
+                    );
                 }
             };
         }
@@ -513,6 +544,7 @@ public class EnrichLookupService {
     private static String lookupDescription(
         String sessionId,
         ShardId shardId,
+        DataType inputDataType,
         String matchType,
         String matchField,
         List<NamedExpression> extractFields,
@@ -523,6 +555,8 @@ public class EnrichLookupService {
             + sessionId
             + " ,shard="
             + shardId
+            + " ,input_type="
+            + inputDataType
             + " ,match_type="
             + matchType
             + " ,match_field="

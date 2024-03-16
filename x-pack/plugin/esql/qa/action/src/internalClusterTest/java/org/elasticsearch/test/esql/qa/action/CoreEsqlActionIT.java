@@ -117,13 +117,13 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
             assertThrows(IllegalStateException.class, () -> cols.iterator());
             assertThrows(IllegalStateException.class, () -> queryResp.response().rows());
             assertThrows(IllegalStateException.class, () -> queryResp.response().column(0));
+            assertThrows(IllegalStateException.class, () -> rowItr.next().iterator().next());
+            assertThrows(IllegalStateException.class, () -> colItr.next());
             if (closedQueryResp) {
                 assertThrows(IllegalStateException.class, () -> queryResp.response());
-                assertThrows(IllegalStateException.class, () -> rowItr.next().iterator().next());
-                assertThrows(IllegalStateException.class, () -> colItr.next());
+            } else {
+                queryResp.close(); // we must close the query response if not already closed
             }
-
-            if (closedQueryResp == false) queryResp.close(); // we must close the query response if not already closed
         }
     }
 

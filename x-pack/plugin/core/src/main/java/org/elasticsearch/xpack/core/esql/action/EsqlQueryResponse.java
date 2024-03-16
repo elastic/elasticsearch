@@ -20,6 +20,20 @@ import org.elasticsearch.core.Releasable;
  */
 public abstract class EsqlQueryResponse extends ActionResponse implements Releasable {
 
+    private boolean closed;
+
     /** Returns the response object. */
-    public abstract EsqlResponse response();
+    public EsqlResponse response() {
+        if (closed) {
+            throw new IllegalStateException("closed");
+        }
+        return responseInternal();
+    }
+
+    protected abstract EsqlResponse responseInternal();
+
+    @Override
+    public void close() {
+        closed = true;
+    }
 }

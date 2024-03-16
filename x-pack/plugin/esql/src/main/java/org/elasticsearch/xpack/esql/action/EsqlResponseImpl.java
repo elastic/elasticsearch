@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 
+import java.util.Iterator;
 import java.util.List;
 
 /** View over the response, that supports the xpack core transport API. */
@@ -32,7 +33,7 @@ public class EsqlResponseImpl implements EsqlResponse {
         ensureOpen();
         return () -> {
             ensureOpen();
-            return queryResponse.rows().iterator();
+            return new DelegatingIterator<>(queryResponse.rows().iterator());
         };
     }
 
@@ -41,7 +42,7 @@ public class EsqlResponseImpl implements EsqlResponse {
         ensureOpen();
         return () -> {
             ensureOpen();
-            return queryResponse.column(columnIndex);
+            return new DelegatingIterator<>(queryResponse.column(columnIndex));
         };
     }
 
@@ -63,5 +64,26 @@ public class EsqlResponseImpl implements EsqlResponse {
     @Override
     public String toString() {
         return "EsqlResponse[response=" + queryResponse + "]";
+    }
+
+    /** A delegating iterator, that first checks the closed state before delegating. */
+    final class DelegatingIterator<T> implements Iterator<T> {
+        final Iterator<T> delegate;
+
+        DelegatingIterator(Iterator<T> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            ensureOpen();
+            return delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            ensureOpen();
+            return delegate.next();
+        }
     }
 }

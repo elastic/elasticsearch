@@ -275,6 +275,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     @Override
     public void close() {
+        super.close();
         decRef();
         if (esqlResponse != null) {
             esqlResponse.setClosedState();
@@ -289,7 +290,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private EsqlResponseImpl esqlResponse;
 
     @Override
-    public EsqlResponse response() {
+    public EsqlResponse responseInternal() {
         if (hasReferences() == false) {
             throw new IllegalStateException("closed");
         }

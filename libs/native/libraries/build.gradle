@@ -1,0 +1,64 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.transform.UnzipTransform
+
+apply plugin: 'base'
+
+configurations {
+  libs {
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    canBeConsumed = false
+  }
+}
+
+var zstdVersion = "1.5.5"
+
+repositories {
+  exclusiveContent {
+    forRepository {
+      maven {
+        url "https://artifactory.elastic.dev/artifactory/elasticsearch-zstd"
+        metadataSources {
+          artifact()
+        }
+      }
+    }
+    filter {
+      includeModule("org.elasticsearch", "zstd")
+    }
+  }
+}
+
+dependencies {
+  registerTransform(UnzipTransform, transformSpec -> {
+    transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE);
+    transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+  });
+  libs "org.elasticsearch:zstd:${zstdVersion}:darwin-aarch64"
+  libs "org.elasticsearch:zstd:${zstdVersion}:darwin-x86-64"
+  libs "org.elasticsearch:zstd:${zstdVersion}:linux-aarch64"
+  libs "org.elasticsearch:zstd:${zstdVersion}:linux-x86-64"
+  libs "org.elasticsearch:zstd:${zstdVersion}:windows-x86-64"
+}
+
+def extractLibs = tasks.register('extractLibs', Copy) {
+  from configurations.libs
+  into layout.buildDirectory.dir('platform')
+  // TODO: fix architecture in uploaded libs
+  filesMatching("*-x86-64/*") {
+    it.path = it.path.replace("x86-64", "x64")
+  }
+  filesMatching("win32*/*") {
+    it.path = it.path.replace("win32", "windows")
+  }
+}
+
+artifacts {
+  'default' extractLibs
+}

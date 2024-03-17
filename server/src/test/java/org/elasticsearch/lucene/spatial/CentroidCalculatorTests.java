@@ -22,9 +22,9 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -409,7 +409,7 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
         return new CentroidMatcher(expectedCentroid.getX(), expectedCentroid.getY(), expectedCentroid.sumWeight(), weightFactor);
     }
 
-    private static class CentroidMatcher extends BaseMatcher<CentroidCalculator> {
+    private static class CentroidMatcher extends TypeSafeMatcher<CentroidCalculator> {
         private final double weightFactor;
         private final Matcher<Double> xMatcher;
         private final Matcher<Double> yMatcher;
@@ -423,34 +423,27 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
         }
 
         private Matcher<Double> matchDouble(double value) {
-            if (value > 1e20 || value < 1e20) {
-                // Very large values have floating point errors, so instead of an absolute value, we use a relative one
-                return closeTo(value, Math.abs(value / 1e10));
-            } else {
-                // Most data (notably geo data) has values within bounds, and an absolute delta makes more sense.
-                return closeTo(value, DELTA);
-            }
+            // Very large values have floating point errors, so instead of an absolute value, we use a relative one
+            // Most data (notably geo data) has values within bounds, and an absolute delta makes more sense.
+            double delta = (value > 1e28 || value < -1e28) ? Math.abs(value / 1e6)
+                : (value > 1e20 || value < -1e20) ? Math.abs(value / 1e10)
+                : (value > 1e10 || value < -1e10) ? Math.abs(value / 1e15)
+                : DELTA;
+            return closeTo(value, delta);
         }
 
         @Override
-        public boolean matches(Object actual) {
-            if (actual instanceof CentroidCalculator actualCentroid) {
-                return xMatcher.matches(actualCentroid.getX())
-                    && yMatcher.matches(actualCentroid.getY())
-                    && wMatcher.matches(weightFactor * actualCentroid.sumWeight());
-            }
-            return false;
+        public boolean matchesSafely(CentroidCalculator actualCentroid) {
+            return xMatcher.matches(actualCentroid.getX())
+                && yMatcher.matches(actualCentroid.getY())
+                && wMatcher.matches(weightFactor * actualCentroid.sumWeight());
         }
 
         @Override
-        public void describeMismatch(Object item, Description description) {
-            if (item instanceof CentroidCalculator actualCentroid) {
-                describeSubMismatch(xMatcher, actualCentroid.getX(), "X value", description);
-                describeSubMismatch(yMatcher, actualCentroid.getY(), "Y value", description);
-                describeSubMismatch(wMatcher, weightFactor * actualCentroid.sumWeight(), "sumWeight", description);
-            } else {
-                super.describeMismatch(item, description);
-            }
+        public void describeMismatchSafely(CentroidCalculator actualCentroid, Description description) {
+            describeSubMismatch(xMatcher, actualCentroid.getX(), "X value", description);
+            describeSubMismatch(yMatcher, actualCentroid.getY(), "Y value", description);
+            describeSubMismatch(wMatcher, weightFactor * actualCentroid.sumWeight(), "sumWeight", description);
         }
 
         private void describeSubMismatch(Matcher<Double> matcher, double value, String name, Description description) {

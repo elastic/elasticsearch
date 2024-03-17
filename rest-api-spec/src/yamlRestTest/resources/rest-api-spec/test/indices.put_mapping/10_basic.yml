@@ -87,7 +87,7 @@
 ---
 "Put mappings with explicit _doc type bwc":
   - skip:
-          version:     "8.0.0 - " #TODO: add "mixed" to skip test for mixed cluster/upgrade tests
+          version:     "8.0.0 - "
           reason:      "old deprecation message for pre 8.0"
           features:    "node_selector"
   - do:
@@ -96,7 +96,7 @@
 
   - do:
       node_selector:
-        version: " - 7.99.99" #TODO: OR replace with "non_current" here
+        version: "original"
       catch: bad_request
       indices.put_mapping:
         index: test_index

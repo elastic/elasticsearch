@@ -9,8 +9,17 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -18,32 +27,33 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.OffsetTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class EsqlExpressionTranslators {
@@ -108,18 +118,116 @@ public final class EsqlExpressionTranslators {
         }
     }
 
+    /**
+     * This class is responsible for pushing the ES|QL Binary Comparison operators into Lucene.  It covers:
+     *  <ul>
+     *      <li>{@link Equals}</li>
+     *      <li>{@link NotEquals}</li>
+     *      <li>{@link NullEquals}</li>
+     *      <li>{@link GreaterThanOrEqual}</li>
+     *      <li>{@link GreaterThan}</li>
+     *      <li>{@link LessThanOrEqual}</li>
+     *      <li>{@link LessThan}</li>
+     *  </ul>
+     *
+     *  In general, we are able to push these down when one of the arguments is a constant (i.e. is foldable).  This class assumes
+     *  that an earlier pass through the query has rearranged things so that the foldable value will be the right hand side
+     *  input to the operation.
+     */
     public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
-            return doTranslate(bc, handler);
-        }
-
-        public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {
+            // TODO: Pretty sure this check is redundant with the one at the beginning of translate
             ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
             Query translated = translateOutOfRangeComparisons(bc);
-            return translated == null
-                ? ExpressionTranslators.BinaryComparisons.doTranslate(bc, handler)
-                : handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
+            if (translated != null) {
+                return handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
+            }
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+        }
+
+        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
+            Check.isTrue(
+                bc.right().foldable(),
+                "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
+                bc.right().sourceLocation().getLineNumber(),
+                bc.right().sourceLocation().getColumnNumber(),
+                Expressions.name(bc.right()),
+                bc.symbol()
+            );
+            TypedAttribute attribute = checkIsPushableAttribute(bc.left());
+            Source source = bc.source();
+            String name = handler.nameOf(attribute);
+            Object result = bc.right().fold();
+            Object value = result;
+            String format = null;
+            boolean isDateLiteralComparison = false;
+
+            // TODO: This type coersion layer is copied directly from the QL counterpart code. It's probably not necessary or desireable
+            // in the ESQL version. We should instead do the type conversions using our casting functions.
+            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
+            // no matter the timezone provided by the user
+            if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
+                DateFormatter formatter;
+                if (value instanceof ZonedDateTime) {
+                    formatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+                    // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime instance
+                    // which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
+                    // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
+                    value = formatter.format((ZonedDateTime) value);
+                } else {
+                    formatter = DateFormatter.forPattern("strict_hour_minute_second_fraction");
+                    value = formatter.format((OffsetTime) value);
+                }
+                format = formatter.pattern();
+                isDateLiteralComparison = true;
+            } else if (attribute.dataType() == IP && value instanceof BytesRef bytesRef) {
+                value = DocValueFormat.IP.format(bytesRef);
+            } else if (attribute.dataType() == VERSION) {
+                // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
+                // encoded) representation of the version as it'll do the encoding itself.
+                if (value instanceof BytesRef bytesRef) {
+                    value = new Version(bytesRef).toString();
+                } else if (value instanceof Version version) {
+                    value = version.toString();
+                }
+            } else if (attribute.dataType() == UNSIGNED_LONG && value instanceof Long ul) {
+                value = unsignedLongAsNumber(ul);
+            }
+
+            ZoneId zoneId = null;
+            if (DataTypes.isDateTime(attribute.dataType())) {
+                zoneId = bc.zoneId();
+            }
+            if (bc instanceof GreaterThan) {
+                return new RangeQuery(source, name, value, false, null, false, format, zoneId);
+            }
+            if (bc instanceof GreaterThanOrEqual) {
+                return new RangeQuery(source, name, value, true, null, false, format, zoneId);
+            }
+            if (bc instanceof LessThan) {
+                return new RangeQuery(source, name, null, false, value, false, format, zoneId);
+            }
+            if (bc instanceof LessThanOrEqual) {
+                return new RangeQuery(source, name, null, false, value, true, format, zoneId);
+            }
+            if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
+                name = pushableAttributeName(attribute);
+
+                Query query;
+                if (isDateLiteralComparison) {
+                    // dates equality uses a range query because it's the one that has a "format" parameter
+                    query = new RangeQuery(source, name, value, true, value, true, format, zoneId);
+                } else {
+                    query = new TermQuery(source, name, value);
+                }
+                if (bc instanceof NotEquals) {
+                    query = new NotQuery(source, query);
+                }
+                return query;
+            }
+
+            throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
         }
 
         private static Query translateOutOfRangeComparisons(BinaryComparison bc) {

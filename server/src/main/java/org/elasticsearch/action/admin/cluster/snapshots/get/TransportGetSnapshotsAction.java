@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -22,17 +21,25 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.AbstractThrottledTaskRunner;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.ResolvedRepositories;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -41,13 +48,13 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -56,6 +63,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
@@ -64,6 +72,8 @@ import java.util.stream.Stream;
  * Transport Action for get snapshots operation
  */
 public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
 
     private final RepositoriesService repositoriesService;
 
@@ -111,11 +121,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         new GetSnapshotsOperation(
             (CancellableTask) task,
-            TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
+            ResolvedRepositories.resolve(state, request.repositories()),
             request.isSingleRepositoryRequest() == false,
             request.snapshots(),
             request.ignoreUnavailable(),
-            SnapshotPredicates.fromRequest(request),
+            request.policies(),
             request.sort(),
             request.order(),
             request.fromSortValue(),
@@ -145,16 +155,17 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         // snapshots selection
         private final String[] snapshots;
         private final boolean ignoreUnavailable;
-        private final SnapshotPredicates predicates;
+        private final SnapshotPredicates fromSortValuePredicates;
+        private final Predicate<String> slmPolicyPredicate;
 
         // snapshot ordering/pagination
-        private final GetSnapshotsRequest.SortBy sortBy;
+        private final SnapshotSortKey sortBy;
         private final SortOrder order;
         @Nullable
         private final String fromSortValue;
         private final int offset;
         @Nullable
-        private final GetSnapshotsRequest.After after;
+        private final SnapshotSortKey.After after;
         private final int size;
 
         // current state
@@ -164,6 +175,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final boolean verbose;
         private final boolean indices;
 
+        // snapshot info throttling
+        private final GetSnapshotInfoExecutor getSnapshotInfoExecutor;
+
         // results
         private final Map<String, ElasticsearchException> failuresByRepository = ConcurrentCollections.newConcurrentMap();
         private final Queue<List<SnapshotInfo>> allSnapshotInfos = ConcurrentCollections.newQueue();
@@ -172,27 +186,26 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         GetSnapshotsOperation(
             CancellableTask cancellableTask,
-            TransportGetRepositoriesAction.RepositoriesResult repositoriesResult,
+            ResolvedRepositories resolvedRepositories,
             boolean isMultiRepoRequest,
             String[] snapshots,
             boolean ignoreUnavailable,
-            SnapshotPredicates predicates,
-            GetSnapshotsRequest.SortBy sortBy,
+            String[] policies,
+            SnapshotSortKey sortBy,
             SortOrder order,
             String fromSortValue,
             int offset,
-            GetSnapshotsRequest.After after,
+            SnapshotSortKey.After after,
             int size,
             SnapshotsInProgress snapshotsInProgress,
             boolean verbose,
             boolean indices
         ) {
             this.cancellableTask = cancellableTask;
-            this.repositories = repositoriesResult.metadata();
+            this.repositories = resolvedRepositories.repositoryMetadata();
             this.isMultiRepoRequest = isMultiRepoRequest;
             this.snapshots = snapshots;
             this.ignoreUnavailable = ignoreUnavailable;
-            this.predicates = predicates;
             this.sortBy = sortBy;
             this.order = order;
             this.fromSortValue = fromSortValue;
@@ -203,28 +216,20 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.verbose = verbose;
             this.indices = indices;
 
-            for (final var missingRepo : repositoriesResult.missing()) {
+            this.fromSortValuePredicates = SnapshotPredicates.forFromSortValue(fromSortValue, sortBy, order);
+            this.slmPolicyPredicate = SlmPolicyPredicate.forPolicies(policies);
+
+            this.getSnapshotInfoExecutor = new GetSnapshotInfoExecutor(
+                threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(),
+                cancellableTask::isCancelled
+            );
+
+            for (final var missingRepo : resolvedRepositories.missing()) {
                 failuresByRepository.put(missingRepo, new RepositoryMissingException(missingRepo));
             }
         }
 
-        /**
-         * Filters the list of repositories that a request will fetch snapshots from in the special case of sorting by repository
-         * name and having a non-null value for {@link GetSnapshotsRequest#fromSortValue()} on the request to exclude repositories outside
-         * the sort value range if possible.
-         */
-        private List<RepositoryMetadata> maybeFilterRepositories() {
-            if (sortBy != GetSnapshotsRequest.SortBy.REPOSITORY || fromSortValue == null) {
-                return repositories;
-            }
-            final Predicate<RepositoryMetadata> predicate = order == SortOrder.ASC
-                ? repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) <= 0
-                : repositoryMetadata -> fromSortValue.compareTo(repositoryMetadata.name()) >= 0;
-            return repositories.stream().filter(predicate).toList();
-        }
-
         void getMultipleReposSnapshotInfo(ActionListener<GetSnapshotsResponse> listener) {
-            List<RepositoryMetadata> filteredRepositories = maybeFilterRepositories();
             try (var listeners = new RefCountingListener(listener.map(ignored -> {
                 cancellableTask.ensureNotCancelled();
                 final var sortedSnapshotsInRepos = sortSnapshots(
@@ -239,15 +244,18 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return new GetSnapshotsResponse(
                     snapshotInfos,
                     failuresByRepository,
-                    finalRemaining > 0
-                        ? GetSnapshotsRequest.After.from(snapshotInfos.get(snapshotInfos.size() - 1), sortBy).asQueryParam()
-                        : null,
+                    finalRemaining > 0 ? sortBy.encodeAfterQueryParam(snapshotInfos.get(snapshotInfos.size() - 1)) : null,
                     totalCount.get(),
                     finalRemaining
                 );
             }))) {
-                for (final RepositoryMetadata repository : filteredRepositories) {
+                for (final RepositoryMetadata repository : repositories) {
                     final String repoName = repository.name();
+                    if (skipRepository(repoName)) {
+                        // TODO we should still count the matching snapshots in totalCount
+                        continue;
+                    }
+
                     getSingleRepoSnapshotInfo(repoName, listeners.acquire((SnapshotsInRepo snapshotsInRepo) -> {
                         allSnapshotInfos.add(snapshotsInRepo.snapshotInfos());
                         remaining.addAndGet(snapshotsInRepo.remaining());
@@ -261,6 +269,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         }
                     }));
                 }
+            }
+        }
+
+        private boolean skipRepository(String repositoryName) {
+            if (sortBy == SnapshotSortKey.REPOSITORY && fromSortValue != null) {
+                // If we are sorting by repository name with an offset given by fromSortValue, skip earlier repositories
+                return order == SortOrder.ASC ? fromSortValue.compareTo(repositoryName) > 0 : fromSortValue.compareTo(repositoryName) < 0;
+            } else {
+                return false;
             }
         }
 
@@ -319,14 +336,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
             if (repositoryData != null) {
                 for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
-                    if (predicates.test(snapshotId, repositoryData)) {
+                    if (matchesPredicates(snapshotId, repositoryData)) {
                         allSnapshotIds.put(snapshotId.getName(), new Snapshot(repo, snapshotId));
                     }
                 }
             }
 
             final Set<Snapshot> toResolve = new HashSet<>();
-            if (TransportGetRepositoriesAction.isMatchAll(snapshots)) {
+            if (ResolvedRepositories.isMatchAll(snapshots)) {
                 toResolve.addAll(allSnapshotIds.values());
             } else {
                 final List<String> includePatterns = new ArrayList<>();
@@ -377,7 +394,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             if (verbose) {
                 snapshots(repo, toResolve.stream().map(Snapshot::getSnapshotId).toList(), listener);
             } else {
-                assert predicates.isMatchAll() : "filtering is not supported in non-verbose mode";
+                assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
+                assert slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES : "filtering is not supported in non-verbose mode";
                 final SnapshotsInRepo snapshotInfos;
                 if (repositoryData != null) {
                     // want non-current snapshots as well, which are found in the repository data
@@ -400,7 +418,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             if (cancellableTask.notifyIfCancelled(listener)) {
                 return;
             }
-            final Set<SnapshotInfo> snapshotSet = new HashSet<>();
+            final List<SnapshotInfo> snapshots = new ArrayList<>(snapshotIds.size());
             final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
             // first, look at the snapshots in progress
             final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
@@ -411,47 +429,62 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             for (SnapshotsInProgress.Entry entry : entries) {
                 if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
                     final SnapshotInfo snapshotInfo = SnapshotInfo.inProgress(entry);
-                    if (predicates.test(snapshotInfo)) {
-                        snapshotSet.add(snapshotInfo.maybeWithoutIndices(indices));
+                    if (matchesPredicates(snapshotInfo)) {
+                        snapshots.add(snapshotInfo.maybeWithoutIndices(indices));
                     }
                 }
             }
             // then, look in the repository if there's any matching snapshots left
-            final List<SnapshotInfo> snapshotInfos;
-            if (snapshotIdsToIterate.isEmpty()) {
-                snapshotInfos = Collections.emptyList();
-            } else {
-                snapshotInfos = Collections.synchronizedList(new ArrayList<>());
-            }
-            final ActionListener<Void> allDoneListener = listener.safeMap(v -> {
-                final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
-                snapshotList.addAll(snapshotSet);
-                return sortSnapshotsWithNoOffsetOrLimit(snapshotList);
-            });
-            if (snapshotIdsToIterate.isEmpty()) {
-                allDoneListener.onResponse(null);
-                return;
-            }
-            final Repository repository;
-            try {
-                repository = repositoriesService.repository(repositoryName);
-            } catch (RepositoryMissingException e) {
-                listener.onFailure(e);
-                return;
-            }
-            repository.getSnapshotInfo(
-                new GetSnapshotInfoContext(
-                    snapshotIdsToIterate,
-                    ignoreUnavailable == false,
-                    cancellableTask::isCancelled,
-                    (context, snapshotInfo) -> {
-                        if (predicates.test(snapshotInfo)) {
-                            snapshotInfos.add(snapshotInfo.maybeWithoutIndices(indices));
-                        }
-                    },
-                    allDoneListener
+            try (
+                var listeners = new RefCountingListener(
+                    // no need to synchronize access to snapshots: Repository#getSnapshotInfo fails fast but we're on the success path here
+                    listener.safeMap(v -> sortSnapshotsWithNoOffsetOrLimit(snapshots))
                 )
-            );
+            ) {
+                if (snapshotIdsToIterate.isEmpty()) {
+                    return;
+                }
+
+                final Repository repository;
+                try {
+                    repository = repositoriesService.repository(repositoryName);
+                } catch (RepositoryMissingException e) {
+                    listeners.acquire().onFailure(e);
+                    return;
+                }
+
+                // only need to synchronize accesses related to reading SnapshotInfo from the repo
+                final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
+
+                ThrottledIterator.run(
+                    Iterators.failFast(snapshotIdsToIterate.iterator(), () -> cancellableTask.isCancelled() || listeners.isFailing()),
+                    (ref, snapshotId) -> {
+                        final var refListener = ActionListener.runBefore(listeners.acquire(), ref::close);
+                        getSnapshotInfoExecutor.getSnapshotInfo(repository, snapshotId, new ActionListener<>() {
+                            @Override
+                            public void onResponse(SnapshotInfo snapshotInfo) {
+                                if (matchesPredicates(snapshotInfo)) {
+                                    syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
+                                }
+                                refListener.onResponse(null);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (ignoreUnavailable) {
+                                    logger.warn(Strings.format("failed to fetch snapshot info for [%s:%s]", repository, snapshotId), e);
+                                    refListener.onResponse(null);
+                                } else {
+                                    refListener.onFailure(e);
+                                }
+                            }
+                        });
+                    },
+                    getSnapshotInfoExecutor.getMaxRunningTasks(),
+                    () -> {},
+                    () -> {}
+                );
+            }
         }
 
         private boolean isCurrentSnapshotsOnly() {
@@ -494,129 +527,59 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return sortSnapshotsWithNoOffsetOrLimit(snapshotInfos);
         }
 
-        private static final Comparator<SnapshotInfo> BY_START_TIME = Comparator.comparingLong(SnapshotInfo::startTime)
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_DURATION = Comparator.<SnapshotInfo>comparingLong(
-            sni -> sni.endTime() - sni.startTime()
-        ).thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_INDICES_COUNT = Comparator.<SnapshotInfo>comparingInt(sni -> sni.indices().size())
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_SHARDS_COUNT = Comparator.comparingInt(SnapshotInfo::totalShards)
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_FAILED_SHARDS_COUNT = Comparator.comparingInt(SnapshotInfo::failedShards)
-            .thenComparing(SnapshotInfo::snapshotId);
-
-        private static final Comparator<SnapshotInfo> BY_NAME = Comparator.comparing(sni -> sni.snapshotId().getName());
-
-        private static final Comparator<SnapshotInfo> BY_REPOSITORY = Comparator.comparing(SnapshotInfo::repository)
-            .thenComparing(SnapshotInfo::snapshotId);
-
         private SnapshotsInRepo sortSnapshotsWithNoOffsetOrLimit(List<SnapshotInfo> snapshotInfos) {
             return sortSnapshots(snapshotInfos.stream(), snapshotInfos.size(), 0, GetSnapshotsRequest.NO_LIMIT);
         }
 
-        private SnapshotsInRepo sortSnapshots(Stream<SnapshotInfo> infos, int totalCount, int offset, int size) {
-            final Comparator<SnapshotInfo> comparator = switch (sortBy) {
-                case START_TIME -> BY_START_TIME;
-                case NAME -> BY_NAME;
-                case DURATION -> BY_DURATION;
-                case INDICES -> BY_INDICES_COUNT;
-                case SHARDS -> BY_SHARDS_COUNT;
-                case FAILED_SHARDS -> BY_FAILED_SHARDS_COUNT;
-                case REPOSITORY -> BY_REPOSITORY;
-            };
-
-            if (after != null) {
-                assert offset == 0 : "can't combine after and offset but saw [" + after + "] and offset [" + offset + "]";
-                infos = infos.filter(buildAfterPredicate());
-            }
-            infos = infos.sorted(order == SortOrder.DESC ? comparator.reversed() : comparator).skip(offset);
-            final List<SnapshotInfo> allSnapshots = infos.toList();
-            final List<SnapshotInfo> snapshots;
-            if (size != GetSnapshotsRequest.NO_LIMIT) {
-                snapshots = allSnapshots.stream().limit(size + 1).toList();
+        private SnapshotsInRepo sortSnapshots(Stream<SnapshotInfo> snapshotInfoStream, int totalCount, int offset, int size) {
+            final var resultsStream = snapshotInfoStream.filter(sortBy.getAfterPredicate(after, order))
+                .sorted(sortBy.getSnapshotInfoComparator(order))
+                .skip(offset);
+            if (size == GetSnapshotsRequest.NO_LIMIT) {
+                return new SnapshotsInRepo(resultsStream.toList(), totalCount, 0);
             } else {
-                snapshots = allSnapshots;
+                final var allocateSize = Math.min(size, 1000); // ignore excessively-large sizes in request params
+                final var results = new ArrayList<SnapshotInfo>(allocateSize);
+                var remaining = 0;
+                for (var iterator = resultsStream.iterator(); iterator.hasNext();) {
+                    final var snapshotInfo = iterator.next();
+                    if (results.size() < size) {
+                        results.add(snapshotInfo);
+                    } else {
+                        remaining += 1;
+                    }
+                }
+                return new SnapshotsInRepo(results, totalCount, remaining);
             }
-            final List<SnapshotInfo> resultSet = size != GetSnapshotsRequest.NO_LIMIT && size < snapshots.size()
-                ? snapshots.subList(0, size)
-                : snapshots;
-            return new SnapshotsInRepo(resultSet, totalCount, allSnapshots.size() - resultSet.size());
         }
 
-        private Predicate<SnapshotInfo> buildAfterPredicate() {
-            final String snapshotName = after.snapshotName();
-            final String repoName = after.repoName();
-            final String value = after.value();
-            return switch (sortBy) {
-                case START_TIME -> filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(value), snapshotName, repoName, order);
-                case NAME ->
-                    // TODO: cover via pre-flight predicate
-                    order == SortOrder.ASC
-                        ? (info -> compareName(snapshotName, repoName, info) < 0)
-                        : (info -> compareName(snapshotName, repoName, info) > 0);
-                case DURATION -> filterByLongOffset(
-                    info -> info.endTime() - info.startTime(),
-                    Long.parseLong(value),
-                    snapshotName,
-                    repoName,
-                    order
-                );
-                case INDICES ->
-                    // TODO: cover via pre-flight predicate
-                    filterByLongOffset(info -> info.indices().size(), Integer.parseInt(value), snapshotName, repoName, order);
-                case SHARDS -> filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(value), snapshotName, repoName, order);
-                case FAILED_SHARDS -> filterByLongOffset(
-                    SnapshotInfo::failedShards,
-                    Integer.parseInt(value),
-                    snapshotName,
-                    repoName,
-                    order
-                );
-                case REPOSITORY ->
-                    // TODO: cover via pre-flight predicate
-                    order == SortOrder.ASC
-                        ? (info -> compareRepositoryName(snapshotName, repoName, info) < 0)
-                        : (info -> compareRepositoryName(snapshotName, repoName, info) > 0);
-            };
-        }
-
-        private static Predicate<SnapshotInfo> filterByLongOffset(
-            ToLongFunction<SnapshotInfo> extractor,
-            long after,
-            String snapshotName,
-            String repoName,
-            SortOrder order
-        ) {
-            return order == SortOrder.ASC ? info -> {
-                final long val = extractor.applyAsLong(info);
-                return after < val || (after == val && compareName(snapshotName, repoName, info) < 0);
-            } : info -> {
-                final long val = extractor.applyAsLong(info);
-                return after > val || (after == val && compareName(snapshotName, repoName, info) > 0);
-            };
-        }
-
-        private static int compareRepositoryName(String name, String repoName, SnapshotInfo info) {
-            final int res = repoName.compareTo(info.repository());
-            if (res != 0) {
-                return res;
+        private boolean matchesPredicates(SnapshotId snapshotId, RepositoryData repositoryData) {
+            if (fromSortValuePredicates.test(snapshotId, repositoryData) == false) {
+                return false;
             }
-            return name.compareTo(info.snapshotId().getName());
-        }
 
-        private static int compareName(String name, String repoName, SnapshotInfo info) {
-            final int res = name.compareTo(info.snapshotId().getName());
-            if (res != 0) {
-                return res;
+            if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
+                return true;
             }
-            return repoName.compareTo(info.repository());
+
+            final var details = repositoryData.getSnapshotDetails(snapshotId);
+            return details == null || details.getSlmPolicy() == null || slmPolicyPredicate.test(details.getSlmPolicy());
         }
 
+        private boolean matchesPredicates(SnapshotInfo snapshotInfo) {
+            if (fromSortValuePredicates.test(snapshotInfo) == false) {
+                return false;
+            }
+
+            if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
+                return true;
+            }
+
+            final var metadata = snapshotInfo.userMetadata();
+            return slmPolicyPredicate.test(
+                metadata != null && metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String s ? s : ""
+            );
+        }
     }
 
     /**
@@ -657,81 +620,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return snapshotPredicate == null || snapshotPredicate.test(snapshotInfo);
         }
 
-        private SnapshotPredicates and(SnapshotPredicates other) {
-            return this == MATCH_ALL ? other
-                : other == MATCH_ALL ? this
-                : new SnapshotPredicates(
-                    preflightPredicate == null ? other.preflightPredicate : other.preflightPredicate == null ? preflightPredicate : null,
-                    snapshotPredicate == null ? other.snapshotPredicate : other.snapshotPredicate == null ? snapshotPredicate : null
-                );
-        }
-
-        static SnapshotPredicates fromRequest(GetSnapshotsRequest request) {
-            return getSortValuePredicate(request.fromSortValue(), request.sort(), request.order()).and(
-                getSlmPredicates(request.policies())
-            );
-        }
-
-        private static SnapshotPredicates getSlmPredicates(String[] slmPolicies) {
-            if (slmPolicies.length == 0) {
-                return MATCH_ALL;
-            }
-
-            final List<String> includePatterns = new ArrayList<>();
-            final List<String> excludePatterns = new ArrayList<>();
-            boolean seenWildcard = false;
-            boolean matchNoPolicy = false;
-            for (String slmPolicy : slmPolicies) {
-                if (seenWildcard && slmPolicy.length() > 1 && slmPolicy.startsWith("-")) {
-                    excludePatterns.add(slmPolicy.substring(1));
-                } else {
-                    if (Regex.isSimpleMatchPattern(slmPolicy)) {
-                        seenWildcard = true;
-                    } else if (GetSnapshotsRequest.NO_POLICY_PATTERN.equals(slmPolicy)) {
-                        matchNoPolicy = true;
-                    }
-                    includePatterns.add(slmPolicy);
-                }
-            }
-            final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
-            final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
-            final boolean matchWithoutPolicy = matchNoPolicy;
-            return new SnapshotPredicates(((snapshotId, repositoryData) -> {
-                final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-                final String policy;
-                if (details == null || (details.getSlmPolicy() == null)) {
-                    // no SLM policy recorded
-                    return true;
-                } else {
-                    final String policyFound = details.getSlmPolicy();
-                    // empty string means that snapshot was not created by an SLM policy
-                    policy = policyFound.isEmpty() ? null : policyFound;
-                }
-                return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
-            }), snapshotInfo -> {
-                final Map<String, Object> metadata = snapshotInfo.userMetadata();
-                final String policy;
-                if (metadata == null) {
-                    policy = null;
-                } else {
-                    final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-                    policy = policyFound instanceof String ? (String) policyFound : null;
-                }
-                return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
-            });
-        }
-
-        private static boolean matchPolicy(String[] includes, String[] excludes, boolean matchWithoutPolicy, @Nullable String policy) {
-            if (policy == null) {
-                return matchWithoutPolicy;
-            }
-            if (Regex.simpleMatch(includes, policy) == false) {
-                return false;
-            }
-            return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
-        }
-
-        private static SnapshotPredicates getSortValuePredicate(String fromSortValue, GetSnapshotsRequest.SortBy sortBy, SortOrder order) {
+        static SnapshotPredicates forFromSortValue(String fromSortValue, SnapshotSortKey sortBy, SortOrder order) {
             if (fromSortValue == null) {
                 return MATCH_ALL;
             }
@@ -832,5 +721,84 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
         private static final SnapshotsInRepo EMPTY = new SnapshotsInRepo(List.of(), 0, 0);
+    }
+
+    /**
+     * Throttling executor for retrieving {@link SnapshotInfo} instances from the repository without spamming the SNAPSHOT_META threadpool
+     * and starving other users of access to it. Similar to {@link Repository#getSnapshotInfo} but allows for finer-grained control over
+     * which snapshots are retrieved.
+     */
+    private static class GetSnapshotInfoExecutor extends AbstractThrottledTaskRunner<ActionListener<Releasable>> {
+        private final int maxRunningTasks;
+        private final BooleanSupplier isCancelledSupplier;
+
+        GetSnapshotInfoExecutor(int maxRunningTasks, BooleanSupplier isCancelledSupplier) {
+            super(GetSnapshotsAction.NAME, maxRunningTasks, EsExecutors.DIRECT_EXECUTOR_SERVICE, ConcurrentCollections.newBlockingQueue());
+            this.maxRunningTasks = maxRunningTasks;
+            this.isCancelledSupplier = isCancelledSupplier;
+        }
+
+        int getMaxRunningTasks() {
+            return maxRunningTasks;
+        }
+
+        void getSnapshotInfo(Repository repository, SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
+            enqueueTask(listener.delegateFailure((l, ref) -> {
+                if (isCancelledSupplier.getAsBoolean()) {
+                    l.onFailure(new TaskCancelledException("task cancelled"));
+                } else {
+                    repository.getSnapshotInfo(snapshotId, ActionListener.releaseAfter(l, ref));
+                }
+            }));
+        }
+    }
+
+    /**
+     * Encapsulates a filter on snapshots according to SLM policy, for the {@code ?slm_policy_filter} query parameter.
+     */
+    private record SlmPolicyPredicate(String[] includes, String[] excludes, boolean matchWithoutPolicy) implements Predicate<String> {
+
+        static final Predicate<String> MATCH_ALL_POLICIES = Predicates.always();
+
+        @Override
+        public boolean test(String policy) {
+            if (policy.equals("")) {
+                // empty string means that snapshot was not created by an SLM policy
+                return matchWithoutPolicy;
+            }
+            if (Regex.simpleMatch(includes, policy) == false) {
+                return false;
+            }
+            return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
+        }
+
+        static Predicate<String> forPolicies(String[] slmPolicies) {
+            if (slmPolicies.length == 0) {
+                return MATCH_ALL_POLICIES;
+            }
+
+            final List<String> includePatterns = new ArrayList<>(slmPolicies.length);
+            final List<String> excludePatterns = new ArrayList<>(slmPolicies.length);
+            boolean seenWildcard = false;
+            boolean matchNoPolicy = false;
+            for (final var slmPolicy : slmPolicies) {
+                if (seenWildcard && slmPolicy.length() > 1 && slmPolicy.startsWith("-")) {
+                    excludePatterns.add(slmPolicy.substring(1));
+                } else {
+                    if (Regex.isSimpleMatchPattern(slmPolicy)) {
+                        seenWildcard = true;
+                    } else if (GetSnapshotsRequest.NO_POLICY_PATTERN.equals(slmPolicy)) {
+                        matchNoPolicy = true;
+                    }
+                    includePatterns.add(slmPolicy);
+                }
+            }
+
+            return new SlmPolicyPredicate(
+                includePatterns.toArray(Strings.EMPTY_ARRAY),
+                excludePatterns.toArray(Strings.EMPTY_ARRAY),
+                matchNoPolicy
+            );
+        }
     }
 }

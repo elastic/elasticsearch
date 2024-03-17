@@ -74,6 +74,7 @@ import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.mockito.ArgumentMatchers.any;
@@ -88,6 +89,10 @@ public final class DataStreamTestHelper {
 
     public static DataStream newInstance(String name, List<Index> indices) {
         return newInstance(name, indices, indices.size(), null);
+    }
+
+    public static DataStream newInstance(String name, List<Index> indices, List<Index> failureIndices) {
+        return newInstance(name, indices, indices.size(), null, false, null, failureIndices);
     }
 
     public static DataStream newInstance(String name, List<Index> indices, long generation, Map<String, Object> metadata) {
@@ -122,6 +127,32 @@ public final class DataStreamTestHelper {
         Map<String, Object> metadata,
         boolean replicated,
         @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            false,
+            replicated,
+            false,
+            false,
+            null,
+            lifecycle,
+            false,
+            List.of(),
+            autoShardingEvent
+        );
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
         return new DataStream(
@@ -136,7 +167,8 @@ public final class DataStreamTestHelper {
             null,
             lifecycle,
             failureStores.size() > 0,
-            failureStores
+            failureStores,
+            null
         );
     }
 
@@ -257,8 +289,20 @@ public final class DataStreamTestHelper {
             + "    }";
     }
 
+    /**
+     * @return a list of random indices. NOTE: the list can be empty, if you do not want an empty list use
+     * {@link DataStreamTestHelper#randomNonEmptyIndexInstances()}
+     */
     public static List<Index> randomIndexInstances() {
-        int numIndices = ESTestCase.randomIntBetween(0, 128);
+        return randomIndexInstances(0, 128);
+    }
+
+    public static List<Index> randomNonEmptyIndexInstances() {
+        return randomIndexInstances(1, 128);
+    }
+
+    public static List<Index> randomIndexInstances(int min, int max) {
+        int numIndices = ESTestCase.randomIntBetween(min, max);
         List<Index> indices = new ArrayList<>(numIndices);
         for (int i = 0; i < numIndices; i++) {
             indices.add(new Index(randomAlphaOfLength(10).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(LuceneTestCase.random())));
@@ -290,7 +334,7 @@ public final class DataStreamTestHelper {
         List<Index> failureIndices = List.of();
         boolean failureStore = randomBoolean();
         if (failureStore) {
-            failureIndices = randomIndexInstances();
+            failureIndices = randomNonEmptyIndexInstances();
         }
 
         return new DataStream(
@@ -307,7 +351,14 @@ public final class DataStreamTestHelper {
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
             failureIndices,
+            randomBoolean(),
             randomBoolean()
+                ? new DataStreamAutoShardingEvent(
+                    indices.get(indices.size() - 1).getName(),
+                    randomIntBetween(1, 10),
+                    randomMillisUpToYear9999()
+                )
+                : null
         );
     }
 

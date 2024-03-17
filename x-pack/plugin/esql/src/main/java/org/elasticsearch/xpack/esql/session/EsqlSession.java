@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
@@ -379,7 +380,7 @@ public class EsqlSession {
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
-                AttributeSet dissectRefs = p.references();
+                AttributeSet dissectRefs = Expressions.references(p.expressions());
                 // don't add to the list of fields the extracted ones (they are not real fields in mappings)
                 dissectRefs.removeAll(re.extractedFields());
                 references.addAll(dissectRefs);
@@ -388,7 +389,7 @@ public class EsqlSession {
                     references.removeIf(attr -> matchByName(attr, extracted.qualifiedName(), false));
                 }
             } else if (p instanceof Enrich) {
-                AttributeSet enrichRefs = p.references();
+                AttributeSet enrichRefs = Expressions.references(p.expressions());
                 // Enrich adds an EmptyAttribute if no match field is specified
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);

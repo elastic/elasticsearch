@@ -25,17 +25,18 @@ index:
 
 `index.blocks.read_only_allow_delete`::
 
-    Similar to `index.blocks.write`, but also allows deleting the index to
-    make more resources available. The <<disk-based-shard-allocation,disk-based shard
-    allocator>> adds and removes this block automatically according to the available
-    disk space.
+    Similar to `index.blocks.write`, except that you can delete the index when
+    this block is in place. Do not set or remove this block yourself. The
+    <<disk-based-shard-allocation,disk-based shard allocator>> sets and removes
+    this block automatically according to the available disk space.
 +
 Deleting documents from an index to release resources - rather than deleting
-the index itself - increases the index size temporarily, and may not succeed
-when nodes are low on disk space. When `index.blocks.read_only_allow_delete` is
-set to `true`, deleting documents is not permitted. However, deleting the index
-entirely requires very little extra disk space and frees up the disk space
-consumed by the index almost immediately.
+the index itself - increases the index size temporarily, and therefore may not
+be possible when nodes are low on disk space. When
+`index.blocks.read_only_allow_delete` is set to `true`, deleting documents is
+not permitted. However, deleting the index entirely requires very little extra
+disk space and frees up the disk space consumed by the index almost immediately
+so this is still permitted.
 +
 IMPORTANT: {es} adds the read-only-allow-delete index block automatically when
 the disk utilization exceeds the flood stage watermark, and removes this block

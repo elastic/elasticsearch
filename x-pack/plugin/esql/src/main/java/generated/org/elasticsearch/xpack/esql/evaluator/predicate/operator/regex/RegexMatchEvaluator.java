@@ -8,7 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -30,14 +30,17 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
 
   private final EvalOperator.ExpressionEvaluator input;
 
-  private final CharacterRunAutomaton pattern;
+  private final ByteRunAutomaton automaton;
+
+  private final String pattern;
 
   private final DriverContext driverContext;
 
   public RegexMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator input,
-      CharacterRunAutomaton pattern, DriverContext driverContext) {
+      ByteRunAutomaton automaton, String pattern, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.input = input;
+    this.automaton = automaton;
     this.pattern = pattern;
     this.driverContext = driverContext;
   }
@@ -68,7 +71,7 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(RegexMatch.process(inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch), pattern));
+        result.appendBoolean(RegexMatch.process(inputBlock.getBytesRef(inputBlock.getFirstValueIndex(p), inputScratch), automaton, pattern));
       }
       return result.build();
     }
@@ -78,7 +81,7 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
     try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(RegexMatch.process(inputVector.getBytesRef(p, inputScratch), pattern));
+        result.appendBoolean(RegexMatch.process(inputVector.getBytesRef(p, inputScratch), automaton, pattern));
       }
       return result.build();
     }
@@ -99,18 +102,21 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
 
     private final EvalOperator.ExpressionEvaluator.Factory input;
 
-    private final CharacterRunAutomaton pattern;
+    private final ByteRunAutomaton automaton;
+
+    private final String pattern;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory input,
-        CharacterRunAutomaton pattern) {
+        ByteRunAutomaton automaton, String pattern) {
       this.source = source;
       this.input = input;
+      this.automaton = automaton;
       this.pattern = pattern;
     }
 
     @Override
     public RegexMatchEvaluator get(DriverContext context) {
-      return new RegexMatchEvaluator(source, input.get(context), pattern, context);
+      return new RegexMatchEvaluator(source, input.get(context), automaton, pattern, context);
     }
 
     @Override

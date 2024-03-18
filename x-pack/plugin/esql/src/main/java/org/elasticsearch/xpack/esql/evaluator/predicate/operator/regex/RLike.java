@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex;
 
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.util.function.Function;
+
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
-public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex.RLike {
+public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex.RLike implements EvaluatorMapper {
     public RLike(Source source, Expression value, RLikePattern pattern) {
         super(source, value, pattern);
     }
@@ -37,5 +41,12 @@ public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex
     @Override
     protected TypeResolution resolveType() {
         return isString(field(), sourceText(), DEFAULT);
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+    ) {
+        return RegexMatch.toEvaluator(toEvaluator, this);
     }
 }

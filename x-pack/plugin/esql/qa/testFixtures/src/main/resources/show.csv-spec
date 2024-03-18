@@ -6,15 +6,15 @@ v:long
 ;
 
 # TODO: switch this test to ``&format=csv&delimiter=|` output
-showFunctions#[skip:-8.12.99]
+showFunctions#[skip:-8.13.99]
 show functions;
 
        name:keyword      |                        synopsis:keyword          |       argNames:keyword  | argTypes:keyword |             argDescriptions:keyword                |returnType:keyword   |    description:keyword  | optionalArgs:boolean | variadic:boolean | isAggregation:boolean               
 abs                      |"double|integer|long|unsigned_long abs(n:double|integer|long|unsigned_long)"      |n                        |"double|integer|long|unsigned_long"                 | ""                                                 |"double|integer|long|unsigned_long"                    | "Returns the absolute value."                      | false                | false | false
-acos                     |"double acos(n:double|integer|long|unsigned_long)"     |n                        |"double|integer|long|unsigned_long"                 | ""                                                 |double                    | "The arccosine of an angle, expressed in radians."                      | false                | false | false
-asin                     |"double asin(n:double|integer|long|unsigned_long)"|n                        |"double|integer|long|unsigned_long"                 | ""                                                 |double               | "Inverse sine trigonometric function."                      | false                | false | false
-atan                     |"double atan(n:double|integer|long|unsigned_long)"     |n                        |"double|integer|long|unsigned_long"                 | ""                                                 |double                    | "Inverse tangent trigonometric function."                      | false                | false | false
-atan2                    |"double atan2(y:double|integer|long|unsigned_long, x:double|integer|long|unsigned_long)"                                       |[y, x]                   |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]            |["", ""]                                            |double                    | "The angle between the positive x-axis and the ray from the origin to the point (x , y) in the Cartesian plane."                      | [false, false]       | false | false
+acos                     |"double acos(n:double|integer|long|unsigned_long)"     |n                        |"double|integer|long|unsigned_long" | "Number between -1 and 1"  |double                    | "The arccosine of an angle, expressed in radians."                      | false                | false | false
+asin                     |"double asin(n:double|integer|long|unsigned_long)"|n                        |"double|integer|long|unsigned_long"      | "Number between -1 and 1"  |double               | "Inverse sine trigonometric function."                      | false                | false | false
+atan                     |"double atan(n:double|integer|long|unsigned_long)"     |n                        |"double|integer|long|unsigned_long"                 | "A number" |double                    | "Inverse tangent trigonometric function."                      | false                | false | false
+atan2                    |"double atan2(y:double|integer|long|unsigned_long, x:double|integer|long|unsigned_long)"                                       |[y, x]                   |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]            |["y coordinate", "x coordinate"]                                            |double                    | "The angle between the positive x-axis and the ray from the origin to the point (x , y) in the Cartesian plane."                      | [false, false]       | false | false
 auto_bucket              |"double|date auto_bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date|string, to:integer|long|double|date|string)"           |[field, buckets, from, to] |["integer|long|double|date", "integer", "integer|long|double|date|string", "integer|long|double|date|string"]      |["", "", "", ""]                                    | "double|date"                    | "Creates human-friendly buckets and returns a datetime value for each row that corresponds to the resulting bucket the row falls into."                      | [false, false, false, false]   | false | false
 avg                      |"double avg(field:double|integer|long)"                                           |field                     |"double|integer|long"                 |   ""                                               |double                    | "The average of a numeric field."                      | false                | false | true
 case                     |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version case(condition:boolean, rest...:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"                               |[condition, rest]             |["boolean", "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"]            |["", ""]                                            |"boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"                    | "Accepts pairs of conditions and values. The function returns the value that belongs to the first condition that evaluates to true."                      | [false, false]       | true | false
@@ -54,7 +54,10 @@ mv_last                  |"boolean|cartesian_point|cartesian_shape|date|double|g
 mv_max                   |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(v:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)" |v | "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version" | "" |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"      | "Reduce a multivalued field to a single valued field containing the maximum value." | false                | false | false
 mv_median                |"double|integer|long|unsigned_long mv_median(v:double|integer|long|unsigned_long)"                                     |v                     |"double|integer|long|unsigned_long"                 | ""                                                 |"double|integer|long|unsigned_long"                    | "Converts a multivalued field into a single valued field containing the median value."                      | false                | false | false
 mv_min                   |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_min(v:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)" |v | "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version" | "" |"boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version"      | "Reduce a multivalued field to a single valued field containing the minimum value." | false                | false | false
+mv_slice                 |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_slice(v:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, start:integer, ?end:integer)" |[v, start, end] | "[boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, integer, integer]" | "[A multivalued field, start index, end index (included)]" |"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version"   | "Returns a subset of the multivalued field using the start and end index values."                      | [false, false, true]                | false | false
+mv_sort                  |"boolean|date|double|integer|ip|keyword|long|text|version mv_sort(field:boolean|date|double|integer|ip|keyword|long|text|version, ?order:keyword)" | [field, order] | ["boolean|date|double|integer|ip|keyword|long|text|version", "keyword"] | ["A multivalued field", "sort order"] |"boolean|date|double|integer|ip|keyword|long|text|version"   | "Sorts a multivalued field in lexicographical order."                      | [false, true]                | false | false
 mv_sum                   |"double|integer|long|unsigned_long mv_sum(v:double|integer|long|unsigned_long)"                                        |v                     |"double|integer|long|unsigned_long"                 | ""                                                 |"double|integer|long|unsigned_long"                    | "Converts a multivalued field into a single valued field containing the sum of all of the values."                      | false                | false | false
+mv_zip                   |"keyword mv_zip(mvLeft:keyword|text, mvRight:keyword|text, ?delim:keyword|text)"          |[mvLeft, mvRight, delim] | ["keyword|text", "keyword|text", "keyword|text"] | [A multivalued field, A multivalued field, delimiter] | "keyword" | "Combines the values from two multivalued fields with a delimiter that joins them together." | [false, false, true] | false | false
 now                      |date now()                                                 | null                    |null              | null                                               |date                    | "Returns current date and time."                      | null                 | false | false
 percentile               |"double|integer|long percentile(field:double|integer|long, percentile:double|integer|long)"                            |[field, percentile]             |["double|integer|long, double|integer|long"]            |["", ""]                                            |"double|integer|long"                    | "The value at which a certain percentage of observed values occur."                      | [false, false]       | false | true
 pi                       |double pi()                                                  | null                    |  null            | null                                               |double                    | "The ratio of a circle’s circumference to its diameter."                      | null                 | false | false
@@ -68,6 +71,8 @@ sinh                     |"double sinh(n:double|integer|long|unsigned_long)"|n  
 split                    |"keyword split(str:keyword|text, delim:keyword|text)"                                 |[str, delim]             |["keyword|text", "keyword|text"]            |["", ""]                                            |keyword                    | "Split a single valued string into multiple strings."                      | [false, false]       | false | false
 sqrt                     |"double sqrt(n:double|integer|long|unsigned_long)"     |n                        |"double|integer|long|unsigned_long"                 | ""                                                 |double                    | "Returns the square root of a number."                      | false                | false | false
 st_centroid              |"geo_point|cartesian_point st_centroid(field:geo_point|cartesian_point)" |field  |"geo_point|cartesian_point"                         | ""                                                 |"geo_point|cartesian_point"   | "The centroid of a spatial field."                      | false                | false | true
+st_x                     |"double st_x(point:geo_point|cartesian_point)"                           |point  |"geo_point|cartesian_point"                         | ""                                                 |double                        | "Extracts the x-coordinate from a point geometry."      | false                | false | false
+st_y                     |"double st_y(point:geo_point|cartesian_point)"                           |point  |"geo_point|cartesian_point"                         | ""                                                 |double                        | "Extracts the y-coordinate from a point geometry."      | false                | false | false
 starts_with              |"boolean starts_with(str:keyword|text, prefix:keyword|text)"                           |[str, prefix]             |["keyword|text", "keyword|text"]            |["", ""]                                            |boolean                    | "Returns a boolean that indicates whether a keyword string starts with another string"                      | [false, false]       | false | false
 substring                |"keyword substring(str:keyword|text, start:integer, ?length:integer)"                     |[str, start, length]       |["keyword|text", "integer", "integer"]         |["", "", ""]                                        |keyword                    | "Returns a substring of a string, specified by a start position and an optional length"                      | [false, false, true]| false | false
 sum                      |"long sum(field:double|integer|long)"                                          |field                     |"double|integer|long"                 | ""                                                 |long                    | "The sum of a numeric field."                      | false                | false | true
@@ -103,7 +108,7 @@ trim                     |"keyword|text trim(str:keyword|text)"                 
 ;
 
 
-showFunctionsSynopsis#[skip:-8.12.99]
+showFunctionsSynopsis#[skip:-8.13.99]
 show functions | keep synopsis;
 
 synopsis:keyword
@@ -151,7 +156,10 @@ double e()
 "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_max(v:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)"
 "double|integer|long|unsigned_long mv_median(v:double|integer|long|unsigned_long)"
 "boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version mv_min(v:boolean|date|double|integer|ip|keyword|long|text|unsigned_long|version)"
+"boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version mv_slice(v:boolean|cartesian_point|cartesian_shape|date|double|geo_point|geo_shape|integer|ip|keyword|long|text|version, start:integer, ?end:integer)"
+"boolean|date|double|integer|ip|keyword|long|text|version mv_sort(field:boolean|date|double|integer|ip|keyword|long|text|version, ?order:keyword)"
 "double|integer|long|unsigned_long mv_sum(v:double|integer|long|unsigned_long)"
+"keyword mv_zip(mvLeft:keyword|text, mvRight:keyword|text, ?delim:keyword|text)"
 date now()
 "double|integer|long percentile(field:double|integer|long, percentile:double|integer|long)"
 double pi()
@@ -165,6 +173,8 @@ double pi()
 "keyword split(str:keyword|text, delim:keyword|text)"
 "double sqrt(n:double|integer|long|unsigned_long)"
 "geo_point|cartesian_point st_centroid(field:geo_point|cartesian_point)"
+"double st_x(point:geo_point|cartesian_point)"
+"double st_y(point:geo_point|cartesian_point)"
 "boolean starts_with(str:keyword|text, prefix:keyword|text)"
 "keyword substring(str:keyword|text, start:integer, ?length:integer)"
 "long sum(field:double|integer|long)"
@@ -216,9 +226,9 @@ sinh                     | "double sinh(n:double|integer|long|unsigned_long)"   
 
 
 // see https://github.com/elastic/elasticsearch/issues/102120
-countFunctions#[skip:-8.12.99]
+countFunctions#[skip:-8.13.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-90     | 90     | 90
+95     | 95     | 95
 ;

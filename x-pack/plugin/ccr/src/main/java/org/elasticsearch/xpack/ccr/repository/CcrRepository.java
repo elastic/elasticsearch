@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -64,7 +65,6 @@ import org.elasticsearch.indices.recovery.MultiChunkTransfer;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
-import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
@@ -82,6 +82,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
@@ -106,6 +107,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -179,32 +181,44 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     private RemoteClusterClient getRemoteClusterClient() {
-        return client.getRemoteClusterClient(remoteClusterAlias, remoteClientResponseExecutor);
+        return client.getRemoteClusterClient(
+            remoteClusterAlias,
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
     }
 
     @Override
-    public void getSnapshotInfo(GetSnapshotInfoContext context) {
-        final List<SnapshotId> snapshotIds = context.snapshotIds();
+    public void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    ) {
         assert snapshotIds.size() == 1 && SNAPSHOT_ID.equals(snapshotIds.iterator().next())
             : "RemoteClusterRepository only supports " + SNAPSHOT_ID + " as the SnapshotId but saw " + snapshotIds;
         try {
             csDeduplicator.execute(
-                new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SNAPSHOT_META), context.map(response -> {
+                new ThreadedActionListener<>(threadPool.executor(ThreadPool.Names.SNAPSHOT_META), listener.map(response -> {
                     Metadata responseMetadata = response.metadata();
                     Map<String, IndexMetadata> indicesMap = responseMetadata.indices();
-                    return new SnapshotInfo(
-                        new Snapshot(this.metadata.name(), SNAPSHOT_ID),
-                        List.copyOf(indicesMap.keySet()),
-                        List.copyOf(responseMetadata.dataStreams().keySet()),
-                        List.of(),
-                        response.getNodes().getMaxDataNodeCompatibleIndexVersion(),
-                        SnapshotState.SUCCESS
+                    consumer.accept(
+                        new SnapshotInfo(
+                            new Snapshot(this.metadata.name(), SNAPSHOT_ID),
+                            List.copyOf(indicesMap.keySet()),
+                            List.copyOf(responseMetadata.dataStreams().keySet()),
+                            List.of(),
+                            response.getNodes().getMaxDataNodeCompatibleIndexVersion(),
+                            SnapshotState.SUCCESS
+                        )
                     );
+                    return null;
                 }))
             );
         } catch (Exception e) {
             assert false : e;
-            context.onFailure(e);
+            listener.onFailure(e);
         }
     }
 
@@ -583,7 +597,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ActionListener<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> responseListener = listener.map(
             response -> new RestoreSession(
                 repositoryName,
-                client.getRemoteClusterClient(remoteClusterAlias, chunkResponseExecutor),
+                client.getRemoteClusterClient(
+                    remoteClusterAlias,
+                    chunkResponseExecutor,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                ),
                 sessionUUID,
                 response.getNode(),
                 indexShardId,

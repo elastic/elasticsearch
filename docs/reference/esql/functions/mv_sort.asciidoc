@@ -1,0 +1,35 @@
+[discrete]
+[[esql-mv_sort]]
+=== `MV_SORT`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/mv_sort.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`field`::
+Multivalue expression. If `null`, the function returns `null`.
+
+`order`::
+Sort order. The valid options are ASC and DESC, the default is ASC.
+
+*Description*
+
+Sorts a multivalue expression in lexicographical order.
+
+*Supported types*
+
+include::types/mv_sort.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/ints.csv-spec[tag=mv_sort]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/ints.csv-spec[tag=mv_sort-result]
+|===

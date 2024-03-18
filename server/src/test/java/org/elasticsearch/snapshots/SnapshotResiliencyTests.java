@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -118,6 +119,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -139,6 +141,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -184,6 +187,8 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.DisruptableMockTransport;
@@ -224,12 +229,14 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -433,9 +440,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         }, e -> {
             if (partial == false) {
-                final SnapshotException unwrapped = (SnapshotException) ExceptionsHelper.unwrap(e, SnapshotException.class);
-                assertNotNull(unwrapped);
-                assertThat(unwrapped.getMessage(), endsWith("Indices don't have primary shards [test]"));
+                assertThat(
+                    asInstanceOf(SnapshotException.class, ExceptionsHelper.unwrap(e, SnapshotException.class)).getMessage(),
+                    allOf(
+                        containsString("the following indices have unassigned primary shards"),
+                        containsString("unless [partial] is set to [true]"),
+                        containsString("[test]"),
+                        containsString(ReferenceDocs.UNASSIGNED_SHARDS.toString())
+                    )
+                );
                 snapshotNeverStarted.set(true);
             } else {
                 throw new AssertionError(e);
@@ -1378,6 +1391,242 @@ public class SnapshotResiliencyTests extends ESTestCase {
         safeAwait(testListener); // shouldn't throw
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
+    public void testFullSnapshotUnassignedShards() {
+        setupTestCluster(1, 0); // no data nodes, we want unassigned shards
+
+        final var indices = IntStream.range(0, between(1, 4)).mapToObj(i -> "index-" + i).sorted().toList();
+        final var repoName = "repo";
+
+        var testListener = SubscribableListener
+
+            // Create the repo and indices
+            .<Void>newForked(stepListener -> {
+                try (var listeners = new RefCountingListener(stepListener)) {
+                    client().admin()
+                        .cluster()
+                        .preparePutRepository(repoName)
+                        .setType(FsRepository.TYPE)
+                        .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+                        .execute(listeners.acquire(createRepoResponse -> {}));
+
+                    for (final var index : indices) {
+                        deterministicTaskQueue.scheduleNow(
+                            // wrapped in another scheduleNow() to randomize creation order
+                            ActionRunnable.<CreateIndexResponse>wrap(
+                                listeners.acquire(createIndexResponse -> {}),
+                                l -> client().admin()
+                                    .indices()
+                                    .create(
+                                        new CreateIndexRequest(index).waitForActiveShards(ActiveShardCount.NONE)
+                                            .settings(defaultIndexSettings(1)),
+                                        l
+                                    )
+                            )
+                        );
+                    }
+                }
+            })
+
+            // Take the snapshot to check the reaction to having unassigned shards
+            .<Void>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, randomIdentifier())
+                    .setWaitForCompletion(randomBoolean())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(
+                                asInstanceOf(SnapshotException.class, e).getMessage(),
+                                allOf(
+                                    containsString("the following indices have unassigned primary shards"),
+                                    containsString("unless [partial] is set to [true]"),
+                                    containsString(indices.toString() /* NB sorted */),
+                                    containsString(ReferenceDocs.UNASSIGNED_SHARDS.toString())
+                                )
+                            );
+                            l.onResponse(null);
+                        }
+                    })
+            );
+
+        MockLogAppender.assertThatLogger(() -> {
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
+            safeAwait(testListener); // shouldn't throw
+        },
+            SnapshotsService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                "*failed to create snapshot*the following indices have unassigned primary shards*"
+            )
+        );
+    }
+
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
+    public void testSnapshotNameAlreadyInUseExceptionLogging() {
+        setupTestCluster(1, 1);
+
+        final var repoName = "repo";
+        final var snapshotName = "test-snapshot";
+
+        final var testListener = createRepoAndIndex(repoName, "index", between(1, 2))
+            // take snapshot once
+            .<CreateSnapshotResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, snapshotName)
+                    .setWaitForCompletion(true)
+                    .execute(l)
+            )
+            // take snapshot again
+            .<CreateSnapshotResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, snapshotName)
+                    .setWaitForCompletion(randomBoolean())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(SnapshotNameAlreadyInUseException.class));
+                            l.onResponse(null);
+                        }
+                    })
+            );
+
+        MockLogAppender.assertThatLogger(() -> {
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
+            safeAwait(testListener); // shouldn't throw
+        },
+            SnapshotsService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("*failed to create snapshot*Invalid snapshot name [%s]*", snapshotName)
+            )
+        );
+    }
+
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
+    public void testIndexNotFoundExceptionLogging() {
+        setupTestCluster(1, 0); // no need for data nodes here
+
+        final var repoName = "repo";
+        final var indexName = "does-not-exist";
+
+        final var testListener = SubscribableListener
+            // create repo
+            .<AcknowledgedResponse>newForked(
+                l -> client().admin()
+                    .cluster()
+                    .preparePutRepository(repoName)
+                    .setType(FsRepository.TYPE)
+                    .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+                    .execute(l)
+            )
+            // take snapshot of index that does not exist
+            .<CreateSnapshotResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, randomIdentifier())
+                    .setIndices(indexName)
+                    .setWaitForCompletion(randomBoolean())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IndexNotFoundException.class));
+                            l.onResponse(null);
+                        }
+                    })
+            );
+
+        MockLogAppender.assertThatLogger(() -> {
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
+            safeAwait(testListener); // shouldn't throw
+        },
+            SnapshotsService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("failed to create snapshot: no such index [%s]", indexName)
+            )
+        );
+    }
+
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
+    public void testIllegalArgumentExceptionLogging() {
+        setupTestCluster(1, 0); // no need for data nodes here
+
+        final var repoName = "repo";
+
+        final var testListener = SubscribableListener
+            // create repo
+            .<AcknowledgedResponse>newForked(
+                l -> client().admin()
+                    .cluster()
+                    .preparePutRepository(repoName)
+                    .setType(FsRepository.TYPE)
+                    .setSettings(Settings.builder().put("location", randomAlphaOfLength(10)))
+                    .execute(l)
+            )
+            // attempt to take snapshot with illegal config ('none' is allowed as a feature state iff it's the only one in the list)
+            .<CreateSnapshotResponse>andThen(
+                (l, ignored) -> client().admin()
+                    .cluster()
+                    .prepareCreateSnapshot(repoName, randomIdentifier())
+                    .setFeatureStates("none", "none")
+                    .setWaitForCompletion(randomBoolean())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                            fail("snapshot should not have started");
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IllegalArgumentException.class));
+                            l.onResponse(null);
+                        }
+                    })
+            );
+
+        MockLogAppender.assertThatLogger(() -> {
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
+            safeAwait(testListener); // shouldn't throw
+        },
+            SnapshotsService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "INFO log",
+                SnapshotsService.class.getCanonicalName(),
+                Level.INFO,
+                Strings.format("*failed to create snapshot*other feature states were requested: [none, none]", "")
+            )
+        );
+    }
+
     private RepositoryData getRepositoryData(Repository repository) {
         final PlainActionFuture<RepositoryData> res = new PlainActionFuture<>();
         repository.getRepositoryData(deterministicTaskQueue::scheduleNow, res);
@@ -2122,7 +2371,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     shardStateAction,
                     mappingUpdatedAction,
-                    new UpdateHelper(scriptService),
+                    new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE),
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,

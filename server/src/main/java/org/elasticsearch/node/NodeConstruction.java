@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
@@ -256,8 +257,11 @@ class NodeConstruction {
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
+            DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
             ScriptService scriptService = constructor.createScriptService(settingsModule, threadPool, serviceProvider);
+
+            constructor.createUpdateHelper(documentParsingProvider, scriptService);
 
             constructor.construct(
                 threadPool,
@@ -267,7 +271,8 @@ class NodeConstruction {
                 constructor.createAnalysisRegistry(),
                 serviceProvider,
                 forbidPrivateIndexSettings,
-                telemetryProvider
+                telemetryProvider,
+                documentParsingProvider
             );
 
             return constructor;
@@ -570,12 +575,16 @@ class NodeConstruction {
             threadPool::absoluteTimeInMillis
         );
         ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
-        modules.add(b -> {
-            b.bind(ScriptService.class).toInstance(scriptService);
-            b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService));
-        });
+        modules.add(b -> { b.bind(ScriptService.class).toInstance(scriptService); });
 
         return scriptService;
+    }
+
+    private UpdateHelper createUpdateHelper(DocumentParsingProvider documentParsingProvider, ScriptService scriptService) {
+        UpdateHelper updateHelper = new UpdateHelper(scriptService, documentParsingProvider);
+
+        modules.add(b -> { b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService, documentParsingProvider)); });
+        return updateHelper;
     }
 
     private AnalysisRegistry createAnalysisRegistry() throws IOException {
@@ -596,7 +605,8 @@ class NodeConstruction {
         AnalysisRegistry analysisRegistry,
         NodeServiceProvider serviceProvider,
         boolean forbidPrivateIndexSettings,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        DocumentParsingProvider documentParsingProvider
     ) throws IOException {
 
         Settings settings = settingsModule.getSettings();
@@ -612,12 +622,10 @@ class NodeConstruction {
             ).collect(Collectors.toSet()),
             telemetryProvider.getTracer()
         );
-        final Tracer tracer = telemetryProvider.getTracer();
 
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        DocumentParsingProvider documentParsingProvider = getDocumentParsingSupplier();
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         final IngestService ingestService = new IngestService(
@@ -1054,6 +1062,14 @@ class NodeConstruction {
 
         modules.add(loadPluginComponents(pluginComponents));
 
+        DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
+            settings,
+            clusterService,
+            featureService,
+            threadPool::absoluteTimeInMillis
+        );
+        dataStreamAutoShardingService.init();
+
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
             b.bind(BigArrays.class).toInstance(bigArrays);
@@ -1088,6 +1104,7 @@ class NodeConstruction {
             b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
             b.bind(FileSettingsService.class).toInstance(fileSettingsService);
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
+            b.bind(DataStreamAutoShardingService.class).toInstance(dataStreamAutoShardingService);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1189,9 +1206,9 @@ class NodeConstruction {
 
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
-            new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new DiskHealthIndicatorService(clusterService),
-            new ShardsCapacityHealthIndicatorService(clusterService)
+            new RepositoryIntegrityHealthIndicatorService(clusterService, featureService),
+            new DiskHealthIndicatorService(clusterService, featureService),
+            new ShardsCapacityHealthIndicatorService(clusterService, featureService)
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream());
@@ -1298,8 +1315,8 @@ class NodeConstruction {
         logger.info("initialized");
     }
 
-    private DocumentParsingProvider getDocumentParsingSupplier() {
-        return getSinglePlugin(DocumentParsingProviderPlugin.class).map(DocumentParsingProviderPlugin::getDocumentParsingSupplier)
+    private DocumentParsingProvider getDocumentParsingProvider() {
+        return getSinglePlugin(DocumentParsingProviderPlugin.class).map(DocumentParsingProviderPlugin::getDocumentParsingProvider)
             .orElse(DocumentParsingProvider.EMPTY_INSTANCE);
     }
 

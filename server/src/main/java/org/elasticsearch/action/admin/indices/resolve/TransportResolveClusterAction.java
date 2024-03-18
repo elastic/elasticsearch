@@ -143,7 +143,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                 RemoteClusterClient remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                     clusterAlias,
                     searchCoordinationExecutor,
-                    true
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
                 );
                 var remoteRequest = new ResolveClusterActionRequest(originalIndices.indices(), request.indicesOptions());
                 // allow cancellation requests to propagate to remote clusters
@@ -251,6 +251,9 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
      */
     private boolean notConnectedError(Exception e) {
         if (e instanceof ConnectTransportException || e instanceof NoSuchRemoteClusterException) {
+            return true;
+        }
+        if (e instanceof IllegalStateException && e.getMessage().contains("Unable to open any connections")) {
             return true;
         }
         Throwable ill = ExceptionsHelper.unwrap(e, IllegalArgumentException.class);

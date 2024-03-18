@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
@@ -29,7 +28,7 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesRequest {
+public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest implements CompositeIndicesRequest {
 
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
@@ -81,6 +80,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         this.query = query;
     }
 
+    @Override
     public String query() {
         return query;
     }
@@ -124,6 +124,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         this.filter = filter;
     }
 
+    @Override
     public QueryBuilder filter() {
         return filter;
     }

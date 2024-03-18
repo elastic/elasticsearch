@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -30,18 +29,14 @@ import java.util.stream.Stream;
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
 
-    private static final List<String> METADATA_FIELD_NAMES = List.of(
-        IgnoredFieldMapper.NAME,
-        RoutingFieldMapper.NAME,
-        LegacyTypeFieldMapper.NAME
+    private static final List<FieldAndFormat> METADATA_FIELDS = List.of(
+        new FieldAndFormat(IgnoredFieldMapper.NAME, null),
+        new FieldAndFormat(RoutingFieldMapper.NAME, null),
+        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
     );
 
-    private static final List<FieldAndFormat> METADATA_FIELDS = METADATA_FIELD_NAMES.stream()
-        .map(field -> new FieldAndFormat(field, null))
-        .toList();
-
     public static boolean isMetadataField(final String field) {
-        return METADATA_FIELD_NAMES.stream().anyMatch(fieldName -> fieldName.equals(field));
+        return METADATA_FIELDS.stream().map(fieldAndFormat -> fieldAndFormat.field).anyMatch(fieldName -> fieldName.equals(field));
     }
 
     private static <T> List<T> emptyListIfNull(final List<T> theList) {
@@ -51,25 +46,13 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
-        final StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
-
-        boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
-        final List<FieldAndFormat> storedFields = storedFieldsContext == null
-            ? Collections.emptyList()
-            : emptyListIfNull(storedFieldsContext.fieldNames()).stream()
-                .map(storedField -> new FieldAndFormat(storedField, null))
-                .distinct()
-                .toList();
-        final List<FieldAndFormat> storedFieldsIncludingDefaultMetadataFields = fetchStoredFields
-            ? Stream.concat(METADATA_FIELDS.stream(), storedFields.stream()).distinct().toList()
-            : Collections.emptyList();
 
         final List<FieldAndFormat> fetchFields = fetchFieldsContext == null
             ? Collections.emptyList()
             : emptyListIfNull(fetchFieldsContext.fields());
         final FieldFetcher fieldFetcher = FieldFetcher.create(
             fetchContext.getSearchExecutionContext(),
-            Stream.concat(fetchFields.stream(), storedFieldsIncludingDefaultMetadataFields.stream()).toList()
+            Stream.concat(fetchFields.stream(), METADATA_FIELDS.stream()).toList()
         );
 
         return new FetchSubPhaseProcessor() {

@@ -294,11 +294,11 @@ setup:
           sort: [ { ul: asc } ]
           _source : false
 
-  - match: { hits.hits.0.fields.ul.0 : 0 }
-  - match: { hits.hits.1.fields.ul.0 : 9223372036854775807 }
-  - match: { hits.hits.2.fields.ul.0 : 9223372036854775808 }
-  - match: { hits.hits.3.fields.ul.0 : 18446744073709551614 }
-  - match: { hits.hits.4.fields.ul.0 : 18446744073709551615 }
+  - match: { hits.hits.0.fields.ul.0 : "0" }
+  - match: { hits.hits.1.fields.ul.0 : "9223372036854775807" }
+  - match: { hits.hits.2.fields.ul.0 : "9223372036854775808" }
+  - match: { hits.hits.3.fields.ul.0 : "18446744073709551614" }
+  - match: { hits.hits.4.fields.ul.0 : "18446744073709551615" }
 
 ---
 "Composite aggregations":

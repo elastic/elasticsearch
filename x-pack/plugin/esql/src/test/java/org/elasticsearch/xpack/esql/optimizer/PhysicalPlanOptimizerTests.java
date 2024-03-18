@@ -2804,10 +2804,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * \_AggregateExec[[],[SPATIALCENTROID(city_location{f}#16) AS centroid],FINAL,50]
      *   \_ExchangeExec[[xVal{r}#24, xDel{r}#25, yVal{r}#26, yDel{r}#27, count{r}#28],true]
      *     \_AggregateExec[[],[SPATIALCENTROID(city_location{f}#16) AS centroid],PARTIAL,50]
-     *       \_EnrichExec[ANY,geo_match,city_location{f}#16,city_boundaries,city_boundary,{=airport_city_boundaries},[airport{r}#21, region{r}
-     * #22, city_boundary{r}#23]]
-     *         \_FieldExtractExec[city_location{f}#16]<[city_location{f}#16]>
-     *           \_EsQueryExec[airports], query[{"exists":{"field":"city_location","boost":1.0}}][_doc{f}#46], limit[], sort[] estimatedRowSize[204]
+     *       \_EnrichExec[ANY,geo_match,city_location{f}#16,city_boundaries,city_boundary,{=airport_city_boundaries},[airport{r}#21,
+     *                    region{r}#22, city_boundary{r}#23]]
+     *         \_FieldExtractExec[city_location{f}#16][city_location{f}#16]
+     *           \_EsQueryExec[airports], query[{"exists":{"field":"city_location","boost":1.0}}][_doc{f}#46], limit[], sort[]
+     *                         estimatedRowSize[204]
      *
      * Note the FieldExtractExec has 'city_location' set for doc-values: FieldExtractExec[city_location{f}#16][city_location{f}#16]
      */

@@ -27,7 +27,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 /**
@@ -53,9 +52,6 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     @Override
     public DataType dataType() {
         DataType dt = field().dataType();
-        if (dt == NULL) {
-            return NULL;
-        }
         return dt.isInteger() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
     }
 

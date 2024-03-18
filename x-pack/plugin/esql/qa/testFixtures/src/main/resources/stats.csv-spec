@@ -1241,3 +1241,27 @@ s2point1:d         | smv:l | rows:l | languages:i
 44.1               | 42    | 21     | 5
 21.0               | 20    | 10     | null
 ;
+
+avgOfConst#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s1 = avg(1), s2point1 = avg(2.1), s_mv = avg([-1, 0, 3]) * 3, s_null = avg(null)
+;
+
+s1:d | s2point1:d | s_mv:d | s_null:d
+1.0  | 2.1        | 2.0    | null
+;
+
+avgOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS s2point1 = avg(2.1), smv = avg([-1, 0, 3]) * 3 by languages
+| SORT languages
+;
+
+s2point1:d | smv:d | languages:i
+2.1        | 2.0   | 1
+2.1        | 2.0   | 2
+2.1        | 2.0   | 3
+2.1        | 2.0   | 4
+2.1        | 2.0   | 5
+2.1        | 2.0   | null
+;

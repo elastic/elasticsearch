@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -245,15 +246,21 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             LogicalPlan plan = aggregate;
             if (changed) {
                 var source = aggregate.source();
-                plan = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs);
-                // 5. force the initial projection in place
-                if (transientEval.size() > 0) {
-                    plan = new Eval(source, plan, transientEval);
-                    // project away transient fields and re-enforce the original order using references (not copies) to the original aggs
-                    // this works since the replaced aliases have their nameId copied to avoid having to update all references (which has
-                    // a cascading effect)
-                    plan = new Project(source, plan, Expressions.asAttributes(aggs));
+                if (newAggs.isEmpty() == false) {
+                    plan = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs);
+                    // 5. force the initial projection in place
+                    if (transientEval.isEmpty() == false) {
+                        plan = new Eval(source, plan, transientEval);
+                        // project away transient fields and re-enforce the original order using references (not copies) to the original
+                        // aggs this works since the replaced aliases have their nameId copied to avoid having to update all references
+                        // (which has a cascading effect)
+                        plan = new Project(source, plan, Expressions.asAttributes(aggs));
+                    }
+                } else {
+                    // All aggs actually have been surrogates for evals - empty aggregation.
+                    plan = new Row(plan.source(), transientEval);
                 }
+
             }
 
             return plan;

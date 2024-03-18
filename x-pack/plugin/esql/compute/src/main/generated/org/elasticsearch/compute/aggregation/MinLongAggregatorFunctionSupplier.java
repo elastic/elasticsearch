@@ -22,12 +22,13 @@ public final class MinLongAggregatorFunctionSupplier implements AggregatorFuncti
   }
 
   @Override
-  public MinLongAggregatorFunction aggregator(DriverContext driverContext) {
+  public MinLongAggregatorFunction aggregator(DriverContext driverContext, AggregatorMode mode) {
     return MinLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MinLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public MinLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      AggregatorMode mode) {
     return MinLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 

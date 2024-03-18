@@ -28,6 +28,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 
+import static org.elasticsearch.compute.gen.Types.AGGREGATION_MODE;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
@@ -99,6 +100,7 @@ public class AggregatorFunctionSupplierImplementer {
     private MethodSpec aggregator() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator")
             .addParameter(DRIVER_CONTEXT, "driverContext")
+            .addParameter(AGGREGATION_MODE, "mode")
             .returns(aggregatorImplementer.implementation());
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addStatement(
@@ -114,6 +116,7 @@ public class AggregatorFunctionSupplierImplementer {
     private MethodSpec groupingAggregator() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator")
             .addParameter(DRIVER_CONTEXT, "driverContext")
+            .addParameter(AGGREGATION_MODE, "mode")
             .returns(groupingAggregatorImplementer.implementation());
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addStatement(

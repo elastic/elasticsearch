@@ -22,12 +22,13 @@ public final class MinDoubleAggregatorFunctionSupplier implements AggregatorFunc
   }
 
   @Override
-  public MinDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+  public MinDoubleAggregatorFunction aggregator(DriverContext driverContext, AggregatorMode mode) {
     return MinDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MinDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public MinDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      AggregatorMode mode) {
     return MinDoubleGroupingAggregatorFunction.create(channels, driverContext);
   }
 

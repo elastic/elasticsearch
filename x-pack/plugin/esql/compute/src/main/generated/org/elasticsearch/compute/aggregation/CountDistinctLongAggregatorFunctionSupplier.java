@@ -25,13 +25,14 @@ public final class CountDistinctLongAggregatorFunctionSupplier implements Aggreg
   }
 
   @Override
-  public CountDistinctLongAggregatorFunction aggregator(DriverContext driverContext) {
+  public CountDistinctLongAggregatorFunction aggregator(DriverContext driverContext,
+      AggregatorMode mode) {
     return CountDistinctLongAggregatorFunction.create(driverContext, channels, precision);
   }
 
   @Override
-  public CountDistinctLongGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+  public CountDistinctLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      AggregatorMode mode) {
     return CountDistinctLongGroupingAggregatorFunction.create(channels, driverContext, precision);
   }
 

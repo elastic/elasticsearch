@@ -22,12 +22,13 @@ public final class MaxIntAggregatorFunctionSupplier implements AggregatorFunctio
   }
 
   @Override
-  public MaxIntAggregatorFunction aggregator(DriverContext driverContext) {
+  public MaxIntAggregatorFunction aggregator(DriverContext driverContext, AggregatorMode mode) {
     return MaxIntAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MaxIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public MaxIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      AggregatorMode mode) {
     return MaxIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 

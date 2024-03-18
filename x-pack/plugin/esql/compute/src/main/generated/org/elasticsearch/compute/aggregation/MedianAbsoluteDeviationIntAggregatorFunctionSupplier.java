@@ -22,13 +22,14 @@ public final class MedianAbsoluteDeviationIntAggregatorFunctionSupplier implemen
   }
 
   @Override
-  public MedianAbsoluteDeviationIntAggregatorFunction aggregator(DriverContext driverContext) {
+  public MedianAbsoluteDeviationIntAggregatorFunction aggregator(DriverContext driverContext,
+      AggregatorMode mode) {
     return MedianAbsoluteDeviationIntAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
   public MedianAbsoluteDeviationIntGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+      DriverContext driverContext, AggregatorMode mode) {
     return MedianAbsoluteDeviationIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 

@@ -25,13 +25,14 @@ public final class CountDistinctIntAggregatorFunctionSupplier implements Aggrega
   }
 
   @Override
-  public CountDistinctIntAggregatorFunction aggregator(DriverContext driverContext) {
+  public CountDistinctIntAggregatorFunction aggregator(DriverContext driverContext,
+      AggregatorMode mode) {
     return CountDistinctIntAggregatorFunction.create(driverContext, channels, precision);
   }
 
   @Override
-  public CountDistinctIntGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+  public CountDistinctIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      AggregatorMode mode) {
     return CountDistinctIntGroupingAggregatorFunction.create(channels, driverContext, precision);
   }
 

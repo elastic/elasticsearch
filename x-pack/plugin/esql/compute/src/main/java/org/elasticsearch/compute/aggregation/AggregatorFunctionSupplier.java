@@ -14,15 +14,15 @@ import org.elasticsearch.compute.operator.DriverContext;
  * Builds aggregation implementations, closing over any state required to do so.
  */
 public interface AggregatorFunctionSupplier extends Describable {
-    AggregatorFunction aggregator(DriverContext driverContext);
+    AggregatorFunction aggregator(DriverContext driverContext, AggregatorMode mode);
 
-    GroupingAggregatorFunction groupingAggregator(DriverContext driverContext);
+    GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, AggregatorMode mode);
 
     default Aggregator.Factory aggregatorFactory(AggregatorMode mode) {
         return new Aggregator.Factory() {
             @Override
             public Aggregator apply(DriverContext driverContext) {
-                return new Aggregator(aggregator(driverContext), mode);
+                return new Aggregator(aggregator(driverContext, mode), mode);
             }
 
             @Override
@@ -36,7 +36,7 @@ public interface AggregatorFunctionSupplier extends Describable {
         return new GroupingAggregator.Factory() {
             @Override
             public GroupingAggregator apply(DriverContext driverContext) {
-                return new GroupingAggregator(groupingAggregator(driverContext), mode);
+                return new GroupingAggregator(groupingAggregator(driverContext, mode), mode);
             }
 
             @Override

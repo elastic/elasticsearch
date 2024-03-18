@@ -22,12 +22,12 @@ public class CountAggregatorFunction implements AggregatorFunction {
     public static AggregatorFunctionSupplier supplier(List<Integer> channels) {
         return new AggregatorFunctionSupplier() {
             @Override
-            public AggregatorFunction aggregator(DriverContext driverContext) {
+            public AggregatorFunction aggregator(DriverContext driverContext, AggregatorMode mode) {
                 return CountAggregatorFunction.create(channels);
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, AggregatorMode mode) {
                 return CountGroupingAggregatorFunction.create(driverContext, channels);
             }
 

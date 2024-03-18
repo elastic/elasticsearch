@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -23,14 +24,14 @@ public final class SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier im
   }
 
   @Override
-  public SpatialCentroidGeoPointDocValuesAggregatorFunction aggregator(
-      DriverContext driverContext) {
+  public SpatialCentroidGeoPointDocValuesAggregatorFunction aggregator(DriverContext driverContext,
+      AggregatorMode mode) {
     return SpatialCentroidGeoPointDocValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
   public SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+      DriverContext driverContext, AggregatorMode mode) {
     return SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction.create(channels, driverContext);
   }
 

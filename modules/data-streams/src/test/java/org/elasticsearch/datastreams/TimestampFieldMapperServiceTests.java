@@ -31,6 +31,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+/// MP TODO: probably need more tests here also?
 public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
 
     private static final String DOC = """
@@ -61,7 +62,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
         DocWriteResponse indexResponse = indexDoc();
 
         var indicesService = getInstanceFromNode(IndicesService.class);
-        var result = indicesService.getTimestampFieldType(indexResponse.getShardId().getIndex());
+        var result = indicesService.getTimestampFieldTypeMap(indexResponse.getShardId().getIndex());
         assertThat(result, notNullValue());
     }
 
@@ -70,7 +71,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
         DocWriteResponse indexResponse = indexDoc();
 
         var indicesService = getInstanceFromNode(IndicesService.class);
-        var result = indicesService.getTimestampFieldType(indexResponse.getShardId().getIndex());
+        var result = indicesService.getTimestampFieldTypeMap(indexResponse.getShardId().getIndex());
         assertThat(result, nullValue());
     }
 

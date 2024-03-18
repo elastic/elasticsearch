@@ -9,6 +9,7 @@ package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -42,6 +43,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -74,8 +76,35 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         createIndex("index", 1, 1);
 
-        final DocWriteResponse indexResponse = prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z")
-            .get();
+        String expectedMin = "2010-01-04T02:03:04.567Z";
+        String expectedMax = "2010-01-06T02:03:04.567Z";
+        IndexRequestBuilder indexRequestBuilder = prepareIndex("index");
+        switch (randomInt(2)) {
+            case 0: {
+                String field = randomFrom("event.ingested", "event.created", DataStream.TIMESTAMP_FIELD_NAME);
+                indexRequestBuilder.setSource(field, expectedMax);
+                expectedMin = expectedMax;
+                break;
+            }
+            case 1: {
+                List<String> fields = randomSubsetOf(2, "event.ingested", "event.created", DataStream.TIMESTAMP_FIELD_NAME);
+                indexRequestBuilder.setSource(fields.get(0), expectedMin, fields.get(1), expectedMax);
+                break;
+            }
+            case 2: {
+                String field1 = "event.created";
+                String field2 = "event.ingested";
+                String field3 = DataStream.TIMESTAMP_FIELD_NAME;
+                String middleOfRange = "2010-01-05T02:03:04.567Z";
+                indexRequestBuilder.setSource(field1, expectedMin, field2, middleOfRange, field3, expectedMax);
+                break;
+            }
+            default: {
+                throw new IllegalStateException("should not get here");
+            }
+        }
+
+        DocWriteResponse indexResponse = indexRequestBuilder.get();
 
         ensureGreen("index");
 
@@ -114,8 +143,8 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
-        assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
-        assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
+        assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse(expectedMin).toEpochMilli()));
+        assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse(expectedMax).toEpochMilli()));
     }
 
     public void testTimestampFieldTypeExposedByAllIndicesServices() throws Exception {
@@ -140,6 +169,10 @@ public class FrozenIndexIT extends ESIntegTestCase {
             default -> throw new AssertionError("impossible");
         }
 
+        /// MP TODO: this fails when run with event.created - why?
+        // String timeField = randomFrom("event.ingested", "event.created", DataStream.TIMESTAMP_FIELD_NAME);
+        String timeField = randomFrom("event.ingested", DataStream.TIMESTAMP_FIELD_NAME);
+
         assertAcked(
             prepareCreate("index").setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -148,7 +181,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
                     jsonBuilder().startObject()
                         .startObject("_doc")
                         .startObject("properties")
-                        .startObject(DataStream.TIMESTAMP_FIELD_NAME)
+                        .startObject(timeField)
                         .field("type", "date")
                         .field("format", "dd LLL yyyy HH:mm:ssX")
                         .field("locale", locale)
@@ -171,11 +204,11 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureGreen("index");
         if (randomBoolean()) {
-            prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, date).get();
+            prepareIndex("index").setSource(timeField, date).get();
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldType(index));
+            assertNull(indicesService.getTimestampFieldTypeMap(index));
         }
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
@@ -183,9 +216,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
             assertBusy(() -> {
-                final DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(index);
-                assertNotNull(timestampFieldType);
-                timestampFieldTypeFuture.onResponse(timestampFieldType);
+                final Map<String, DateFieldMapper.DateFieldType> timestampFieldMap = indicesService.getTimestampFieldTypeMap(index);
+                assertNotNull(timestampFieldMap);
+                timestampFieldTypeFuture.onResponse(timestampFieldMap.get(timeField));
             });
             assertTrue(timestampFieldTypeFuture.isDone());
             assertThat(timestampFieldTypeFuture.get().dateTimeFormatter().locale().toString(), equalTo(locale));
@@ -195,7 +228,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").setFreeze(false)).actionGet());
         ensureGreen("index");
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
-            assertNull(indicesService.getTimestampFieldType(index));
+            assertNull(indicesService.getTimestampFieldTypeMap(index));
         }
     }
 

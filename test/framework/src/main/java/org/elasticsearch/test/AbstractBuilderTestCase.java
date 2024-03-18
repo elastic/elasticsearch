@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -611,7 +612,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 this.client,
                 () -> nowInMillis,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
-                dateFieldType
+                /// MP TODO: find a way to not hardcod this list in tests?
+                Map.of(DataStream.TIMESTAMP_FIELD_NAME, dateFieldType, "event.ingested", dateFieldType, "event.created", dateFieldType)
             );
         }
 

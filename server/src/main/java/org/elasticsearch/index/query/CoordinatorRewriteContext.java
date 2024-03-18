@@ -17,6 +17,7 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.function.LongSupplier;
 
 /**
@@ -28,14 +29,14 @@ import java.util.function.LongSupplier;
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
     private final IndexLongFieldRange indexLongFieldRange;
-    private final DateFieldMapper.DateFieldType timestampFieldType;
+    private final Map<String, DateFieldMapper.DateFieldType> timestampFieldTypes;
 
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
         IndexLongFieldRange indexLongFieldRange,
-        DateFieldMapper.DateFieldType timestampFieldType
+        Map<String, DateFieldMapper.DateFieldType> timestampFieldTypes
     ) {
         super(
             parserConfig,
@@ -54,7 +55,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null
         );
         this.indexLongFieldRange = indexLongFieldRange;
-        this.timestampFieldType = timestampFieldType;
+        this.timestampFieldTypes = timestampFieldTypes;
     }
 
     long getMinTimestamp() {
@@ -71,11 +72,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     @Nullable
     public MappedFieldType getFieldType(String fieldName) {
-        if (fieldName.equals(timestampFieldType.name()) == false) {
-            return null;
-        }
-
-        return timestampFieldType;
+        return timestampFieldTypes.get(fieldName);
     }
 
     @Override

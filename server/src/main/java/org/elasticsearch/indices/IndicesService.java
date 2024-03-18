@@ -1732,7 +1732,13 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
-        return new CoordinatorRewriteContextProvider(parserConfig, client, nowInMillis, clusterService::state, this::getTimestampFieldType);
+        return new CoordinatorRewriteContextProvider(
+            parserConfig,
+            client,
+            nowInMillis,
+            clusterService::state,
+            this::getTimestampFieldTypeMap
+        );
     }
 
     /**
@@ -1821,6 +1827,7 @@ public class IndicesService extends AbstractLifecycleComponent
             || (danglingIndicesToWrite.isEmpty() && danglingIndicesThreadPoolExecutor.getActiveCount() == 0);
     }
 
+    /// MP TODO Update javadoc here
     /**
      * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
      * - the index is not found,
@@ -1828,8 +1835,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * - the field is not a timestamp field.
      */
     @Nullable
-    public DateFieldMapper.DateFieldType getTimestampFieldType(Index index) {
-        return timestampFieldMapperService.getTimestampFieldType(index);
+    public Map<String, DateFieldMapper.DateFieldType> getTimestampFieldTypeMap(Index index) {
+        return timestampFieldMapperService.getTimestampFieldTypeMap(index);
     }
 
     public IndexScopedSettings getIndexScopedSettings() {

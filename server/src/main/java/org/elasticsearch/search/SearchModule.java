@@ -324,8 +324,6 @@ public class SearchModule {
         registerIntervalsSourceProviders();
         requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
-//        namedWriteables.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankRetrieverBuilder.NAME,
-//        TextSimilarityRankBuilder::new));
         registerGenericNamedWriteable(new SearchPlugin.GenericNamedWriteableSpec("GeoBoundingBox", GeoBoundingBox::new));
     }
 
@@ -1050,7 +1048,6 @@ public class SearchModule {
     private void registerRetrieverParsers(List<SearchPlugin> plugins) {
         registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::fromXContent));
         registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::fromXContent));
-        //registerRetriever(new RetrieverSpec<>(TextSimilarityRankRetrieverBuilder.NAME, TextSimilarityRankRetrieverBuilder::fromXContent));
 
         registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
     }

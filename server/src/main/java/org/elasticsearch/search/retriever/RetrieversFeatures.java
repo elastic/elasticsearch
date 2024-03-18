@@ -25,7 +25,6 @@ public class RetrieversFeatures implements FeatureSpecification {
             RetrieverBuilder.RETRIEVERS_SUPPORTED,
             StandardRetrieverBuilder.STANDARD_RETRIEVER_SUPPORTED,
             KnnRetrieverBuilder.KNN_RETRIEVER_SUPPORTED
-//            TextSimilarityRankRetrieverBuilder.NODE_FEATURE
         );
     }
 }

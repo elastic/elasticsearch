@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -29,6 +30,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.readiness.ReadinessClientProbe;
@@ -208,9 +210,26 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             .build();
         ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
         readinessService.clusterChanged(event);
-        readinessService.watchedFileChanged();
 
-        // sending a cluster state with active master should bring up the service
+        // sending a cluster state with active master should not yet bring up the service, file settings still are not applied
+        assertFalse(readinessService.ready());
+
+        previousState = newState;
+        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(1L);
+        var metadataBuilder = new Metadata.Builder().put(fileSettingsState.build());
+        newState = ClusterState.builder(previousState)
+            .nodes(
+                DiscoveryNodes.builder(previousState.nodes())
+                    .add(httpTransport.node)
+                    .masterNodeId(httpTransport.node.getId())
+                    .localNodeId(httpTransport.node.getId())
+            )
+            .metadata(metadataBuilder)
+            .build();
+        event = new ClusterChangedEvent("test", newState, previousState);
+        readinessService.clusterChanged(event);
+
+        // sending a cluster state with active master and file settings applied should bring up the service
         assertTrue(readinessService.ready());
 
         previousState = newState;

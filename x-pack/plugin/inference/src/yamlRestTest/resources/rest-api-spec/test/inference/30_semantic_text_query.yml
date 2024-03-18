@@ -184,3 +184,20 @@ setup:
 
   - match: { error.type: "index_not_found_exception" }
   - match: { error.reason: "no such index [missing-index]" }
+
+---
+"Query multiple indices":
+  - do:
+      catch: bad_request
+      search:
+        index:
+          - test-sparse-index
+          - test-dense-index
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [inference_field] has multiple models associated with it" }

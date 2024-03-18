@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -244,11 +245,17 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             }
         } else {
             boolean masterElected = clusterState.nodes().getMasterNodeId() != null;
-            boolean fileSettingsApplied = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE) != null;
+            ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+            boolean fileSettingsApplied = fileSettingsMetadata != null && fileSettingsMetadata.errorMetadata() == null;
+            logger.debug(
+                "readiness: masterElected={}, file settings exist={} and applied={}",
+                masterElected,
+                fileSettingsMetadata != null,
+                fileSettingsApplied
+            );
             boolean nowReady = masterElected && fileSettingsApplied;
-            if (nowReady != ready()) {
-                logger.debug("readiness change: masterElected={}, fileSettingsApplied={}", masterElected, fileSettingsApplied);
-                setReady(masterElected && fileSettingsApplied);
+            if (nowReady && ready() == false) {
+                setReady(true);
             }
         }
     }

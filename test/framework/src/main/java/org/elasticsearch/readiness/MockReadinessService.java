@@ -91,7 +91,7 @@ public class MockReadinessService extends ReadinessService {
     }
 
     public MockReadinessService(ClusterService clusterService, Environment environment) {
-        super(clusterService, environment, MockServerSocketChannel::openMock);
+        super(clusterService, environment, MockServerSocketChannel::openMock, false);
     }
 
     private static boolean socketIsOpen(ReadinessService readinessService) {

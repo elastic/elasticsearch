@@ -45,7 +45,7 @@ public abstract class Command implements Closeable {
     }
 
     /** Parses options for this command from args and executes it. */
-    public final int main(String[] args, Terminal terminal, ProcessInfo processInfo) throws Exception {
+    public final int main(String[] args, Terminal terminal, ProcessInfo processInfo) throws IOException {
         try {
             mainWithoutErrorHandling(args, terminal, processInfo);
         } catch (OptionException e) {
@@ -59,6 +59,14 @@ public abstract class Command implements Closeable {
             }
             printUserException(terminal, e);
             return e.exitCode;
+        } catch (IOException ioe) {
+            terminal.errorPrintln(ioe);
+            return ExitCodes.IO_ERROR;
+        } catch (Throwable t) {
+            // It's acceptable to catch Throwable at this point:
+            // We're about to exit and only want to print the stacktrace with appropriate formatting (e.g. JSON).
+            terminal.errorPrintln(t);
+            return ExitCodes.CODE_ERROR;
         }
         return ExitCodes.OK;
     }

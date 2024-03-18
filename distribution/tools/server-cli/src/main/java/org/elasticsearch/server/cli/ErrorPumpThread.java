@@ -11,6 +11,7 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -29,7 +30,7 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
  * {@link BootstrapInfo#SERVER_READY_MARKER} signals the server is ready and the cli may
  * detach if daemonizing. All other messages are passed through to stderr.
  */
-class ErrorPumpThread extends Thread {
+class ErrorPumpThread extends Thread implements Closeable {
     private final BufferedReader reader;
     private final PrintWriter writer;
 
@@ -48,6 +49,20 @@ class ErrorPumpThread extends Thread {
         this.writer = errOutput;
     }
 
+    private void checkForIoFailure() throws IOException {
+        IOException failure = ioFailure;
+        ioFailure = null;
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        assert isAlive() == false : "Pump thread must be drained first";
+        checkForIoFailure();
+    }
+
     /**
      * Waits until the server ready marker has been received.
      *
@@ -56,9 +71,7 @@ class ErrorPumpThread extends Thread {
      */
     boolean waitUntilReady() throws IOException {
         nonInterruptibleVoid(readyOrDead::await);
-        if (ioFailure != null) {
-            throw ioFailure;
-        }
+        checkForIoFailure();
         return ready;
     }
 

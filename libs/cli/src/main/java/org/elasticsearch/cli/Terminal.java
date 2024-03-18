@@ -160,6 +160,18 @@ public abstract class Terminal {
         print(verbosity, outWriter, msg, false);
     }
 
+    /** Prints a stacktrace to the terminal's standard error at {@code verbosity} level. */
+    public void errorPrintln(Verbosity verbosity, Throwable throwable) {
+        if (isPrintable(verbosity)) {
+            throwable.printStackTrace(errWriter);
+        }
+    }
+
+    /** Prints a stacktrace to the terminal's standard error at {@link Verbosity#SILENT} verbosity level. */
+    public void errorPrintln(Throwable throwable) {
+        errorPrintln(Verbosity.SILENT, throwable);
+    }
+
     /**
      * Prints message to the terminal at {@code verbosity} level.
      *

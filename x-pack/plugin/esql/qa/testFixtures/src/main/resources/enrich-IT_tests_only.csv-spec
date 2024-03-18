@@ -152,6 +152,7 @@ a:keyword   | a_lang:keyword
 ["1", "2"]  | ["English", "French"] 
 ;
 
+
 enrichCidr#[skip:-8.13.99, reason:enrich for cidr added in 8.14.0]
 FROM sample_data
 | ENRICH client_cidr_policy ON client_ip WITH env
@@ -170,6 +171,7 @@ client_ip:ip | count_env:i | max_env:keyword
 172.21.3.15  | 2           | Production
 ;
 
+
 enrichCidr2#[skip:-8.99.99, reason:ip_range support not added yet]
 FROM sample_data
 | ENRICH client_cidr_policy ON client_ip WITH env, client_cidr
@@ -186,6 +188,7 @@ client_ip:ip | env:keyword               | client_cidr:ip_range
 172.21.2.113 | [Development, QA]         | 172.21.2.0/24
 172.21.2.162 | [Development, QA]         | 172.21.2.0/24
 ;
+
 
 enrichAgesStatsYear#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 FROM employees
@@ -207,6 +210,7 @@ birth_year:long | age_group:keyword | count:long
 1960            | Senior            | 8
 ;
 
+
 enrichAgesStatsAgeGroup#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 FROM employees
 | WHERE birth_date IS NOT NULL
@@ -220,6 +224,7 @@ count:long | age_group:keyword
 78         | Senior
 12         | Middle-aged
 ;
+
 
 enrichHeightsStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 FROM employees
@@ -236,6 +241,7 @@ Medium Height  | 1.61       | 1.79       | 26
 Tall           | 1.8        | 1.99       | 25
 Very Tall      | 2.0        | 2.1        | 20
 ;
+
 
 enrichDecadesStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 FROM employees
@@ -255,6 +261,7 @@ null              | 1980          | null                | Radical Eighties   | 4
 1950              | 1980          | Nifty Fifties       | Radical Eighties   | 34
 ;
 
+
 spatialEnrichmentKeywordMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 FROM airports
 | WHERE abbrev == "CPH"
@@ -267,6 +274,7 @@ abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  
 CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          |  POINT(12.6493508684508 55.6285017221528) |  Copenhagen  |  Copenhagen    |  Københavns Kommune  |  265
 ;
 
+
 spatialEnrichmentGeoMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 FROM airports
 | WHERE abbrev == "CPH"
@@ -278,6 +286,7 @@ FROM airports
 abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point                       |  name:text   |  airport:text  |  region:text         |  boundary_wkt_length:integer
 CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          |  POINT(12.6493508684508 55.6285017221528) |  Copenhagen  |  Copenhagen    |  Københavns Kommune  |  265
 ;
+
 
 spatialEnrichmentGeoMatchStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 required_feature: esql.mv_warn
@@ -294,6 +303,7 @@ city_centroid:geo_point    |  count:long  |  min_wkt:integer  |  max_wkt:integer
 POINT(1.396561 24.127649)  |  872         |  88               |  1044
 ;
 
+
 spatialEnrichmentKeywordMatchAndSpatialPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | ENRICH city_names ON city WITH airport, region, city_boundary
@@ -308,6 +318,7 @@ count:long  |  airport_in_city:boolean
 396         |  true
 455         |  false
 ;
+
 
 spatialEnrichmentKeywordMatchAndSpatialAggregation#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports

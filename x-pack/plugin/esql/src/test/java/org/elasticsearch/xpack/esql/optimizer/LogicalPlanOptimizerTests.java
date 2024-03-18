@@ -3246,7 +3246,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
      *         \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
-    public void testSumOfConstant() throws Exception {
+    public void testSumOfConstant() {
         var plan = optimizedPlan("""
             from test
             | stats s = sum([1,2]),
@@ -3287,6 +3287,88 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(count.children().get(0), instanceOf(Literal.class));
         var w = as(Alias.unwrap(agg.groupings().get(0)), ReferenceAttribute.class);
         assertThat(w.name(), equalTo("w"));
+    }
+
+    /**
+     * Expects
+     *
+     * EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
+     * \_Limit[1000[INTEGER]]
+     *   \_Row[[1.5[DOUBLE] AS s, 3.14[DOUBLE] AS s_expr, null[DOUBLE] AS s_null]]
+     */
+    public void testAvgOfConstant() {
+        var plan = optimizedPlan("""
+            from test
+            | stats s = avg([1,2]),
+                    s_expr = avg(314.0/100),
+                    s_null = avg(null)
+            | keep s, s_expr, s_null
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var row = as(limit.child(), Row.class);
+        var exprs = row.fields();
+
+        // s = mv_avg([1,2]) == 1.5
+        var s = as(Alias.unwrap(exprs.get(0)), Literal.class);
+        assertThat(s.source().text(), equalTo("avg([1,2])"));
+        assertThat(s.value(), equalTo(1.5));
+
+        // s_expr = mv_avg(314.0/100) == 3.14
+        var s_expr = as(Alias.unwrap(exprs.get(1)), Literal.class);
+        assertThat(s_expr.source().text(), equalTo("avg(314.0/100)"));
+        assertThat(s_expr.value(), equalTo(3.14));
+
+        // s_null = null
+        var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
+        assertThat(s_null.source().text(), equalTo("avg(null)"));
+        assertThat(s_null.value(), equalTo(null));
+    }
+
+    /**
+     * Expects
+     *
+     * Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
+     * \_Eval[[1.5[DOUBLE] AS s, 3.14[DOUBLE] AS s_expr, null[DOUBLE] AS s_null]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
+     *       \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     */
+    public void testAvgOfConstantWithGrouping() {
+        var plan = optimizedPlan("""
+            from test
+            | stats s = avg([1,2]),
+                    s_expr = avg(314.0/100),
+                    s_null = avg(null)
+                    by emp_no
+            | keep s, s_expr, s_null, emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.child(), instanceOf(EsRelation.class));
+
+        // Assert exprs
+        var exprs = eval.fields();
+        // s = mv_avg([1,2]) == 1.5
+        var s = as(Alias.unwrap(exprs.get(0)), Literal.class);
+        assertThat(s.source().text(), equalTo("avg([1,2])"));
+        assertThat(s.value(), equalTo(1.5));
+        // s_expr = mv_avg(314.0/100) == 3.14
+        var s_expr = as(Alias.unwrap(exprs.get(1)), Literal.class);
+        assertThat(s_expr.source().text(), equalTo("avg(314.0/100)"));
+        assertThat(s_expr.value(), equalTo(3.14));
+        // s_null = null
+        var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
+        assertThat(s_null.source().text(), equalTo("avg(null)"));
+        assertThat(s_null.value(), equalTo(null));
+
+        // Assert that the aggregate only does the grouping by emp_no
+        assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
+        assertThat(agg.aggregates().size(), equalTo(1));
     }
 
     public void testEmptyMappingIndex() {

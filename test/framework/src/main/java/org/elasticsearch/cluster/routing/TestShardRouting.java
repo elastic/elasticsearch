@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -23,7 +25,9 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomUUID;
+import static org.elasticsearch.test.ESTestCase.safeSleep;
 import static org.junit.Assert.assertNotEquals;
 
 /**
@@ -33,6 +37,8 @@ import static org.junit.Assert.assertNotEquals;
  * Please do not add more `newShardRouting`, consider using a aSharRouting builder instead
  */
 public class TestShardRouting {
+
+    private static final Logger logger = LogManager.getLogger(TestShardRouting.class);
 
     public static Builder shardRoutingBuilder(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
         return shardRoutingBuilder(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
@@ -217,18 +223,36 @@ public class TestShardRouting {
             lastAllocatedNodeId = randomIdentifier();
         }
         int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+
+        long unassignedTimeMillis = randomLongBetween(
+            1672531200000L, // 01-01-2023
+            1704067200000L // 01-01-2024
+        );
+        long unassignedTimeNanos = randomLongBetween(0L, 1_000_000_000);
+        ensureInPast(unassignedTimeNanos);
+
         return new UnassignedInfo(
             reason,
             message,
             null,
             failedAllocations,
-            System.nanoTime(),
-            System.currentTimeMillis(),
+            unassignedTimeNanos,
+            unassignedTimeMillis,
             delayed,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
             Set.of(),
             lastAllocatedNodeId
         );
+    }
+
+    /**
+     * This ensures that deterministically selected nano time is actually in past to avoid unassigned info code constraints
+     */
+    private static void ensureInPast(long nanoTime) {
+        while (System.nanoTime() < nanoTime) {
+            logger.info("Waiting to ensure selected nano-time [{}] is in past", nanoTime);
+            safeSleep(1000);
+        }
     }
 
     public static RecoverySource buildRecoverySource() {

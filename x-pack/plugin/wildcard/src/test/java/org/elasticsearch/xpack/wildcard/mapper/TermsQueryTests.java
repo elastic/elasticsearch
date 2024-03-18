@@ -52,9 +52,9 @@ public class TermsQueryTests extends AbstractBuilderTestCase {
         termsQueryBuilder = termsQueryBuilder.rewrite(createQueryRewriteContext());
         Query actual = termsQueryBuilder.toQuery(createSearchExecutionContext());
 
-        QueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder("mapped_wildcard", "duplicate");
-        wildcardQueryBuilder = wildcardQueryBuilder.rewrite(createQueryRewriteContext());
-        Query expected = new ConstantScoreQuery(wildcardQueryBuilder.toQuery(createSearchExecutionContext()));
+        QueryBuilder queryBuilder = new BoolQueryBuilder().should(new WildcardQueryBuilder("mapped_wildcard", "duplicate"));
+        queryBuilder = queryBuilder.rewrite(createQueryRewriteContext());
+        Query expected = new ConstantScoreQuery(queryBuilder.toQuery(createSearchExecutionContext()));
 
         assertEquals(expected, actual);
     }

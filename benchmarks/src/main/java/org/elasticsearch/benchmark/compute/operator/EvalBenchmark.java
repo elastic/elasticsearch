@@ -8,6 +8,7 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -58,7 +61,6 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class EvalBenchmark {
-    private static final BigArrays BIG_ARRAYS = BigArrays.NON_RECYCLING_INSTANCE;  // TODO real big arrays?
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
         BigArrays.NON_RECYCLING_INSTANCE
@@ -82,7 +84,9 @@ public class EvalBenchmark {
         }
     }
 
-    @Param({ "abs", "add", "date_trunc", "equal_to_const", "long_equal_to_long", "long_equal_to_int", "mv_min", "mv_min_ascending" })
+    @Param(
+        { "abs", "add", "date_trunc", "equal_to_const", "long_equal_to_long", "long_equal_to_int", "mv_min", "mv_min_ascending", "rlike" }
+    )
     public String operation;
 
     private static Operator operator(String operation) {
@@ -134,6 +138,11 @@ public class EvalBenchmark {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(new MvMin(Source.EMPTY, longField), layout(longField)).get(driverContext);
             }
+            case "rlike" -> {
+                FieldAttribute keywordField = keywordField();
+                RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern(".ar"));
+                yield EvalMapper.toEvaluator(rlike, layout(keywordField)).get(driverContext);
+            }
             default -> throw new UnsupportedOperationException();
         };
     }
@@ -144,6 +153,10 @@ public class EvalBenchmark {
 
     private static FieldAttribute intField() {
         return new FieldAttribute(Source.EMPTY, "int", new EsField("int", DataTypes.INTEGER, Map.of(), true));
+    }
+
+    private static FieldAttribute keywordField() {
+        return new FieldAttribute(Source.EMPTY, "keyword", new EsField("keyword", DataTypes.KEYWORD, Map.of(), true));
     }
 
     private static Layout layout(FieldAttribute... fields) {
@@ -205,6 +218,15 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "rlike" -> {
+                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    boolean expected = i % 2 == 1;
+                    if (v.getBoolean(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+                    }
+                }
+            }
             default -> throw new UnsupportedOperationException();
         }
     }
@@ -249,6 +271,14 @@ public class EvalBenchmark {
                     builder.endPositionEntry();
                 }
                 yield new Page(builder.build());
+            }
+            case "rlike" -> {
+                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(values[i % 2]);
+                }
+                yield new Page(builder.build().asBlock());
             }
             default -> throw new UnsupportedOperationException();
         };

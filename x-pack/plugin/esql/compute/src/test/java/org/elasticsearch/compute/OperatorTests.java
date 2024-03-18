@@ -240,7 +240,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             List.of(CountAggregatorFunction.supplier(List.of(1, 2)).groupingAggregatorFactory(FINAL)),
                             () -> BlockHash.build(
                                 List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
-                                driverContext,
+                                driverContext.blockFactory(),
                                 randomPageSize(),
                                 false
                             ),

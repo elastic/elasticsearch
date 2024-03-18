@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
@@ -95,7 +96,7 @@ public class RateLimiterTests extends ESTestCase {
 
         var sleeper = mock(RateLimiter.Sleeper.class);
 
-        var limiter = new RateLimiter(0, Double.MAX_VALUE, TimeUnit.NANOSECONDS, sleeper, clock);
+        var limiter = new RateLimiter(0, Double.MAX_VALUE, TimeUnit.MICROSECONDS, sleeper, clock);
         limiter.acquire(1);
         verify(sleeper, times(1)).sleep(0);
     }
@@ -107,7 +108,7 @@ public class RateLimiterTests extends ESTestCase {
 
         var sleeper = mock(RateLimiter.Sleeper.class);
 
-        var limiter = new RateLimiter(0, Double.MAX_VALUE, TimeUnit.NANOSECONDS, sleeper, clock);
+        var limiter = new RateLimiter(0, Double.MAX_VALUE, TimeUnit.MICROSECONDS, sleeper, clock);
         limiter.acquire(Integer.MAX_VALUE);
         verify(sleeper, times(1)).sleep(0);
     }
@@ -123,8 +124,8 @@ public class RateLimiterTests extends ESTestCase {
         var limiter = new RateLimiter(0, tokensPerDay, TimeUnit.DAYS, sleeper, clock);
         limiter.acquire(Integer.MAX_VALUE);
 
-        double tokensPerNano = tokensPerDay / TimeUnit.DAYS.toNanos(1);
-        verify(sleeper, times(1)).sleep((long) ((double) Integer.MAX_VALUE / tokensPerNano));
+        double tokensPerMicro = tokensPerDay / TimeUnit.DAYS.toMicros(1);
+        verify(sleeper, times(1)).sleep((long) ((double) Integer.MAX_VALUE / tokensPerMicro));
     }
 
     public void testAcquire_SleepsForOneMinute_WhenRequestingOneUnavailableToken() throws InterruptedException {
@@ -136,7 +137,7 @@ public class RateLimiterTests extends ESTestCase {
 
         var limiter = new RateLimiter(1, 1, TimeUnit.MINUTES, sleeper, clock);
         limiter.acquire(2);
-        verify(sleeper, times(1)).sleep(TimeUnit.MINUTES.toNanos(1));
+        verify(sleeper, times(1)).sleep(TimeUnit.MINUTES.toMicros(1));
     }
 
     public void testAcquire_SleepsForOneMinute_WhenRequestingOneUnavailableToken_NoAccumulated() throws InterruptedException {
@@ -148,7 +149,7 @@ public class RateLimiterTests extends ESTestCase {
 
         var limiter = new RateLimiter(0, 1, TimeUnit.MINUTES, sleeper, clock);
         limiter.acquire(1);
-        verify(sleeper, times(1)).sleep(TimeUnit.MINUTES.toNanos(1));
+        verify(sleeper, times(1)).sleep(TimeUnit.MINUTES.toMicros(1));
     }
 
     public void testAcquire_SleepsFor10Minute_WhenRequesting10UnavailableToken_NoAccumulated() throws InterruptedException {
@@ -160,7 +161,20 @@ public class RateLimiterTests extends ESTestCase {
 
         var limiter = new RateLimiter(0, 1, TimeUnit.MINUTES, sleeper, clock);
         limiter.acquire(10);
-        verify(sleeper, times(1)).sleep(TimeUnit.MINUTES.toNanos(10));
+        verify(sleeper, times(1)).sleep(TimeUnit.MINUTES.toMicros(10));
+    }
+
+    public void testAcquire_IncrementsNextTokenAvailabilityInstant_ByOneMinute() throws InterruptedException {
+        var now = Clock.systemUTC().instant();
+        var clock = mock(Clock.class);
+        when(clock.instant()).thenReturn(now);
+
+        var sleeper = mock(RateLimiter.Sleeper.class);
+
+        var limiter = new RateLimiter(0, 1, TimeUnit.MINUTES, sleeper, clock);
+        limiter.acquire(1);
+        verify(sleeper, times(1)).sleep(TimeUnit.MINUTES.toMicros(1));
+        assertThat(limiter.getNextTokenAvailability(), is(now.plus(1, ChronoUnit.MINUTES)));
     }
 
     public void testAcquire_SecondCallToAcquire_ShouldWait_WhenAccumulatedTokensAreDepleted() throws InterruptedException {
@@ -174,7 +188,7 @@ public class RateLimiterTests extends ESTestCase {
         limiter.acquire(1);
         verify(sleeper, times(1)).sleep(0);
         limiter.acquire(1);
-        verify(sleeper, times(1)).sleep(TimeUnit.MINUTES.toNanos(1));
+        verify(sleeper, times(1)).sleep(TimeUnit.MINUTES.toMicros(1));
     }
 
     public void testAcquire_SecondCallToAcquire_ShouldWaitForHalfDuration_WhenElapsedTimeIsHalfRequiredDuration()
@@ -190,6 +204,6 @@ public class RateLimiterTests extends ESTestCase {
         verify(sleeper, times(1)).sleep(0);
         when(clock.instant()).thenReturn(now.plus(Duration.ofSeconds(30)));
         limiter.acquire(1);
-        verify(sleeper, times(1)).sleep(TimeUnit.SECONDS.toNanos(30));
+        verify(sleeper, times(1)).sleep(TimeUnit.SECONDS.toMicros(30));
     }
 }

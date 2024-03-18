@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.common;
 import org.elasticsearch.common.Strings;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
@@ -31,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class RateLimiter {
 
-    private double tokensPerNanos;
+    private double tokensPerMicros;
     private double accumulatedTokensLimit;
     private double accumulatedTokens;
     private Instant nextTokenAvailability;
@@ -62,7 +61,7 @@ public class RateLimiter {
             throw new IllegalArgumentException("Accumulated tokens limit must be greater than or equal to 0");
         }
 
-        if (newAccumulatedTokensLimit == Double.POSITIVE_INFINITY) {
+        if (Double.isInfinite(newAccumulatedTokensLimit)) {
             throw new IllegalArgumentException(
                 Strings.format("Accumulated tokens limit must be less than or equal to %s", Double.MAX_VALUE)
             );
@@ -80,9 +79,9 @@ public class RateLimiter {
 
         accumulatedTokensLimit = newAccumulatedTokensLimit;
 
-        var unitsInNanos = newUnit.toNanos(1);
-        tokensPerNanos = newTokensPerTimeUnit / unitsInNanos;
-        assert tokensPerNanos != Double.POSITIVE_INFINITY : "Tokens per nanosecond should not be infinity";
+        var unitsInNanos = newUnit.toMicros(1);
+        tokensPerMicros = newTokensPerTimeUnit / unitsInNanos;
+        assert Double.isInfinite(tokensPerMicros) == false : "Tokens per microsecond should not be infinity";
 
         accumulateTokens();
     }
@@ -90,55 +89,60 @@ public class RateLimiter {
     /**
      * Causes the thread to wait until the tokens are available
      * @param tokens the number of items of work that should be throttled, typically you'd pass a value of 1 here
-     * @throws InterruptedException
+     * @throws InterruptedException _
      */
     public void acquire(int tokens) throws InterruptedException {
         if (tokens <= 0) {
             throw new IllegalArgumentException("Requested tokens must be positive");
         }
 
-        double nanosToWait;
+        double microsToWait;
         synchronized (this) {
             accumulateTokens();
             var accumulatedTokensToUse = Math.min(tokens, accumulatedTokens);
             var additionalTokensRequired = tokens - accumulatedTokensToUse;
-            nanosToWait = additionalTokensRequired / tokensPerNanos;
+            microsToWait = additionalTokensRequired / tokensPerMicros;
             accumulatedTokens -= accumulatedTokensToUse;
-            nextTokenAvailability = nextTokenAvailability.plus(Duration.ofNanos((long) nanosToWait));
+            nextTokenAvailability = nextTokenAvailability.plus((long) microsToWait, ChronoUnit.MICROS);
         }
 
-        sleeper.sleep((long) nanosToWait);
+        sleeper.sleep((long) microsToWait);
     }
 
     private void accumulateTokens() {
         var now = Instant.now(clock);
         if (now.isAfter(nextTokenAvailability)) {
-            var elapsedTimeNanos = nanosBetweenExact(nextTokenAvailability, now);
-            var newTokens = tokensPerNanos * elapsedTimeNanos;
+            var elapsedTimeNanos = microsBetweenExact(nextTokenAvailability, now);
+            var newTokens = tokensPerMicros * elapsedTimeNanos;
             accumulatedTokens = Math.min(accumulatedTokensLimit, newTokens);
             nextTokenAvailability = now;
         }
     }
 
-    private static double nanosBetweenExact(Instant start, Instant end) {
+    private static long microsBetweenExact(Instant start, Instant end) {
         try {
-            return ChronoUnit.NANOS.between(start, end);
+            return ChronoUnit.MICROS.between(start, end);
         } catch (ArithmeticException e) {
             if (end.isAfter(start)) {
-                return Double.POSITIVE_INFINITY;
+                return Long.MAX_VALUE;
             }
 
-            return Double.NEGATIVE_INFINITY;
+            return 0;
         }
     }
 
+    // default for testing
+    Instant getNextTokenAvailability() {
+        return nextTokenAvailability;
+    }
+
     public interface Sleeper {
-        void sleep(long nanosecondsToSleep) throws InterruptedException;
+        void sleep(long microsecondsToSleep) throws InterruptedException;
     }
 
     static final class TimeUnitSleeper implements Sleeper {
-        public void sleep(long nanosecondsToSleep) throws InterruptedException {
-            TimeUnit.NANOSECONDS.sleep(nanosecondsToSleep);
+        public void sleep(long microsecondsToSleep) throws InterruptedException {
+            TimeUnit.MICROSECONDS.sleep(microsecondsToSleep);
         }
     }
 }

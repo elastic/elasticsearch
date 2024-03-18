@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -486,6 +487,22 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                             agg.getMode(),
                             agg.estimatedRowSize()
                         );
+                    }
+                }
+                if (exec instanceof EvalExec evalExec) {
+                    List<Alias> fields = evalExec.fields();
+                    List<Alias> changed = fields.stream()
+                        .map(
+                            f -> (Alias) f.transformDown(
+                                SpatialRelatesFunction.class,
+                                spatialRelatesFunction -> (spatialRelatesFunction.hasFieldAttribute(foundAttributes))
+                                    ? spatialRelatesFunction.withDocValues(foundAttributes)
+                                    : spatialRelatesFunction
+                            )
+                        )
+                        .toList();
+                    if (changed.equals(fields) == false) {
+                        exec = new EvalExec(exec.source(), exec.child(), changed);
                     }
                 }
                 if (exec instanceof FilterExec filterExec) {

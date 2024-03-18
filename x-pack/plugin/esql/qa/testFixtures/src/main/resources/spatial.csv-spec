@@ -353,6 +353,20 @@ centroid:geo_point                              | count:long | centroid_in_uk:bo
 POINT (-2.597342072712148 54.33551226578214)    | 17         | true                   | false
 ;
 
+centroidFromAirportsAfterIntersectsEvalExpression#[skip:-8.13.99, reason:st_intersects added in 8.14]
+FROM airports
+| EVAL in_uk = ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL in_iceland = ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
+| STATS centroid = ST_CENTROID(location), count=COUNT() BY in_uk, in_iceland
+| SORT count ASC
+;
+
+centroid:geo_point                             |  count:long  |  in_uk:boolean  |  in_iceland:boolean
+POINT (-21.946634463965893 64.13187285885215)  |  1           |  false          |  true
+POINT (-2.597342072712148 54.33551226578214)   |  17          |  true           |  false
+POINT (0.04453958108176276 23.74658354606057)  |  873         |  false          |  false
+;
+
 centroidFromAirportsAfterIntersectsPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))

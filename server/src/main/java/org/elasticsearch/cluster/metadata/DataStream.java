@@ -462,19 +462,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @param writeIndex    new write index
      * @param generation    new generation
      * @param timeSeries    whether the template that created this data stream is in time series mode
+     * @param autoShardingEvent the auto sharding event this rollover operation is applying
      *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index writeIndex, long generation, boolean timeSeries) {
+    public DataStream rollover(
+        Index writeIndex,
+        long generation,
+        boolean timeSeries,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
         ensureNotReplicated();
 
-        return unsafeRollover(writeIndex, generation, timeSeries);
+        return unsafeRollover(writeIndex, generation, timeSeries, autoShardingEvent);
     }
 
     /**
-     * Like {@link #rollover(Index, long, boolean)}, but does no validation, use with care only.
+     * Like {@link #rollover(Index, long, boolean, DataStreamAutoShardingEvent)}, but does no validation, use with care only.
      */
-    public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries) {
+    public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries, DataStreamAutoShardingEvent autoShardingEvent) {
         IndexMode indexMode = this.indexMode;
         if ((indexMode == null || indexMode == IndexMode.STANDARD) && timeSeries) {
             // This allows for migrating a data stream to be a tsdb data stream:
@@ -506,7 +512,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Performs a dummy rollover on a {@code DataStream} instance and returns the tuple of the next write index name and next generation
-     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long, boolean)}.
+     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long, boolean, DataStreamAutoShardingEvent)}.
      *
      * @param clusterMetadata Cluster metadata
      *

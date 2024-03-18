@@ -31,48 +31,46 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper.INFERENCE_CHUNKS_RESULTS;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper.INFERENCE_CHUNKS_TEXT;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper.INFERENCE_RESULTS;
+import static org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper.INFERENCE_CHUNKS_RESULTS;
+import static org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper.INFERENCE_CHUNKS_TEXT;
+import static org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper.RESULTS;
 import static org.hamcrest.Matchers.containsString;
 
-public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperTestCase {
-    private record SemanticTextInferenceResults(String fieldName, SparseEmbeddingResults sparseEmbeddingResults, List<String> text) {
-        private SemanticTextInferenceResults {
-            if (sparseEmbeddingResults.embeddings().size() != text.size()) {
-                throw new IllegalArgumentException("Sparse embeddings and text must be the same size");
-            }
-        }
-    }
+public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
+    private record SemanticTextInferenceResults(String fieldName, ChunkedInferenceServiceResults results, List<String> text) {}
 
-    private record VisitedChildDocInfo(String path, int sparseVectorDims) {}
+    private record VisitedChildDocInfo(String path, int numChunks) {}
 
     private record SparseVectorSubfieldOptions(boolean include, boolean includeEmbedding, boolean includeIsTruncated) {}
 
     @Override
     protected String fieldName() {
-        return SemanticTextInferenceResultFieldMapper.NAME;
+        return InferenceResultFieldMapper.NAME;
     }
 
     @Override
@@ -108,8 +106,8 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                 b -> addSemanticTextInferenceResults(
                     b,
                     List.of(
-                        generateSemanticTextinferenceResults(fieldName1, List.of("a b", "c")),
-                        generateSemanticTextinferenceResults(fieldName2, List.of("d e f"))
+                        randomSemanticTextInferenceResults(fieldName1, List.of("a b", "c")),
+                        randomSemanticTextInferenceResults(fieldName2, List.of("d e f"))
                     )
                 )
             )
@@ -208,10 +206,10 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     source(
                         b -> addSemanticTextInferenceResults(
                             b,
-                            List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
+                            List.of(randomSemanticTextInferenceResults(fieldName, List.of("a b"))),
                             new SparseVectorSubfieldOptions(false, true, true),
                             true,
-                            null
+                            Map.of()
                         )
                     )
                 )
@@ -226,10 +224,10 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     source(
                         b -> addSemanticTextInferenceResults(
                             b,
-                            List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
+                            List.of(randomSemanticTextInferenceResults(fieldName, List.of("a b"))),
                             new SparseVectorSubfieldOptions(true, true, true),
                             false,
-                            null
+                            Map.of()
                         )
                     )
                 )
@@ -244,10 +242,10 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
                     source(
                         b -> addSemanticTextInferenceResults(
                             b,
-                            List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b"))),
+                            List.of(randomSemanticTextInferenceResults(fieldName, List.of("a b"))),
                             new SparseVectorSubfieldOptions(false, true, true),
                             false,
-                            null
+                            Map.of()
                         )
                     )
                 )
@@ -262,7 +260,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
     public void testExtraSubfields() throws IOException {
         final String fieldName = randomAlphaOfLengthBetween(5, 15);
         final List<SemanticTextInferenceResults> semanticTextInferenceResultsList = List.of(
-            generateSemanticTextinferenceResults(fieldName, List.of("a b"))
+            randomSemanticTextInferenceResults(fieldName, List.of("a b"))
         );
 
         DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8))));
@@ -360,7 +358,7 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             DocumentParsingException.class,
             DocumentParsingException.class,
             () -> documentMapper.parse(
-                source(b -> addSemanticTextInferenceResults(b, List.of(generateSemanticTextinferenceResults(fieldName, List.of("a b")))))
+                source(b -> addSemanticTextInferenceResults(b, List.of(randomSemanticTextInferenceResults(fieldName, List.of("a b")))))
             )
         );
         assertThat(
@@ -378,18 +376,32 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         mappingBuilder.endObject();
     }
 
-    private static SemanticTextInferenceResults generateSemanticTextinferenceResults(String semanticTextFieldName, List<String> chunks) {
-        List<SparseEmbeddingResults.Embedding> embeddings = new ArrayList<>(chunks.size());
-        for (String chunk : chunks) {
-            String[] tokens = chunk.split("\\s+");
-            List<SparseEmbeddingResults.WeightedToken> weightedTokens = Arrays.stream(tokens)
-                .map(t -> new SparseEmbeddingResults.WeightedToken(t, randomFloat()))
-                .toList();
-
-            embeddings.add(new SparseEmbeddingResults.Embedding(weightedTokens, false));
+    public static ChunkedTextEmbeddingResults randomTextEmbeddings(List<String> inputs) {
+        List<org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk> chunks = new ArrayList<>();
+        for (String input : inputs) {
+            double[] values = new double[5];
+            for (int j = 0; j < values.length; j++) {
+                values[j] = randomDouble();
+            }
+            chunks.add(new org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk(input, values));
         }
+        return new ChunkedTextEmbeddingResults(chunks);
+    }
 
-        return new SemanticTextInferenceResults(semanticTextFieldName, new SparseEmbeddingResults(embeddings), chunks);
+    public static ChunkedSparseEmbeddingResults randomSparseEmbeddings(List<String> inputs) {
+        List<ChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
+        for (String input : inputs) {
+            var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
+            for (var token : input.split("\\s+")) {
+                tokens.add(new TextExpansionResults.WeightedToken(token, randomFloat()));
+            }
+            chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input, tokens));
+        }
+        return new ChunkedSparseEmbeddingResults(chunks);
+    }
+
+    private static SemanticTextInferenceResults randomSemanticTextInferenceResults(String semanticTextFieldName, List<String> chunks) {
+        return new SemanticTextInferenceResults(semanticTextFieldName, randomSparseEmbeddings(chunks), chunks);
     }
 
     private static void addSemanticTextInferenceResults(
@@ -401,10 +413,11 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
             semanticTextInferenceResults,
             new SparseVectorSubfieldOptions(true, true, true),
             true,
-            null
+            Map.of()
         );
     }
 
+    @SuppressWarnings("unchecked")
     private static void addSemanticTextInferenceResults(
         XContentBuilder sourceBuilder,
         List<SemanticTextInferenceResults> semanticTextInferenceResults,
@@ -412,48 +425,39 @@ public class SemanticTextInferenceResultFieldMapperTests extends MetadataMapperT
         boolean includeTextSubfield,
         Map<String, Object> extraSubfields
     ) throws IOException {
-
-        Map<String, Map<String, Object>> inferenceResultsMap = new HashMap<>();
+        Map<String, Object> inferenceResultsMap = new HashMap<>();
         for (SemanticTextInferenceResults semanticTextInferenceResult : semanticTextInferenceResults) {
-            Map<String, Object> fieldMap = new HashMap<>();
-            fieldMap.put(SemanticTextModelSettings.NAME, modelSettingsMap());
-            List<Map<String, Object>> parsedInferenceResults = new ArrayList<>(semanticTextInferenceResult.text().size());
-
-            Iterator<SparseEmbeddingResults.Embedding> embeddingsIterator = semanticTextInferenceResult.sparseEmbeddingResults()
-                .embeddings()
-                .iterator();
-            Iterator<String> textIterator = semanticTextInferenceResult.text().iterator();
-            while (embeddingsIterator.hasNext() && textIterator.hasNext()) {
-                SparseEmbeddingResults.Embedding embedding = embeddingsIterator.next();
-                String text = textIterator.next();
-
-                Map<String, Object> subfieldMap = new HashMap<>();
-                if (sparseVectorSubfieldOptions.include()) {
-                    subfieldMap.put(INFERENCE_CHUNKS_RESULTS, embedding.asMap().get(SparseEmbeddingResults.Embedding.EMBEDDING));
+            InferenceResultFieldMapper.applyFieldInference(
+                inferenceResultsMap,
+                semanticTextInferenceResult.fieldName,
+                randomModel(),
+                semanticTextInferenceResult.results
+            );
+            Map<String, Object> optionsMap = (Map<String, Object>) inferenceResultsMap.get(semanticTextInferenceResult.fieldName);
+            List<Map<String, Object>> fieldResultList = (List<Map<String, Object>>) optionsMap.get(RESULTS);
+            for (var entry : fieldResultList) {
+                if (includeTextSubfield == false) {
+                    entry.remove(INFERENCE_CHUNKS_TEXT);
                 }
-                if (includeTextSubfield) {
-                    subfieldMap.put(INFERENCE_CHUNKS_TEXT, text);
+                if (sparseVectorSubfieldOptions.include == false) {
+                    entry.remove(INFERENCE_CHUNKS_RESULTS);
                 }
-                if (extraSubfields != null) {
-                    subfieldMap.putAll(extraSubfields);
-                }
-
-                parsedInferenceResults.add(subfieldMap);
+                entry.putAll(extraSubfields);
             }
-
-            fieldMap.put(INFERENCE_RESULTS, parsedInferenceResults);
-            inferenceResultsMap.put(semanticTextInferenceResult.fieldName(), fieldMap);
         }
-
-        sourceBuilder.field(SemanticTextInferenceResultFieldMapper.NAME, inferenceResultsMap);
+        sourceBuilder.field(InferenceResultFieldMapper.NAME, inferenceResultsMap);
     }
 
-    private static Map<String, Object> modelSettingsMap() {
-        return Map.of(
-            SemanticTextModelSettings.TASK_TYPE_FIELD.getPreferredName(),
-            TaskType.SPARSE_EMBEDDING.toString(),
-            SemanticTextModelSettings.INFERENCE_ID_FIELD.getPreferredName(),
-            randomAlphaOfLength(8)
+    private static Model randomModel() {
+        String serviceName = randomAlphaOfLengthBetween(5, 10);
+        String inferenceId = randomAlphaOfLengthBetween(5, 10);
+        return new TestModel(
+            inferenceId,
+            TaskType.SPARSE_EMBEDDING,
+            serviceName,
+            new TestModel.TestServiceSettings("my-model"),
+            new TestModel.TestTaskSettings(randomIntBetween(1, 100)),
+            new TestModel.TestSecretSettings(randomAlphaOfLength(10))
         );
     }
 

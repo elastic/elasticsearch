@@ -48,10 +48,10 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     }
 
     /**
-     * Set the transient metadata indicating that this request requires running inference
-     * before proceeding.
+     * Public for test
+     * Set the transient metadata indicating that this request requires running inference before proceeding.
      */
-    void setFieldInferenceMetadata(Map<String, Set<String>> fieldsInferenceMetadata) {
+    public void setFieldInferenceMetadata(Map<String, Set<String>> fieldsInferenceMetadata) {
         this.fieldsInferenceMetadata = fieldsInferenceMetadata;
     }
 
@@ -62,6 +62,13 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         var ret = fieldsInferenceMetadata;
         fieldsInferenceMetadata = null;
         return ret;
+    }
+
+    /**
+     * Public for test
+     */
+    public Map<String, Set<String>> getFieldsInferenceMetadata() {
+        return fieldsInferenceMetadata;
     }
 
     public long totalSizeInBytes() {

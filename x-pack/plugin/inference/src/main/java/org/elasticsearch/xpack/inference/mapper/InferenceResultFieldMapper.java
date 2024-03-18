@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -27,15 +29,24 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -51,7 +62,7 @@ import java.util.stream.Collectors;
  * {
  *     "_source": {
  *         "my_semantic_text_field": "these are not the droids you're looking for",
- *         "_semantic_text_inference": {
+ *         "_inference": {
  *             "my_semantic_text_field": [
  *                 {
  *                     "sparse_embedding": {
@@ -94,17 +105,17 @@ import java.util.stream.Collectors;
  * }
  * </pre>
  */
-public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper {
+public class InferenceResultFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_inference";
     public static final String CONTENT_TYPE = "_inference";
 
-    public static final String INFERENCE_RESULTS = "results";
+    public static final String RESULTS = "results";
     public static final String INFERENCE_CHUNKS_RESULTS = "inference";
     public static final String INFERENCE_CHUNKS_TEXT = "text";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new SemanticTextInferenceResultFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new InferenceResultFieldMapper());
 
-    private static final Logger logger = LogManager.getLogger(SemanticTextInferenceResultFieldMapper.class);
+    private static final Logger logger = LogManager.getLogger(InferenceResultFieldMapper.class);
 
     private static final Set<String> REQUIRED_SUBFIELDS = Set.of(INFERENCE_CHUNKS_TEXT, INFERENCE_CHUNKS_RESULTS);
 
@@ -131,7 +142,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
         }
     }
 
-    private SemanticTextInferenceResultFieldMapper() {
+    public InferenceResultFieldMapper() {
         super(SemanticTextInferenceFieldType.INSTANCE);
     }
 
@@ -172,7 +183,7 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
             failIfTokenIsNot(parser, XContentParser.Token.FIELD_NAME);
 
             String currentName = parser.currentName();
-            if (INFERENCE_RESULTS.equals(currentName)) {
+            if (RESULTS.equals(currentName)) {
                 NestedObjectMapper nestedObjectMapper = createInferenceResultsObjectMapper(
                     context,
                     mapperBuilderContext,
@@ -327,5 +338,35 @@ public class SemanticTextInferenceResultFieldMapper extends MetadataFieldMapper 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
+
+    public static void applyFieldInference(
+        Map<String, Object> inferenceMap,
+        String field,
+        Model model,
+        ChunkedInferenceServiceResults results
+    ) throws ElasticsearchException {
+        List<Map<String, Object>> chunks = new ArrayList<>();
+        if (results instanceof ChunkedSparseEmbeddingResults textExpansionResults) {
+            for (var chunk : textExpansionResults.getChunkedResults()) {
+                chunks.add(chunk.asMap());
+            }
+        } else if (results instanceof ChunkedTextEmbeddingResults textEmbeddingResults) {
+            for (var chunk : textEmbeddingResults.getChunks()) {
+                chunks.add(chunk.asMap());
+            }
+        } else {
+            throw new ElasticsearchStatusException(
+                "Invalid inference results format for field [{}] with inference id [{}], got {}",
+                RestStatus.BAD_REQUEST,
+                field,
+                model.getInferenceEntityId(),
+                results.getWriteableName()
+            );
+        }
+        Map<String, Object> fieldMap = new LinkedHashMap<>();
+        fieldMap.putAll(new SemanticTextModelSettings(model).asMap());
+        fieldMap.put(InferenceResultFieldMapper.RESULTS, chunks);
+        inferenceMap.put(field, fieldMap);
     }
 }

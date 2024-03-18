@@ -76,10 +76,13 @@ public class BulkShardRequestInferenceProvider {
         Set<ShardId> shardIds,
         ActionListener<BulkShardRequestInferenceProvider> listener
     ) {
-        Set<String> inferenceIds =
-            shardIds.stream().map(ShardId::getIndex).collect(Collectors.toSet()).stream()
-                .map(index -> clusterState.metadata().index(index).getFieldInferenceMetadata().getFieldInferenceOptions().values())
-                .flatMap(o -> o.stream().map(FieldInferenceMetadata.FieldInferenceOptions::inferenceId)).collect(Collectors.toSet());
+        Set<String> inferenceIds = shardIds.stream()
+            .map(ShardId::getIndex)
+            .collect(Collectors.toSet())
+            .stream()
+            .map(index -> clusterState.metadata().index(index).getFieldInferenceMetadata().getFieldInferenceOptions().values())
+            .flatMap(o -> o.stream().map(FieldInferenceMetadata.FieldInferenceOptions::inferenceId))
+            .collect(Collectors.toSet());
         final Map<String, InferenceProvider> inferenceProviderMap = new ConcurrentHashMap<>();
         Runnable onModelLoadingComplete = () -> listener.onResponse(
             new BulkShardRequestInferenceProvider(clusterState, inferenceProviderMap)

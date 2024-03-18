@@ -59,18 +59,16 @@ public class DataStreamGlobalRetentionSerializationTests extends SimpleDiffableW
         var maxRetention = metadata.getMaxRetention();
         switch (randomInt(1)) {
             case 0 -> {
-                if (defaultRetention == null) {
-                    defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 1000));
-                } else {
-                    defaultRetention = randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000));
-                }
+                defaultRetention = randomValueOtherThan(
+                    defaultRetention,
+                    () -> randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000))
+                );
             }
             case 1 -> {
-                if (maxRetention == null) {
-                    maxRetention = TimeValue.timeValueDays(randomIntBetween(1000, 2000));
-                } else {
-                    maxRetention = randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000));
-                }
+                maxRetention = randomValueOtherThan(
+                    maxRetention,
+                    () -> randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1001, 2000))
+                );
             }
         }
         return new DataStreamGlobalRetention(defaultRetention, maxRetention);

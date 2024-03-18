@@ -92,10 +92,7 @@ public abstract class BuildVersion {
     }
 
     // only exists for NodeMetadata#toXContent
-    // TODO[wrb]: make this abstract once all downstream classes override it
-    protected int id() {
-        return -1;
-    }
+    public abstract int id();
 
     private static class CurrentExtensionHolder {
         private static final BuildExtension BUILD_EXTENSION = findExtension();

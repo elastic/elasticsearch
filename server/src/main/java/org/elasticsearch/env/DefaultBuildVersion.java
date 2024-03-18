@@ -23,15 +23,14 @@ import java.util.Objects;
  * give users simple rules in terms of public-facing release versions for Elasticsearch
  * compatibility when upgrading nodes and prevents downgrades in place.</p>
  */
-// TODO[wrb]: make package-private once default implementations are removed in BuildExtension
-public final class DefaultBuildVersion extends BuildVersion {
+final class DefaultBuildVersion extends BuildVersion {
 
     public static BuildVersion CURRENT = new DefaultBuildVersion(Version.CURRENT.id());
 
     private final int versionId;
     private final Version version;
 
-    public DefaultBuildVersion(int versionId) {
+    DefaultBuildVersion(int versionId) {
         assert versionId >= 0 : "Release version IDs must be non-negative integers";
         this.versionId = versionId;
         this.version = Version.fromId(versionId);

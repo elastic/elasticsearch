@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
@@ -31,6 +33,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -50,6 +53,7 @@ import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -222,4 +226,21 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         }
     }
 
+    public void testReadFromPositionLargerThanBlobLength() {
+        final var blobName = randomIdentifier();
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
+
+        final var repository = getRepository();
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
+            return null;
+        });
+
+        long position = randomLongBetween(blobBytes.length(), Long.MAX_VALUE - 1L);
+        long length = randomLongBetween(1L, Long.MAX_VALUE - position);
+        var exception = expectThrows(AmazonClientException.class, () -> readBlob(repository, blobName, position, length));
+
+        assertThat(exception, instanceOf(AmazonS3Exception.class));
+        assertThat(((AmazonS3Exception) exception).getStatusCode(), equalTo(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()));
+    }
 }

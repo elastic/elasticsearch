@@ -276,3 +276,19 @@ FROM airports
 abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point                       |  name:text   |  airport:text  |  region:text         |  boundary_wkt_length:integer
 CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          |  POINT(12.6493508684508 55.6285017221528) |  Copenhagen  |  Copenhagen    |  Københavns Kommune  |  265
 ;
+
+spatialEnrichmentGeoMatchStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+required_feature: esql.mv_warn
+
+FROM airports
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| STATS city_centroid = ST_CENTROID(city_location), count = COUNT(city_location), min_wkt = MIN(boundary_wkt_length), max_wkt = MAX(boundary_wkt_length)
+;
+warning:Line 3:30: evaluation of [LENGTH(TO_STRING(city_boundary))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:30: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+
+city_centroid:geo_point    |  count:long  |  min_wkt:integer  |  max_wkt:integer
+POINT(1.396561 24.127649)  |  872         |  88               |  1044
+;

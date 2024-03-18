@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -199,6 +200,10 @@ abstract class QueryList {
 
         private IntFunction<Geometry> blockToGeometry(Block block) {
             return switch (block.elementType()) {
+                case LONG -> offset -> {
+                    var encoded = ((LongBlock) block).getLong(offset);
+                    return SpatialCoordinateTypes.GEO.longAsPoint(encoded);
+                };
                 case BYTES_REF -> offset -> {
                     var wkb = ((BytesRefBlock) block).getBytesRef(offset, scratch);
                     return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);

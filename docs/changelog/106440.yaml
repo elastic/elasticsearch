@@ -1,0 +1,5 @@
+pr: 106440
+summary: Validating mappings when simulate ingest is called
+area: Ingest Node
+type: enhancement
+issues: []

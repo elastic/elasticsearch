@@ -60,6 +60,9 @@ setup:
 
 ---
 "Query using a sparse embedding model":
+  - skip:
+      features: [ "headers" ]
+
   - do:
       index:
         index: test-sparse-index
@@ -70,6 +73,9 @@ setup:
         refresh: true
 
   - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
       search:
         index: test-sparse-index
         body:
@@ -80,10 +86,14 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.0._score: 9.4934225 }
+  - gte: { hits.hits.0._score: 9.4934 }
+  - lte: { hits.hits.0._score: 9.50 }
 
 ---
 "Apply boost and query name":
+  - skip:
+      features: [ "headers" ]
+
   - do:
       index:
         index: test-sparse-index
@@ -94,6 +104,9 @@ setup:
         refresh: true
 
   - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
       search:
         index: test-sparse-index
         body:
@@ -106,7 +119,8 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.0._score: 949.3422 }
+  - gte: { hits.hits.0._score: 949.34 }
+  - lte: { hits.hits.0._score: 950.0 }
   - match: { hits.hits.0.matched_queries: ["i-like-naming-my-queries"] }
 
 ---

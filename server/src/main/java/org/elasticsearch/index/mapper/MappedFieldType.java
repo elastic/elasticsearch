@@ -236,9 +236,6 @@ public abstract class MappedFieldType {
      * are generated with {@link #termQuery}. */
     public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
         Set<?> dedupe = new HashSet<>(values);
-        if (dedupe.size() == 1) {
-            return new ConstantScoreQuery(termQuery(dedupe.iterator().next(), context));
-        }
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Object value : dedupe) {
             builder.add(termQuery(value, context), Occur.SHOULD);

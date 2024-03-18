@@ -298,7 +298,7 @@ public class FakeStatelessNode implements Closeable {
         String deleteId = ESTestCase.randomAlphaOfLength(10);
 
         try (var indexWriter = new IndexWriter(indexingStore.directory(), indexWriterConfig)) {
-            try (var indexReader = DirectoryReader.open(indexWriter)) {
+            try (var indexReader = DirectoryReader.open(indexingStore.directory())) {
                 IndexCommit indexCommit = indexReader.getIndexCommit();
                 previousCommit = new HashSet<>(indexCommit.getFileNames());
             }
@@ -313,11 +313,11 @@ public class FakeStatelessNode implements Closeable {
                     delete.add(field);
                     indexWriter.softUpdateDocument(EngineTestCase.newUid(deleteId), delete.getFields(), Lucene.newSoftDeletesField());
                 }
-                indexWriter.commit();
                 if (merge) {
                     indexWriter.forceMerge(1, true);
                 }
-                try (var indexReader = DirectoryReader.open(indexWriter)) {
+                indexWriter.commit();
+                try (var indexReader = DirectoryReader.open(indexingStore.directory())) {
                     IndexCommit indexCommit = indexReader.getIndexCommit();
                     Set<String> commitFiles = new HashSet<>(indexCommit.getFileNames());
                     Set<String> additionalFiles = Sets.difference(commitFiles, previousCommit);

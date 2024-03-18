@@ -26,6 +26,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomUUID;
 import static org.elasticsearch.test.ESTestCase.safeSleep;
 import static org.junit.Assert.assertNotEquals;
@@ -224,10 +225,7 @@ public class TestShardRouting {
         }
         int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
 
-        long unassignedTimeMillis = randomLongBetween(
-            1672531200000L, // 01-01-2023
-            1704067200000L // 01-01-2024
-        );
+        long unassignedTimeMillis = randomNonNegativeLong();
         long unassignedTimeNanos = randomLongBetween(0L, 1_000_000_000);
         ensureInPast(unassignedTimeNanos);
 

@@ -13,13 +13,10 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;

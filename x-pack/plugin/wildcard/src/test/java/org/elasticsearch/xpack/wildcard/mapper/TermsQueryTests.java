@@ -21,7 +21,7 @@ public class TermsQueryTests extends AbstractBuilderTestCase {
     public void testDuplicateTerms() throws IOException {
         String[] duplicates = new String[1023];
         Arrays.fill(duplicates, "duplicate");
-        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder("mapped_wildcard",  duplicates);
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder("mapped_wildcard", duplicates);
         termsQueryBuilder.rewrite(createQueryRewriteContext());
         Query query = termsQueryBuilder.toQuery(createSearchExecutionContext());
         query.toString();
@@ -31,12 +31,12 @@ public class TermsQueryTests extends AbstractBuilderTestCase {
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.getMapperRegistry().mapperParsers.put("wildcard", WildcardFieldMapper.PARSER);
         mapperService.merge("_doc", new CompressedXContent(org.elasticsearch.common.Strings.format("""
-                    {
-                      "properties": {
-                        "mapped_wildcard": {
-                          "type": "wildcard"
-                        }
-                      }
-                    }""")), MapperService.MergeReason.MAPPING_UPDATE);
+            {
+              "properties": {
+                "mapped_wildcard": {
+                  "type": "wildcard"
+                }
+              }
+            }""")), MapperService.MergeReason.MAPPING_UPDATE);
     }
 }

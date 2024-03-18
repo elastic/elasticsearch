@@ -181,6 +181,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -326,7 +327,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         verify(searchRequestBuilder).setFetchSource(eq(true));
         assertThat(searchRequest.get().source().query(), is(boolQuery));
         GetApiKeyResponse getApiKeyResponse = getApiKeyResponsePlainActionFuture.get();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), emptyArray());
+        assertThat(getApiKeyResponse.getApiKeyInfos(), emptyIterable());
     }
 
     @SuppressWarnings("unchecked")
@@ -407,13 +408,16 @@ public class ApiKeyServiceTests extends ESTestCase {
                 getApiKeyResponsePlainActionFuture
             );
             GetApiKeyResponse getApiKeyResponse = getApiKeyResponsePlainActionFuture.get();
-            assertThat(getApiKeyResponse.getApiKeyInfos().length, is(2));
-            assertThat(getApiKeyResponse.getApiKeyInfos()[0].getRealm(), is(realm1));
-            assertThat(getApiKeyResponse.getApiKeyInfos()[0].getRealmType(), is(realm1Type));
-            assertThat(getApiKeyResponse.getApiKeyInfos()[0].getRealmIdentifier(), is(new RealmConfig.RealmIdentifier(realm1Type, realm1)));
-            assertThat(getApiKeyResponse.getApiKeyInfos()[1].getRealm(), is(realm2));
-            assertThat(getApiKeyResponse.getApiKeyInfos()[1].getRealmType(), nullValue());
-            assertThat(getApiKeyResponse.getApiKeyInfos()[1].getRealmIdentifier(), nullValue());
+            assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(2));
+            assertThat(getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo().getRealm(), is(realm1));
+            assertThat(getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo().getRealmType(), is(realm1Type));
+            assertThat(
+                getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo().getRealmIdentifier(),
+                is(new RealmConfig.RealmIdentifier(realm1Type, realm1))
+            );
+            assertThat(getApiKeyResponse.getApiKeyInfos().get(1).apiKeyInfo().getRealm(), is(realm2));
+            assertThat(getApiKeyResponse.getApiKeyInfos().get(1).apiKeyInfo().getRealmType(), nullValue());
+            assertThat(getApiKeyResponse.getApiKeyInfos().get(1).apiKeyInfo().getRealmIdentifier(), nullValue());
         }
         {
             PlainActionFuture<QueryApiKeyResponse> queryApiKeyResponsePlainActionFuture = new PlainActionFuture<>();

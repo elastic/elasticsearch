@@ -101,6 +101,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -286,8 +287,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(apiKeyId).ownedByAuthenticatedUser(randomBoolean()).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
-        assertThat(getApiKeyResponse.getApiKeyInfos()[0].getId(), equalTo(apiKeyId));
+        assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
+        assertThat(getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo().getId(), is(apiKeyId));
 
         // Cannot get any other keys
         final ElasticsearchSecurityException e = expectThrows(
@@ -613,8 +614,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
-        final ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
+        ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo();
         assertThat(getApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(getApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
         assertThat(getApiKeyInfo.getLimitedBy(), nullValue());
@@ -669,8 +670,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
-        final ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
+        ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo();
         assertThat(getApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(getApiKeyInfo.getRoleDescriptors(), contains(originalRoleDescriptor));
         assertThat(getApiKeyInfo.getLimitedBy(), nullValue());

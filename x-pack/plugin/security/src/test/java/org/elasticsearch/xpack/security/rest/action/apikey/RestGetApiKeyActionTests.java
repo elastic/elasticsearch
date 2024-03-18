@@ -44,7 +44,8 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
-import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -144,7 +145,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     || getApiKeyRequest.getRealmName() != null && getApiKeyRequest.getRealmName().equals("realm-1")
                     || getApiKeyRequest.getUserName() != null && getApiKeyRequest.getUserName().equals("user-x")) {
                     if (replyEmptyResponse) {
-                        listener.onResponse((Response) GetApiKeyResponse.emptyResponse());
+                        listener.onResponse((Response) GetApiKeyResponse.EMPTY);
                     } else {
                         listener.onResponse((Response) getApiKeyResponseExpected);
                     }
@@ -162,25 +163,27 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         assertThat(restResponse.status(), (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
         final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
         if (replyEmptyResponse) {
-            assertThat(actual.getApiKeyInfos().length, is(0));
+            assertThat(actual.getApiKeyInfos(), emptyIterable());
         } else {
             assertThat(
                 actual.getApiKeyInfos(),
-                arrayContaining(
-                    new ApiKey(
-                        "api-key-name-1",
-                        "api-key-id-1",
-                        type,
-                        creation,
-                        expiration,
-                        false,
-                        null,
-                        "user-x",
-                        "realm-1",
-                        "realm-type-1",
-                        metadata,
-                        roleDescriptors,
-                        limitedByRoleDescriptors
+                contains(
+                    new GetApiKeyResponse.Item(
+                        new ApiKey(
+                            "api-key-name-1",
+                            "api-key-id-1",
+                            type,
+                            creation,
+                            expiration,
+                            false,
+                            null,
+                            "user-x",
+                            "realm-1",
+                            "realm-type-1",
+                            metadata,
+                            roleDescriptors,
+                            limitedByRoleDescriptors
+                        )
                     )
                 )
             );
@@ -286,11 +289,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         assertThat(restResponse.status(), is(RestStatus.OK));
         final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
         if (isGetRequestForOwnedKeysOnly) {
-            assertThat(actual.getApiKeyInfos().length, is(1));
-            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1));
+            assertThat(actual.getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(), contains(apiKey1));
         } else {
-            assertThat(actual.getApiKeyInfos().length, is(2));
-            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
+            assertThat(actual.getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(), contains(apiKey1, apiKey2));
         }
     }
 }

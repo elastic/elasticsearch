@@ -66,7 +66,7 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
                 getApiKeyResponse.toXContent(builder, channel.request());
 
                 // return HTTP status 404 if no API key found for API key id
-                if (Strings.hasText(apiKeyId) && getApiKeyResponse.getApiKeyInfos().length == 0) {
+                if (Strings.hasText(apiKeyId) && getApiKeyResponse.getApiKeyInfos().isEmpty()) {
                     return new RestResponse(RestStatus.NOT_FOUND, builder);
                 }
                 return new RestResponse(RestStatus.OK, builder);

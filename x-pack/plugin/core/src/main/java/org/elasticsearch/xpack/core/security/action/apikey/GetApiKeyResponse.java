@@ -29,25 +29,25 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public final class GetApiKeyResponse extends ActionResponse implements ToXContentObject {
 
-    private final ApiKey[] foundApiKeysInfo;
+    public static final GetApiKeyResponse EMPTY = new GetApiKeyResponse(List.of());
+
+    private final List<Item> foundApiKeysInfo;
 
     public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
         Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
-        this.foundApiKeysInfo = foundApiKeysInfo.toArray(new ApiKey[0]);
+        this.foundApiKeysInfo = foundApiKeysInfo.stream().map(Item::new).toList();
     }
 
-    public static GetApiKeyResponse emptyResponse() {
-        return new GetApiKeyResponse(List.of());
-    }
-
-    public ApiKey[] getApiKeyInfos() {
+    public List<Item> getApiKeyInfos() {
         return foundApiKeysInfo;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().array("api_keys", (Object[]) foundApiKeysInfo);
-        return builder.endObject();
+        builder.startObject();
+        builder.field("api_keys", foundApiKeysInfo);
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -55,10 +55,31 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
         TransportAction.localOnly();
     }
 
+    @Override
+    public String toString() {
+        return "GetApiKeyResponse [foundApiKeysInfo=" + foundApiKeysInfo + "]";
+    }
+
+    public record Item(ApiKey apiKeyInfo) implements ToXContentObject {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            apiKeyInfo.innerToXContent(builder, params);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String toString() {
+            return "Item [apiKeyInfo=" + apiKeyInfo + "]";
+        }
+    }
+
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GetApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("get_api_key_response", args -> {
-        return (args[0] == null) ? GetApiKeyResponse.emptyResponse() : new GetApiKeyResponse((List<ApiKey>) args[0]);
-    });
+    static final ConstructingObjectParser<GetApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_api_key_response",
+        args -> (args[0] == null) ? GetApiKeyResponse.EMPTY : new GetApiKeyResponse((List<ApiKey>) args[0])
+    );
     static {
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ApiKey.fromXContent(p), new ParseField("api_keys"));
     }
@@ -66,10 +87,4 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     public static GetApiKeyResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
-
-    @Override
-    public String toString() {
-        return "GetApiKeyResponse [foundApiKeysInfo=" + foundApiKeysInfo + "]";
-    }
-
 }

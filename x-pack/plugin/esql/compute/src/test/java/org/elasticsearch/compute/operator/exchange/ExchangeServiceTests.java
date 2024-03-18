@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -95,7 +96,8 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeSink sink2 = sinkExchanger.createExchangeSink();
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor(ESQL_TEST_EXECUTOR));
         ExchangeSource source = sourceExchanger.createExchangeSource();
-        sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
+        PlainActionFuture<Void> remoteSinks = new PlainActionFuture<>();
+        sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1, remoteSinks);
         SubscribableListener<Void> waitForReading = source.waitForReading();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
@@ -134,6 +136,7 @@ public class ExchangeServiceTests extends ESTestCase {
         assertTrue(sink2.isFinished());
         assertTrue(source.isFinished());
         source.finish();
+        remoteSinks.actionGet(TimeValue.timeValueSeconds(30));
         ESTestCase.terminate(threadPool);
         for (Page page : pages) {
             page.releaseBlocks();
@@ -322,20 +325,24 @@ public class ExchangeServiceTests extends ESTestCase {
         BlockFactory blockFactory = blockFactory();
         var sourceExchanger = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
         List<ExchangeSinkHandler> sinkHandlers = new ArrayList<>();
-        Supplier<ExchangeSink> exchangeSink = () -> {
-            final ExchangeSinkHandler sinkHandler;
-            if (sinkHandlers.isEmpty() == false && randomBoolean()) {
-                sinkHandler = randomFrom(sinkHandlers);
-            } else {
-                sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool::relativeTimeInMillis);
-                sourceExchanger.addRemoteSink(sinkHandler::fetchPageAsync, randomIntBetween(1, 3));
-                sinkHandlers.add(sinkHandler);
-            }
-            return sinkHandler.createExchangeSink();
-        };
-        final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
-        final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
-        runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceExchanger::createExchangeSource, exchangeSink);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        try (RefCountingListener refs = new RefCountingListener(future)) {
+            Supplier<ExchangeSink> exchangeSink = () -> {
+                final ExchangeSinkHandler sinkHandler;
+                if (sinkHandlers.isEmpty() == false && randomBoolean()) {
+                    sinkHandler = randomFrom(sinkHandlers);
+                } else {
+                    sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool::relativeTimeInMillis);
+                    sourceExchanger.addRemoteSink(sinkHandler::fetchPageAsync, randomIntBetween(1, 3), refs.acquire());
+                    sinkHandlers.add(sinkHandler);
+                }
+                return sinkHandler.createExchangeSink();
+            };
+            final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+            final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+            runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceExchanger::createExchangeSource, exchangeSink);
+        }
+        future.actionGet(TimeValue.timeValueMillis(30));
     }
 
     public void testEarlyTerminate() {
@@ -373,10 +380,12 @@ public class ExchangeServiceTests extends ESTestCase {
             var sourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
-            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5));
+            PlainActionFuture<Void> remoteSinks = new PlainActionFuture<>();
+            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5), remoteSinks);
             final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
             final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
             runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink);
+            remoteSinks.actionGet(TimeValue.timeValueSeconds(30));
         }
     }
 
@@ -429,7 +438,8 @@ public class ExchangeServiceTests extends ESTestCase {
             var sourceHandler = new ExchangeSourceHandler(randomIntBetween(1, 128), threadPool.executor(ESQL_TEST_EXECUTOR));
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
             Transport.Connection connection = node0.getConnection(node1.getLocalDiscoNode());
-            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5));
+            PlainActionFuture<Void> remoteSinks = new PlainActionFuture<>();
+            sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5), remoteSinks);
             Exception err = expectThrows(
                 Exception.class,
                 () -> runConcurrentTest(maxSeqNo, maxSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink)
@@ -438,6 +448,7 @@ public class ExchangeServiceTests extends ESTestCase {
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
             sinkHandler.onFailure(new RuntimeException(cause));
+            remoteSinks.actionGet(TimeValue.timeValueSeconds(30));
         }
     }
 

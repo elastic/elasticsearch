@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 
@@ -24,10 +25,10 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * An {@link ExchangeSourceHandler} asynchronously fetches pages and status from multiple {@link RemoteSink}s
  * and feeds them to its {@link ExchangeSource}, which are created using the {@link #createExchangeSource()}) method.
- * {@link RemoteSink}s are added using the {@link #addRemoteSink(RemoteSink, int)}) method.
+ * {@link RemoteSink}s are added using the {@link #addRemoteSink(RemoteSink, int, ActionListener)}) method.
  *
  * @see #createExchangeSource()
- * @see #addRemoteSink(RemoteSink, int)
+ * @see #addRemoteSink(RemoteSink, int, ActionListener)
  */
 public final class ExchangeSourceHandler {
     private final ExchangeBuffer buffer;
@@ -145,10 +146,12 @@ public final class ExchangeSourceHandler {
     private final class RemoteSinkFetcher {
         private volatile boolean finished = false;
         private final RemoteSink remoteSink;
+        private final Runnable onComplete;
 
-        RemoteSinkFetcher(RemoteSink remoteSink) {
+        RemoteSinkFetcher(RemoteSink remoteSink, Runnable onComplete) {
             outstandingSinks.trackNewInstance();
             this.remoteSink = remoteSink;
+            this.onComplete = onComplete;
         }
 
         void fetchPage() {
@@ -210,7 +213,7 @@ public final class ExchangeSourceHandler {
         void onSinkComplete() {
             if (finished == false) {
                 finished = true;
-                outstandingSinks.finishInstance();
+                Releasables.close(outstandingSinks::finishInstance, onComplete::run);
             }
         }
     }
@@ -218,14 +221,20 @@ public final class ExchangeSourceHandler {
     /**
      * Add a remote sink as a new data source of this handler. The handler will start fetching data from this remote sink intermediately.
      *
-     * @param remoteSink the remote sink
-     * @param instances  the number of concurrent ``clients`` that this handler should use to fetch pages. More clients reduce latency,
-     *                   but add overhead.
+     * @param remoteSink         the remote sink
+     * @param instances          the number of concurrent ``clients`` that this handler should use to fetch pages. More clients reduce
+     *                           latency, but add overhead.
+     * @param completionListener a listener that will be notified when all remote sinks added by this call are completed or aborted
      * @see ExchangeSinkHandler#fetchPageAsync(boolean, ActionListener)
      */
-    public void addRemoteSink(RemoteSink remoteSink, int instances) {
+    public void addRemoteSink(RemoteSink remoteSink, int instances, ActionListener<Void> completionListener) {
+        final AtomicInteger pending = new AtomicInteger(instances);
         for (int i = 0; i < instances; i++) {
-            var fetcher = new RemoteSinkFetcher(remoteSink);
+            var fetcher = new RemoteSinkFetcher(remoteSink, () -> {
+                if (pending.decrementAndGet() == 0) {
+                    completionListener.onResponse(null);
+                }
+            });
             fetchExecutor.execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {

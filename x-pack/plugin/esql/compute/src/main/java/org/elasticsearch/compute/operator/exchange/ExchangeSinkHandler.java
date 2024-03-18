@@ -92,7 +92,7 @@ public final class ExchangeSinkHandler {
      * @param sourceFinished if true, then this handler can finish as sources have enough pages.
      * @param listener       the listener that will be notified when pages are ready or this handler is finished
      * @see RemoteSink
-     * @see ExchangeSourceHandler#addRemoteSink(RemoteSink, int)
+     * @see ExchangeSourceHandler#addRemoteSink(RemoteSink, int, ActionListener)
      */
     public void fetchPageAsync(boolean sourceFinished, ActionListener<ExchangeResponse> listener) {
         if (sourceFinished) {

@@ -308,7 +308,7 @@ public class ComputeService {
                         esqlExecutor,
                         dataNodeListener.delegateFailureAndWrap((delegate, unused) -> {
                             var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
-                            exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
+                            exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients(), refs.acquireListener());
                             transportService.sendChildRequest(
                                 node.connection,
                                 DATA_ACTION_NAME,
@@ -345,7 +345,7 @@ public class ComputeService {
                     esqlExecutor,
                     targetNodeListener.delegateFailureAndWrap((l, unused) -> {
                         var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, cluster.connection);
-                        exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
+                        exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients(), refs.acquireListener());
                         var clusterRequest = new ClusterComputeRequest(
                             cluster.clusterAlias,
                             sessionId,
@@ -692,7 +692,7 @@ public class ComputeService {
             var externalSink = exchangeService.getSinkHandler(externalId);
             task.addListener(() -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled())));
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
-            exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1);
+            exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1, refs.acquire());
             ActionListener<Void> reductionListener = cancelOnFailure(task, cancelled, refs.acquire());
             runCompute(
                 task,

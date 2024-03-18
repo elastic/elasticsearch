@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
@@ -393,31 +394,33 @@ public class CsvTests extends ESTestCase {
         try {
             LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
             drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(sessionId));
-            if (dataNodePlan != null) {
-                var searchStats = new DisabledSearchStats();
-                var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
-                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                    new LocalPhysicalOptimizerContext(configuration, searchStats)
-                );
-
-                var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
-                exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
-                LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
-                drivers.addAll(dataNodeExecutionPlan.createDrivers(sessionId));
-                Randomness.shuffle(drivers);
-            }
-            // Execute the driver
-            DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
-                @Override
-                protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
-                }
-            };
             PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
-            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)).map(ignore -> {
+            try (RefCountingListener refs = new RefCountingListener(future.map(nullValue -> {
                 var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
                 return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
-            }));
+            }))) {
+                if (dataNodePlan != null) {
+                    var searchStats = new DisabledSearchStats();
+                    var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
+                    var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
+                        new LocalPhysicalOptimizerContext(configuration, searchStats)
+                    );
+
+                    var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
+                    exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3), refs.acquire());
+                    LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
+                    drivers.addAll(dataNodeExecutionPlan.createDrivers(sessionId));
+                    Randomness.shuffle(drivers);
+                }
+                // Execute the driver
+                DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
+                    @Override
+                    protected void start(Driver driver, ActionListener<Void> driverListener) {
+                        Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
+                    }
+                };
+                runner.runToCompletion(drivers, refs.acquire());
+            }
             return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
             Releasables.close(() -> Releasables.close(drivers));

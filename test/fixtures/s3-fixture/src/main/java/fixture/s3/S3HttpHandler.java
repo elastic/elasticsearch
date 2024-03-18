@@ -284,6 +284,7 @@ public class S3HttpHandler implements HttpHandler {
                 }
                 var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
                 end = start + responseBlob.length() - 1;
+                exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                 exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, blob.length()));
                 exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), responseBlob.length());
                 responseBlob.writeTo(exchange.getResponseBody());

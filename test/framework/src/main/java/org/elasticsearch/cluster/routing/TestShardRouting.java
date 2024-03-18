@@ -15,16 +15,14 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 
-import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.AllocationId.newInitializing;
 import static org.elasticsearch.cluster.routing.AllocationId.newRelocation;
-import static org.elasticsearch.core.TimeValue.nsecToMSec;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomUUID;
 import static org.junit.Assert.assertNotEquals;
 
@@ -65,23 +63,8 @@ public class TestShardRouting {
             this.state = state;
         }
 
-        public Builder withCurrentNodeId(String currentNodeId) {
-            this.currentNodeId = currentNodeId;
-            return this;
-        }
-
         public Builder withRelocatingNodeId(String relocatingNodeId) {
             this.relocatingNodeId = relocatingNodeId;
-            return this;
-        }
-
-        public Builder withPrimary(boolean primary) {
-            this.primary = primary;
-            return this;
-        }
-
-        public Builder withState(ShardRoutingState state) {
-            this.state = state;
             return this;
         }
 
@@ -234,20 +217,16 @@ public class TestShardRouting {
             lastAllocatedNodeId = randomIdentifier();
         }
         int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
-        long unassignedTimeNanos = randomLongBetween(
-            1640991600000L, // 01-01-2022
-            1672527600000L // 01-01-2023
-        );
         return new UnassignedInfo(
             reason,
             message,
             null,
             failedAllocations,
-            unassignedTimeNanos,
-            nsecToMSec(unassignedTimeNanos),
+            System.nanoTime(),
+            System.currentTimeMillis(),
             delayed,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            Set.of(),
             lastAllocatedNodeId
         );
     }

@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -169,6 +170,8 @@ public final class CsvAssert {
         assertData(expected, EsqlTestUtils.getValuesList(actualValuesIterator), ignoreOrder, logger, valueTransformer);
     }
 
+    private record DataFailure(int row, int column, Object expected, Object actual) {}
+
     public static void assertData(
         ExpectedResults expected,
         List<List<Object>> actualValues,
@@ -181,6 +184,7 @@ public final class CsvAssert {
             actualValues.sort(resultRowComparator(expected.columnTypes()));
         }
         var expectedValues = expected.values();
+        ArrayList<DataFailure> dataFailures = new ArrayList<>();
 
         for (int row = 0; row < expectedValues.size(); row++) {
             try {
@@ -220,11 +224,14 @@ public final class CsvAssert {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
                         }
                     }
-                    assertEquals(
-                        "Row[" + row + "] Column[" + column + "]",
-                        valueTransformer.apply(expectedType, expectedValue),
-                        valueTransformer.apply(expectedType, actualValue)
-                    );
+                    var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
+                    var transformedActual = valueTransformer.apply(expectedType, actualValue);
+                    if (Objects.equals(transformedExpected, transformedActual) == false) {
+                        dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
+                    }
+                    if (dataFailures.size() > 10) {
+                        fail("Data mismatch: " + dataFailures);
+                    }
                 }
 
                 var delta = actualRow.size() - expectedRow.size();
@@ -238,6 +245,9 @@ public final class CsvAssert {
                 }
                 throw ae;
             }
+        }
+        if (dataFailures.isEmpty() == false) {
+            fail("Data mismatch: " + dataFailures);
         }
         if (expectedValues.size() < actualValues.size()) {
             fail(

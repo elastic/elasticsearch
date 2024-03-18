@@ -131,7 +131,7 @@ abstract class QueryList {
                             final var bytes = bytesRefBlock.getBytesRef(offset, scratch);
                             if (ipBytes.length != bytes.length) {
                                 // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
-                                throw new IllegalStateException("Cannot decode IP field from bytes of length " + scratch.length);
+                                throw new IllegalStateException("Cannot decode IP field from bytes of length " + bytes.length);
                             }
                             System.arraycopy(bytes.bytes, bytes.offset, ipBytes, 0, bytes.length);
                             return InetAddressPoint.decode(ipBytes);

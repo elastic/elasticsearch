@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -24,6 +26,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -135,6 +138,9 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     }
 
     public void testProfile() {
+        assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
+        // uses shard partitioning as segments can be merged during these queries
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD).build());
         // Use single replicas for the target indices, to make sure we hit the same set of target nodes
         client(LOCAL_CLUSTER).admin()
             .indices()
@@ -148,7 +154,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
             .get();
         waitForNoInitializingShards(client(REMOTE_CLUSTER), TimeValue.timeValueSeconds(30), "logs-2");
-        var pragmas = AbstractEsqlIntegTestCase.randomPragmas();
         final int localOnlyProfiles;
         {
             EsqlQueryRequest request = new EsqlQueryRequest();

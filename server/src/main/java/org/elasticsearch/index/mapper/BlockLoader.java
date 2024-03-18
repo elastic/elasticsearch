@@ -55,22 +55,25 @@ public interface BlockLoader {
     interface AllReader extends ColumnAtATimeReader, RowStrideReader {}
 
     interface StoredFields {
-        Source source();
+        /**
+         * The {@code _source} of the document.
+         */
+        Source source() throws IOException;
 
         /**
          * @return the ID for the current document
          */
-        String id();
+        String id() throws IOException;
 
         /**
          * @return the routing path for the current document
          */
-        String routing();
+        String routing() throws IOException;
 
         /**
          * @return stored fields for the current document
          */
-        Map<String, List<Object>> storedFields();
+        Map<String, List<Object>> storedFields() throws IOException;
     }
 
     ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;

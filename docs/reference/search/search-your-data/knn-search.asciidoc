@@ -242,6 +242,27 @@ POST byte-image-index/_search
 // TEST[s/"k": 10/"k": 3/]
 // TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
+
+_Note_: In addition to the standard byte array, one can also provide a hex-encoded string value
+for the `query_vector` param. As an example, the search request above can also be expressed as follows,
+which would yield the same results
+[source,console]
+----
+POST byte-image-index/_search
+{
+  "knn": {
+    "field": "byte-image-vector",
+    "query_vector": "fb09",
+    "k": 10,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ]
+}
+----
+// TEST[continued]
+// TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
 [discrete]
 [[knn-search-quantized-example]]
 ==== Byte quantized kNN search
@@ -568,12 +589,12 @@ NOTE: `similarity` is the true <<dense-vector-similarity, similarity>> before it
 
 For each configured <<dense-vector-similarity, similarity>>, here is the corresponding inverted `_score` function. This is so if you are wanting to filter from a `_score` perspective, you can do this minor transformation to correctly reject irrelevant results.
 --
- - `l2_norm`: `sqrt((1 / _score) - 1)`
- - `cosine`: `(2 * _score) - 1`
- - `dot_product`: `(2 * _score) - 1`
- - `max_inner_product`:
-    - `_score < 1`: `1 - (1 / _score)`
-    - `_score >= 1`: `_score - 1`
+* `l2_norm`: `sqrt((1 / _score) - 1)`
+* `cosine`: `(2 * _score) - 1`
+* `dot_product`: `(2 * _score) - 1`
+* `max_inner_product`:
+** `_score < 1`: `1 - (1 / _score)`
+** `_score >= 1`: `_score - 1`
 --
 
 Here is an example. In this example we search for the given `query_vector` for `k` nearest neighbors. However, with
@@ -814,11 +835,15 @@ Now we have filtered based on the top level `"creation_time"` and only one docum
 ----
 // TESTRESPONSE[s/"took": 4/"took" : "$body.took"/]
 
+[discrete]
+[[nested-knn-search-inner-hits]]
+==== Nested kNN Search with Inner hits
+
 Additionally, if you wanted to extract the nearest passage for a matched document, you can supply <<inner-hits, inner_hits>>
 to the `knn` clause.
 
-NOTE: `inner_hits` for kNN will only ever return a single hit, the nearest passage vector.
-Setting `"size"` to any value greater than `1` will have no effect on the results.
+NOTE: When using `inner_hits` and multiple `knn` clauses, be sure to specify the <<inner-hits-options,`inner_hits.name`>>
+field. Otherwise, a naming clash can occur and fail the search request.
 
 [source,console]
 ----
@@ -841,7 +866,8 @@ POST passage_vectors/_search
             "_source": false,
             "fields": [
                 "paragraph.text"
-            ]
+            ],
+            "size": 1
         }
     }
 }
@@ -884,7 +910,7 @@ Now the result will contain the nearest found paragraph when searching.
                     "paragraph": {
                         "hits": {
                             "total": {
-                                "value": 1,
+                                "value": 2,
                                 "relation": "eq"
                             },
                             "max_score": 1.0,
@@ -928,7 +954,7 @@ Now the result will contain the nearest found paragraph when searching.
                     "paragraph": {
                         "hits": {
                             "total": {
-                                "value": 1,
+                                "value": 2,
                                 "relation": "eq"
                             },
                             "max_score": 0.9997144,

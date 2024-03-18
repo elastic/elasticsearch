@@ -81,7 +81,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().startCoordinatingOnlyNode(dataNodeDataPathSettings);
 
         assertTrue(indexExists(indexName));
-        expectThrows(NoShardAvailableActionException.class, () -> client().prepareGet(indexName, "1").get());
+        expectThrows(NoShardAvailableActionException.class, client().prepareGet(indexName, "1"));
 
         logger.info("--> Restarting and repurposing other node");
 

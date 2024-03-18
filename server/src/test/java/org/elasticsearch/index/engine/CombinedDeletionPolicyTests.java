@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
@@ -95,6 +96,36 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testReusePreviousSafeCommitInfo() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong();
+        final AtomicInteger getDocCountCalls = new AtomicInteger();
+        CombinedDeletionPolicy indexPolicy = new CombinedDeletionPolicy(
+            logger,
+            new TranslogDeletionPolicy(),
+            new SoftDeletesPolicy(globalCheckpoint::get, NO_OPS_PERFORMED, between(0, 100), () -> RetentionLeases.EMPTY),
+            globalCheckpoint::get,
+            null
+        ) {
+            @Override
+            protected int getDocCountOfCommit(IndexCommit indexCommit) {
+                getDocCountCalls.incrementAndGet();
+                return between(0, 1000);
+            }
+        };
+
+        final long seqNo = between(1, 10000);
+        final List<IndexCommit> commitList = new ArrayList<>();
+        final var translogUUID = UUID.randomUUID();
+        commitList.add(mockIndexCommit(seqNo, seqNo, translogUUID));
+        globalCheckpoint.set(seqNo);
+        indexPolicy.onCommit(commitList);
+        assertEquals(1, getDocCountCalls.get());
+
+        commitList.add(mockIndexCommit(seqNo, seqNo, translogUUID));
+        indexPolicy.onCommit(commitList);
+        assertEquals(1, getDocCountCalls.get());
     }
 
     public void testAcquireIndexCommit() throws Exception {

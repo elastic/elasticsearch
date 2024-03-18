@@ -56,13 +56,11 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     private static class CurrentHolder {
         private static final IndexVersion CURRENT = findCurrent();
 
-        // finds the pluggable current version, or uses the given fallback
+        // finds the pluggable current version
         private static IndexVersion findCurrent() {
-            var versionExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class), () -> null);
-            if (versionExtension == null) {
-                return IndexVersions.LATEST_DEFINED;
-            }
-            var version = versionExtension.getCurrentIndexVersion(IndexVersions.LATEST_DEFINED);
+            var version = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
+                .map(e -> e.getCurrentIndexVersion(IndexVersions.LATEST_DEFINED))
+                .orElse(IndexVersions.LATEST_DEFINED);
 
             assert version.onOrAfter(IndexVersions.LATEST_DEFINED);
             assert version.luceneVersion.equals(Version.LATEST)
@@ -143,6 +141,14 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(id);
+    }
+
+    /**
+     * Returns a string representing the Elasticsearch release version of this index version,
+     * if applicable for this deployment, otherwise the raw version number.
+     */
+    public String toReleaseVersion() {
+        return IndexVersions.VERSION_LOOKUP.apply(id);
     }
 
     @Override

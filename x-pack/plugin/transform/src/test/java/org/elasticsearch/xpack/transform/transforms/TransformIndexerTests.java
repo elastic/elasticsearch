@@ -26,7 +26,6 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
@@ -76,16 +75,14 @@ import static org.mockito.Mockito.mock;
 public class TransformIndexerTests extends ESTestCase {
 
     private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = new SearchResponse(
-        new InternalSearchResponse(
-            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-            // Simulate completely null aggs
-            null,
-            new Suggest(Collections.emptyList()),
-            new SearchProfileResults(Collections.emptyMap()),
-            false,
-            false,
-            1
-        ),
+        new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+        // Simulate completely null aggs
+        null,
+        new Suggest(Collections.emptyList()),
+        false,
+        false,
+        new SearchProfileResults(Collections.emptyMap()),
+        1,
         "",
         1,
         1,
@@ -256,6 +253,11 @@ public class TransformIndexerTests extends ESTestCase {
         @Override
         void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
             fieldMappingsListener.onResponse(Collections.emptyMap());
+        }
+
+        @Override
+        void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
         }
 
         public boolean waitingForNextSearch() {

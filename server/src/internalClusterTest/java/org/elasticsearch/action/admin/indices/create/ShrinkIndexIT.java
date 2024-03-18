@@ -443,9 +443,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // check that index sort cannot be set on the target index
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareResizeIndex("source", "target")
-                .setSettings(indexSettings(2, 0).put("index.sort.field", "foo").build())
-                .get()
+            indicesAdmin().prepareResizeIndex("source", "target").setSettings(indexSettings(2, 0).put("index.sort.field", "foo").build())
         );
         assertThat(exc.getMessage(), containsString("can't override index sort when resizing an index"));
 

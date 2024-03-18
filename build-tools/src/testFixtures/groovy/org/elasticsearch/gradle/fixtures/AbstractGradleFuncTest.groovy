@@ -50,6 +50,13 @@ abstract class AbstractGradleFuncTest extends Specification {
         propertiesFile = testProjectDir.newFile('gradle.properties')
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+
+        def nativeLibsProject = subProject(":libs:elasticsearch-native:elasticsearch-native-libraries")
+        nativeLibsProject << """
+            plugins {
+                id 'base'
+            }
+        """
     }
 
     def cleanup() {

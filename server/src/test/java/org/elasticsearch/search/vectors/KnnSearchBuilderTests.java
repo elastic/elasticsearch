@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -83,7 +84,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     @Override
     protected KnnSearchBuilder doParseInstance(XContentParser parser) throws IOException {
-        return KnnSearchBuilder.fromXContent(parser);
+        return KnnSearchBuilder.fromXContent(parser).build(DEFAULT_SIZE);
     }
 
     @Override
@@ -101,20 +102,25 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         switch (random().nextInt(7)) {
             case 0:
                 String newField = randomValueOtherThan(instance.field, () -> randomAlphaOfLength(5));
-                return new KnnSearchBuilder(newField, instance.queryVector, instance.k, instance.numCands + 3, instance.similarity).boost(
+                return new KnnSearchBuilder(newField, instance.queryVector, instance.k, instance.numCands, instance.similarity).boost(
                     instance.boost
                 );
             case 1:
-                float[] newVector = randomValueOtherThan(instance.queryVector, () -> randomVector(5));
-                return new KnnSearchBuilder(instance.field, newVector, instance.k + 3, instance.numCands, instance.similarity).boost(
+                float[] newVector = randomValueOtherThan(instance.queryVector.asFloatVector(), () -> randomVector(5));
+                return new KnnSearchBuilder(instance.field, newVector, instance.k, instance.numCands, instance.similarity).boost(
                     instance.boost
                 );
             case 2:
-                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k + 3, instance.numCands, instance.similarity)
-                    .boost(instance.boost);
+                // given how the test instance is created, we have a 20-value gap between `k` and `numCands` so we SHOULD be safe
+                Integer newK = randomValueOtherThan(instance.k, () -> instance.k + ESTestCase.randomInt(10));
+                return new KnnSearchBuilder(instance.field, instance.queryVector, newK, instance.numCands, instance.similarity).boost(
+                    instance.boost
+                );
             case 3:
-                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands + 3, instance.similarity)
-                    .boost(instance.boost);
+                Integer newNumCands = randomValueOtherThan(instance.numCands, () -> instance.numCands + ESTestCase.randomInt(100));
+                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, newNumCands, instance.similarity).boost(
+                    instance.boost
+                );
             case 4:
                 return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands, instance.similarity)
                     .addFilterQueries(instance.filterQueries)
@@ -207,14 +213,14 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
         assertThat(rewritten.field, equalTo(searchBuilder.field));
         assertThat(rewritten.boost, equalTo(searchBuilder.boost));
-        assertThat(rewritten.queryVector, equalTo(expectedArray));
+        assertThat(rewritten.queryVector.asFloatVector(), equalTo(expectedArray));
         assertThat(rewritten.queryVectorBuilder, nullValue());
         assertThat(rewritten.filterQueries, hasSize(1));
         assertThat(rewritten.similarity, equalTo(1f));
         assertThat(((RewriteableQuery) rewritten.filterQueries.get(0)).rewrites, equalTo(1));
     }
 
-    static float[] randomVector(int dim) {
+    public static float[] randomVector(int dim) {
         float[] vector = new float[dim];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();

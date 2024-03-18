@@ -9,7 +9,6 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
@@ -414,7 +414,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().index(metadata.getIndex()).getState());
         assertEquals("boolean", state.getMetadata().index(metadata.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
         // try to open it with the broken setting - fail again!
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> indicesAdmin().prepareOpen("test").get());
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, indicesAdmin().prepareOpen("test"));
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
@@ -480,7 +480,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         indicesAdmin().prepareClose("test").get();
 
         // try to open it with the broken setting - fail again!
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> indicesAdmin().prepareOpen("test").get());
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, indicesAdmin().prepareOpen("test"));
         assertEquals(ex.getMessage(), "Failed to verify index " + metadata.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(MapperParsingException.class, ex.getCause().getClass());
@@ -564,7 +564,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build())
                     .build()
             );
-            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, Version.CURRENT, metadata.oldestIndexVersion()), paths);
+            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, BuildVersion.current(), metadata.oldestIndexVersion()), paths);
         });
 
         ensureGreen();

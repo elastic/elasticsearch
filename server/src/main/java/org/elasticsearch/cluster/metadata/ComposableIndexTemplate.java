@@ -125,7 +125,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     ) {
         this.indexPatterns = indexPatterns;
         this.template = template;
-        this.componentTemplates = componentTemplates;
+        this.componentTemplates = componentTemplates == null ? List.of() : componentTemplates;
         this.priority = priority;
         this.version = version;
         this.metadata = metadata;
@@ -145,7 +145,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.componentTemplates = in.readOptionalStringCollectionAsList();
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
@@ -153,7 +153,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         } else {
             this.ignoreMissingComponentTemplates = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.deprecated = in.readOptionalBoolean();
         } else {
             this.deprecated = null;
@@ -252,7 +252,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(deprecated);
         }
     }

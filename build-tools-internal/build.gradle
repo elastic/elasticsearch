@@ -119,6 +119,10 @@ gradlePlugin {
       id = 'elasticsearch.java-doc'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin'
     }
+    javaBase {
+      id = 'elasticsearch.java-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin'
+    }
     java {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
@@ -138,6 +142,14 @@ gradlePlugin {
     javaModulePath {
       id = 'elasticsearch.java-module'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaModulePathPlugin'
+    }
+    mrjar {
+      id = 'elasticsearch.mrjar'
+      implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
+    }
+    embeddedProvider {
+      id = 'elasticsearch.embedded-providers'
+      implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'
@@ -255,7 +267,7 @@ dependencies {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
-    integTestImplementation('org.ow2.asm:asm:9.5')
+    integTestImplementation('org.ow2.asm:asm:9.6')
     api("org.yaml:snakeyaml") {
       version { strictly(versions.snakeyaml) }
     }
@@ -294,6 +306,8 @@ dependencies {
 
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
+
+  implementation 'com.github.javaparser:javaparser-core:3.18.0'
 
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle

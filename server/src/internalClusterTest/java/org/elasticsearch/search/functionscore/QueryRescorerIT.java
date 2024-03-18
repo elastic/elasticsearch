@@ -815,21 +815,19 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         Exception exc = expectThrows(
             Exception.class,
-            () -> prepareSearch().addSort(SortBuilders.fieldSort("number"))
+            prepareSearch().addSort(SortBuilders.fieldSort("number"))
                 .setTrackScores(true)
                 .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
-                .get()
         );
         assertNotNull(exc.getCause());
         assertThat(exc.getCause().getMessage(), containsString("Cannot use [sort] option in conjunction with [rescore]."));
 
         exc = expectThrows(
             Exception.class,
-            () -> prepareSearch().addSort(SortBuilders.fieldSort("number"))
+            prepareSearch().addSort(SortBuilders.fieldSort("number"))
                 .addSort(SortBuilders.scoreSort())
                 .setTrackScores(true)
                 .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
-                .get()
         );
         assertNotNull(exc.getCause());
         assertThat(exc.getCause().getMessage(), containsString("Cannot use [sort] option in conjunction with [rescore]."));

@@ -159,6 +159,10 @@ public class QueryRewriteContext {
         return null;
     }
 
+    public InnerHitsRewriteContext convertToInnerHitsRewriteContext() {
+        return null;
+    }
+
     /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
@@ -286,6 +290,13 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Returns the MappingLookup for the queried index.
+     */
+    public MappingLookup getMappingLookup() {
+        return mappingLookup;
+    }
+
+    /**
      *  Given an index pattern, checks whether it matches against the current shard. The pattern
      *  may represent a fully qualified index name if the search targets remote shards.
      */
@@ -325,13 +336,13 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Same as {@link #getMatchingFieldNames(String)} with pattern {@code *} but returns an {@link Iterable} instead of a set.
+     * @return An {@link Iterable} with key the field name and value the MappedFieldType
      */
-    public Iterable<String> getAllFieldNames() {
-        var allFromMapping = mappingLookup.getMatchingFieldNames("*");
+    public Iterable<Map.Entry<String, MappedFieldType>> getAllFields() {
+        var allFromMapping = mappingLookup.getFullNameToFieldType();
         // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
         return runtimeMappings.isEmpty()
-            ? allFromMapping
-            : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
+            ? allFromMapping.entrySet()
+            : () -> Iterators.concat(allFromMapping.entrySet().iterator(), runtimeMappings.entrySet().iterator());
     }
 }

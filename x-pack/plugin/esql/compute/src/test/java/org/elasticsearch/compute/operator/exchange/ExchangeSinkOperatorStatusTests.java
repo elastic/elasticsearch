@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExchangeSinkOperatorStatusTests extends AbstractWireSerializingTestCase<ExchangeSinkOperator.Status> {
     public void testToXContent() {
-        assertThat(Strings.toString(simple()), equalTo(simpleToJson()));
+        assertThat(Strings.toString(simple(), true, true), equalTo(simpleToJson()));
     }
 
     public static ExchangeSinkOperator.Status simple() {
@@ -26,7 +26,9 @@ public class ExchangeSinkOperatorStatusTests extends AbstractWireSerializingTest
 
     public static String simpleToJson() {
         return """
-            {"pages_accepted":10}""";
+            {
+              "pages_accepted" : 10
+            }""";
     }
 
     @Override

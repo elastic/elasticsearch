@@ -8,20 +8,23 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
-    private final IndexRequestBuilder destination;
+    private final IndexRequestBuilder destinationBuilder;
+    private RemoteInfo remoteInfo;
 
     public ReindexRequestBuilder(ElasticsearchClient client) {
         this(client, new SearchRequestBuilder(client), new IndexRequestBuilder(client));
     }
 
     private ReindexRequestBuilder(ElasticsearchClient client, SearchRequestBuilder search, IndexRequestBuilder destination) {
-        super(client, ReindexAction.INSTANCE, search, new ReindexRequest(search.request(), destination.request()));
-        this.destination = destination;
+        super(client, ReindexAction.INSTANCE, search);
+        this.destinationBuilder = destination;
     }
 
     @Override
@@ -30,14 +33,14 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
     }
 
     public IndexRequestBuilder destination() {
-        return destination;
+        return destinationBuilder;
     }
 
     /**
      * Set the destination index.
      */
     public ReindexRequestBuilder destination(String index) {
-        destination.setIndex(index);
+        destinationBuilder.setIndex(index);
         return this;
     }
 
@@ -45,7 +48,34 @@ public class ReindexRequestBuilder extends AbstractBulkIndexByScrollRequestBuild
      * Setup reindexing from a remote cluster.
      */
     public ReindexRequestBuilder setRemoteInfo(RemoteInfo remoteInfo) {
-        request().setRemoteInfo(remoteInfo);
+        this.remoteInfo = remoteInfo;
         return this;
+    }
+
+    @Override
+    public ReindexRequest request() {
+        SearchRequest source = source().request();
+        try {
+            IndexRequest destination = destinationBuilder.request();
+            try {
+                ReindexRequest reindexRequest = new ReindexRequest(source, destination, false);
+                try {
+                    super.apply(reindexRequest);
+                    if (remoteInfo != null) {
+                        reindexRequest.setRemoteInfo(remoteInfo);
+                    }
+                    return reindexRequest;
+                } catch (Exception e) {
+                    reindexRequest.decRef();
+                    throw e;
+                }
+            } catch (Exception e) {
+                destination.decRef();
+                throw e;
+            }
+        } catch (Exception e) {
+            source.decRef();
+            throw e;
+        }
     }
 }

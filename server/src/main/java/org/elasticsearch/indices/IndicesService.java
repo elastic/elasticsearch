@@ -18,9 +18,9 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -85,6 +85,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -129,7 +130,6 @@ import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -169,7 +169,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -234,7 +233,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
@@ -285,7 +283,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indicesQueryCache = new IndicesQueryCache(settings);
         this.mapperRegistry = builder.mapperRegistry;
         this.namedWriteableRegistry = builder.namedWriteableRegistry;
-        this.documentParsingObserverSupplier = builder.documentParsingObserverSupplier;
         indexingMemoryController = new IndexingMemoryController(
             settings,
             threadPool,
@@ -577,7 +574,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * Creates a new {@link IndexService} for the given metadata.
      *
      * @param indexMetadata          the index metadata to create the index for
-     * @param builtInListeners       a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the
+     * @param builtInListeners       a list of built-in lifecycle {@link IndexEventListener} that should be used alongside with the
      *                               per-index listeners
      * @throws ResourceAlreadyExistsException if the index already exists.
      */
@@ -741,7 +738,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            documentParsingObserverSupplier
+            loadSlowLogFieldProvider()
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -818,7 +815,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            documentParsingObserverSupplier
+            loadSlowLogFieldProvider()
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
@@ -882,8 +879,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 : "mapping update consumer only required by local shards recovery";
             client.execute(
                 featureService.clusterHasFeature(clusterService.state(), SUPPORTS_AUTO_PUT)
-                    ? AutoPutMappingAction.INSTANCE
-                    : PutMappingAction.INSTANCE,
+                    ? TransportAutoPutMappingAction.TYPE
+                    : TransportPutMappingAction.TYPE,
                 new PutMappingRequest().setConcreteIndex(shardRouting.index())
                     .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
                     .source(mapping.source().string(), XContentType.JSON)
@@ -1394,6 +1391,31 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             return deleteList.size();
         }
+    }
+
+    // pkg-private for testing
+    SlowLogFieldProvider loadSlowLogFieldProvider() {
+        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
+        return new SlowLogFieldProvider() {
+            @Override
+            public void init(IndexSettings indexSettings) {
+                slowLogFieldProviders.forEach(provider -> provider.init(indexSettings));
+            }
+
+            @Override
+            public Map<String, String> indexSlowLogFields() {
+                return slowLogFieldProviders.stream()
+                    .flatMap(provider -> provider.indexSlowLogFields().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
+
+            @Override
+            public Map<String, String> searchSlowLogFields() {
+                return slowLogFieldProviders.stream()
+                    .flatMap(provider -> provider.searchSlowLogFields().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
+        };
     }
 
     /**

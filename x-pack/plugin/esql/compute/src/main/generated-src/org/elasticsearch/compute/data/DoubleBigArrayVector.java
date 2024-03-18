@@ -8,11 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
+
 /**
- * Vector implementation that defers to an enclosed DoubleArray.
+ * Vector implementation that defers to an enclosed {@link DoubleArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class DoubleBigArrayVector extends AbstractVector implements DoubleVector, Releasable {
@@ -21,21 +26,34 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
 
     private final DoubleArray values;
 
-    private final DoubleBlock block;
-
-    public DoubleBigArrayVector(DoubleArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
     public DoubleBigArrayVector(DoubleArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new DoubleVectorBlock(this);
+    }
+
+    static DoubleBigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        DoubleArray values = blockFactory.bigArrays().newDoubleArray(positions, false);
+        boolean success = false;
+        try {
+            values.fillWith(in);
+            DoubleBigArrayVector vector = new DoubleBigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
     }
 
     @Override
     public DoubleBlock asBlock() {
-        return block;
+        return new DoubleVectorBlock(this);
     }
 
     @Override
@@ -61,7 +79,7 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     @Override
     public DoubleVector filter(int... positions) {
         var blockFactory = blockFactory();
-        final DoubleArray filtered = blockFactory.bigArrays().newDoubleArray(positions.length, true);
+        final DoubleArray filtered = blockFactory.bigArrays().newDoubleArray(positions.length);
         for (int i = 0; i < positions.length; i++) {
             filtered.set(i, values.get(positions[i]));
         }
@@ -69,11 +87,9 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link DoubleArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

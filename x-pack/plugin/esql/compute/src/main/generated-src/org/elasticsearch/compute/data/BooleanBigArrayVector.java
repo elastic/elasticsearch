@@ -8,11 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.core.Releasable;
 
+import java.io.IOException;
+
 /**
- * Vector implementation that defers to an enclosed BooleanArray.
+ * Vector implementation that defers to an enclosed {@link BitArray}.
+ * Does not take ownership of the array and does not adjust circuit breakers to account for it.
  * This class is generated. Do not edit it.
  */
 public final class BooleanBigArrayVector extends AbstractVector implements BooleanVector, Releasable {
@@ -21,21 +26,33 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
 
     private final BitArray values;
 
-    private final BooleanBlock block;
-
-    public BooleanBigArrayVector(BitArray values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
     public BooleanBigArrayVector(BitArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new BooleanVectorBlock(this);
+    }
+
+    static BooleanBigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        BitArray values = new BitArray(blockFactory.bigArrays(), true, in);
+        boolean success = false;
+        try {
+            BooleanBigArrayVector vector = new BooleanBigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
     }
 
     @Override
     public BooleanBlock asBlock() {
-        return block;
+        return new BooleanVectorBlock(this);
     }
 
     @Override
@@ -71,11 +88,9 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released vector [" + this + "]");
-        }
-        released = true;
+    public void closeInternal() {
+        // The circuit breaker that tracks the values {@link BitArray} is adjusted outside
+        // of this class.
         values.close();
     }
 

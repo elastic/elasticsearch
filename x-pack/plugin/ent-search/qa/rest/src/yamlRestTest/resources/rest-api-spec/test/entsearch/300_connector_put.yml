@@ -101,3 +101,67 @@ setup:
           service_type: super-connector
 
   - match: { result: 'updated' }
+
+---
+'Create Connector - Invalid Index Name':
+  - do:
+      catch: "bad_request"
+      connector.put:
+        connector_id: test-connector-recreating
+        body:
+          index_name: _this-is-invalid-index-name
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+
+
+---
+'Create Connector - Index name used by another connector':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          index_name: search-test
+
+  - match: { result: 'created' }
+
+
+  - do:
+      catch: "bad_request"
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          index_name: search-test
+
+---
+'Create Connector - Without index attached':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          service_type: super-connector
+
+  - match: { result: 'created' }
+
+  - do:
+      connector.get:
+        connector_id: test-connector-1
+
+  - match: { index_name: null }
+  - match: { service_type: super-connector }
+
+---
+"Put connector fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          index_name: search-test
+

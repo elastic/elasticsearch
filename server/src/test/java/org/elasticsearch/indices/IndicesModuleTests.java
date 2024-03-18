@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -45,6 +46,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,6 +81,7 @@ public class IndicesModuleTests extends ESTestCase {
         IdFieldMapper.NAME,
         RoutingFieldMapper.NAME,
         TimeSeriesIdFieldMapper.NAME,
+        TimeSeriesRoutingHashFieldMapper.NAME,
         IndexFieldMapper.NAME,
         SourceFieldMapper.NAME,
         NestedPathFieldMapper.NAME,
@@ -239,7 +243,7 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testGetFieldFilter() {
-        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {
+        List<MapperPlugin> mapperPlugins = List.of(new MapperPlugin() {
         }, new MapperPlugin() {
             @Override
             public Function<String, Predicate<String>> getFieldFilter() {
@@ -262,16 +266,16 @@ public class IndicesModuleTests extends ESTestCase {
         Function<String, Predicate<String>> fieldFilter = mapperRegistry.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
 
-        assertFalse(fieldFilter.apply("hidden_index").test(randomAlphaOfLengthBetween(3, 5)));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).test(randomAlphaOfLengthBetween(3, 5)));
+        assertThat(fieldFilter.apply("hidden_index"), falseWith(randomAlphaOfLengthBetween(3, 5)));
+        assertThat(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)), trueWith(randomAlphaOfLengthBetween(3, 5)));
 
-        assertFalse(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).test("hidden_field"));
-        assertFalse(fieldFilter.apply("filtered").test(randomAlphaOfLengthBetween(3, 5)));
-        assertFalse(fieldFilter.apply("filtered").test("hidden_field"));
-        assertTrue(fieldFilter.apply("filtered").test("visible"));
-        assertFalse(fieldFilter.apply("hidden_index").test("visible"));
-        assertTrue(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)).test("visible"));
-        assertFalse(fieldFilter.apply("hidden_index").test("hidden_field"));
+        assertThat(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)), falseWith("hidden_field"));
+        assertThat(fieldFilter.apply("filtered"), falseWith(randomAlphaOfLengthBetween(3, 5)));
+        assertThat(fieldFilter.apply("filtered"), falseWith("hidden_field"));
+        assertThat(fieldFilter.apply("filtered"), trueWith("visible"));
+        assertThat(fieldFilter.apply("hidden_index"), falseWith("visible"));
+        assertThat(fieldFilter.apply(randomAlphaOfLengthBetween(3, 5)), trueWith("visible"));
+        assertThat(fieldFilter.apply("hidden_index"), falseWith("hidden_field"));
     }
 
     public void testDefaultFieldFilterIsNoOp() {

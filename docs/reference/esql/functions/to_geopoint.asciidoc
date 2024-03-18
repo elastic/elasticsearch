@@ -1,13 +1,32 @@
 [discrete]
 [[esql-to_geopoint]]
 === `TO_GEOPOINT`
-Converts an input value to a `geo_point` value.
 
-The input can be a single- or multi-valued field or an expression.
+*Syntax*
+
+[source,esql]
+----
+TO_GEOPOINT(v)
+----
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
 The input type must be a string or a `geo_point`.
 
+*Description*
+
+Converts an input value to a `geo_point` value.
+
+*Supported types*
+
+include::types/to_geopoint.asciidoc[]
+
 A string will only be successfully converted if it respects the
-https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[WKT Point] format:
+{wikipedia}/Well-known_text_representation_of_geometry[WKT Point] format.
+
+*Example*
 
 [source.merge.styled,esql]
 ----

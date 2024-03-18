@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
-import org.testcontainers.images.builder.ImageFromDockerfile;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 public abstract class DockerEnvironmentAwareTestContainer extends GenericContainer<DockerEnvironmentAwareTestContainer>
@@ -56,8 +56,8 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
         }
     }
 
-    public DockerEnvironmentAwareTestContainer(ImageFromDockerfile imageFromDockerfile) {
-        super(imageFromDockerfile);
+    public DockerEnvironmentAwareTestContainer(Future<String> image) {
+        super(image);
     }
 
     @Override
@@ -115,7 +115,7 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
     }
 
     private static List<String> getLinuxExclusionList() {
-        File exclusionsFile = new File(DOCKER_ON_LINUX_EXCLUSIONS_FILE);
+        File exclusionsFile = new File(System.getProperty("workspace.dir"), DOCKER_ON_LINUX_EXCLUSIONS_FILE);
         if (exclusionsFile.exists()) {
             try {
                 return Files.readAllLines(exclusionsFile.toPath())

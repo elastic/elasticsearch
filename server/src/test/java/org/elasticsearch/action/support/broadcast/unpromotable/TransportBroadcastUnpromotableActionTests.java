@@ -48,7 +48,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
@@ -308,15 +308,12 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         IndexShardRoutingTable.Builder wrongRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardId);
         for (int i = 0; i < routingTable.size(); i++) {
             ShardRouting shardRouting = routingTable.shard(i);
-            ShardRouting wrongShardRouting = newShardRouting(
-                shardId,
-                shardRouting.currentNodeId() + randomIntBetween(10, 100),
-                shardRouting.relocatingNodeId(),
-                shardRouting.primary(),
-                shardRouting.state(),
-                shardRouting.unassignedInfo(),
-                shardRouting.role()
-            );
+            String currentNodeId = shardRouting.currentNodeId() + randomIntBetween(10, 100);
+            ShardRouting wrongShardRouting = shardRoutingBuilder(shardId, currentNodeId, shardRouting.primary(), shardRouting.state())
+                .withRelocatingNodeId(shardRouting.relocatingNodeId())
+                .withUnassignedInfo(shardRouting.unassignedInfo())
+                .withRole(shardRouting.role())
+                .build();
             wrongRoutingTableBuilder.addShard(wrongShardRouting);
         }
         IndexShardRoutingTable wrongRoutingTable = wrongRoutingTableBuilder.build();
@@ -379,6 +376,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     public void testNullIndexShardRoutingTable() {
         IndexShardRoutingTable shardRoutingTable = null;
         assertThat(
+
             expectThrows(
                 NullPointerException.class,
                 () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(

@@ -26,7 +26,7 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
         this.spEntityId = in.readString();
         this.assertionConsumerService = in.readString();
         this.forceAuthn = in.readBoolean();
-        this.authnState = in.readMap();
+        this.authnState = in.readGenericMap();
     }
 
     public SamlValidateAuthnRequestResponse(String spEntityId, String acs, boolean forceAuthn, Map<String, Object> authnState) {

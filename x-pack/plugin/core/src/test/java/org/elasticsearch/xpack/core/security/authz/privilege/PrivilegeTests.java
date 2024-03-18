@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsActi
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
@@ -281,6 +282,7 @@ public class PrivilegeTests extends ESTestCase {
             GetServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME,
             GetUsersAction.NAME,
+            ActionTypes.QUERY_USER_ACTION.name(),
             HasPrivilegesAction.NAME,
             GetUserPrivilegesAction.NAME,
             GetSecuritySettingsAction.NAME
@@ -306,7 +308,7 @@ public class PrivilegeTests extends ESTestCase {
             ClusterStatsAction.NAME,
             NodeEnrollmentAction.NAME,
             KibanaEnrollmentAction.NAME,
-            PutIndexTemplateAction.NAME,
+            TransportPutIndexTemplateAction.TYPE.name(),
             GetIndexTemplatesAction.NAME,
             ClusterRerouteAction.NAME,
             ClusterUpdateSettingsAction.NAME,
@@ -341,14 +343,9 @@ public class PrivilegeTests extends ESTestCase {
         );
         verifyClusterActionDenied(
             ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
-            "cluster:admin/xpack/security/role/put",
-            "cluster:admin/xpack/security/role/get",
-            "cluster:admin/xpack/security/role/delete"
-        );
-        verifyClusterActionDenied(
-            ClusterPrivilegeResolver.MANAGE_USER_PROFILE,
             "cluster:admin/xpack/security/user/put",
             "cluster:admin/xpack/security/user/get",
+            "cluster:admin/xpack/security/user/query",
             "cluster:admin/xpack/security/user/delete"
         );
         verifyClusterActionDenied(
@@ -356,7 +353,7 @@ public class PrivilegeTests extends ESTestCase {
             TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
             ClusterStatsAction.NAME,
-            PutIndexTemplateAction.NAME,
+            TransportPutIndexTemplateAction.TYPE.name(),
             GetIndexTemplatesAction.NAME,
             ClusterRerouteAction.NAME,
             ClusterUpdateSettingsAction.NAME

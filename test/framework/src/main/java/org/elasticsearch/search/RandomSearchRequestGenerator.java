@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
@@ -328,8 +329,11 @@ public class RandomSearchRequestGenerator {
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
                 try (
-                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                        .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(jsonBuilder).streamInput())
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY,
+                        BytesReference.bytes(jsonBuilder),
+                        XContentType.JSON
+                    )
                 ) {
                     parser.nextToken();
                     parser.nextToken();

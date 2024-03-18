@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -36,7 +34,7 @@ public class FilterOperatorTests extends OperatorTestCase {
         public Block eval(Page page) {
             LongVector lhsVector = page.<LongBlock>getBlock(0).asVector();
             LongVector rhsVector = page.<LongBlock>getBlock(1).asVector();
-            BooleanVector.FixedBuilder result = BooleanVector.newVectorFixedBuilder(page.getPositionCount(), context.blockFactory());
+            BooleanVector.FixedBuilder result = context.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount());
             for (int p = 0; p < page.getPositionCount(); p++) {
                 result.appendBoolean(lhsVector.getLong(p) % 10 == rhsVector.getLong(p) % 10);
             }
@@ -53,7 +51,7 @@ public class FilterOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple() {
         return new FilterOperator.FilterOperatorFactory(dvrCtx -> new SameLastDigit(dvrCtx, 0, 1));
     }
 
@@ -113,10 +111,5 @@ public class FilterOperatorTests extends OperatorTestCase {
         assertThat(found, equalTo(List.of(true, true)));
         results.forEach(Page::releaseBlocks);
         assertThat(context.breaker().getUsed(), equalTo(0L));
-    }
-
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 600));
     }
 }

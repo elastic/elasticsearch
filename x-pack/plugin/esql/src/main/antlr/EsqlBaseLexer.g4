@@ -11,7 +11,6 @@ INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
-PROJECT : 'project'           -> pushMode(PROJECT_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
 SHOW : 'show'                 -> pushMode(SHOW_MODE);
@@ -130,6 +129,7 @@ RP : ')';
 TRUE : 'true';
 
 EQ  : '==';
+CIEQ  : '=~';
 NEQ : '!=';
 LT  : '<';
 LTE : '<=';
@@ -157,8 +157,12 @@ UNQUOTED_IDENTIFIER
     | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY+
     ;
 
-QUOTED_IDENTIFIER
+fragment QUOTED_ID
     : BACKQUOTE BACKQUOTE_BLOCK+ BACKQUOTE
+    ;
+
+QUOTED_IDENTIFIER
+    : QUOTED_ID
     ;
 
 EXPR_LINE_COMMENT
@@ -177,8 +181,8 @@ EXPR_WS
 //
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
-FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(FROM_MODE), pushMode(FROM_MODE);
-FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode, popMode;
+FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
+FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 
@@ -209,7 +213,7 @@ FROM_WS
     : WS -> channel(HIDDEN)
     ;
 //
-// DROP, KEEP, PROJECT
+// DROP, KEEP
 //
 mode PROJECT_MODE;
 PROJECT_PIPE : PIPE -> type(PIPE), popMode;
@@ -220,13 +224,13 @@ fragment UNQUOTED_ID_BODY_WITH_PATTERN
     : (LETTER | DIGIT | UNDERSCORE | ASTERISK)
     ;
 
-PROJECT_UNQUOTED_IDENTIFIER
+fragment UNQUOTED_ID_PATTERN
     : (LETTER | ASTERISK) UNQUOTED_ID_BODY_WITH_PATTERN*
     | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY_WITH_PATTERN+
     ;
 
-PROJECT_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+ID_PATTERN
+    : (UNQUOTED_ID_PATTERN | QUOTED_ID)+
     ;
 
 PROJECT_LINE_COMMENT
@@ -251,13 +255,8 @@ RENAME_DOT: DOT -> type(DOT);
 
 AS : 'as';
 
-RENAME_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
-    ;
-
-// use the unquoted pattern to let the parser invalidate fields with *
-RENAME_UNQUOTED_IDENTIFIER
-    : PROJECT_UNQUOTED_IDENTIFIER -> type(PROJECT_UNQUOTED_IDENTIFIER)
+RENAME_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
     ;
 
 RENAME_LINE_COMMENT
@@ -275,17 +274,28 @@ RENAME_WS
 // | ENRICH ON key WITH fields
 mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
+ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
 
 ON : 'on'     -> pushMode(ENRICH_FIELD_MODE);
 WITH : 'with' -> pushMode(ENRICH_FIELD_MODE);
 
-// use the unquoted pattern to let the parser invalidate fields with *
-ENRICH_POLICY_UNQUOTED_IDENTIFIER
-    : FROM_UNQUOTED_IDENTIFIER -> type(FROM_UNQUOTED_IDENTIFIER)
+// similar to that of an index
+// see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params
+fragment ENRICH_POLICY_NAME_BODY
+    : ~[\\/?"<>| ,#\t\r\n:]
+    ;
+
+ENRICH_POLICY_NAME
+    // allow prefix for the policy to specify its resolution
+    : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+
     ;
 
 ENRICH_QUOTED_IDENTIFIER
     : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+ENRICH_MODE_UNQUOTED_VALUE
+    : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
     ;
 
 ENRICH_LINE_COMMENT
@@ -309,8 +319,8 @@ ENRICH_FIELD_DOT: DOT -> type(DOT);
 
 ENRICH_FIELD_WITH : WITH -> type(WITH) ;
 
-ENRICH_FIELD_UNQUOTED_IDENTIFIER
-    : PROJECT_UNQUOTED_IDENTIFIER -> type(PROJECT_UNQUOTED_IDENTIFIER)
+ENRICH_FIELD_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
     ;
 
 ENRICH_FIELD_QUOTED_IDENTIFIER
@@ -373,3 +383,25 @@ SHOW_MULTILINE_COMMENT
 SHOW_WS
     : WS -> channel(HIDDEN)
     ;
+
+mode SETTING_MODE;
+SETTING_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
+
+COLON : ':';
+
+SETTING
+    : (ASPERAND | DIGIT| DOT | LETTER | UNDERSCORE)+
+    ;
+
+SETTING_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SETTTING_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+SETTING_WS
+    : WS -> channel(HIDDEN)
+    ;
+

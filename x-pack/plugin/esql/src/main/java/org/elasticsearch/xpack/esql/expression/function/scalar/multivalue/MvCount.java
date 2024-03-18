@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -39,18 +37,20 @@ public class MvCount extends AbstractMultivalueFunction {
         @Param(
             name = "v",
             type = {
-                "unsigned_long",
-                "date",
                 "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
                 "double",
-                "ip",
-                "text",
-                "integer",
-                "keyword",
-                "version",
-                "long",
                 "geo_point",
-                "cartesian_point" }
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" }
         ) Expression v
     ) {
         super(source, v);
@@ -94,11 +94,8 @@ public class MvCount extends AbstractMultivalueFunction {
     }
 
     private static class Evaluator extends AbstractEvaluator {
-        private final DriverContext driverContext;
-
         protected Evaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
-            super(field);
-            this.driverContext = driverContext;
+            super(driverContext, field);
         }
 
         @Override
@@ -108,7 +105,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
         @Override
         protected Block evalNullable(Block block) {
-            try (var builder = IntBlock.newBlockBuilder(block.getPositionCount(), driverContext.blockFactory())) {
+            try (var builder = driverContext.blockFactory().newIntBlockBuilder(block.getPositionCount())) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
                     int valueCount = block.getValueCount(p);
                     if (valueCount == 0) {
@@ -123,7 +120,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
         @Override
         protected Block evalNotNullable(Block block) {
-            try (var builder = IntVector.newVectorFixedBuilder(block.getPositionCount(), driverContext.blockFactory())) {
+            try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(block.getPositionCount())) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
                     builder.appendInt(block.getValueCount(p));
                 }

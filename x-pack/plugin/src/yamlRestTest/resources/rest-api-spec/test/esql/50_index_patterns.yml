@@ -311,7 +311,6 @@ same_name_different_type:
               message:
                 type: long
 
-
   - do:
       bulk:
         index: test1
@@ -338,7 +337,7 @@ same_name_different_type:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test1,test2  '
+          query: 'from test1,test2'
   - match: { columns.0.name: message }
   - match: { columns.0.type: unsupported }
   - length: { values: 4 }

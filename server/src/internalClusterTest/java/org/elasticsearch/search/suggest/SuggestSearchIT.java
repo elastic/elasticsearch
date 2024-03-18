@@ -53,7 +53,6 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSuggestionPhraseCollateMatchExists;
@@ -313,12 +312,12 @@ public class SuggestSearchIT extends ESIntegTestCase {
         {
             SearchRequestBuilder searchBuilder = prepareSearch().setSize(0);
             searchBuilder.suggest(new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion("did_you_mean", phraseSuggestion));
-            assertRequestBuilderThrows(searchBuilder, SearchPhaseExecutionException.class);
+            expectThrows(SearchPhaseExecutionException.class, searchBuilder);
         }
         {
             SearchRequestBuilder searchBuilder = prepareSearch().setSize(0);
             searchBuilder.suggest(new SuggestBuilder().setGlobalText("tetsting sugestion").addSuggestion("did_you_mean", phraseSuggestion));
-            assertRequestBuilderThrows(searchBuilder, SearchPhaseExecutionException.class);
+            expectThrows(SearchPhaseExecutionException.class, searchBuilder);
         }
     }
 
@@ -838,7 +837,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 new SuggestBuilder().setGlobalText("tetsting sugestion")
                     .addSuggestion("did_you_mean", phraseSuggestion("fielddoesnotexist").maxErrors(5.0f))
             );
-        assertRequestBuilderThrows(request, SearchPhaseExecutionException.class);
+        expectThrows(SearchPhaseExecutionException.class, request);
 
         // When searching on a shard which does not hold yet any document of an existing type, we should not fail
         assertNoFailuresAndResponse(

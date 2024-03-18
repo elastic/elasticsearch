@@ -13,7 +13,7 @@ $endif$
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a $Type$Vector.
+ * Block view of a {@link $Type$Vector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
@@ -24,7 +24,6 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     $Type$VectorBlock($Type$Vector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -44,7 +43,7 @@ $endif$
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -79,11 +78,6 @@ $endif$
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
-    }
-
-    @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
     }
 
     @Override

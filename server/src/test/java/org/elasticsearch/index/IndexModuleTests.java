@@ -85,7 +85,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -234,7 +233,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -260,7 +259,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
 
         final IndexService indexService = newIndexService(module);
@@ -284,7 +283,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -636,7 +635,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
 
         final IndexService indexService = newIndexService(module);
@@ -657,7 +656,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -758,7 +757,7 @@ public class IndexModuleTests extends ESTestCase {
             () -> true,
             indexNameExpressionResolver,
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class)
         );
     }
 

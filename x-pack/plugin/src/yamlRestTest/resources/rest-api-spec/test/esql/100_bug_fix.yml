@@ -1,11 +1,9 @@
 ---
 "Coalesce and to_ip functions":
   - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/102871"
-      # version: " - 8.11.99"
-      # reason: "fixes in 8.12 or later"
-      features: warnings
+      version: " - 8.11.99"
+      reason: "fixes in 8.12 or later"
+      features: allowed_warnings_regex
   - do:
       bulk:
         index: test
@@ -16,10 +14,11 @@
           - { "index": { } }
           - { "emp_no": 20 }
   - do:
-      warnings:
-        - "Line 1:37: evaluation of [to_ip(coalesce(ip1.keyword, \"255.255.255.255\"))] failed, treating result as null. Only first 20 failures recorded."
+      allowed_warnings_regex:
+        - "Line 1:37: evaluation of \\[to_ip\\(coalesce\\(ip1.keyword, \\\\\"255.255.255.255\\\\\"\\)\\)\\] failed, treating result as null. Only first 20 failures recorded."
         - "Line 1:37: java.lang.IllegalArgumentException: '127.0' is not an IP string literal."
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of \\[.*\\]"
+
       esql.query:
         body:
           query: 'FROM test | sort emp_no | eval ip = to_ip(coalesce(ip1.keyword, "255.255.255.255")) | keep emp_no, ip'
@@ -35,10 +34,10 @@
 
 
   - do:
-      warnings:
-        - "Line 1:98: evaluation of [to_ip(x2)] failed, treating result as null. Only first 20 failures recorded."
+      allowed_warnings_regex:
+        - "Line 1:98: evaluation of \\[to_ip\\(x2\\)\\] failed, treating result as null. Only first 20 failures recorded."
         - "Line 1:98: java.lang.IllegalArgumentException: '127.00.1' is not an IP string literal."
-        - "No limit defined, adding default limit of [500]"
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM test | sort emp_no | eval x1 = concat(ip1, ip2), x2 = coalesce(x1, "255.255.255.255"), x3 = to_ip(x2) | keep emp_no, x*'
@@ -60,8 +59,8 @@
 ---
 "unsupported and invalid mapped fields":
   - skip:
-      version: " - 8.11.99"
-      reason: "fixes in 8.12 or later"
+      version: " - 8.12.99"
+      reason: "fixes in 8.13 or later"
   - do:
       indices.create:
         index: index1
@@ -109,7 +108,7 @@
   - do:
       esql.query:
         body:
-          query: 'from index* [metadata _index] | limit 5 | sort _index desc'
+          query: 'from index* metadata _index | limit 5 | sort _index desc'
   - match: { columns.0.name: http.headers }
   - match: { columns.0.type: unsupported }
   - match: { columns.1.name: http.headers.location }
@@ -129,10 +128,10 @@
 
 
 ---
-"null MappedFieldType on single value detection (https://github.com/elastic/elasticsearch/issues/103141)":
+"null MappedFieldType on single value detection #103141":
   - skip:
-      version: all
-      reason: "AwaitsFix fix https://github.com/elastic/elasticsearch/issues/103561"
+      version: " - 8.12.99"
+      reason: "fixes in 8.13 or later"
   - do:
       indices.create:
         index: npe_single_value_1

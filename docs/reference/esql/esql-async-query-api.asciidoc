@@ -1,27 +1,17 @@
 [[esql-async-query-api]]
-== {esql} async query API
+=== {esql} async query API
 ++++
 <titleabbrev>{esql} async query API</titleabbrev>
 ++++
 
-Runs an async {esql} search.
+Runs an async <<esql,{esql} query>>.
 
-The async query API lets you asynchronously execute a search request,
-monitor its progress, and retrieve results as they become available.
+The async query API lets you asynchronously execute a query request,
+monitor its progress, and retrieve results when they become available.
 
-Executing an <<esql,ES|QL ({es} query language)>> is commonly quite fast,
-however searches across large data sets or frozen data can take some time.
-To avoid long waits, run an async {esql} search.
-
-Searches initiated by this API may return search results or not. The
-`wait_for_completion_timeout` property determines how long to wait for
-the search results. The default value is 1 second. If the results are
-not available by this time, a search id is return which can be later
-used to retrieve the results.
-
-Initiates an async search for an <<esql,ES|QL ({es} query language)>>
-query. The API accepts the same parameters and request body as the
-<<esql-query-api,query API>>.
+The API accepts the same parameters and request body as the synchronous
+<<esql-query-api,query API>>, along with additional async related
+properties as outlined below.
 
 [source,console]
 ----
@@ -38,13 +28,14 @@ POST /_query/async
 }
 ----
 // TEST[setup:library]
+// TEST[skip:awaitsfix https://github.com/elastic/elasticsearch/issues/104013]
 
-If the results are not available within the timeout period, 2 seconds in
-this case, the search returns no results but rather a response that
+If the results are not available within the given timeout period, 2 seconds
+in this case, no results are returned but rather a response that
 includes:
 
- * A search ID
- * An `is_running` value of true, indicating the search is ongoing
+ * A query ID
+ * An `is_running` value of _true_, indicating the query is ongoing
 
 The query continues to run in the background without blocking other
 requests.
@@ -56,27 +47,120 @@ requests.
   "is_running": true
 }
 ----
-// TEST[skip: no access to search ID - may return response values]
+// TEST[skip: no access to query ID - may return response values]
 
-To check the progress of an async search, use the <<get-async-esql-query-api,get
-async ES|QL query API>> with the search ID. Specify how long you'd like for
-complete results in the `wait_for_completion_timeout` parameter.
-
-[source,console]
-----
-GET /_query/async/get/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=30s
-----
-// TEST[skip: no access to search ID - may return response values]
-
-If the response's `is_running` value is `false`, the async search has
-finished, and the results are returned.
+Otherwise, if the response's `is_running` value is `false`, the async
+query has finished and the results are returned.
 
 [source,console-result]
 ----
 {
-  "id": "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
   "is_running": false,
   "columns": ...
 }
 ----
-// TEST[skip: no access to search ID - may return response values]
+// TEST[skip: no access to query ID - may return response values]
+
+[[esql-async-query-api-request]]
+==== {api-request-title}
+
+`POST /_query/async`
+
+[[esql-async-query-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the data stream, index,
+or alias you query.
+
+[[esql-async-query-api-path-params]]
+==== {api-path-parms-title}
+
+The API accepts the same parameters as the synchronous
+<<esql-query-api-query-params,query API>>.
+
+[[esql-async-query-api-request-body]]
+==== {api-request-body-title}
+
+The API accepts the same request body as the synchronous
+<<esql-query-api-request-body,query API>>, along with the following
+parameters:
+
+[[esql-async-query-api-wait-for-completion-timeout]]
+`wait_for_completion_timeout`::
++
+--
+(Optional, <<time-units,time value>>)
+Timeout duration to wait for the request to finish. Defaults to a 1 second,
+meaning the request waits for 1 second for the query results.
+
+If the query completes during this period then results will be
+returned. Otherwise, a query `id` is returned that can later be used to
+retrieve the results.
+
+If the request does not complete during this period, a query
+<<esql-async-query-api-response-body-query-id,id>> is returned.
+--
+
+[[esql-async-query-api-keep-on-completion]]
+`keep_on_completion`::
++
+--
+(Optional, Boolean)
+If `true`, the query and its results are stored in the cluster.
+
+If `false`, the query and its results are stored in the cluster only if the
+request does not complete during the period set by the
+<<esql-async-query-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
+parameter. Defaults to `false`.
+--
+
+`keep_alive`::
++
+--
+(Optional, <<time-units,time value>>)
+Period for which the query and its results are stored in the cluster. Defaults
+to `5d` (five days).
+
+When this period expires, the query and its results are deleted, even if the
+query is still ongoing.
+
+If the <<esql-async-query-api-keep-on-completion,`keep_on_completion`>> parameter
+is `false`, {es} only stores async queries that do not complete within the period
+set by the <<esql-async-query-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
+parameter, regardless of this value.
+--
+
+[[esql-async-query-api-response-body]]
+==== {api-response-body-title}
+
+The API returns the same response body as the synchronous
+<<esql-query-api-response-body,query API>>, along with the following
+properties:
+
+[[esql-async-query-api-response-body-query-id]]
+`id`::
++
+--
+(string)
+Identifier for the query.
+
+This query ID is only provided if one of the following conditions is met:
+
+* A query request does not return complete results during the
+<<esql-async-query-api-wait-for-completion-timeout,`wait_for_completion_timeout`>>
+parameter's timeout period.
+
+* The query request's <<esql-async-query-api-keep-on-completion,`keep_on_completion`>>
+parameter is `true`.
+
+You can use this ID with the <<esql-async-query-get-api,{esql} async query get
+API>> to get the current status and available results for the query.
+--
+
+`is_running`::
++
+--
+(Boolean)
+If `true`, the query request is still executing.
+--

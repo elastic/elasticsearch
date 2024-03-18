@@ -24,9 +24,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -46,9 +46,9 @@ import java.util.regex.Pattern;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
-public class RestRequest implements ToXContent.Params {
+public class RestRequest implements ToXContent.Params, Traceable {
 
-    public static final String RESPONSE_RESTRICTED = "responseRestricted";
+    public static final String PATH_RESTRICTED = "pathRestricted";
     // tchar pattern as defined by RFC7230 section 3.2.6
     private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
@@ -499,8 +499,7 @@ public class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        XContent xContent = xContentType.get().xContent();
-        return xContent.createParser(parserConfig, content.streamInput());
+        return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
 
     }
 
@@ -530,7 +529,7 @@ public class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-        return tuple.v1().xContent().createParser(parserConfig, tuple.v2().streamInput());
+        return XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type());
     }
 
     /**
@@ -617,13 +616,18 @@ public class RestRequest implements ToXContent.Params {
         return restApiVersion.isPresent();
     }
 
-    public void markResponseRestricted(String restriction) {
-        if (params.containsKey(RESPONSE_RESTRICTED)) {
-            throw new IllegalArgumentException("The parameter [" + RESPONSE_RESTRICTED + "] is already defined.");
+    public void markPathRestricted(String restriction) {
+        if (params.containsKey(PATH_RESTRICTED)) {
+            throw new IllegalArgumentException("The parameter [" + PATH_RESTRICTED + "] is already defined.");
         }
-        params.put(RESPONSE_RESTRICTED, restriction);
+        params.put(PATH_RESTRICTED, restriction);
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
-        consumedParams.add(RESPONSE_RESTRICTED);
+        consumedParams.add(PATH_RESTRICTED);
+    }
+
+    @Override
+    public String getSpanId() {
+        return "rest-" + getRequestId();
     }
 
     public static class MediaTypeHeaderException extends RuntimeException {

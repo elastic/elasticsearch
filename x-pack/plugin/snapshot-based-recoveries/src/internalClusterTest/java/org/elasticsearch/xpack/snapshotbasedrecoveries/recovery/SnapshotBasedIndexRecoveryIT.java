@@ -70,6 +70,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -695,17 +696,12 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                             }
 
                             @Override
-                            public String getChannelType() {
-                                return channel.getChannelType();
-                            }
-
-                            @Override
                             public void sendResponse(TransportResponse response) {
                                 fail("recovery should not succeed");
                             }
 
                             @Override
-                            public void sendResponse(Exception exception) throws IOException {
+                            public void sendResponse(Exception exception) {
                                 if (exception instanceof DelayRecoveryException) {
                                     channel.sendResponse(exception);
                                 } else {
@@ -716,11 +712,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                                     assert assertShardClosedException(exception);
                                     transportService.getThreadPool().generic().execute(() -> {
                                         safeAwait(readFromBlobRespondLatch);
-                                        try {
-                                            channel.sendResponse(exception);
-                                        } catch (IOException e) {
-                                            fail(e);
-                                        }
+                                        channel.sendResponse(exception);
                                     });
                                 }
                             }
@@ -945,6 +937,10 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/87568",
+        value = "org.elasticsearch.indices.recovery:DEBUG"
+    )
     public void testRecoveryConcurrentlyWithIndexing() throws Exception {
         internalCluster().startDataOnlyNode();
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

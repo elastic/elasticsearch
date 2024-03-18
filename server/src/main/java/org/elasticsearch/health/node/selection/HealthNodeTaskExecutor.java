@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthFeatures;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -70,7 +71,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         FeatureService featureService,
         Settings settings
     ) {
-        super(TASK_NAME, ThreadPool.Names.MANAGEMENT);
+        super(TASK_NAME, clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT));
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.featureService = featureService;
@@ -159,15 +160,17 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         if (event.state().clusterRecovered() && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)) {
             boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
             boolean isElectedMaster = event.localNodeMaster();
-            if (isElectedMaster || healthNodeTaskExists) {
-                clusterService.removeListener(taskStarter);
-            }
             if (isElectedMaster && healthNodeTaskExists == false) {
                 persistentTasksService.sendStartRequest(
                     TASK_NAME,
                     TASK_NAME,
                     new HealthNodeTaskParams(),
+                    null,
                     ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
+                        if (e instanceof NodeClosedException) {
+                            logger.debug("Failed to create health node task because node is shutting down", e);
+                            return;
+                        }
                         Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
                         if (t instanceof ResourceAlreadyExistsException == false) {
                             logger.error("Failed to create the health node task", e);

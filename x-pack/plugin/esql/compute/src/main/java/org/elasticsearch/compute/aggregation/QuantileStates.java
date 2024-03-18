@@ -72,10 +72,6 @@ public final class QuantileStates {
             digest.add(v);
         }
 
-        void add(SingleState other) {
-            digest.add(other.digest);
-        }
-
         void add(BytesRef other) {
             digest.add(deserializeDigest(other));
         }

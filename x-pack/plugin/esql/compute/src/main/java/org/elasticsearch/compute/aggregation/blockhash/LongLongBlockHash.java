@@ -65,7 +65,7 @@ final class LongLongBlockHash extends BlockHash {
 
     private IntVector add(LongVector vector1, LongVector vector2) {
         int positions = vector1.getPositionCount();
-        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(Math.toIntExact(hashOrdToGroup(hash.add(vector1.getLong(i), vector2.getLong(i)))));
             }

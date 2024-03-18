@@ -11,6 +11,14 @@ setup:
           language: de
           is_native: false
           service_type: super-connector
+  - do:
+      connector.put:
+        connector_id: test-connector-detached-index
+        body:
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
 
 ---
 'Create connector sync job':
@@ -29,7 +37,7 @@ setup:
       connector_sync_job.get:
         connector_sync_job_id: $id
 
-  - match: { connector.id: test-connector}
+  - match: { connector.id: test-connector }
   - match: { job_type: full }
   - match: { trigger_method: on_demand }
   - match: { status: pending }
@@ -40,6 +48,106 @@ setup:
   - match: { id: $id }
   - exists: created_at
   - exists: last_seen
+
+---
+'Create connector sync job with filtering':
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          filtering:
+            - active:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: { }
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-SYNC-JOB-TEST
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: [ ]
+                  state: valid
+              domain: DEFAULT
+              draft:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: { }
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-0
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: [ ]
+                  state: valid
+            - active:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: { }
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-1
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: [ ]
+                  state: valid
+              domain: TEST
+              draft:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: { }
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-1
+                    order: 0
+                    policy: exclude
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: [ ]
+                  state: valid
+
+  - match: { result: updated }
+
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set:  { id: id }
+
+  - match: { id: $id }
+
+  - do:
+      connector_sync_job.get:
+        connector_sync_job_id: $id
+
+  - match: { connector.filtering.rules.0.id: RULE-ACTIVE-SYNC-JOB-TEST }
+  - match: { connector.filtering.rules.0.rule: regex }
+  - match: { connector.filtering.validation.state: valid }
+  - match: { connector.filtering.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
 
 ---
 'Create connector sync job with complex connector document':
@@ -187,3 +295,28 @@ setup:
           job_type: full
           trigger_method: invalid_trigger_method
       catch: bad_request
+
+
+---
+'Create connector sync job with no index attached':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector-detached-index
+          job_type: full
+          trigger_method: full
+      catch: bad_request
+
+---
+"Create connector sync job fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand

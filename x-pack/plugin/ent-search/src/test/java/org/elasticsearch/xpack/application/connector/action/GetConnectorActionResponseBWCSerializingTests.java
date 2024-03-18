@@ -9,16 +9,12 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 
-public class GetConnectorActionResponseBWCSerializingTests extends AbstractBWCSerializationTestCase<GetConnectorAction.Response> {
-
-    private Connector connector;
+public class GetConnectorActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<GetConnectorAction.Response> {
 
     @Override
     protected Writeable.Reader<GetConnectorAction.Response> instanceReader() {
@@ -27,18 +23,12 @@ public class GetConnectorActionResponseBWCSerializingTests extends AbstractBWCSe
 
     @Override
     protected GetConnectorAction.Response createTestInstance() {
-        this.connector = ConnectorTestUtils.getRandomConnector();
-        return new GetConnectorAction.Response(this.connector);
+        return new GetConnectorAction.Response(ConnectorTestUtils.getRandomConnectorSearchResult());
     }
 
     @Override
     protected GetConnectorAction.Response mutateInstance(GetConnectorAction.Response instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
-    }
-
-    @Override
-    protected GetConnectorAction.Response doParseInstance(XContentParser parser) throws IOException {
-        return GetConnectorAction.Response.fromXContent(parser, connector.getConnectorId());
     }
 
     @Override

@@ -35,6 +35,7 @@ public final class MultivalueDedupe {
             case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockAdaptive(blockFactory);
             case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockAdaptive(blockFactory);
             case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockAdaptive(blockFactory);
+            case NULL -> block;
             default -> throw new IllegalArgumentException();
         };
     }
@@ -52,6 +53,7 @@ public final class MultivalueDedupe {
             case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
             case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
             case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyMissing(blockFactory);
+            case NULL -> block;
             default -> throw new IllegalArgumentException();
         };
     }
@@ -71,6 +73,7 @@ public final class MultivalueDedupe {
             case INT -> new MultivalueDedupeInt((IntBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
             case LONG -> new MultivalueDedupeLong((LongBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
             case DOUBLE -> new MultivalueDedupeDouble((DoubleBlock) block).dedupeToBlockUsingCopyAndSort(blockFactory);
+            case NULL -> block;
             default -> throw new IllegalArgumentException();
         };
     }
@@ -118,6 +121,9 @@ public final class MultivalueDedupe {
      */
     public static BatchEncoder batchEncoder(Block block, int batchSize, boolean allowDirectEncoder) {
         if (block.areAllValuesNull()) {
+            if (allowDirectEncoder == false) {
+                throw new IllegalArgumentException("null blocks can only be directly encoded");
+            }
             return new BatchEncoder.DirectNulls(block);
         }
         var elementType = block.elementType();

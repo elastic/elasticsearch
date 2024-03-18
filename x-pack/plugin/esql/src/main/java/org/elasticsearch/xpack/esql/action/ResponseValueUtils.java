@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -57,30 +59,63 @@ public final class ResponseValueUtils {
         BytesRef scratch = new BytesRef();
         return Iterators.flatMap(
             pages.iterator(),
-            page -> Iterators.forRange(0, page.getPositionCount(), p -> Iterators.forRange(0, page.getBlockCount(), b -> {
-                Block block = page.getBlock(b);
-                if (block.isNull(p)) {
-                    return null;
-                }
-                /*
-                 * Use the ESQL data type to map to the output to make sure compute engine
-                 * respects its types. See the INTEGER clause where is doesn't always
-                 * respect it.
-                 */
-                int count = block.getValueCount(p);
-                int start = block.getFirstValueIndex(p);
-                String dataType = dataTypes.get(b);
-                if (count == 1) {
-                    return valueAt(dataType, block, start, scratch);
-                }
-                List<Object> thisResult = new ArrayList<>(count);
-                int end = count + start;
-                for (int i = start; i < end; i++) {
-                    thisResult.add(valueAt(dataType, block, i, scratch));
-                }
-                return thisResult;
-            }))
+            page -> Iterators.forRange(
+                0,
+                page.getPositionCount(),
+                pos -> Iterators.forRange(0, page.getBlockCount(), b -> valueAtPosition(page.getBlock(b), pos, dataTypes.get(b), scratch))
+            )
         );
+    }
+
+    /** Returns an iterable of iterables over the values in the given pages. There is one iterables for each row. */
+    static Iterable<Iterable<Object>> valuesForRowsInPages(List<String> dataTypes, List<Page> pages) {
+        BytesRef scratch = new BytesRef();
+        return () -> Iterators.flatMap(pages.iterator(), page -> valuesForRowsInPage(dataTypes, page, scratch));
+    }
+
+    /** Returns an iterable of iterables over the values in the given page. There is one iterables for each row. */
+    static Iterator<Iterable<Object>> valuesForRowsInPage(List<String> dataTypes, Page page, BytesRef scratch) {
+        return Iterators.forRange(0, page.getPositionCount(), position -> valuesForRow(dataTypes, page, position, scratch));
+    }
+
+    /** Returns an iterable over the values in the given row in a page. */
+    static Iterable<Object> valuesForRow(List<String> dataTypes, Page page, int position, BytesRef scratch) {
+        return () -> Iterators.forRange(
+            0,
+            page.getBlockCount(),
+            blockIdx -> valueAtPosition(page.getBlock(blockIdx), position, dataTypes.get(blockIdx), scratch)
+        );
+    }
+
+    /**  Returns an iterator of values for the given column. */
+    static Iterator<Object> valuesForColumn(int columnIndex, String dataType, List<Page> pages) {
+        BytesRef scratch = new BytesRef();
+        return Iterators.flatMap(
+            pages.iterator(),
+            page -> Iterators.forRange(
+                0,
+                page.getPositionCount(),
+                pos -> valueAtPosition(page.getBlock(columnIndex), pos, dataType, scratch)
+            )
+        );
+    }
+
+    /** Returns the value that the position and with the given data type, in the block. */
+    static Object valueAtPosition(Block block, int position, String dataType, BytesRef scratch) {
+        if (block.isNull(position)) {
+            return null;
+        }
+        int count = block.getValueCount(position);
+        int start = block.getFirstValueIndex(position);
+        if (count == 1) {
+            return valueAt(dataType, block, start, scratch);
+        }
+        List<Object> values = new ArrayList<>(count);
+        int end = count + start;
+        for (int i = start; i < end; i++) {
+            values.add(valueAt(dataType, block, i, scratch));
+        }
+        return values;
     }
 
     private static Object valueAt(String dataType, Block block, int offset, BytesRef scratch) {
@@ -100,8 +135,8 @@ public final class ResponseValueUtils {
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
-            case "geo_point" -> GEO.longAsPoint(((LongBlock) block).getLong(offset));
-            case "cartesian_point" -> CARTESIAN.longAsPoint(((LongBlock) block).getLong(offset));
+            case "geo_point", "geo_shape" -> GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
+            case "cartesian_point", "cartesian_shape" -> CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -122,10 +157,10 @@ public final class ResponseValueUtils {
      * Converts a list of values to Pages so that we can parse from xcontent. It's not
      * super efficient, but it doesn't really have to be.
      */
-    static Page valuesToPage(List<ColumnInfo> columns, List<List<Object>> values) {
+    static Page valuesToPage(BlockFactory blockFactory, List<ColumnInfo> columns, List<List<Object>> values) {
         List<String> dataTypes = columns.stream().map(ColumnInfo::type).toList();
         List<Block.Builder> results = dataTypes.stream()
-            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size()))
+            .map(c -> PlannerUtils.toElementType(EsqlDataTypes.fromName(c)).newBlockBuilder(values.size(), blockFactory))
             .toList();
 
         for (List<Object> row : values) {
@@ -160,13 +195,15 @@ public final class ResponseValueUtils {
                             throw new UncheckedIOException(e);
                         }
                     }
-                    case "geo_point" -> {
-                        long longVal = GEO.pointAsLong(GEO.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    case "geo_point", "geo_shape" -> {
+                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                        BytesRef wkb = GEO.wktToWkb(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
-                    case "cartesian_point" -> {
-                        long longVal = CARTESIAN.pointAsLong(CARTESIAN.stringAsPoint(value.toString()));
-                        ((LongBlock.Builder) builder).appendLong(longVal);
+                    case "cartesian_point", "cartesian_shape" -> {
+                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
+                        BytesRef wkb = CARTESIAN.wktToWkb(value.toString());
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));
                 }

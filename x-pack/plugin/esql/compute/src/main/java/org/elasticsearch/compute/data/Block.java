@@ -107,8 +107,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     boolean mayHaveMultivaluedFields();
 
     /**
-     * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
-     * The new block may hold a reference to this block, increasing this block's reference count.
+     * Creates a new block that only exposes the positions provided.
      * @param positions the positions to retain
      * @return a filtered block
      * TODO: pass BlockFactory
@@ -158,25 +157,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * TODO: pass BlockFactory
      */
     Block expand();
-
-    /**
-     * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
-     * @deprecated use {@link BlockFactory#newConstantNullBlock}
-     */
-    // Eventually, this should use the GLOBAL breaking instance
-    @Deprecated
-    static Block constantNullBlock(int positions) {
-        return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    /**
-     * {@return a constant null block with the given number of positions}.
-     * @deprecated use {@link BlockFactory#newConstantNullBlock}
-     */
-    @Deprecated
-    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantNullBlock(positions);
-    }
 
     /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
@@ -259,4 +239,12 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             ConstantNullBlock.ENTRY
         );
     }
+
+    /**
+     * Serialization type for blocks: 0 and 1 replace false/true used in pre-8.14
+     */
+    byte SERIALIZE_BLOCK_VALUES = 0;
+    byte SERIALIZE_BLOCK_VECTOR = 1;
+    byte SERIALIZE_BLOCK_ARRAY = 2;
+    byte SERIALIZE_BLOCK_BIG_ARRAY = 3;
 }

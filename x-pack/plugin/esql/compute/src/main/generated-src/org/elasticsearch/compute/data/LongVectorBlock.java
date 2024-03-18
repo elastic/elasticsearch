@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a LongVector.
+ * Block view of a {@link LongVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class LongVectorBlock extends AbstractVectorBlock implements LongBlock {
@@ -21,7 +21,6 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     LongVectorBlock(LongVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -36,7 +35,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -71,11 +70,6 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
-    }
-
-    @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
     }
 
     @Override

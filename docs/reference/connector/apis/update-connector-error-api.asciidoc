@@ -1,11 +1,10 @@
 [[update-connector-error-api]]
 === Update connector error API
-
-preview::[]
-
 ++++
 <titleabbrev>Update connector error</titleabbrev>
 ++++
+
+preview::[]
 
 Updates the `error` field of a connector.
 

@@ -79,16 +79,13 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     public void testCloseMissingIndex() {
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareClose("test").get());
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareClose("test"));
         assertThat(e.getMessage(), is("no such index [test]"));
     }
 
     public void testCloseOneMissingIndex() {
         createIndex("test1");
-        final IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> indicesAdmin().prepareClose("test1", "test2").get()
-        );
+        final IndexNotFoundException e = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareClose("test1", "test2"));
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
@@ -99,17 +96,14 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     public void testCloseNoIndex() {
-        final ActionRequestValidationException e = expectThrows(
-            ActionRequestValidationException.class,
-            () -> indicesAdmin().prepareClose().get()
-        );
+        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, indicesAdmin().prepareClose());
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
     public void testCloseNullIndex() {
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> indicesAdmin().prepareClose((String[]) null).get()
+            indicesAdmin().prepareClose((String[]) null)
         );
         assertThat(e.getMessage(), containsString("index is missing"));
     }

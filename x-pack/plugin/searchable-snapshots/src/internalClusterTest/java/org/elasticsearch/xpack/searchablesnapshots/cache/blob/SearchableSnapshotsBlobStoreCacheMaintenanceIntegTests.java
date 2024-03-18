@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -329,7 +329,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
     private void refreshSystemIndex(boolean failIfNotExist) {
         try {
-            final RefreshResponse refreshResponse = systemClient().admin()
+            final BroadcastResponse refreshResponse = systemClient().admin()
                 .indices()
                 .prepareRefresh(SNAPSHOT_BLOB_CACHE_INDEX)
                 .setIndicesOptions(failIfNotExist ? RefreshRequest.DEFAULT_INDICES_OPTIONS : IndicesOptions.LENIENT_EXPAND_OPEN)

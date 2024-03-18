@@ -28,14 +28,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class ListQueryRulesetsAction extends ActionType<ListQueryRulesetsAction.Response> {
+public class ListQueryRulesetsAction {
 
-    public static final ListQueryRulesetsAction INSTANCE = new ListQueryRulesetsAction();
     public static final String NAME = "cluster:admin/xpack/query_rules/list";
+    public static final ActionType<ListQueryRulesetsAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public ListQueryRulesetsAction() {
-        super(NAME, ListQueryRulesetsAction.Response::new);
-    }
+    private ListQueryRulesetsAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
         private final PageParams pageParams;

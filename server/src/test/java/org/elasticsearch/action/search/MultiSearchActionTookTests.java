@@ -15,11 +15,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -31,14 +30,12 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -136,9 +133,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         final int availableProcessors = Runtime.getRuntime().availableProcessors();
         AtomicInteger counter = new AtomicInteger();
-        final List<String> threadPoolNames = Arrays.asList(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME);
-        Randomness.shuffle(threadPoolNames);
-        final ExecutorService commonExecutor = threadPool.executor(threadPoolNames.get(0));
+        final Executor commonExecutor = randomExecutor(threadPool);
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
 
         NodeClient client = new NodeClient(settings, threadPool) {
@@ -149,8 +144,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     counter.decrementAndGet();
                     ActionListener.respondAndRelease(
                         listener,
-                        new SearchResponse(
-                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
+                        SearchResponseUtils.emptyWithTotalHits(
                             null,
                             0,
                             0,

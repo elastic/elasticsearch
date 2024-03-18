@@ -38,6 +38,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -45,7 +46,6 @@ import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -148,34 +148,36 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }
                     SearchHits searchHits;
                     if ("null_target".equals(request.preference())) {
-                        searchHits = new SearchHits(
-                            new SearchHit[] { new SearchHit(0) },
+                        searchHits = SearchHits.unpooled(
+                            new SearchHit[] { SearchHit.unpooled(0) },
                             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                             1F
                         );
                     } else {
-                        searchHits = new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+                        searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    InternalSearchResponse response = new InternalSearchResponse(
-                        searchHits,
-                        InternalAggregations.EMPTY,
-                        null,
-                        null,
-                        false,
-                        null,
-                        1
-                    );
-                    SearchResponse searchResponse = new SearchResponse(
-                        response,
-                        null,
-                        1,
-                        1,
-                        0,
-                        100,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    );
-                    channel.sendResponse(searchResponse);
+                    try (
+                        var searchResponseRef = ReleasableRef.of(
+                            new SearchResponse(
+                                searchHits,
+                                InternalAggregations.EMPTY,
+                                null,
+                                false,
+                                null,
+                                null,
+                                1,
+                                null,
+                                1,
+                                1,
+                                0,
+                                100,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            )
+                        )
+                    ) {
+                        channel.sendResponse(searchResponseRef.get());
+                    }
                 }
             );
             newService.registerRequestHandler(

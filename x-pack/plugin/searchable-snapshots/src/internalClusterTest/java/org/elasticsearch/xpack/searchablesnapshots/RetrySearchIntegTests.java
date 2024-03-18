@@ -143,23 +143,18 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         ).keepAlive(TimeValue.timeValueMinutes(2));
         final String pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
         try {
-            assertNoFailuresAndResponse(
-                prepareSearch().setIndices(indexName).setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
-                resp -> {
-                    assertThat(resp.pointInTimeId(), equalTo(pitId));
-                    assertHitCount(resp, docCount);
-                }
-            );
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertThat(resp.pointInTimeId(), equalTo(pitId));
+                assertHitCount(resp, docCount);
+            });
             final Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
             for (String allocatedNode : allocatedNodes) {
                 internalCluster().restartNode(allocatedNode);
             }
             ensureGreen(indexName);
             assertNoFailuresAndResponse(
-                prepareSearch().setIndices(indexName)
-                    .setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
+                prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setPreference(null)
                     .setPreFilterShardSize(between(1, 10))
                     .setAllowPartialSearchResults(true)
                     .setPointInTime(new PointInTimeBuilder(pitId)),

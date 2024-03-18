@@ -410,7 +410,7 @@ public class ApiKeyService {
         ActionListener<CreateApiKeyResponse> listener
     ) {
         final Instant created = clock.instant();
-        final Instant expiration = getApiKeyExpiration(created, request);
+        final Instant expiration = getApiKeyExpiration(created, request.getExpiration());
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         assert ApiKey.Type.CROSS_CLUSTER != request.getType() || API_KEY_SECRET_LENGTH == apiKey.length();
         final Version version = clusterService.state().nodes().getMinNodeVersion();
@@ -743,7 +743,8 @@ public class ApiKeyService {
         final Version targetDocVersion,
         final Authentication authentication,
         final BaseUpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoleDescriptors
+        final Set<RoleDescriptor> userRoleDescriptors,
+        final Clock clock
     ) throws IOException {
         assert currentApiKeyDoc.type == request.getType();
         if (isNoop(apiKeyId, currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
@@ -755,8 +756,13 @@ public class ApiKeyService {
             .field("doc_type", "api_key")
             .field("type", currentApiKeyDoc.type.value())
             .field("creation_time", currentApiKeyDoc.creationTime)
-            .field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime)
             .field("api_key_invalidated", false);
+
+        if (request.getExpiration() != null) {
+            builder.field("expiration_time", getApiKeyExpiration(clock.instant(), request.getExpiration()).toEpochMilli());
+        } else {
+            builder.field("expiration_time", currentApiKeyDoc.expirationTime == -1 ? null : currentApiKeyDoc.expirationTime);
+        }
 
         addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
 
@@ -805,6 +811,11 @@ public class ApiKeyService {
         final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
         if (apiKeyDoc.version != targetDocVersion.id) {
+            return false;
+        }
+
+        if (request.getExpiration() != null) {
+            // Since expiration is relative current time, it's not likely that it matches the stored value to the ms, so assume update
             return false;
         }
 
@@ -968,13 +979,13 @@ public class ApiKeyService {
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                 builder.map(rdMap);
                 try (
-                    XContentParser parser = XContentType.JSON.xContent()
-                        .createParser(
-                            XContentParserConfiguration.EMPTY.withDeprecationHandler(
-                                new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
-                            ),
-                            BytesReference.bytes(builder).streamInput()
-                        )
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY.withDeprecationHandler(
+                            new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId)
+                        ),
+                        BytesReference.bytes(builder),
+                        XContentType.JSON
+                    )
                 ) {
                     return RoleDescriptor.parse(name, parser, false);
                 }
@@ -1280,9 +1291,9 @@ public class ApiKeyService {
         }));
     }
 
-    private static Instant getApiKeyExpiration(Instant now, AbstractCreateApiKeyRequest request) {
-        if (request.getExpiration() != null) {
-            return now.plusSeconds(request.getExpiration().getSeconds());
+    private static Instant getApiKeyExpiration(Instant now, @Nullable TimeValue expiration) {
+        if (expiration != null) {
+            return now.plusSeconds(expiration.getSeconds());
         } else {
             return null;
         }
@@ -1472,7 +1483,8 @@ public class ApiKeyService {
             targetDocVersion,
             authentication,
             request,
-            userRoleDescriptors
+            userRoleDescriptors,
+            clock
         );
         final boolean isNoop = builder == null;
         return isNoop
@@ -1925,7 +1937,6 @@ public class ApiKeyService {
 
     public void queryApiKeys(SearchRequest searchRequest, boolean withLimitedBy, ActionListener<QueryApiKeyResponse> listener) {
         ensureEnabled();
-
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
@@ -1950,7 +1961,7 @@ public class ApiKeyService {
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
                             .map(hit -> convertSearchHitToQueryItem(hit, withLimitedBy))
                             .toList();
-                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
+                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem, searchResponse.getAggregations()));
                     }, listener::onFailure)
                 )
             );
@@ -1992,6 +2003,7 @@ public class ApiKeyService {
             apiKeyDoc.invalidation != -1 ? Instant.ofEpochMilli(apiKeyDoc.invalidation) : null,
             (String) apiKeyDoc.creator.get("principal"),
             (String) apiKeyDoc.creator.get("realm"),
+            (String) apiKeyDoc.creator.get("realm_type"),
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors

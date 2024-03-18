@@ -58,7 +58,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 counts[integer.get()] = result.getDocCount();
                 if (result.getDocCount() > 0) {
                     Avg agg = result.getAggregations().get("avg");
-                    assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), IsFinite.isFinite()));
+                    assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), isFinite()));
                     avgs[integer.get()] = agg.getValue();
                 }
             },
@@ -163,11 +163,11 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private static class IsFinite extends TypeSafeMatcher<Double> {
-        public static Matcher<Double> isFinite() {
-            return new IsFinite();
-        }
+    public static Matcher<Double> isFinite() {
+        return new IsFinite();
+    }
 
+    private static class IsFinite extends TypeSafeMatcher<Double> {
         @Override
         protected boolean matchesSafely(Double item) {
             return Double.isFinite(item);

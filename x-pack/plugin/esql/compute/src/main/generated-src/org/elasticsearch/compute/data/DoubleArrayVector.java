@@ -8,34 +8,58 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
  * Vector implementation that stores an array of double values.
  * This class is generated. Do not edit it.
  */
-public final class DoubleArrayVector extends AbstractVector implements DoubleVector {
+final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
 
     private final double[] values;
 
-    private final DoubleBlock block;
-
-    public DoubleArrayVector(double[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
+    DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new DoubleVectorBlock(this);
+    }
+
+    static DoubleArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        final long preAdjustedBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) positions * Double.BYTES;
+        blockFactory.adjustBreaker(preAdjustedBytes);
+        boolean success = false;
+        try {
+            double[] values = new double[positions];
+            for (int i = 0; i < positions; i++) {
+                values[i] = in.readDouble();
+            }
+            final var block = new DoubleArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - preAdjustedBytes);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeDouble(values[i]);
+        }
     }
 
     @Override
     public DoubleBlock asBlock() {
-        return block;
+        return new DoubleVectorBlock(this);
     }
 
     @Override

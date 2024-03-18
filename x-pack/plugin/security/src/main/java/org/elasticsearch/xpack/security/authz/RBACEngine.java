@@ -39,10 +39,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -398,7 +400,19 @@ public class RBACEngine implements AuthorizationEngine {
                                 .stream()
                                 .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
-                    delegateListener.onResponse(buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup));
+
+                    IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup);
+                    if (requestInfo.getAuthentication().isCrossClusterAccess()
+                        && request instanceof IndicesRequest.RemoteClusterShardRequest shardsRequest
+                        && shardsRequest.shards() != null) {
+                        for (ShardId shardId : shardsRequest.shards()) {
+                            if (shardId != null && shardIdAuthorized(shardsRequest, shardId, result.getIndicesAccessControl()) == false) {
+                                listener.onResponse(IndexAuthorizationResult.DENIED);
+                                return;
+                            }
+                        }
+                    }
+                    delegateListener.onResponse(result);
                 }
             }));
         } else {
@@ -406,8 +420,31 @@ public class RBACEngine implements AuthorizationEngine {
         }
     }
 
+    private static boolean shardIdAuthorized(IndicesRequest request, ShardId shardId, IndicesAccessControl accessControl) {
+        var shardIdAccessPermissions = accessControl.getIndexPermissions(shardId.getIndexName());
+        if (shardIdAccessPermissions != null) {
+            return true;
+        }
+
+        logger.warn(
+            Strings.format(
+                "bad request of type [%s], request's stated indices %s are authorized but specified internal shard "
+                    + "ID %s is not authorized",
+                request.getClass().getCanonicalName(),
+                request.indices(),
+                shardId
+            )
+        );
+        return false;
+    }
+
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {
-        return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        // TODO this may need to change. See https://github.com/elastic/elasticsearch/issues/105598
+        if (transportRequest instanceof IndicesRequest.SingleIndexNoWildcards single) {
+            return single.allowsRemoteIndices();
+        } else {
+            return transportRequest instanceof IndicesRequest.Replaceable replaceable && replaceable.allowsRemoteIndices();
+        }
     }
 
     private static boolean isChildActionAuthorizedByParentOnLocalNode(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
@@ -961,8 +998,9 @@ public class RBACEngine implements AuthorizationEngine {
     private static boolean isAsyncRelatedAction(String action) {
         return action.equals(SubmitAsyncSearchAction.NAME)
             || action.equals(GetAsyncSearchAction.NAME)
-            || action.equals(DeleteAsyncResultAction.NAME)
+            || action.equals(TransportDeleteAsyncResultAction.TYPE.name())
             || action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME)
+            || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_GET_RESULT_ACTION_NAME)
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 

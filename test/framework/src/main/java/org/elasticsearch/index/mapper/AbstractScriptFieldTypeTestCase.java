@@ -10,6 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
@@ -196,6 +198,21 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                 expectThrows(RuntimeException.class, () -> searcher.count(query));
             }
         }
+    }
+
+    @Override
+    public void testFieldHasValue() {
+        assertTrue(getMappedFieldType().fieldHasValue(new FieldInfos(new FieldInfo[] { getFieldInfoWithName(randomAlphaOfLength(5)) })));
+    }
+
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        assertTrue(getMappedFieldType().fieldHasValue(FieldInfos.EMPTY));
+    }
+
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return simpleMappedFieldType();
     }
 
     protected abstract AbstractScriptFieldType<?> build(String error, Map<String, Object> emptyMap, OnScriptError onScriptError);
@@ -423,6 +440,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             }
 
             @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
             public SearchLookup lookup() {
                 return mockContext().lookup();
             }
@@ -435,6 +457,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             @Override
             public String parentField(String field) {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
             }
         };
     }

@@ -1,0 +1,5 @@
+pr: 104077
+summary: Retry updates to model snapshot ID on job config
+area: Machine Learning
+type: bug
+issues: []

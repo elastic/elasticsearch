@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,6 +28,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -246,6 +246,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     )
                 ) {
                     Map<String, Object> source = parser.map();
+                    if (parser.nextToken() != null) {
+                        throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                    }
                     Object expandWildcards = null;
                     Object ignoreUnavailable = null;
                     Object ignoreThrottled = null;
@@ -312,6 +315,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 )
             ) {
                 consumer.accept(searchRequest, parser);
+                if (parser.nextToken() != null) {
+                    throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                }
             }
             // move pointers
             from = nextMarker + 1;
@@ -358,9 +364,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
-            WildcardStates.toXContent(request.indicesOptions().expandWildcards(), xContentBuilder);
-            xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
-            xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
+            request.indicesOptions().wildcardOptions().toXContent(xContentBuilder, true);
+            request.indicesOptions().concreteTargetOptions().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         }
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));

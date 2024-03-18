@@ -1,0 +1,6 @@
+pr: 103807
+summary: "ESQL: Add single value checks on LIKE/RLIKE pushdown"
+area: ES|QL
+type: bug
+issues:
+ - 103806

@@ -62,7 +62,7 @@ Default: Disabled.
 Parameters for `<pruning_config>` are:
 
 `tokens_freq_ratio_threshold`::
-(Optional, float)
+(Optional, integer)
 preview:[]
 Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned.
 This value must between 1 and 100.
@@ -110,29 +110,104 @@ GET my-index/_search
 ----
 // TEST[skip: TBD]
 
-[discrete]
-[[text-expansion-query-with-pruning-config-example]]
-=== Example ELSER query with pruning configuration
+Multiple `text_expansion` queries can be combined with each other or other query types.
+This can be achieved by wrapping them in <<query-dsl-bool-query, boolean query clauses>> and using linear boosting:
 
-The following is an extension to the above example that adds a preview:[] pruning configuration to the `text_expansion` query.
-The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.
 [source,console]
 ----
 GET my-index/_search
 {
-   "query":{
-      "text_expansion":{
-         "ml.tokens":{
-            "model_id":".elser_model_2",
-            "model_text":"How is the weather in Jamaica?"
-         },
-         "pruning_config": {
-             "tokens_freq_ratio_threshold": 5,
-             "tokens_weight_threshold": 0.4,
-             "only_score_pruned_tokens": false
-         }
-      }
-   }
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "text_expansion": {
+            "ml.inference.title_expanded.predicted_value": {
+              "model_id": ".elser_model_2",
+              "model_text": "How is the weather in Jamaica?",
+              "boost": 1
+            }
+          }
+        },
+        {
+          "text_expansion": {
+            "ml.inference.description_expanded.predicted_value": {
+              "model_id": ".elser_model_2",
+              "model_text": "How is the weather in Jamaica?",
+              "boost": 1
+            }
+          }
+        },
+        {
+          "multi_match": {
+            "query": "How is the weather in Jamaica?",
+            "fields": [
+              "title",
+              "description"
+            ],
+            "boost": 4
+          }
+        }
+      ]
+    }
+  }
+}
+----
+// TEST[skip: TBD]
+
+This can also be achieved using <<rrf, reciprocal rank fusion (RRF)>>,
+through an <<rrf-retriever, `rrf` retriever>> with multiple
+<<standard-retriever, `standard` retrievers>>.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "retriever": {
+    "rrf": {
+      "retrievers": [
+        {
+          "standard": {
+            "query": {
+              "multi_match": {
+                "query": "How is the weather in Jamaica?",
+                "fields": [
+                  "title",
+                  "description"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "standard": {
+            "query": {
+              "text_expansion": {
+                "ml.inference.title_expanded.predicted_value": {
+                  "model_id": ".elser_model_2",
+                  "model_text": "How is the weather in Jamaica?"
+                }
+              }
+            }
+          }
+        },
+        {
+          "standard": {
+            "query": {
+              "text_expansion": {
+                "ml.inference.description_expanded.predicted_value": {
+                  "model_id": ".elser_model_2",
+                  "model_text": "How is the weather in Jamaica?"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "window_size": 10,
+      "rank_constant": 20
+    }
+  }
 }
 ----
 // TEST[skip: TBD]
@@ -141,9 +216,13 @@ GET my-index/_search
 [[text-expansion-query-with-pruning-config-and-rescore-example]]
 === Example ELSER query with pruning configuration and rescore
 
-The following is an extension to the above example that adds a <<rescore>> function on top of the preview:[] pruning configuration to the `text_expansion` query.
+The following is an extension to the above example that adds a preview:[] pruning configuration to the `text_expansion` query.
 The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.
-Rescoring the query with the tokens that were originally pruned from the query may improve overall search relevance when using this pruning strategy.
+
+Token pruning happens at the shard level.
+While this should result in the same tokens being labeled as insignificant across shards, this is not guaranteed based on the composition of each shard.
+Therefore, if you are running `text_expansion` with a `pruning_config` on a multi-shard index, we strongly recommend adding a <<rescore>> function with the tokens that were originally pruned from the query.
+This will help mitigate any shard-level inconsistency with pruned tokens and provide better relevance overall.
 
 [source,console]
 ----
@@ -174,7 +253,7 @@ GET my-index/_search
                "pruning_config": {
                   "tokens_freq_ratio_threshold": 5,
                   "tokens_weight_threshold": 0.4,
-                  "only_score_pruned_tokens": false
+                  "only_score_pruned_tokens": true
                }
             }
          }
@@ -188,30 +267,3 @@ GET my-index/_search
 ====
 Depending on your data, the text expansion query may be faster with `track_total_hits: false`.
 ====
-
-[discrete]
-[[weighted-tokens-query-example]]
-=== Example Weighted token query
-
-In order to quickly iterate during tests, we exposed a new preview:[] `weighted_tokens` query for evaluation of tokenized datasets.
-While this is not a query that is intended for production use, it can be used to quickly evaluate relevance using various pruning configurations.
-
-[source,console]
-----
-POST /docs/_search
-{
-  "query": {
-    "weighted_tokens": {
-      "query_expansion": {
-        "tokens": {"2161": 0.4679, "2621": 0.307, "2782": 0.1299, "2851": 0.1056, "3088": 0.3041, "3376": 0.1038, "3467": 0.4873, "3684": 0.8958, "4380": 0.334, "4542": 0.4636, "4633": 2.2805, "4785": 1.2628, "4860": 1.0655, "5133": 1.0709, "7139": 1.0016, "7224": 0.2486, "7387": 0.0985, "7394": 0.0542, "8915": 0.369, "9156": 2.8947, "10505": 0.2771, "11464": 0.3996, "13525": 0.0088, "14178": 0.8161, "16893": 0.1376, "17851": 1.5348, "19939": 0.6012},
-        "pruning_config": {
-          "tokens_freq_ratio_threshold": 5,
-          "tokens_weight_threshold": 0.4,
-          "only_score_pruned_tokens": false
-        }
-      }
-    }
-  }
-}
-----
-//TEST[skip: TBD]

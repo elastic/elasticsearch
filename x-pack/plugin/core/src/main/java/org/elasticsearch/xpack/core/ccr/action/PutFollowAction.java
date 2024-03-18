@@ -37,7 +37,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
     public static final String NAME = "indices:admin/xpack/ccr/put_follow";
 
     private PutFollowAction() {
-        super(NAME, PutFollowAction.Response::new);
+        super(NAME);
     }
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {

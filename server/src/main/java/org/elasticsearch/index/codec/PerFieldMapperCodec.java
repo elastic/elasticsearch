@@ -19,14 +19,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 /**
@@ -44,6 +41,8 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final ES87TSDBDocValuesFormat tsdbDocValuesFormat;
 
+    private final ES812PostingsFormat es812PostingsFormat;
+
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMapperCodec.class)
             : "PerFieldMapperCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
@@ -54,6 +53,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.tsdbDocValuesFormat = new ES87TSDBDocValuesFormat();
+        this.es812PostingsFormat = new ES812PostingsFormat();
     }
 
     @Override
@@ -69,7 +69,8 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         if (format != null) {
             return format;
         }
-        return super.getPostingsFormatForField(field);
+        // return our own posting format using PFOR
+        return es812PostingsFormat;
     }
 
     boolean useBloomFilter(String field) {
@@ -105,33 +106,21 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
     }
 
     boolean useTSDBDocValuesFormat(final String field) {
-        return mapperService.getIndexSettings().isES87TSDBCodecEnabled()
-            && isTimeSeriesModeIndex()
-            && isNotSpecialField(field)
-            && (isCounterOrGaugeMetricType(field) || isTimestampField(field));
+        if (excludeFields(field)) {
+            return false;
+        }
+
+        return mapperService != null && isTimeSeriesModeIndex() && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
+    }
+
+    private boolean excludeFields(String fieldName) {
+        // Avoid using tsdb codec for fields like _seq_no, _primary_term.
+        // But _tsid and _ts_routing_hash should always use the tsdb codec.
+        return fieldName.startsWith("_") && fieldName.equals("_tsid") == false && fieldName.equals("_ts_routing_hash") == false;
     }
 
     private boolean isTimeSeriesModeIndex() {
-        return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
+        return IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
     }
 
-    private boolean isCounterOrGaugeMetricType(String field) {
-        if (mapperService != null) {
-            final MappingLookup mappingLookup = mapperService.mappingLookup();
-            if (mappingLookup.getMapper(field) instanceof NumberFieldMapper) {
-                final MappedFieldType fieldType = mappingLookup.getFieldType(field);
-                return TimeSeriesParams.MetricType.COUNTER.equals(fieldType.getMetricType())
-                    || TimeSeriesParams.MetricType.GAUGE.equals(fieldType.getMetricType());
-            }
-        }
-        return false;
-    }
-
-    private static boolean isTimestampField(String field) {
-        return "@timestamp".equals(field);
-    }
-
-    private static boolean isNotSpecialField(String field) {
-        return field.startsWith("_") == false;
-    }
 }

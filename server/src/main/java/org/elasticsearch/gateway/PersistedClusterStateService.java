@@ -69,6 +69,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersion;
@@ -377,7 +378,8 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
-        return new NodeMetadata(nodeId, version, oldestIndexVersion);
+        // TODO: remove use of Version here (ES-7343)
+        return new NodeMetadata(nodeId, BuildVersion.fromVersionId(version.id()), oldestIndexVersion);
     }
 
     /**
@@ -439,6 +441,10 @@ public class PersistedClusterStateService {
                                 PrintStream printStream = new PrintStream(outputStream, true, StandardCharsets.UTF_8);
                                 CheckIndex checkIndex = new CheckIndex(directory)
                             ) {
+                                // Setting thread count to 1 prevents Lucene from starting disposable threads to execute the check and runs
+                                // the check on this thread which is potentially faster for a small index like the cluster state and saves
+                                // resources during test execution
+                                checkIndex.setThreadCount(1);
                                 checkIndex.setInfoStream(printStream);
                                 checkIndex.setChecksumsOnly(true);
                                 isClean = checkIndex.checkIndex().clean;

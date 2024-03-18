@@ -321,7 +321,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertThat("moshe", equalTo(request.message));
                 try {
                     channel.sendResponse(new StringMessageResponse("hello " + request.message));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.error("Unexpected failure", e);
                     fail(e.getMessage());
                 }
@@ -340,7 +340,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return threadPool.generic();
                 }
 
@@ -371,7 +371,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return threadPool.generic();
             }
 
@@ -408,7 +408,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     StringMessageResponse response = new StringMessageResponse("pong");
                     threadPool.getThreadContext().putHeader("test.pong.user", "pong_user");
                     channel.sendResponse(response);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.error("Unexpected failure", e);
                     fail(e.getMessage());
                 }
@@ -423,7 +423,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return threadPool.executor(executor);
             }
 
@@ -467,7 +467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             (request, channel, task) -> {
                 try {
                     channel.sendResponse(new StringMessageResponse(request.message));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     exception.set(e);
                 }
             }
@@ -497,7 +497,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return threadPool.generic();
                 }
             }
@@ -515,7 +515,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 } else {
                     channel.sendResponse(new ElasticsearchException("simulated"));
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.error("Unexpected failure", e);
                 fail(e.getMessage());
             }
@@ -646,7 +646,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 (request, channel, task) -> {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         logger.error("Unexpected failure", e);
                         fail(e.getMessage());
                     }
@@ -675,7 +675,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return threadPool.generic();
                     }
 
@@ -703,7 +703,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     assertThat("moshe", equalTo(request.message));
                     try {
                         channel.sendResponse(new StringMessageResponse("hello " + request.message));
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         logger.error("Unexpected failure", e);
                         fail(e.getMessage());
                     }
@@ -732,7 +732,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return threadPool.generic();
                     }
 
@@ -762,7 +762,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertThat(text, equalTo(request.message));
                 try {
                     channel.sendResponse(new StringMessageResponse(""));
-                } catch (IOException e) {
+                } catch (Exception e) {
                     logger.error("Unexpected failure", e);
                     fail(e.getMessage());
                 }
@@ -798,7 +798,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return threadPool.generic();
                 }
 
@@ -862,7 +862,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return threadPool.generic();
                 }
 
@@ -928,19 +928,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testConcurrentSendRespondAndDisconnect() throws BrokenBarrierException, InterruptedException {
         Set<Exception> sendingErrors = ConcurrentCollections.newConcurrentSet();
         Set<Exception> responseErrors = ConcurrentCollections.newConcurrentSet();
-        serviceA.registerRequestHandler(
-            "internal:test",
-            threadPool.executor(randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC),
-            TestRequest::new,
-            (request, channel, task) -> {
-                try {
-                    channel.sendResponse(new TestResponse((String) null));
-                } catch (Exception e) {
-                    logger.info("caught exception while responding", e);
-                    responseErrors.add(e);
-                }
+        serviceA.registerRequestHandler("internal:test", randomExecutor(threadPool), TestRequest::new, (request, channel, task) -> {
+            try {
+                channel.sendResponse(new TestResponse((String) null));
+            } catch (Exception e) {
+                logger.info("caught exception while responding", e);
+                responseErrors.add(e);
             }
-        );
+        });
         final TransportRequestHandler<TestRequest> ignoringRequestHandler = (request, channel, task) -> {
             try {
                 channel.sendResponse(new TestResponse((String) null));
@@ -1120,7 +1115,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return threadPool.generic();
                 }
 
@@ -1161,7 +1156,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                     try {
                         channel.sendResponse(new StringMessageResponse("hello " + request.message));
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         logger.error("Unexpected failure", e);
                         fail(e.getMessage());
                     }
@@ -1187,7 +1182,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return threadPool.generic();
                 }
 
@@ -1226,7 +1221,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return threadPool.generic();
                     }
 
@@ -1281,7 +1276,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -1649,7 +1644,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -1697,7 +1692,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -1750,7 +1745,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -1801,7 +1796,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -1846,7 +1841,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return threadPool.generic();
                 }
 
@@ -1903,7 +1898,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return threadPool.generic();
                 }
 
@@ -1949,7 +1944,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -2006,7 +2001,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         }
 
                         @Override
-                        public Executor executor(ThreadPool threadPool) {
+                        public Executor executor() {
                             return TransportResponseHandler.TRANSPORT_WORKER;
                         }
 
@@ -2041,7 +2036,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         }
 
                         @Override
-                        public Executor executor(ThreadPool threadPool) {
+                        public Executor executor() {
                             return TransportResponseHandler.TRANSPORT_WORKER;
                         }
 
@@ -2213,7 +2208,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             }
 
                             @Override
-                            public Executor executor(ThreadPool threadPool) {
+                            public Executor executor() {
                                 return executor;
                             }
                         }
@@ -2225,30 +2220,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             }
         }
-        serviceB.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            new TestRequestHandler(serviceB)
-        );
-        serviceC.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            new TestRequestHandler(serviceC)
-        );
-        serviceA.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            new TestRequestHandler(serviceA)
-        );
+        serviceB.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, new TestRequestHandler(serviceB));
+        serviceC.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, new TestRequestHandler(serviceC));
+        serviceA.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, new TestRequestHandler(serviceA));
         int iters = randomIntBetween(30, 60);
         CountDownLatch allRequestsDone = new CountDownLatch(iters);
         class TestResponseHandler implements TransportResponseHandler<TestResponse> {
 
             private final int id;
-            private final String executor = randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+            private final Executor executor = randomExecutor(threadPool);
 
             TestResponseHandler(int id) {
                 this.id = id;
@@ -2276,8 +2256,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
-                return threadPool.executor(executor);
+            public Executor executor() {
+                return executor;
             }
         }
 
@@ -2311,19 +2291,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testRegisterHandlerTwice() {
-        serviceB.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            (request, message, task) -> {
-                throw new AssertionError("boom");
-            }
-        );
+        serviceB.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, (request, message, task) -> {
+            throw new AssertionError("boom");
+        });
         expectThrows(
             IllegalArgumentException.class,
             () -> serviceB.registerRequestHandler(
                 "internal:action1",
-                threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
+                randomExecutor(threadPool),
                 TestRequest::new,
                 (request, message, task) -> {
                     throw new AssertionError("boom");
@@ -2331,14 +2306,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             )
         );
 
-        serviceA.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            (request, message, task) -> {
-                throw new AssertionError("boom");
-            }
-        );
+        serviceA.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, (request, message, task) -> {
+            throw new AssertionError("boom");
+        });
     }
 
     public void testHandshakeWithIncompatVersion() {
@@ -2585,7 +2555,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return threadPool.executor(executor);
             }
         };
@@ -2638,7 +2608,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return threadPool.executor(randomFrom(executors));
             }
         };
@@ -2677,11 +2647,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override
@@ -2696,7 +2662,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch responseLatch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -2749,11 +2715,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override
@@ -2768,7 +2730,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch responseLatch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -2866,11 +2828,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(e);
-                        } catch (IOException e1) {
-                            throw new UncheckedIOException(e1);
-                        }
+                        channel.sendResponse(e);
                     }
 
                     @Override
@@ -2886,7 +2844,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         AtomicReference<TransportException> receivedException = new AtomicReference<>(null);
         TransportResponseHandler<TransportResponse.Empty> transportResponseHandler = new TransportResponseHandler.Empty() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -3461,7 +3419,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -3550,7 +3508,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final TransportResponseHandler<T> futureHandler = new ActionListenerResponseHandler<>(
             responseListener,
             handler,
-            handler.executor(transportService.threadPool)
+            handler.executor()
         );
         responseListener.addListener(ActionListener.wrap(handler::handleResponse, e -> handler.handleException((TransportException) e)));
         final PlainActionFuture<T> future = new PlainActionFuture<>();

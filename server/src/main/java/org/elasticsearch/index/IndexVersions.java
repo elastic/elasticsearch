@@ -9,6 +9,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.UpdateForV9;
 
@@ -21,6 +22,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.IntFunction;
 
 @SuppressWarnings("deprecation")
 public class IndexVersions {
@@ -94,7 +96,13 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_LUCENE_9_9 = def(8_500_006, Version.LUCENE_9_9_0);
     public static final IndexVersion NORI_DUPLICATES = def(8_500_007, Version.LUCENE_9_9_0);
     public static final IndexVersion UPGRADE_LUCENE_9_9_1 = def(8_500_008, Version.LUCENE_9_9_1);
-    public static final IndexVersion ES_VERSION_8_13 = def(8_500_009, Version.LUCENE_9_9_1);
+    public static final IndexVersion ES_VERSION_8_12_1 = def(8_500_009, Version.LUCENE_9_9_1);
+    public static final IndexVersion UPGRADE_8_12_1_LUCENE_9_9_2 = def(8_500_010, Version.LUCENE_9_9_2);
+    public static final IndexVersion NEW_INDEXVERSION_FORMAT = def(8_501_00_0, Version.LUCENE_9_9_1);
+    public static final IndexVersion UPGRADE_LUCENE_9_9_2 = def(8_502_00_0, Version.LUCENE_9_9_2);
+    public static final IndexVersion TIME_SERIES_ID_HASHING = def(8_502_00_1, Version.LUCENE_9_9_2);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_10 = def(8_503_00_0, Version.LUCENE_9_10_0);
+    public static final IndexVersion TIME_SERIES_ROUTING_HASH_IN_ID = def(8_504_00_0, Version.LUCENE_9_10_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -107,18 +115,46 @@ public class IndexVersions {
      * A new index version should be added EVERY TIME a change is made to index metadata or data storage.
      * Each index version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_11_0).
      *
-     * To add a new index version, add a new constant at the bottom of the list, above this comment, which is one greater than the
-     * current highest version id. Use a descriptive constant name. Don't add other lines, comments, etc.
+     * ADDING AN INDEX VERSION
+     * To add a new index version, add a new constant at the bottom of the list, above this comment. Don't add other lines,
+     * comments, etc. The version id has the following layout:
+     *
+     * M_NNN_SS_P
+     *
+     * M - The major version of Elasticsearch
+     * NNN - The server version part
+     * SS - The serverless version part. It should always be 00 here, it is used by serverless only.
+     * P - The patch version part
+     *
+     * To determine the id of the next IndexVersion constant, do the following:
+     * - Use the same major version, unless bumping majors
+     * - Bump the server version part by 1, unless creating a patch version
+     * - Leave the serverless part as 00
+     * - Bump the patch part if creating a patch version
+     *
+     * If a patch version is created, it should be placed sorted among the other existing constants.
      *
      * REVERTING AN INDEX VERSION
      *
      * If you revert a commit with an index version change, you MUST ensure there is a NEW index version representing the reverted
      * change. DO NOT let the index version go backwards, it must ALWAYS be incremented.
      *
-     * DETERMINING TRANSPORT VERSIONS FROM GIT HISTORY
+     * DETERMINING INDEX VERSIONS FROM GIT HISTORY
      *
-     * TODO after the release of v8.11.0, copy the instructions about using git to track the history of versions from TransportVersion.java
-     * (the example commands won't make sense until at least 8.11.0 is released)
+     * If your git checkout has the expected minor-version-numbered branches and the expected release-version tags then you can find the
+     * index versions known by a particular release ...
+     *
+     *     git show v8.12.0:server/src/main/java/org/elasticsearch/index/IndexVersions.java | grep '= def'
+     *
+     * ... or by a particular branch ...
+     *
+     *     git show 8.12:server/src/main/java/org/elasticsearch/index/IndexVersions.java | grep '= def'
+     *
+     * ... and you can see which versions were added in between two versions too ...
+     *
+     *     git diff v8.12.0..main -- server/src/main/java/org/elasticsearch/index/IndexVersions.java
+     *
+     * In branches 8.7-8.11 see server/src/main/java/org/elasticsearch/index/IndexVersion.java for the equivalent definitions.
      */
 
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
@@ -175,4 +211,9 @@ public class IndexVersions {
     static Collection<IndexVersion> getAllVersions() {
         return VERSION_IDS.values();
     }
+
+    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+
+    // no instance
+    private IndexVersions() {}
 }

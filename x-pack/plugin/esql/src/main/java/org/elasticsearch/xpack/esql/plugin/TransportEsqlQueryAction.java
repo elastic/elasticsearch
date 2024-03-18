@@ -28,7 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -63,6 +63,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
 
     @Inject
+    @SuppressWarnings("this-escape")
     public TransportEsqlQueryAction(
         TransportService transportService,
         ActionFilters actionFilters,
@@ -81,7 +82,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
-        this.requestExecutor = threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
+        this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
@@ -113,7 +114,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        listener = listener.delegateFailureAndWrap(ActionListener::respondAndRelease);
+        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        requestExecutor.execute(
+            ActionRunnable.wrap(
+                listener.<EsqlQueryResponse>delegateFailureAndWrap(ActionListener::respondAndRelease),
+                l -> doExecuteForked(task, request, l)
+            )
+        );
+    }
+
+    private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (requestIsAsync(request)) {
             asyncTaskManagementService.asyncExecute(
                 request,
@@ -123,17 +134,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 listener
             );
         } else {
-            // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-            requestExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, l)));
+            innerExecute(task, request, listener);
         }
     }
 
     @Override
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
-        doExecuteForked(task, request, listener);
+        ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 
-    private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+    private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         EsqlConfiguration configuration = new EsqlConfiguration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -166,7 +176,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                         EsqlQueryResponse.Profile profile = configuration.profile()
                             ? new EsqlQueryResponse.Profile(result.profiles())
                             : null;
-                        return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
+                        if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
+                            String id = asyncTask.getExecutionId().getEncoded();
+                            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), id, false, request.async());
+                        } else {
+                            return new EsqlQueryResponse(columns, result.pages(), profile, request.columnar(), request.async());
+                        }
                     })
                 )
             )

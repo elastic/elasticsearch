@@ -12,17 +12,20 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestEsqlAsyncQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlAsyncQueryAction.class);
 
@@ -40,7 +43,7 @@ public class RestEsqlAsyncQueryAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         EsqlQueryRequest esqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            esqlRequest = EsqlQueryRequest.fromXContentAsync(parser);
+            esqlRequest = RequestXContent.parseAsync(parser);
         }
 
         LOGGER.info("Beginning execution of ESQL async query.\nQuery string: [{}]", esqlRequest.query());
@@ -57,6 +60,6 @@ public class RestEsqlAsyncQueryAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Collections.singleton(URL_PARAM_DELIMITER);
+        return Set.of(URL_PARAM_DELIMITER, DROP_NULL_COLUMNS_OPTION);
     }
 }

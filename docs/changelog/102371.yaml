@@ -1,0 +1,5 @@
+pr: 102371
+summary: Adding threadpool metrics
+area: Infra/Core
+type: enhancement
+issues: []

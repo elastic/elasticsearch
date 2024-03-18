@@ -32,8 +32,10 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -50,6 +52,29 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelId;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
+
+    public enum AllowedFieldType {
+        RANK_FEATURES("rank_features"),
+        SPARSE_VECTOR("sparse_vector");
+
+        private final String typeName;
+
+        AllowedFieldType(String typeName) {
+            this.typeName = typeName;
+        }
+
+        public String getTypeName() {
+            return typeName;
+        }
+
+        public static boolean isFieldTypeAllowed(String typeName) {
+            return Arrays.stream(values()).anyMatch(value -> value.typeName.equals(typeName));
+        }
+
+        public static String getAllowedFieldTypesAsString() {
+            return Arrays.stream(values()).map(value -> value.typeName).collect(Collectors.joining(", "));
+        }
+    }
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         this(fieldName, modelText, modelId, null);
@@ -139,12 +164,12 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (weightedTokensSupplier != null) {
             if (weightedTokensSupplier.get() == null) {
                 return this;
             }
-            return weightedTokensToQuery(fieldName, weightedTokensSupplier.get(), queryRewriteContext);
+            return weightedTokensToQuery(fieldName, weightedTokensSupplier.get());
         }
 
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
@@ -158,8 +183,8 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
 
         SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction((client, listener) -> {
-            executeAsyncWithOrigin(
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
                 CoordinatedInferenceAction.INSTANCE,
@@ -190,17 +215,13 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
                         );
                     }
                 }, listener::onFailure)
-            );
-        });
+            )
+        );
 
         return new TextExpansionQueryBuilder(this, textExpansionResultsSupplier);
     }
 
-    private QueryBuilder weightedTokensToQuery(
-        String fieldName,
-        TextExpansionResults textExpansionResults,
-        QueryRewriteContext queryRewriteContext
-    ) {
+    private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
         if (tokenPruningConfig != null) {
             WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
                 fieldName,
@@ -211,13 +232,16 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
             weightedTokensQueryBuilder.boost(boost);
             return weightedTokensQueryBuilder;
         }
+        // Note: Weighted tokens queries were introduced in 8.13.0. To support mixed version clusters prior to 8.13.0,
+        // if no token pruning configuration is specified we fall back to a boolean query.
+        // TODO this should be updated to always use a WeightedTokensQueryBuilder once it's in all supported versions.
         var boolQuery = QueryBuilders.boolQuery();
         for (var weightedToken : textExpansionResults.getWeightedTokens()) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
-        boolQuery.boost(this.boost);
-        boolQuery.queryName(this.queryName);
+        boolQuery.boost(boost);
+        boolQuery.queryName(queryName);
         return boolQuery;
     }
 

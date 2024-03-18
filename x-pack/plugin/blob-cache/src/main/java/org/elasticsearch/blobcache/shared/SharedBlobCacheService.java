@@ -1006,7 +1006,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
-            assert assertOffsetsWithinFileLength(rangeToWrite.start(), rangeToWrite.length(), length);
+            // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
+            assert rangeToWrite.start() >= 0 : rangeToWrite;
             assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.

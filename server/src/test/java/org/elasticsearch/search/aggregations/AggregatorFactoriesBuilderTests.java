@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -126,6 +127,42 @@ public class AggregatorFactoriesBuilderTests extends AbstractXContentSerializing
         assertFalse(builder1.equals(builder2));
         assertFalse(builder2.equals(builder1));
         assertNotEquals(builder1.hashCode(), builder2.hashCode());
+    }
+
+    public void testForceExcludedDocs() {
+        // simple
+        AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+        TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("myterms");
+        builder.addAggregator(termsAggregationBuilder);
+        assertFalse(termsAggregationBuilder.excludeDeletedDocs());
+        assertFalse(builder.hasZeroMinDocTermsAggregation());
+        termsAggregationBuilder.minDocCount(0);
+        assertTrue(builder.hasZeroMinDocTermsAggregation());
+        builder.forceTermsAggsToExcludeDeletedDocs();
+        assertTrue(termsAggregationBuilder.excludeDeletedDocs());
+
+        // nested
+        AggregatorFactories.Builder nested = new AggregatorFactories.Builder();
+        boolean hasZeroMinDocTermsAggregation = false;
+        for (int i = 0; i <= randomIntBetween(1, 10); i++) {
+            AggregationBuilder agg = getRandomAggregation();
+            nested.addAggregator(agg);
+            if (randomBoolean()) {
+                hasZeroMinDocTermsAggregation = true;
+                agg.subAggregation(termsAggregationBuilder);
+            }
+        }
+        if (hasZeroMinDocTermsAggregation) {
+            assertTrue(nested.hasZeroMinDocTermsAggregation());
+            nested.forceTermsAggsToExcludeDeletedDocs();
+            for (AggregationBuilder agg : nested.getAggregatorFactories()) {
+                if (agg instanceof TermsAggregationBuilder) {
+                    assertTrue(((TermsAggregationBuilder) agg).excludeDeletedDocs());
+                }
+            }
+        } else {
+            assertFalse(nested.hasZeroMinDocTermsAggregation());
+        }
     }
 
     private static AggregationBuilder getRandomAggregation() {

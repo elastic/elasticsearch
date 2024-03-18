@@ -55,6 +55,7 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
             case SERIALIZE_BLOCK_VALUES -> DoubleBlock.readValues(in);
             case SERIALIZE_BLOCK_VECTOR -> DoubleVector.readFrom(in.blockFactory(), in).asBlock();
             case SERIALIZE_BLOCK_ARRAY -> DoubleArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> DoubleBigArrayBlock.readArrayBlock(in.blockFactory(), in);
             default -> {
                 assert false : "invalid block serialization type " + serializationType;
                 throw new IllegalStateException("invalid serialization type " + serializationType);
@@ -90,6 +91,9 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
             vector.writeTo(out);
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof DoubleArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof DoubleBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {
             out.writeByte(SERIALIZE_BLOCK_VALUES);

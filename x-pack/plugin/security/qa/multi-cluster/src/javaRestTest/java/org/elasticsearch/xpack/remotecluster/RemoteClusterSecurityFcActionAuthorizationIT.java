@@ -70,6 +70,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.remotecluster.AbstractRemoteClusterSecurityTestCase.PASS;
@@ -181,7 +182,12 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos, hasSize(1));
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
 
-            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient("my_remote_cluster", threadPool.generic());
+            Executor responseExecutor = threadPool.generic();
+            final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                "my_remote_cluster",
+                responseExecutor,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+            );
 
             // Creating a restore session fails if index is not accessible
             final ShardId privateShardId = new ShardId("private-index", privateIndexUUID, 0);
@@ -326,7 +332,8 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 "my_remote_cluster",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
             );
 
             final ElasticsearchSecurityException e = expectThrows(
@@ -399,7 +406,8 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
             final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                 "my_remote_cluster",
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
             );
 
             // 1. Not accessible because API key does not grant the access
@@ -513,8 +521,12 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
                 () -> executeRemote(
-                    remoteClusterService.getRemoteClusterClient("my_remote_cluster", threadPool.generic()),
-                    new RemoteClusterActionType<GetResponse>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
+                    remoteClusterService.getRemoteClusterClient(
+                        "my_remote_cluster",
+                        threadPool.generic(),
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    ),
+                    new RemoteClusterActionType<>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
                     malformedGetRequest
                 )
             );

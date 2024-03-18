@@ -42,6 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
@@ -123,7 +124,11 @@ public class CcrLicenseChecker {
         final Consumer<Exception> onFailure,
         final BiConsumer<String[], Tuple<IndexMetadata, DataStream>> consumer
     ) {
-        final var remoteClient = client.getRemoteClusterClient(clusterAlias, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME));
+        final var remoteClient = client.getRemoteClusterClient(
+            clusterAlias,
+            client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME),
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         checkRemoteClusterLicenseAndFetchClusterState(
             client,
             clusterAlias,
@@ -199,7 +204,11 @@ public class CcrLicenseChecker {
         try {
             var remoteClient = systemClient(
                 client.threadPool().getThreadContext(),
-                client.getRemoteClusterClient(clusterAlias, client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME))
+                client.getRemoteClusterClient(
+                    clusterAlias,
+                    client.threadPool().executor(Ccr.CCR_THREAD_POOL_NAME),
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                )
             );
             checkRemoteClusterLicenseAndFetchClusterState(
                 client,

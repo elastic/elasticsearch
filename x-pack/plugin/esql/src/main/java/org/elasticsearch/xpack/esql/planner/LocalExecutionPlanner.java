@@ -460,13 +460,15 @@ public class LocalExecutionPlanner {
         if (enrichIndex == null) {
             throw new EsqlIllegalArgumentException("No concrete enrich index for cluster [" + clusterAlias + "]");
         }
+        Layout.ChannelAndType input = source.layout.get(enrich.matchField().id());
         return source.with(
             new EnrichLookupOperator.Factory(
                 sessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
-                source.layout.get(enrich.matchField().id()).channel(),
+                input.channel(),
                 enrichLookupService,
+                input.type(),
                 enrichIndex,
                 enrich.matchType(),
                 enrich.policyMatchField(),

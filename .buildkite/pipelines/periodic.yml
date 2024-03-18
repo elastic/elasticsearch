@@ -1271,7 +1271,6 @@ steps:
               - checkPart1
               - checkPart2
               - checkPart3
-              - bwcTestSnapshots
               - checkRestCompat
         agents:
           provider: gcp

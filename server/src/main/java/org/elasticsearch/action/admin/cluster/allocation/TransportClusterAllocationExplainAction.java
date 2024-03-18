@@ -66,6 +66,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     ) {
         super(
             TYPE.name(),
+            false,
             transportService,
             clusterService,
             threadPool,

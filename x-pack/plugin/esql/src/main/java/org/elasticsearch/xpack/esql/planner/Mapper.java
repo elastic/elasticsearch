@@ -149,6 +149,7 @@ public class Mapper {
                 enrich.source(),
                 child,
                 enrich.mode(),
+                enrich.policy().getType(),
                 enrich.matchField(),
                 BytesRefs.toString(enrich.policyName().fold()),
                 enrich.policy().getMatchField(),

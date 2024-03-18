@@ -19,6 +19,7 @@ import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
@@ -139,14 +140,24 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 fieldSorts
             );
         } else {
-            luceneFactory = new LuceneSourceOperator.Factory(
-                shardContexts,
-                querySupplier(esQueryExec.query()),
-                context.queryPragmas().dataPartitioning(),
-                context.queryPragmas().taskConcurrency(),
-                context.pageSize(rowEstimatedSize),
-                limit
-            );
+            if (context.queryPragmas().timeSeriesMode()) {
+                luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
+                    limit,
+                    context.pageSize(rowEstimatedSize),
+                    context.queryPragmas().taskConcurrency(),
+                    shardContexts,
+                    querySupplier(esQueryExec.query())
+                );
+            } else {
+                luceneFactory = new LuceneSourceOperator.Factory(
+                    shardContexts,
+                    querySupplier(esQueryExec.query()),
+                    context.queryPragmas().dataPartitioning(),
+                    context.queryPragmas().taskConcurrency(),
+                    context.pageSize(rowEstimatedSize),
+                    limit
+                );
+            }
         }
         Layout.Builder layout = new Layout.Builder();
         layout.append(esQueryExec.output());

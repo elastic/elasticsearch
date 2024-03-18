@@ -20,7 +20,6 @@ import org.elasticsearch.common.inject.internal.MoreTypes;
 import org.elasticsearch.common.inject.util.Types;
 
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
@@ -250,19 +249,6 @@ public class TypeLiteral<T> {
     }
 
     /**
-     * Returns the resolved generic type of {@code field}.
-     *
-     * @param field a field defined by this or any superclass.
-     * @since 2.0
-     */
-    public TypeLiteral<?> getFieldType(Field field) {
-        if (field.getDeclaringClass().isAssignableFrom(rawType) == false) {
-            throw new IllegalArgumentException(field + " is not defined by a supertype of " + type);
-        }
-        return resolve(field.getGenericType());
-    }
-
-    /**
      * Returns the resolved generic parameter types of {@code methodOrConstructor}.
      *
      * @param methodOrConstructor a method or constructor defined by this or any supertype.
@@ -291,17 +277,4 @@ public class TypeLiteral<T> {
         return resolveAll(genericParameterTypes);
     }
 
-    /**
-     * Returns the resolved generic return type of {@code method}.
-     *
-     * @param method a method defined by this or any supertype.
-     * @since 2.0
-     */
-    public TypeLiteral<?> getReturnType(Method method) {
-        if (method.getDeclaringClass().isAssignableFrom(rawType) == false) {
-            throw new IllegalArgumentException(method + " is not defined by a supertype of " + type);
-        }
-
-        return resolve(method.getGenericReturnType());
-    }
 }

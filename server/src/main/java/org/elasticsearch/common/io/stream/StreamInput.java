@@ -694,6 +694,20 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads an optional float array. It's effectively the same as readFloatArray, except
+     * it supports null.
+     * @return a float array or null
+     * @throws IOException
+     */
+    @Nullable
+    public float[] readOptionalFloatArray() throws IOException {
+        if (readBoolean()) {
+            return readFloatArray();
+        }
+        return null;
+    }
+
+    /**
      * Same as {@link #readMap(Writeable.Reader, Writeable.Reader)} but always reading string keys.
      */
     public <V> Map<String, V> readMap(Writeable.Reader<V> valueReader) throws IOException {

@@ -89,9 +89,9 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         remoteClient1 = mock(RemoteClusterClient.class);
         remoteClient2 = mock(RemoteClusterClient.class);
         remoteClient3 = mock(RemoteClusterClient.class);
-        when(client.getRemoteClusterClient(eq("remote-1"), any())).thenReturn(remoteClient1);
-        when(client.getRemoteClusterClient(eq("remote-2"), any())).thenReturn(remoteClient2);
-        when(client.getRemoteClusterClient(eq("remote-3"), any())).thenReturn(remoteClient3);
+        when(client.getRemoteClusterClient(eq("remote-1"), any(), any())).thenReturn(remoteClient1);
+        when(client.getRemoteClusterClient(eq("remote-2"), any(), any())).thenReturn(remoteClient2);
+        when(client.getRemoteClusterClient(eq("remote-3"), any(), any())).thenReturn(remoteClient3);
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }

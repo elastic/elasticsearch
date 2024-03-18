@@ -1,0 +1,5 @@
+pr: 106285
+summary: Add a check for the same feature being declared regular and historical
+area: Infra/Core
+type: bug
+issues: []

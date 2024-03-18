@@ -87,6 +87,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -739,7 +740,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            loadSlowLogFieldProvider()
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -815,7 +817,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            loadSlowLogFieldProvider()
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
@@ -1391,6 +1394,31 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             return deleteList.size();
         }
+    }
+
+    // pkg-private for testing
+    SlowLogFieldProvider loadSlowLogFieldProvider() {
+        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
+        return new SlowLogFieldProvider() {
+            @Override
+            public void init(IndexSettings indexSettings) {
+                slowLogFieldProviders.forEach(provider -> provider.init(indexSettings));
+            }
+
+            @Override
+            public Map<String, String> indexSlowLogFields() {
+                return slowLogFieldProviders.stream()
+                    .flatMap(provider -> provider.indexSlowLogFields().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
+
+            @Override
+            public Map<String, String> searchSlowLogFields() {
+                return slowLogFieldProviders.stream()
+                    .flatMap(provider -> provider.searchSlowLogFields().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
+        };
     }
 
     /**

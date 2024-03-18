@@ -10,7 +10,9 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -18,6 +20,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
+import static org.elasticsearch.common.util.PageCacheRecycler.PAGE_SIZE_IN_BYTES;
 
 /**
  * Byte array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
@@ -41,7 +44,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writePages(out, Math.toIntExact(size), pages, Byte.BYTES, BYTE_PAGE_SIZE);
+        writePages(out, size, pages, Byte.BYTES);
     }
 
     @Override
@@ -137,6 +140,33 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     public byte[] array() {
         assert false;
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public BytesRefIterator iterator() {
+        return new BytesRefIterator() {
+            int i = 0;
+            long remained = size;
+
+            @Override
+            public BytesRef next() {
+                if (remained == 0) {
+                    return null;
+                }
+                byte[] page = pages[i++];
+                int len = Math.toIntExact(Math.min(page.length, remained));
+                remained -= len;
+                return new BytesRef(page, 0, len);
+            }
+        };
+    }
+
+    @Override
+    public void fillWith(StreamInput in) throws IOException {
+        for (int i = 0; i < pages.length - 1; i++) {
+            in.readBytes(pages[i], 0, PAGE_SIZE_IN_BYTES);
+        }
+        in.readBytes(pages[pages.length - 1], 0, Math.toIntExact(size - (pages.length - 1L) * PAGE_SIZE_IN_BYTES));
     }
 
     @Override

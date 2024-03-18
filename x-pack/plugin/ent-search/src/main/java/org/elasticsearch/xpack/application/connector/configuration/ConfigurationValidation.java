@@ -19,6 +19,8 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -98,6 +100,13 @@ public class ConfigurationValidation implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
+    }
+
+    public Map<String, Object> toMap() {
+        Map<String, Object> map = new HashMap<>();
+        map.put(CONSTRAINT_FIELD.getPreferredName(), constraint);
+        map.put(TYPE_FIELD.getPreferredName(), type.toString());
+        return map;
     }
 
     public static ConfigurationValidation fromXContent(XContentParser parser) throws IOException {

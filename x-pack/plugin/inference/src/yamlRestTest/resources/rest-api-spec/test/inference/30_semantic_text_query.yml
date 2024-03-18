@@ -144,5 +144,21 @@ setup:
               non_inference_field:
                 query: "inference test"
 
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Field [non_inference_field] is not a semantic_text field type" }
+  - match: { error.type: "search_phase_execution_exception" }
+  - match: { error.root_cause.0.type: "query_shard_exception" }
+  - match: { error.root_cause.0.reason: "failed to create query: Field [non_inference_field] of type [text] does not support semantic_query queries" }
+
+---
+"Query a missing index":
+  - do:
+      catch: missing
+      search:
+        index: missing-index
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+
+  - match: { error.type: "index_not_found_exception" }
+  - match: { error.reason: "no such index [missing-index]" }

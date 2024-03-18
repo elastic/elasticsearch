@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
@@ -149,39 +150,43 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         Map<String, Set<String>> modelsForFields = computeModelsForFields(queryRewriteContext.getIndexMetadataMap().values());
-        Set<String> modelsForField = modelsForFields.get(fieldName);
-        if (modelsForField == null || modelsForField.isEmpty()) {
-            throw new IllegalArgumentException(
-                "Field [" + fieldName + "] is not a " + SemanticTextFieldMapper.CONTENT_TYPE + " field type"
-            );
-        }
-
+        Set<String> modelsForField = modelsForFields.getOrDefault(fieldName, Set.of());
         if (modelsForField.size() > 1) {
             // TODO: Handle multi-index semantic queries
             throw new IllegalArgumentException("Field [" + fieldName + "] has multiple models associated with it");
         }
 
-        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-            TaskType.ANY,
-            modelsForField.iterator().next(),
-            List.of(query),
-            Map.of(),
-            InputType.SEARCH
-        );
+        SetOnce<InferenceServiceResults> inferenceResultsSupplier;
+        if (modelsForField.isEmpty() == false) {
+            InferenceAction.Request inferenceRequest = new InferenceAction.Request(
+                TaskType.ANY,
+                modelsForField.iterator().next(),
+                List.of(query),
+                Map.of(),
+                InputType.SEARCH
+            );
 
-        SetOnce<InferenceServiceResults> inferenceResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction(
-            (client, listener) -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                InferenceAction.INSTANCE,
-                inferenceRequest,
-                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                    inferenceResultsSupplier.set(inferenceResponse.getResults());
-                    l.onResponse(null);
-                })
-            )
-        );
+            inferenceResultsSupplier = new SetOnce<>();
+            queryRewriteContext.registerAsyncAction(
+                (client, listener) -> executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    inferenceRequest,
+                    listener.delegateFailureAndWrap((l, inferenceResponse) -> {
+                        inferenceResultsSupplier.set(inferenceResponse.getResults());
+                        l.onResponse(null);
+                    })
+                )
+            );
+        } else {
+            // The most likely reason for an empty modelsForField set is an invalid field name, invalid index name(s), or a combination of
+            // both.
+            // Set the inference results to an empty list so that query rewriting can complete.
+            // Invalid index names will be handled in TransportSearchAction, which will throw IndexNotFoundException.
+            // Invalid field names will be handled in doToQuery.
+            inferenceResultsSupplier = new SetOnce<>(new SparseEmbeddingResults(List.of()));
+        }
 
         return new SemanticQueryBuilder(this, inferenceResultsSupplier);
     }
@@ -190,6 +195,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (inferenceResults == null) {
             throw new IllegalStateException("Query builder must be rewritten first");
+        }
+
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType == false) {
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
+            );
         }
 
         List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
@@ -201,13 +213,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         InferenceResults inferenceResults = inferenceResultsList.get(0);
-        MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType == false) {
-            throw new IllegalArgumentException(
-                "Field [" + fieldName + "] is not registered as a " + SemanticTextFieldMapper.CONTENT_TYPE + " field type"
-            );
-        }
-
         return semanticQuery(inferenceResults, context);
     }
 

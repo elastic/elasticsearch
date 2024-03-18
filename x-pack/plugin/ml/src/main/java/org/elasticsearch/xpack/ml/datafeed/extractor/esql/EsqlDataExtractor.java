@@ -12,25 +12,28 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 public class EsqlDataExtractor implements DataExtractor {
+
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(ZoneOffset.UTC);
 
     private static final Logger logger = LogManager.getLogger(EsqlDataExtractor.class);
 
@@ -53,13 +56,9 @@ public class EsqlDataExtractor implements DataExtractor {
         return Strings.format(
             " | WHERE %s >= \"%s\" AND %s < \"%s\"",
             timeField,
-            DateUtils.UTC_DATE_TIME_FORMATTER.formatMillis(
-                Math.min(interval.startMs(), org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999)
-            ),
+            DATE_TIME_FORMATTER.formatMillis(Math.min(interval.startMs(), org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999)),
             timeField,
-            DateUtils.UTC_DATE_TIME_FORMATTER.formatMillis(
-                Math.min(interval.endMs(), org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999)
-            )
+            DATE_TIME_FORMATTER.formatMillis(Math.min(interval.endMs(), org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999))
         );
     }
 
@@ -73,17 +72,18 @@ public class EsqlDataExtractor implements DataExtractor {
 
     @Override
     public DataSummary getSummary() {
-        EsqlQueryRequest request = new EsqlQueryRequest();
-        request.query(datafeed.getEsqlQuery() + esqlTimeFilter() + esqlSummaryStats());
+        EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request = EsqlQueryRequestBuilder
+            .newRequestBuilder(client)
+            .query(datafeed.getEsqlQuery() + esqlTimeFilter() + esqlSummaryStats());
 
         try (EsqlQueryResponse response = execute(request)) {
-            Iterator<Object> values = response.values().next();
+            Iterator<Object> values = response.response().rows().iterator().next().iterator();
             String earliestTime = (String) values.next();
             String latestTime = (String) values.next();
             long totalHits = (long) values.next();
             return new DataSummary(
-                earliestTime == null ? null : DateUtils.UTC_DATE_TIME_FORMATTER.parseMillis(earliestTime),
-                latestTime == null ? null : DateUtils.UTC_DATE_TIME_FORMATTER.parseMillis(latestTime),
+                earliestTime == null ? null : DATE_TIME_FORMATTER.parseMillis(earliestTime),
+                latestTime == null ? null : DATE_TIME_FORMATTER.parseMillis(latestTime),
                 totalHits
             );
         }
@@ -96,24 +96,23 @@ public class EsqlDataExtractor implements DataExtractor {
 
     @Override
     public Result next() throws IOException {
-        EsqlQueryRequest request = new EsqlQueryRequest();
-        request.query(datafeed.getEsqlQuery() + esqlTimeFilter() + esqlSortByTime());
-
+        EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request = EsqlQueryRequestBuilder
+            .newRequestBuilder(client)
+            .query(datafeed.getEsqlQuery() + esqlTimeFilter() + esqlSortByTime());
         EsqlQueryResponse response = execute(request);
 
         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
             XContentBuilder jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
 
-            List<ColumnInfo> columns = response.columns();
+            List<? extends ColumnInfo> columns = response.response().columns();
             int valueCount = 0;
-            for (Iterator<Iterator<Object>> itValues = response.values(); itValues.hasNext();) {
+            for (Iterable<Object> row : response.response().rows()) {
                 jsonBuilder.startObject();
                 int index = 0;
-                for (Iterator<Object> itValue = itValues.next(); itValue.hasNext();) {
-                    Object value = itValue.next();
+                for (Object value : row) {
                     if ("date".equals(columns.get(index).type())) {
                         if (value instanceof String && Strings.isNullOrEmpty((String) value) == false) {
-                            value = DateUtils.UTC_DATE_TIME_FORMATTER.parseMillis((String) value);
+                            value = DATE_TIME_FORMATTER.parseMillis((String) value);
                         }
                         // TODO: something with arrays of dates? (e.g. kibana_sample_data_ecommerce -> products.created_on)
                     }
@@ -127,8 +126,8 @@ public class EsqlDataExtractor implements DataExtractor {
 
             logger.info(
                 "query interval: {} - {}, valueCount: {}",
-                DateUtils.UTC_DATE_TIME_FORMATTER.formatMillis(interval.startMs()),
-                DateUtils.UTC_DATE_TIME_FORMATTER.formatMillis(interval.endMs()),
+                DATE_TIME_FORMATTER.formatMillis(interval.startMs()),
+                DATE_TIME_FORMATTER.formatMillis(interval.endMs()),
                 valueCount
             );
 
@@ -155,12 +154,7 @@ public class EsqlDataExtractor implements DataExtractor {
         return interval.endMs();
     }
 
-    private EsqlQueryResponse execute(EsqlQueryRequest request) {
-        return ClientHelper.executeWithHeaders(
-            datafeed.getHeaders(),
-            ClientHelper.ML_ORIGIN,
-            client,
-            () -> client.execute(EsqlQueryAction.INSTANCE, request).actionGet()
-        );
+    private EsqlQueryResponse execute(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {
+        return ClientHelper.executeWithHeaders(datafeed.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> request.execute().actionGet());
     }
 }

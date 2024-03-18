@@ -318,8 +318,11 @@ public class BooleanFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return super.termsQuery(values, context);
             } else {
-                BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 Set<?> dedupe = new HashSet<>(values);
+                if (dedupe.size() == 1) {
+                    return new ConstantScoreQuery(termQuery(dedupe.iterator().next(), context));
+                }
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 for (Object value : dedupe) {
                     builder.add(termQuery(value, context), BooleanClause.Occur.SHOULD);
                 }

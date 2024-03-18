@@ -2208,22 +2208,60 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return ShardLongFieldRange.UNKNOWN; // field missing, not a date or range info missing for all three
         }
 
-        final ShardLongFieldRange rawTimestampFieldRange;
+        ShardLongFieldRange rawTimestampFieldRange = ShardLongFieldRange.UNKNOWN;
+        ShardLongFieldRange rawEventIngestedFieldRange = ShardLongFieldRange.UNKNOWN;
+        ShardLongFieldRange rawEventCreatedFieldRange = ShardLongFieldRange.UNKNOWN;
         try {
             rawTimestampFieldRange = getEngine().getRawFieldRange(DataStream.TIMESTAMP_FIELD_NAME);
             assert rawTimestampFieldRange != null;
         } catch (IOException | AlreadyClosedException e) {
             logger.debug("exception obtaining range for timestamp field", e);
+        }
+        try {
+            rawEventIngestedFieldRange = getEngine().getRawFieldRange("event.ingested");
+            assert rawEventIngestedFieldRange != null;  /// MP TODO: is this assert true for event.ingested??
+        } catch (IOException | AlreadyClosedException e) {
+            logger.debug("exception obtaining range for event.ingested field", e);
+        }
+        try {
+            rawEventCreatedFieldRange = getEngine().getRawFieldRange("event.created");
+            assert rawEventCreatedFieldRange != null;  /// MP TODO: is this assert true for event.created??
+        } catch (IOException | AlreadyClosedException e) {
+            logger.debug("exception obtaining range for event.created field", e);
+        }
+
+        if (rawTimestampFieldRange == ShardLongFieldRange.UNKNOWN
+            && rawEventIngestedFieldRange == ShardLongFieldRange.UNKNOWN
+            && rawEventCreatedFieldRange == ShardLongFieldRange.UNKNOWN) {
             return ShardLongFieldRange.UNKNOWN;
         }
-        if (rawTimestampFieldRange == ShardLongFieldRange.UNKNOWN) {
-            return ShardLongFieldRange.UNKNOWN;
-        }
-        if (rawTimestampFieldRange == ShardLongFieldRange.EMPTY) {
+        if (rawTimestampFieldRange == ShardLongFieldRange.EMPTY
+            && rawEventIngestedFieldRange == ShardLongFieldRange.EMPTY
+            && rawEventCreatedFieldRange == ShardLongFieldRange.EMPTY) {
             return ShardLongFieldRange.EMPTY;
         }
 
-        return ShardLongFieldRange.of(rawTimestampFieldRange.getMin(), rawTimestampFieldRange.getMax());
+        return getMinAndMaxRange(rawTimestampFieldRange, rawEventIngestedFieldRange, rawEventCreatedFieldRange);
+    }
+
+    private ShardLongFieldRange getMinAndMaxRange(ShardLongFieldRange... rawTimestampFieldRanges) {
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+
+        for (ShardLongFieldRange rawRange : rawTimestampFieldRanges) {
+            if (rawRange != ShardLongFieldRange.EMPTY && rawRange != ShardLongFieldRange.UNKNOWN) {
+                if (rawRange.getMin() < min) {
+                    min = rawRange.getMin();
+                }
+                if (rawRange.getMax() > max) {
+                    max = rawRange.getMax();
+                }
+            }
+        }
+        assert min != Long.MAX_VALUE : "No min value set from raw timestamp field ranges";
+        assert max != Long.MIN_VALUE : "No max value set from raw timestamp field ranges";
+
+        return ShardLongFieldRange.of(min, max);
     }
 
     /**

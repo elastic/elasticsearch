@@ -95,6 +95,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -542,7 +543,11 @@ public class PainlessExecuteAction {
                 // forward to remote cluster after stripping off the clusterAlias from the index expression
                 removeClusterAliasFromIndexExpression(request);
                 transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(request.getContextSetup().getClusterAlias(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                    .getRemoteClusterClient(
+                        request.getContextSetup().getClusterAlias(),
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    )
                     .execute(PainlessExecuteAction.REMOTE_TYPE, request, listener);
             }
         }

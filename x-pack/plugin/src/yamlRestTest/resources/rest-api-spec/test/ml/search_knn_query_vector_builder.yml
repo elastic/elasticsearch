@@ -124,6 +124,9 @@ setup:
 
 ---
 "nested kNN search with inner_hits size":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser

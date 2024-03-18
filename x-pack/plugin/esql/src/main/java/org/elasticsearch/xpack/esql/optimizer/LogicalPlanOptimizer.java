@@ -196,7 +196,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // first pass to check existing aggregates (to avoid duplication and alias waste)
             for (NamedExpression agg : aggs) {
                 if (Alias.unwrap(agg) instanceof AggregateFunction af) {
-                    if (af instanceof SurrogateExpression == false || (((SurrogateExpression) af).surrogate() == null)) {
+                    if ((af instanceof SurrogateExpression se && se.surrogate() != null) == false) {
                         aggFuncToAttr.put(af, agg.toAttribute());
                     }
                 }

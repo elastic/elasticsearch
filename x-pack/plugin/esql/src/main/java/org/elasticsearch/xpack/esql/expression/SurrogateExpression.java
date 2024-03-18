@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 public interface SurrogateExpression {
 
     /**
-     * @return the expression to be replaced by or {@code null} if this cannot be replaced
+     * Returns the expression to be replaced by or {@code null} if this cannot be replaced.
      */
     Expression surrogate();
 }

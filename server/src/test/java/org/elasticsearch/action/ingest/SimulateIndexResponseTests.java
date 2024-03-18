@@ -38,7 +38,15 @@ public class SimulateIndexResponseTests extends ESTestCase {
         String source = """
             {"doc": {"key1": "val1", "key2": "val2"}}""";
         BytesReference sourceBytes = BytesReference.fromByteBuffer(ByteBuffer.wrap(source.getBytes(StandardCharsets.UTF_8)));
-        SimulateIndexResponse indexResponse = new SimulateIndexResponse(id, index, version, sourceBytes, XContentType.JSON, pipelines);
+        SimulateIndexResponse indexResponse = new SimulateIndexResponse(
+            id,
+            index,
+            version,
+            sourceBytes,
+            XContentType.JSON,
+            pipelines,
+            null
+        );
         String output = Strings.toString(indexResponse);
         assertEquals(
             XContentHelper.stripWhitespace(
@@ -85,6 +93,6 @@ public class SimulateIndexResponseTests extends ESTestCase {
         }
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference sourceBytes = RandomObjects.randomSource(random(), xContentType);
-        return new SimulateIndexResponse(id, index, version, sourceBytes, xContentType, pipelines);
+        return new SimulateIndexResponse(id, index, version, sourceBytes, xContentType, pipelines, null);
     }
 }

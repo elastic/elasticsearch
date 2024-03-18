@@ -77,6 +77,11 @@ setup:
           settings:
             default_pipeline: "my-pipeline"
             final_pipeline: "my-final-pipeline"
+          mappings:
+            dynamic: strict
+            properties:
+              foo:
+                type: text
 
   - do:
       headers:
@@ -89,7 +94,7 @@ setup:
                 "_index": "index",
                 "_id": "id",
                 "_source": {
-                  "foo": "bar"
+                  "foob": "bar"
                 }
               },
               {
@@ -108,10 +113,13 @@ setup:
             }
           }
   - length: { docs: 2 }
-  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc._source.foob: "bar" }
   - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
+  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
   - match: { docs.1.doc._source.foo: "rab" }
   - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - not_exists: docs.1.doc.error
 
 ---
 "Test index templates with pipelines":

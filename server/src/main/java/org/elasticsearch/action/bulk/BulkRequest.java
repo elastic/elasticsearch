@@ -148,7 +148,6 @@ public class BulkRequest extends ActionRequest
     BulkRequest internalAdd(IndexRequest request) {
         Objects.requireNonNull(request, "'request' must not be null");
         applyGlobalMandatoryParameters(request);
-
         requests.add(request);
         // lack of source is validated in validate() method
         sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
@@ -199,6 +198,10 @@ public class BulkRequest extends ActionRequest
      */
     public List<DocWriteRequest<?>> requests() {
         return this.requests;
+    }
+
+    public void nullifyRequest(int i) {
+        requests.set(i, null);
     }
 
     /**

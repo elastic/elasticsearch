@@ -150,6 +150,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SERIALIZE_BIG_ARRAY = def(8_610_00_0);
     public static final TransportVersion AUTO_SHARDING_ROLLOVER_CONDITION = def(8_611_00_0);
     public static final TransportVersion KNN_QUERY_VECTOR_BUILDER = def(8_612_00_0);
+    public static final TransportVersion SIMULATE_VALIDATES_MAPPINGS = def(8_613_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -175,7 +175,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                 responses.set(i, bulkItemResponse);
                 // make sure the request gets never processed again
-                bulkRequest.requests.set(i, null);
+                bulkRequest.nullifyRequest(i);
             }
         }
         return requestsByShard;
@@ -206,7 +206,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
-                    requests.toArray(new BulkItemRequest[0])
+                    requests.toArray(new BulkItemRequest[0]),
+                    bulkRequest instanceof SimulateBulkRequest
                 );
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
@@ -349,7 +350,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         BulkItemResponse bulkItemResponse = BulkItemResponse.failure(idx, request.opType(), failure);
         responses.set(idx, bulkItemResponse);
         // make sure the request gets never processed again
-        bulkRequest.requests.set(idx, null);
+        bulkRequest.nullifyRequest(idx);
     }
 
     private static class ConcreteIndices {

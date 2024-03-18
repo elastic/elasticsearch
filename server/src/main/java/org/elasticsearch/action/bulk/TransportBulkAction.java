@@ -437,7 +437,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
                         }
                     }
-                }, refs.acquire()));
+                }, refs.acquire()), bulkRequest instanceof SimulateBulkRequest);
             }
             for (String dataStream : dataStreamsToBeRolledOver) {
                 lazyRolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
@@ -473,7 +473,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> request = bulkRequest.requests.get(i);
             if (request != null && setResponseFailureIfIndexMatches(responses, i, request, target, error)) {
-                bulkRequest.requests.set(i, null);
+                bulkRequest.nullifyRequest(i);
             }
         }
     }
@@ -568,13 +568,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-        createIndexRequest.index(index);
-        createIndexRequest.requireDataStream(requireDataStream);
-        createIndexRequest.cause("auto(bulk api)");
-        createIndexRequest.masterNodeTimeout(timeout);
-        client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
+    void createIndex(
+        String index,
+        boolean requireDataStream,
+        TimeValue timeout,
+        ActionListener<CreateIndexResponse> listener,
+        boolean isSimulated
+    ) {
+        if (isSimulated) {
+            listener.onResponse(null);
+        } else {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+            createIndexRequest.index(index);
+            createIndexRequest.requireDataStream(requireDataStream);
+            createIndexRequest.cause("auto(bulk api)");
+            createIndexRequest.masterNodeTimeout(timeout);
+            client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
+        }
     }
 
     void lazyRolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {

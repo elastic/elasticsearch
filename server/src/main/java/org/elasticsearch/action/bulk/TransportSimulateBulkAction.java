@@ -77,27 +77,44 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {
-        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
-        for (int i = 0; i < bulkRequest.requests.size(); i++) {
-            DocWriteRequest<?> request = bulkRequest.requests.get(i);
-            assert request instanceof IndexRequest; // This action is only ever called with IndexRequests
-            responses.set(
-                i,
-                BulkItemResponse.success(
-                    0,
-                    DocWriteRequest.OpType.CREATE,
-                    new SimulateIndexResponse(
-                        request.id(),
-                        request.index(),
-                        request.version(),
-                        ((IndexRequest) request).source(),
-                        ((IndexRequest) request).getContentType(),
-                        ((IndexRequest) request).getExecutedPipelines()
-                    )
-                )
-            );
-        }
-        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
+        assert bulkRequest instanceof SimulateBulkRequest;
+        super.createMissingIndicesAndIndexData(task, bulkRequest, executorName, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkResponse bulkResponse) {
+                BulkItemResponse[] originalResponses = bulkResponse.getItems();
+                final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
+                for (int i = 0; i < bulkRequest.requests.size(); i++) {
+                    DocWriteRequest<?> request = bulkRequest.requests.get(i);
+                    BulkItemResponse originalResponse = originalResponses[i];
+                    Exception exception = originalResponse.isFailed() ? originalResponse.getFailure().getCause() : null;
+                    assert request != null : "A request was unexpectedly set to null. Simulate action never set requests to null";
+                    // This action is only every called with IndexRequests:
+                    assert request instanceof IndexRequest : "expected IndexRequest but got " + request.getClass();
+                    BulkItemResponse updatedResponse = BulkItemResponse.success(
+                        originalResponse.getItemId(),
+                        originalResponse.getOpType(),
+                        new SimulateIndexResponse(
+                            request.id(),
+                            request.index(),
+                            request.version(),
+                            ((IndexRequest) request).source(),
+                            ((IndexRequest) request).getContentType(),
+                            ((IndexRequest) request).getExecutedPipelines(),
+                            exception
+                        )
+                    );
+                    responses.set(i, updatedResponse);
+                }
+                listener.onResponse(
+                    new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime))
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        }, indicesToAutoCreate, dataStreamsToRollover, indicesThatCannotBeCreated, startTime);
     }
 
     /*

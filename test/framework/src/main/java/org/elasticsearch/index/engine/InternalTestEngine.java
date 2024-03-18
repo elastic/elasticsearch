@@ -35,7 +35,7 @@ class InternalTestEngine extends InternalEngine {
     }
 
     @Override
-    public IndexResult index(Index index) throws IOException {
+    public IndexResult index(Index index, boolean isSimulated) throws IOException {
         if (index.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             idToMaxSeqNo.compute(index.id(), (id, existing) -> {
                 if (existing == null) {
@@ -47,7 +47,7 @@ class InternalTestEngine extends InternalEngine {
                 }
             });
         }
-        return super.index(index);
+        return super.index(index, isSimulated);
     }
 
     @Override

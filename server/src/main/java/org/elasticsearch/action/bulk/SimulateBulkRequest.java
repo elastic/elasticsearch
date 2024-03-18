@@ -78,4 +78,9 @@ public class SimulateBulkRequest extends BulkRequest {
     public Map<String, Map<String, Object>> getPipelineSubstitutions() {
         return pipelineSubstitutions;
     }
+
+    @Override
+    public void nullifyRequest(int i) {
+        // do nothing because in simulate we want to return information from the request regardless of success
+    }
 }

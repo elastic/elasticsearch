@@ -163,10 +163,10 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         assertThat(restResponse.status(), (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
         final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
         if (replyEmptyResponse) {
-            assertThat(actual.getApiKeyInfos(), emptyIterable());
+            assertThat(actual.getApiKeyInfoList(), emptyIterable());
         } else {
             assertThat(
-                actual.getApiKeyInfos(),
+                actual.getApiKeyInfoList(),
                 contains(
                     new GetApiKeyResponse.Item(
                         new ApiKey(
@@ -289,9 +289,9 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         assertThat(restResponse.status(), is(RestStatus.OK));
         final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
         if (isGetRequestForOwnedKeysOnly) {
-            assertThat(actual.getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(), contains(apiKey1));
+            assertThat(actual.getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(), contains(apiKey1));
         } else {
-            assertThat(actual.getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(), contains(apiKey1, apiKey2));
+            assertThat(actual.getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(), contains(apiKey1, apiKey2));
         }
     }
 }

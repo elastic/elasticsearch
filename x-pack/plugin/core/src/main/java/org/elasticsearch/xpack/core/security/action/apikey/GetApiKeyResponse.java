@@ -31,21 +31,21 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
 
     public static final GetApiKeyResponse EMPTY = new GetApiKeyResponse(List.of());
 
-    private final List<Item> foundApiKeysInfo;
+    private final List<Item> foundApiKeyInfoList;
 
-    public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfo) {
-        Objects.requireNonNull(foundApiKeysInfo, "found_api_keys_info must be provided");
-        this.foundApiKeysInfo = foundApiKeysInfo.stream().map(Item::new).toList();
+    public GetApiKeyResponse(Collection<ApiKey> foundApiKeyInfos) {
+        Objects.requireNonNull(foundApiKeyInfos, "found_api_keys_info must be provided");
+        this.foundApiKeyInfoList = foundApiKeyInfos.stream().map(Item::new).toList();
     }
 
-    public List<Item> getApiKeyInfos() {
-        return foundApiKeysInfo;
+    public List<Item> getApiKeyInfoList() {
+        return foundApiKeyInfoList;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("api_keys", foundApiKeysInfo);
+        builder.field("api_keys", foundApiKeyInfoList);
         builder.endObject();
         return builder;
     }
@@ -56,8 +56,21 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetApiKeyResponse that = (GetApiKeyResponse) o;
+        return Objects.equals(foundApiKeyInfoList, that.foundApiKeyInfoList);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(foundApiKeyInfoList);
+    }
+
+    @Override
     public String toString() {
-        return "GetApiKeyResponse [foundApiKeysInfo=" + foundApiKeysInfo + "]";
+        return "GetApiKeyResponse{foundApiKeysInfo=" + foundApiKeyInfoList + "}";
     }
 
     public record Item(ApiKey apiKeyInfo) implements ToXContentObject {
@@ -71,7 +84,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
 
         @Override
         public String toString() {
-            return "Item [apiKeyInfo=" + apiKeyInfo + "]";
+            return "Item{apiKeyInfo=" + apiKeyInfo + "}";
         }
     }
 

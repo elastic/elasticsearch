@@ -1940,7 +1940,7 @@ public class ApiKeyService {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
-            listener.onResponse(QueryApiKeyResponse.emptyResponse());
+            listener.onResponse(QueryApiKeyResponse.EMPTY);
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
@@ -1955,7 +1955,7 @@ public class ApiKeyService {
                         final long total = searchResponse.getHits().getTotalHits().value;
                         if (total == 0) {
                             logger.debug("No api keys found for query [{}]", searchRequest.source().query());
-                            listener.onResponse(QueryApiKeyResponse.emptyResponse());
+                            listener.onResponse(QueryApiKeyResponse.EMPTY);
                             return;
                         }
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())

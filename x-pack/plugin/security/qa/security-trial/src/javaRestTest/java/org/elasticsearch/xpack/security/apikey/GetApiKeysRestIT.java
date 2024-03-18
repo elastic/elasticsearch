@@ -102,7 +102,7 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         // We get an empty result when no API keys active
         getSecurityClient().invalidateApiKeys(apiKeyId1);
-        assertThat(getApiKeysWithRequestParams(Map.of("active_only", "true")).getApiKeyInfos(), emptyIterable());
+        assertThat(getApiKeysWithRequestParams(Map.of("active_only", "true")).getApiKeyInfoList(), emptyIterable());
 
         {
             // Using together with id parameter, returns 404 for inactive key
@@ -165,11 +165,11 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
             manageApiKeyUserApiKeyId
         );
         assertThat(
-            getApiKeysWithRequestParams(Map.of("active_only", "true", "username", MANAGE_OWN_API_KEY_USER)).getApiKeyInfos(),
+            getApiKeysWithRequestParams(Map.of("active_only", "true", "username", MANAGE_OWN_API_KEY_USER)).getApiKeyInfoList(),
             emptyIterable()
         );
         assertThat(
-            getApiKeysWithRequestParams(MANAGE_OWN_API_KEY_USER, Map.of("active_only", "true", "owner", "true")).getApiKeyInfos(),
+            getApiKeysWithRequestParams(MANAGE_OWN_API_KEY_USER, Map.of("active_only", "true", "owner", "true")).getApiKeyInfoList(),
             emptyIterable()
         );
 
@@ -179,14 +179,14 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(
             getApiKeysWithRequestParams(
                 Map.of("active_only", "true", "username", randomFrom(MANAGE_SECURITY_USER, MANAGE_OWN_API_KEY_USER))
-            ).getApiKeyInfos(),
+            ).getApiKeyInfoList(),
             emptyIterable()
         );
         assertThat(
             getApiKeysWithRequestParams(
                 randomFrom(MANAGE_SECURITY_USER, MANAGE_OWN_API_KEY_USER),
                 Map.of("active_only", "true", "owner", "true")
-            ).getApiKeyInfos(),
+            ).getApiKeyInfoList(),
             emptyIterable()
         );
         // With flag set to false, we get both inactive keys
@@ -204,8 +204,8 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         setUserForRequest(request, MANAGE_SECURITY_USER);
         GetApiKeyResponse getApiKeyResponse = GetApiKeyResponse.fromXContent(getParser(client().performRequest(request)));
 
-        assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
-        ApiKey apiKey = getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo();
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        ApiKey apiKey = getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(apiKey.isInvalidated(), equalTo(false));
         assertThat(apiKey.getInvalidation(), nullValue());
         assertThat(apiKey.getId(), equalTo(apiKeyId0));
@@ -225,8 +225,8 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         setUserForRequest(request, MANAGE_SECURITY_USER);
         getApiKeyResponse = GetApiKeyResponse.fromXContent(getParser(client().performRequest(request)));
 
-        assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
-        apiKey = getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo();
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        apiKey = getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(apiKey.isInvalidated(), equalTo(true));
         assertThat(apiKey.getInvalidation(), notNullValue());
         assertThat(apiKey.getId(), equalTo(apiKeyId0));
@@ -245,7 +245,7 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private static void assertResponseContainsApiKeyIds(GetApiKeyResponse response, String... ids) {
         assertThat(
-            response.getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).map(ApiKey::getId).toList(),
+            response.getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).map(ApiKey::getId).toList(),
             containsInAnyOrder(ids)
         );
     }

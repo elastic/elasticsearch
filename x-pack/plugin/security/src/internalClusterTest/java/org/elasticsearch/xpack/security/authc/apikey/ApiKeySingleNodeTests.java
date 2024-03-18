@@ -92,7 +92,6 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -149,10 +148,10 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                 .filter(QueryBuilders.rangeQuery("expiration").from(Instant.now().toEpochMilli()))
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getItems().length, equalTo(1));
-        assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getId(), equalTo(id2));
-        assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getName(), equalTo("long-lived"));
-        assertThat(queryApiKeyResponse.getItems()[0].getSortValues(), emptyArray());
+        assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        assertThat(queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getId(), equalTo(id2));
+        assertThat(queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getName(), equalTo("long-lived"));
+        assertThat(queryApiKeyResponse.getApiKeyInfoList().get(0).sortValues(), emptyArray());
     }
 
     public void testCreatingApiKeyWithNoAccess() {
@@ -287,8 +286,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(apiKeyId).ownedByAuthenticatedUser(randomBoolean()).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
-        assertThat(getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo().getId(), is(apiKeyId));
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        assertThat(getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getId(), is(apiKeyId));
 
         // Cannot get any other keys
         final ElasticsearchSecurityException e = expectThrows(
@@ -614,8 +613,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
-        ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo();
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(getApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(getApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
         assertThat(getApiKeyInfo.getLimitedBy(), nullValue());
@@ -635,8 +634,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             randomBoolean()
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
+        assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        ApiKey queryApiKeyInfo = queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(queryApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(queryApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
         assertThat(queryApiKeyInfo.getLimitedBy(), nullValue());
@@ -670,8 +669,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
-        ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo();
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(getApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(getApiKeyInfo.getRoleDescriptors(), contains(originalRoleDescriptor));
         assertThat(getApiKeyInfo.getLimitedBy(), nullValue());
@@ -741,8 +740,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             randomBoolean()
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
+        assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(queryApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(
             queryApiKeyInfo.getRoleDescriptors(),

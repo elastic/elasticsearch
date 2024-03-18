@@ -1824,10 +1824,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(response);
         try (XContentParser parser = responseAsParser(response)) {
             final var apiKeyResponse = GetApiKeyResponse.fromXContent(parser);
-            assertThat(apiKeyResponse.getApiKeyInfos().size(), equalTo(1));
+            assertThat(apiKeyResponse.getApiKeyInfoList().size(), equalTo(1));
             // ApiKey metadata is set to empty Map if null
             assertThat(
-                apiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo().getMetadata(),
+                apiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getMetadata(),
                 equalTo(expectedMetadata == null ? Map.of() : expectedMetadata)
             );
         }

@@ -137,7 +137,6 @@ import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_P
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -589,7 +588,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // The first API key with 1ms expiration should already be deleted
         Set<String> expectedKeyIds = Sets.newHashSet(nonExpiringKey.getId(), createdApiKeys.get(0).getId(), createdApiKeys.get(1).getId());
         boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
-        for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList()) {
+        for (ApiKey apiKey : getApiKeyResponseListener.get()
+            .getApiKeyInfoList()
+            .stream()
+            .map(GetApiKeyResponse.Item::apiKeyInfo)
+            .toList()) {
             assertThat(apiKey.getId(), is(in(expectedKeyIds)));
             if (apiKey.getId().equals(nonExpiringKey.getId())) {
                 assertThat(apiKey.isInvalidated(), is(false));
@@ -604,7 +607,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             }
         }
         assertThat(
-            getApiKeyResponseListener.get().getApiKeyInfos().size(),
+            getApiKeyResponseListener.get().getApiKeyInfoList().size(),
             is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 3 : 2)
         );
 
@@ -634,7 +637,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         expectedKeyIds = Sets.newHashSet(nonExpiringKey.getId(), createdApiKeys.get(1).getId());
         apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
-        for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList()) {
+        for (ApiKey apiKey : getApiKeyResponseListener.get()
+            .getApiKeyInfoList()
+            .stream()
+            .map(GetApiKeyResponse.Item::apiKeyInfo)
+            .toList()) {
             assertThat(apiKey.getId(), is(in(expectedKeyIds)));
             if (apiKey.getId().equals(nonExpiringKey.getId())) {
                 assertThat(apiKey.isInvalidated(), is(false));
@@ -646,7 +653,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             }
         }
         assertThat(
-            getApiKeyResponseListener.get().getApiKeyInfos().size(),
+            getApiKeyResponseListener.get().getApiKeyInfoList().size(),
             is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 2 : 1)
         );
     }
@@ -685,7 +692,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             GetApiKeyRequest.builder().apiKeyName(namePrefix + "*").build(),
             getApiKeyResponseListener
         );
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().size(), is(noOfKeys));
+        assertThat(getApiKeyResponseListener.get().getApiKeyInfoList().size(), is(noOfKeys));
 
         // Expire the 1st key such that it cannot be deleted by the remover
         // hack doc to modify the expiration time
@@ -784,7 +791,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             createdApiKeys.get(7).getId(),
             createdApiKeys.get(8).getId()
         );
-        for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList()) {
+        for (ApiKey apiKey : getApiKeyResponseListener.get()
+            .getApiKeyInfoList()
+            .stream()
+            .map(GetApiKeyResponse.Item::apiKeyInfo)
+            .toList()) {
             assertThat(apiKey.getId(), is(in(expectedKeyIds)));
             if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
                 // has been expired, not invalidated
@@ -806,7 +817,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 fail("unexpected API key " + apiKey);
             }
         }
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().size(), is(4));
+        assertThat(getApiKeyResponseListener.get().getApiKeyInfoList().size(), is(4));
     }
 
     private void refreshSecurityIndex() throws Exception {
@@ -843,7 +854,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response.getApiKeyInfos(),
+            response.getApiKeyInfoList(),
             Collections.singleton(responses.get(0).getId()),
             Collections.singletonList(responses.get(1).getId())
         );
@@ -889,7 +900,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response.getApiKeyInfos(),
+            response.getApiKeyInfoList(),
             expectedValidKeyIds,
             invalidatedApiKeyIds
         );
@@ -914,7 +925,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response.getApiKeyInfos(),
+            response.getApiKeyInfoList(),
             responses.stream().map(o -> o.getId()).collect(Collectors.toSet()),
             null
         );
@@ -938,7 +949,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response.getApiKeyInfos(),
+            response.getApiKeyInfoList(),
             Collections.singleton(responses.get(0).getId()),
             null
         );
@@ -962,7 +973,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            response.getApiKeyInfos(),
+            response.getApiKeyInfoList(),
             Collections.singleton(responses.get(0).getId()),
             null
         );
@@ -1004,7 +1015,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             metadatas,
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            listener.get().getApiKeyInfos(),
+            listener.get().getApiKeyInfoList(),
             Collections.singleton(responses.get(0).getId()),
             null
         );
@@ -1021,7 +1032,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple1.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            listener2.get().getApiKeyInfos(),
+            listener2.get().getApiKeyInfoList(),
             createApiKeyResponses1.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
             null
         );
@@ -1044,7 +1055,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             metadatas,
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            listener3.get().getApiKeyInfos(),
+            listener3.get().getApiKeyInfoList(),
             responses.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
             null
         );
@@ -1061,7 +1072,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             null,
             List.of(),
             List.of(),
-            listener4.get().getApiKeyInfos(),
+            listener4.get().getApiKeyInfoList(),
             Collections.emptySet(),
             null
         );
@@ -1078,7 +1089,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple2.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             withLimitedBy ? List.of(ES_TEST_ROOT_ROLE_DESCRIPTOR) : null,
-            listener5.get().getApiKeyInfos(),
+            listener5.get().getApiKeyInfoList(),
             createApiKeyResponses2.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
             null
         );
@@ -1129,7 +1140,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple.v2(),
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             expectedLimitedByRoleDescriptors,
-            listener.get().getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(),
+            listener.get().getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(),
             userWithManageApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
             null
         );
@@ -1164,7 +1175,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             withLimitedBy
                 ? List.of(new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null))
                 : null,
-            listener.get().getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(),
+            listener.get().getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(),
             userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
             null
         );
@@ -1199,7 +1210,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             withLimitedBy
                 ? List.of(new RoleDescriptor("manage_own_api_key_role", new String[] { "manage_own_api_key" }, null, null))
                 : null,
-            listener.get().getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(),
+            listener.get().getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(),
             userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
             null
         );
@@ -1449,7 +1460,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             tuple.v2(),
             List.of(new RoleDescriptor(DEFAULT_API_KEY_ROLE_DESCRIPTOR.getName(), Strings.EMPTY_ARRAY, null, null)),
             null,
-            response.getApiKeyInfos(),
+            response.getApiKeyInfoList(),
             Collections.singleton(responses.get(0).getId()),
             null
         );
@@ -1722,8 +1733,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             GetApiKeyRequest.builder().apiKeyId(key100Response.getId()).withLimitedBy().build(),
             future
         );
-        assertThat(future.actionGet().getApiKeyInfos().size(), equalTo(1));
-        RoleDescriptorsIntersection limitedBy = future.actionGet().getApiKeyInfos().get(0).apiKeyInfo().getLimitedBy();
+        assertThat(future.actionGet().getApiKeyInfoList().size(), equalTo(1));
+        RoleDescriptorsIntersection limitedBy = future.actionGet().getApiKeyInfoList().get(0).apiKeyInfo().getLimitedBy();
         assertThat(limitedBy.roleDescriptorsList().size(), equalTo(1));
         assertThat(limitedBy.roleDescriptorsList().iterator().next(), emptyIterable());
 
@@ -1762,8 +1773,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(response2.getId()).ownedByAuthenticatedUser(true).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
-        ApiKey apiKeyInfo = getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo();
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        ApiKey apiKeyInfo = getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(apiKeyInfo.getId(), equalTo(response2.getId()));
         assertThat(apiKeyInfo.getUsername(), equalTo(ES_TEST_ROOT_USER));
         assertThat(apiKeyInfo.getRealm(), equalTo("file"));
@@ -2886,8 +2897,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 future
             );
             final GetApiKeyResponse getApiKeyResponse = future.actionGet();
-            assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(1));
-            return getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo();
+            assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+            return getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         } else {
             final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
@@ -2896,8 +2907,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 future
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
-            assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-            return queryApiKeyResponse.getItems()[0].getApiKey();
+            assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+            return queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         }
     }
 
@@ -2906,7 +2917,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().withLimitedBy(withLimitedBy).build(), future);
             final GetApiKeyResponse getApiKeyResponse = future.actionGet();
-            return getApiKeyResponse.getApiKeyInfos().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList();
+            return getApiKeyResponse.getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList();
         } else {
             final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
@@ -2915,7 +2926,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 future
             );
             final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
-            return Arrays.stream(queryApiKeyResponse.getItems()).map(QueryApiKeyResponse.Item::getApiKey).toList();
+            return queryApiKeyResponse.getApiKeyInfoList().stream().map(QueryApiKeyResponse.Item::apiKeyInfo).toList();
         }
     }
 
@@ -2968,7 +2979,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             0,
             client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.builder().apiKeyName(keyName).ownedByAuthenticatedUser(false).build())
                 .get()
-                .getApiKeyInfos()
+                .getApiKeyInfoList()
                 .size()
         );
     }

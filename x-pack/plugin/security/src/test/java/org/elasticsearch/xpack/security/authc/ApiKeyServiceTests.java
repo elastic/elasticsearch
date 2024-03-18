@@ -327,7 +327,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         verify(searchRequestBuilder).setFetchSource(eq(true));
         assertThat(searchRequest.get().source().query(), is(boolQuery));
         GetApiKeyResponse getApiKeyResponse = getApiKeyResponsePlainActionFuture.get();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), emptyIterable());
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), emptyIterable());
     }
 
     @SuppressWarnings("unchecked")
@@ -408,31 +408,31 @@ public class ApiKeyServiceTests extends ESTestCase {
                 getApiKeyResponsePlainActionFuture
             );
             GetApiKeyResponse getApiKeyResponse = getApiKeyResponsePlainActionFuture.get();
-            assertThat(getApiKeyResponse.getApiKeyInfos(), iterableWithSize(2));
-            assertThat(getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo().getRealm(), is(realm1));
-            assertThat(getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo().getRealmType(), is(realm1Type));
+            assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(2));
+            assertThat(getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getRealm(), is(realm1));
+            assertThat(getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getRealmType(), is(realm1Type));
             assertThat(
-                getApiKeyResponse.getApiKeyInfos().get(0).apiKeyInfo().getRealmIdentifier(),
+                getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getRealmIdentifier(),
                 is(new RealmConfig.RealmIdentifier(realm1Type, realm1))
             );
-            assertThat(getApiKeyResponse.getApiKeyInfos().get(1).apiKeyInfo().getRealm(), is(realm2));
-            assertThat(getApiKeyResponse.getApiKeyInfos().get(1).apiKeyInfo().getRealmType(), nullValue());
-            assertThat(getApiKeyResponse.getApiKeyInfos().get(1).apiKeyInfo().getRealmIdentifier(), nullValue());
+            assertThat(getApiKeyResponse.getApiKeyInfoList().get(1).apiKeyInfo().getRealm(), is(realm2));
+            assertThat(getApiKeyResponse.getApiKeyInfoList().get(1).apiKeyInfo().getRealmType(), nullValue());
+            assertThat(getApiKeyResponse.getApiKeyInfoList().get(1).apiKeyInfo().getRealmIdentifier(), nullValue());
         }
         {
             PlainActionFuture<QueryApiKeyResponse> queryApiKeyResponsePlainActionFuture = new PlainActionFuture<>();
             service.queryApiKeys(new SearchRequest(".security"), false, queryApiKeyResponsePlainActionFuture);
             QueryApiKeyResponse queryApiKeyResponse = queryApiKeyResponsePlainActionFuture.get();
-            assertThat(queryApiKeyResponse.getItems().length, is(2));
-            assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getRealm(), is(realm1));
-            assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getRealmType(), is(realm1Type));
+            assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(2));
+            assertThat(queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getRealm(), is(realm1));
+            assertThat(queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getRealmType(), is(realm1Type));
             assertThat(
-                queryApiKeyResponse.getItems()[0].getApiKey().getRealmIdentifier(),
+                queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getRealmIdentifier(),
                 is(new RealmConfig.RealmIdentifier(realm1Type, realm1))
             );
-            assertThat(queryApiKeyResponse.getItems()[1].getApiKey().getRealm(), is(realm2));
-            assertThat(queryApiKeyResponse.getItems()[1].getApiKey().getRealmType(), nullValue());
-            assertThat(queryApiKeyResponse.getItems()[1].getApiKey().getRealmIdentifier(), nullValue());
+            assertThat(queryApiKeyResponse.getApiKeyInfoList().get(1).apiKeyInfo().getRealm(), is(realm2));
+            assertThat(queryApiKeyResponse.getApiKeyInfoList().get(1).apiKeyInfo().getRealmType(), nullValue());
+            assertThat(queryApiKeyResponse.getApiKeyInfoList().get(1).apiKeyInfo().getRealmIdentifier(), nullValue());
         }
     }
 

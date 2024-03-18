@@ -23,9 +23,9 @@ public class CustomPassageFormatter extends PassageFormatter {
     private final String preTag;
     private final String postTag;
     private final Encoder encoder;
-    private final Integer numberOfFragments;
+    private final int numberOfFragments;
 
-    public CustomPassageFormatter(String preTag, String postTag, Encoder encoder, Integer numberOfFragments) {
+    public CustomPassageFormatter(String preTag, String postTag, Encoder encoder, int numberOfFragments) {
         this.preTag = preTag;
         this.postTag = postTag;
         this.encoder = encoder;

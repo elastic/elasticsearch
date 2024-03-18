@@ -87,9 +87,18 @@ the top `size` results.
 `query_vector`::
 +
 --
-(Required, array of floats) Query vector. Must have the same number of dimensions
-as the vector field you are searching against.
+(Optional, array of floats or string) Query vector. Must have the same number of dimensions
+as the vector field you are searching against. Must be either an array of floats or a hex-encoded byte vector.
+Either this or `query_vector_builder` must be provided.
 --
+
+`query_vector_builder`::
++
+--
+(Optional, object) Query vector builder.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
+--
+
 
 `num_candidates`::
 +

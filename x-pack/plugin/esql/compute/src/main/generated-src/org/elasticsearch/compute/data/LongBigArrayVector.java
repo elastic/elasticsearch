@@ -8,8 +8,12 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
+
+import java.io.IOException;
 
 /**
  * Vector implementation that defers to an enclosed {@link LongArray}.
@@ -25,6 +29,26 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     public LongBigArrayVector(LongArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static LongBigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        LongArray values = blockFactory.bigArrays().newLongArray(positions, false);
+        boolean success = false;
+        try {
+            values.fillWith(in);
+            LongBigArrayVector vector = new LongBigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
     }
 
     @Override

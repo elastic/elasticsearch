@@ -23,7 +23,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -36,13 +37,14 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class CohereService extends SenderService {
     public static final String NAME = "cohere";
 
-    public CohereService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
+    public CohereService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 
@@ -61,7 +63,7 @@ public class CohereService extends SenderService {
     ) {
         try {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             CohereModel model = createModel(
                 inferenceEntityId,
@@ -70,7 +72,7 @@ public class CohereService extends SenderService {
                 taskSettingsMap,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                true
+                ConfigurationParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -91,7 +93,15 @@ public class CohereService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
-        return createModel(inferenceEntityId, taskType, serviceSettings, taskSettings, secretSettings, failureMessage, false);
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            failureMessage,
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     private static CohereModel createModel(
@@ -101,7 +111,7 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        boolean logDeprecations
+        ConfigurationParseContext context
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
@@ -111,7 +121,7 @@ public class CohereService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                logDeprecations
+                context
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };

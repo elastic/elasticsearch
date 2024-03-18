@@ -71,18 +71,19 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
 
     private String connectorOneId;
     private String connectorTwoId;
+    private String connectorThreeId;
 
     @Before
     public void setup() throws Exception {
 
-        connectorOneId = createConnector();
-        connectorTwoId = createConnector();
+        connectorOneId = createConnector(ConnectorTestUtils.getRandomConnector());
+        connectorTwoId = createConnector(ConnectorTestUtils.getRandomConnector());
+        connectorThreeId = createConnector(ConnectorTestUtils.getRandomConnectorWithDetachedIndex());
 
         this.connectorSyncJobIndexService = new ConnectorSyncJobIndexService(client());
     }
 
-    private String createConnector() throws IOException, InterruptedException, ExecutionException, TimeoutException {
-        Connector connector = ConnectorTestUtils.getRandomConnector();
+    private String createConnector(Connector connector) throws IOException, InterruptedException, ExecutionException, TimeoutException {
 
         final IndexRequest indexRequest = new IndexRequest(ConnectorIndexService.CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -149,6 +150,24 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             syncJobRequest,
             ActionListener.wrap(response -> {}, exception -> assertThat(exception.getMessage(), containsString(NON_EXISTING_CONNECTOR_ID)))
         );
+    }
+
+    public void testDeleteConnectorSyncJob_WithDetachedConnectorIndex_ExpectException() {
+        PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
+            connectorThreeId,
+            ConnectorSyncJobType.FULL,
+            ConnectorSyncJobTriggerMethod.ON_DEMAND
+        );
+        expectThrows(ElasticsearchStatusException.class, () -> awaitPutConnectorSyncJob(syncJobRequest));
+    }
+
+    public void testDeleteConnectorSyncJob_WithNonExistentConnectorId_ExpectException() {
+        PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
+            "non-existent-connector-id",
+            ConnectorSyncJobType.FULL,
+            ConnectorSyncJobTriggerMethod.ON_DEMAND
+        );
+        expectThrows(ResourceNotFoundException.class, () -> awaitPutConnectorSyncJob(syncJobRequest));
     }
 
     public void testDeleteConnectorSyncJob() throws Exception {
@@ -422,17 +441,18 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(lastSyncJobs.connectorSyncJobs().size(), equalTo(1));
         assertThat(lastSyncJobs.totalResults(), equalTo(5L));
 
-        assertThat(firstSyncJob, equalTo(syncJobs.get(0)));
-        assertThat(secondSyncJob, equalTo(syncJobs.get(1)));
+        // Sync jobs are returned in most-recently created order
+        assertThat(firstSyncJob, equalTo(syncJobs.get(4)));
+        assertThat(secondSyncJob, equalTo(syncJobs.get(3)));
         assertThat(thirdSyncJob, equalTo(syncJobs.get(2)));
-        assertThat(fourthSyncJob, equalTo(syncJobs.get(3)));
-        assertThat(fifthSyncJob, equalTo(syncJobs.get(4)));
+        assertThat(fourthSyncJob, equalTo(syncJobs.get(1)));
+        assertThat(fifthSyncJob, equalTo(syncJobs.get(0)));
 
-        // assert ordering: ascending order by creation date
-        assertTrue(fifthSyncJob.getCreatedAt().isAfter(fourthSyncJob.getCreatedAt()));
-        assertTrue(fourthSyncJob.getCreatedAt().isAfter(thirdSyncJob.getCreatedAt()));
-        assertTrue(thirdSyncJob.getCreatedAt().isAfter(secondSyncJob.getCreatedAt()));
-        assertTrue(secondSyncJob.getCreatedAt().isAfter(firstSyncJob.getCreatedAt()));
+        // assert ordering: descending order by creation date
+        assertTrue(fourthSyncJob.getCreatedAt().isAfter(fifthSyncJob.getCreatedAt()));
+        assertTrue(thirdSyncJob.getCreatedAt().isAfter(fourthSyncJob.getCreatedAt()));
+        assertTrue(secondSyncJob.getCreatedAt().isAfter(thirdSyncJob.getCreatedAt()));
+        assertTrue(firstSyncJob.getCreatedAt().isAfter(secondSyncJob.getCreatedAt()));
     }
 
     public void testListConnectorSyncJobs_WithStatusPending_GivenOnePendingTwoCanceled_ExpectOnePending() throws Exception {
@@ -638,8 +658,9 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         String idOfReturnedSyncJobTwo = connectorSyncJobsResult.connectorSyncJobs().get(1).getDocId();
 
         assertThat(numberOfResults, equalTo(2L));
-        assertThat(idOfReturnedSyncJobOne, equalTo(syncJobOneId));
-        assertThat(idOfReturnedSyncJobTwo, equalTo(syncJobTwoId));
+        // Sync jobs are returned in most-recently created order
+        assertThat(idOfReturnedSyncJobTwo, equalTo(syncJobOneId));
+        assertThat(idOfReturnedSyncJobOne, equalTo(syncJobTwoId));
     }
 
     public void testListConnectorSyncJobs_WithNoSyncJobs_ReturnEmptyResult() throws Exception {
@@ -1112,13 +1133,13 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
 
-        final AtomicReference<PostConnectorSyncJobAction.Response> responseRef = new AtomicReference<>(null);
+        final AtomicReference<PostConnectorSyncJobAction.Response> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exception = new AtomicReference<>(null);
 
         connectorSyncJobIndexService.createConnectorSyncJob(syncJobRequest, new ActionListener<>() {
             @Override
             public void onResponse(PostConnectorSyncJobAction.Response putConnectorSyncJobResponse) {
-                responseRef.set(putConnectorSyncJobResponse);
+                resp.set(putConnectorSyncJobResponse);
                 latch.countDown();
             }
 
@@ -1128,18 +1149,13 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-
+        assertTrue("Timeout waiting for delete request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exception.get() != null) {
             throw exception.get();
         }
 
-        boolean requestTimedOut = latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        PostConnectorSyncJobAction.Response response = responseRef.get();
-
-        assertTrue("Timeout waiting for post request", requestTimedOut);
-        assertNotNull("Received null response from post request", response);
-
-        return response;
+        assertNotNull("Received null response from delete request", resp.get());
+        return resp.get();
     }
 
     private String updateConnectorSyncJobStatusWithoutStateMachineGuard(String syncJobId, ConnectorSyncStatus syncStatus) throws Exception {

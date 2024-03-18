@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -29,6 +32,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     // Field names allowed at the index level
     private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES = Set.of(
+        RoutingFieldMapper.NAME,
+        IgnoredFieldMapper.NAME,
+        LegacyTypeFieldMapper.NAME,
         "_id",
         "doc_type",
         "name",
@@ -104,7 +110,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (queryRewriteContext instanceof SearchExecutionContext) {
-            ((SearchExecutionContext) queryRewriteContext).setAllowedFields(ApiKeyBoolQueryBuilder::isIndexFieldNameAllowed);
+            ((SearchExecutionContext) queryRewriteContext).setAllowedFields(
+                field -> isIndexFieldNameAllowed(field) || ((SearchExecutionContext) queryRewriteContext).isMetadataField(field)
+            );
         }
         return super.doRewrite(queryRewriteContext);
     }

@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -28,6 +31,13 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexFieldNameTra
 public class UserBoolQueryBuilder extends BoolQueryBuilder {
     public static final SecurityIndexFieldNameTranslator USER_FIELD_NAME_TRANSLATOR = new SecurityIndexFieldNameTranslator(
         List.of(exact("username"), exact("roles"), exact("full_name"), exact("email"), exact("enabled"))
+    );
+
+    private static final List<String> ALLOWED_FIELD_NAMES = List.of(
+        RoutingFieldMapper.NAME,
+        IgnoredFieldMapper.NAME,
+        LegacyTypeFieldMapper.NAME,
+        "type"
     );
 
     private UserBoolQueryBuilder() {}
@@ -96,6 +106,6 @@ public class UserBoolQueryBuilder extends BoolQueryBuilder {
 
     boolean isIndexFieldNameAllowed(String queryFieldName) {
         // Type is needed to filter on user doc type
-        return queryFieldName.equals("type") || USER_FIELD_NAME_TRANSLATOR.supportedIndexFieldName(queryFieldName);
+        return ALLOWED_FIELD_NAMES.contains(queryFieldName) || USER_FIELD_NAME_TRANSLATOR.supportedIndexFieldName(queryFieldName);
     }
 }

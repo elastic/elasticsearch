@@ -332,7 +332,8 @@ public class MetadataCreateDataStreamService {
             lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
             template.getDataStreamTemplate().hasFailureStore(),
             failureIndices,
-            null
+            null,
+            1
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

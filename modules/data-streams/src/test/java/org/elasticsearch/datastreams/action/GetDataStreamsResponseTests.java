@@ -90,7 +90,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 new DataStreamLifecycle(),
                 true,
                 failureStores,
-                null
+                null,
+                failureStores.size() + 1
             );
 
             String ilmPolicyName = "rollover-30days";
@@ -200,7 +201,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 new DataStreamLifecycle(null, null, false),
                 true,
                 failureStores,
-                null
+                null,
+                failureStores.size() + 1
             );
 
             String ilmPolicyName = "rollover-30days";

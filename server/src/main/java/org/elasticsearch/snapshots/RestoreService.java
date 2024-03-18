@@ -717,7 +717,8 @@ public final class RestoreService implements ClusterStateApplier {
             dataStream.getLifecycle(),
             dataStream.isFailureStore(),
             dataStream.getFailureIndices(),
-            dataStream.getAutoShardingEvent()
+            dataStream.getAutoShardingEvent(),
+            dataStream.getFailureStoreGeneration()
         );
     }
 

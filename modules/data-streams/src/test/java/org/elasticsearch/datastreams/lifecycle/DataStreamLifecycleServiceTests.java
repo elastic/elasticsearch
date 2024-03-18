@@ -296,7 +296,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 DataStreamLifecycle.newBuilder().dataRetention(0L).build(),
                 dataStream.isFailureStore(),
                 dataStream.getFailureIndices(),
-                null
+                null,
+                dataStream.getFailureStoreGeneration()
             )
         );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();

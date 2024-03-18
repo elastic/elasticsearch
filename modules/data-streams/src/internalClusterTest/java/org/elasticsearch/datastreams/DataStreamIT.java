@@ -1791,7 +1791,8 @@ public class DataStreamIT extends ESIntegTestCase {
                         original.getLifecycle(),
                         original.isFailureStore(),
                         original.getFailureIndices(),
-                        null
+                        null,
+                        original.getFailureStoreGeneration()
                     );
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)

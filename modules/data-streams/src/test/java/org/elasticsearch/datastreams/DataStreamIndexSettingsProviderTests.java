@@ -315,7 +315,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 ds.getLifecycle(),
                 ds.isFailureStore(),
                 ds.getFailureIndices(),
-                null
+                null,
+                ds.getFailureStoreGeneration()
             )
         );
         Metadata metadata = mb.build();

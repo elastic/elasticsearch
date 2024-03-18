@@ -1,7 +1,7 @@
 [[rest-api-root]]
-=== Root API
+== Root API
 ++++
-<titleabbrev>Version API</titleabbrev>
+<titleabbrev>Root API</titleabbrev>
 ++++
 
 The Elasticsearch API's base url returns its basic build, 
@@ -13,7 +13,7 @@ GET /
 --------------------------------------------------
 
 [[rest-api-root-prereq]]
-==== {api-prereq-title}
+=== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the
 `monitor`, `manage`, or `all`
@@ -21,7 +21,7 @@ GET /
 
 [role="child_attributes"]
 [[rest-api-root-response-body]]
-==== {api-response-body-title}
+=== {api-response-body-title}
 
 
 `name` ::
@@ -76,7 +76,7 @@ from disk.
 ====
 
 [[rest-api-root-response-example]]
-==== {api-examples-title}
+=== {api-examples-title}
 
 The API returns the following response: 
 
@@ -100,3 +100,15 @@ The API returns the following response:
   "tagline": "You Know, for Search"
 }
 ----
+// TESTRESPONSE[s/"name": "instance-0000000000"/"name": "$body.name"/]
+// TESTRESPONSE[s/"cluster_name": "my_test_cluster"/"cluster_name": "$body.cluster_name"/]
+// TESTRESPONSE[s/"cluster_uuid": "5QaxoN0pRZuOmWSxstBBwQ"/"cluster_uuid": "$body.cluster_uuid"/]
+// TESTRESPONSE[s/"build_date": "2024-02-01T13:07:13.727175297Z"/"build_date": "$body.version.build_date"/]
+// TESTRESPONSE[s/"minimum_wire_compatibility_version": "7.17.0"/"minimum_wire_compatibility_version": "$body.version.minimum_wire_compatibility_version"/]
+// TESTRESPONSE[s/"build_hash": "6185ba65d27469afabc9bc951cded6c17c21e3f3"/"build_hash": "$body.version.build_hash"/]
+// TESTRESPONSE[s/"number": "8.12.1"/"number": "$body.version.number"/]
+// TESTRESPONSE[s/"lucene_version": "9.9.2"/"lucene_version": "$body.version.lucene_version"/]
+// TESTRESPONSE[s/"minimum_index_compatibility_version": "7.0.0"/"minimum_index_compatibility_version": "$body.version.minimum_index_compatibility_version"/]
+// TESTRESPONSE[s/"build_flavor": "default"/"build_flavor": "$body.version.build_flavor"/]
+// TESTRESPONSE[s/"build_snapshot": false/"build_snapshot": "$body.version.build_snapshot"/]
+// TESTRESPONSE[s/"build_type": "docker"/"build_type": "$body.version.build_type"/]

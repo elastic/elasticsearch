@@ -171,7 +171,7 @@ public final class DataStreamTestHelper {
             failureStores.size() > 0,
             failureStores,
             null,
-            1
+            failureStores.size() + 1
         );
     }
 

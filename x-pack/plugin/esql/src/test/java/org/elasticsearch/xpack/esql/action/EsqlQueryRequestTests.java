@@ -261,13 +261,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     static EsqlQueryRequest parseEsqlQueryRequestSync(String json) throws IOException {
-        var request = parseEsqlQueryRequest(json, EsqlQueryRequest::fromXContentSync);
+        var request = parseEsqlQueryRequest(json, RequestXContent::parseSync);
         assertFalse(request.async());
         return request;
     }
 
     static EsqlQueryRequest parseEsqlQueryRequestAsync(String json) throws IOException {
-        var request = parseEsqlQueryRequest(json, EsqlQueryRequest::fromXContentAsync);
+        var request = parseEsqlQueryRequest(json, RequestXContent::parseAsync);
         assertTrue(request.async());
         return request;
     }

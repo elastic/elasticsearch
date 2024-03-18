@@ -88,3 +88,48 @@ setup:
           is_native: false
           service_type: super-connector
 
+---
+'Create Connector - Index name used by another connector':
+  - do:
+      connector.post:
+        body:
+          index_name: search-test
+
+  - set:  { id: id }
+  - match: { id: $id }
+
+  - do:
+      catch: "bad_request"
+      connector.post:
+        body:
+          index_name: search-test
+
+
+---
+'Create Connector - Without index attached':
+  - do:
+      connector.post:
+        body:
+          service_type: super-connector
+
+  - set:  { id: id }
+  - match: { id: $id }
+
+  - do:
+      connector.get:
+        connector_id: $id
+
+  - match: { index_name: null }
+  - match: { service_type: super-connector }
+
+---
+"Post connector fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.post:
+        body:
+          index_name: search-test

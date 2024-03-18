@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -30,7 +31,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -1221,7 +1223,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLoadId() {
-        try (EsqlQueryResponse results = run("from test [metadata _id] | keep _id | sort _id ")) {
+        try (EsqlQueryResponse results = run("from test metadata _id | keep _id | sort _id ")) {
             assertThat(results.columns(), equalTo(List.of(new ColumnInfo("_id", "keyword"))));
             ListMatcher values = matchesList();
             for (int i = 10; i < 50; i++) {
@@ -1410,6 +1412,89 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo((long) numDocs));
             assertFalse(row.hasNext());
+        }
+    }
+
+    public void testQueryOnEmptyMappingIndex() {
+        createIndex("empty-test", Settings.EMPTY);
+        createIndex("empty-test2", Settings.EMPTY);
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases()
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("empty-test").alias("alias-test"))
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("empty-test2").alias("alias-test"));
+        indicesAdmin().aliases(indicesAliasesRequestBuilder.request()).actionGet();
+
+        String[] indexPatterns = new String[] { "empty-test", "empty-test,empty-test2", "empty-test*", "alias-test", "*-test*" };
+        String from = "FROM " + randomFrom(indexPatterns) + " ";
+
+        assertEmptyIndexQueries(from);
+
+        try (EsqlQueryResponse resp = run(from + "METADATA _source | EVAL x = 123")) {
+            assertFalse(resp.values().hasNext());
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("_source", "_source"), new ColumnInfo("x", "integer"))));
+        }
+
+        try (EsqlQueryResponse resp = run(from)) {
+            assertFalse(resp.values().hasNext());
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("<no-fields>", "null"))));
+        }
+    }
+
+    public void testQueryOnEmptyDataIndex() {
+        createIndex("empty_data-test", Settings.EMPTY);
+        assertAcked(client().admin().indices().prepareCreate("empty_data-test2").setMapping("name", "type=text"));
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases()
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("empty_data-test").alias("alias-empty_data-test"))
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("empty_data-test2").alias("alias-empty_data-test"));
+        indicesAdmin().aliases(indicesAliasesRequestBuilder.request()).actionGet();
+
+        String[] indexPatterns = new String[] {
+            "empty_data-test2",
+            "empty_data-test,empty_data-test2",
+            "alias-empty_data-test",
+            "*data-test" };
+        String from = "FROM " + randomFrom(indexPatterns) + " ";
+
+        assertEmptyIndexQueries(from);
+
+        try (EsqlQueryResponse resp = run(from + "METADATA _source | EVAL x = 123")) {
+            assertFalse(resp.values().hasNext());
+            assertThat(
+                resp.columns(),
+                equalTo(List.of(new ColumnInfo("name", "text"), new ColumnInfo("_source", "_source"), new ColumnInfo("x", "integer")))
+            );
+        }
+
+        try (EsqlQueryResponse resp = run(from)) {
+            assertFalse(resp.values().hasNext());
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("name", "text"))));
+        }
+    }
+
+    private void assertEmptyIndexQueries(String from) {
+        try (EsqlQueryResponse resp = run(from + "METADATA _source | KEEP _source | LIMIT 1")) {
+            assertFalse(resp.values().hasNext());
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("_source", "_source"))));
+        }
+
+        try (EsqlQueryResponse resp = run(from + "| EVAL y = 1 | KEEP y | LIMIT 1 | EVAL x = 1")) {
+            assertFalse(resp.values().hasNext());
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("y", "integer"), new ColumnInfo("x", "integer"))));
+        }
+
+        try (EsqlQueryResponse resp = run(from + "| STATS c = count()")) {
+            assertTrue(resp.values().hasNext());
+            Iterator<Object> row = resp.values().next();
+            assertThat(row.next(), equalTo((long) 0));
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("c", "long"))));
+        }
+
+        try (EsqlQueryResponse resp = run(from + "| STATS c = count() | EVAL x = 123")) {
+            assertTrue(resp.values().hasNext());
+            Iterator<Object> row = resp.values().next();
+            assertThat(row.next(), equalTo((long) 0));
+            assertThat(row.next(), equalTo(123));
+            assertFalse(row.hasNext());
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfo("c", "long"), new ColumnInfo("x", "integer"))));
         }
     }
 

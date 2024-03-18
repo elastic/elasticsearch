@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,7 @@ public abstract class InternalMultiBucketAggregation<
      * buckets is plenty fast to fail this quickly in pathological cases and
      * plenty large to keep the overhead minimal.
      */
-    protected static final int REPORT_EMPTY_EVERY = 10_000;
+    public static final int REPORT_EMPTY_EVERY = 10_000;
 
     public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
         super(name, metadata);
@@ -71,11 +72,24 @@ public abstract class InternalMultiBucketAggregation<
      */
     public abstract B createBucket(InternalAggregations aggregations, B prototype);
 
-    /**
-     * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
-     * requires all buckets to have the same key.
-     */
-    protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
+    /** Helps to lazily construct the aggregation list for reduction */
+    protected static class BucketAggregationList<B extends Bucket> extends AbstractList<InternalAggregations> {
+        private final List<B> buckets;
+
+        public BucketAggregationList(List<B> buckets) {
+            this.buckets = buckets;
+        }
+
+        @Override
+        public InternalAggregations get(int index) {
+            return buckets.get(index).getAggregations();
+        }
+
+        @Override
+        public int size() {
+            return buckets.size();
+        }
+    }
 
     @Override
     public abstract List<B> getBuckets();

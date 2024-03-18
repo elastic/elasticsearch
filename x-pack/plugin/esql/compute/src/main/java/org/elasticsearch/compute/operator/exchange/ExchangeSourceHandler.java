@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.TransportException;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,10 +44,10 @@ public final class ExchangeSourceHandler {
         this.outstandingSources = new PendingInstances(() -> buffer.finish(true));
     }
 
-    private class LocalExchangeSource implements ExchangeSource {
+    private class ExchangeSourceImpl implements ExchangeSource {
         private boolean finished;
 
-        LocalExchangeSource() {
+        ExchangeSourceImpl() {
             outstandingSources.trackNewInstance();
         }
 
@@ -93,7 +95,7 @@ public final class ExchangeSourceHandler {
      * @see ExchangeSinkOperator
      */
     public ExchangeSource createExchangeSource() {
-        return new LocalExchangeSource();
+        return new ExchangeSourceImpl();
     }
 
     /**
@@ -181,7 +183,10 @@ public final class ExchangeSourceHandler {
             loopControl.exited();
         }
 
-        void onSinkFailed(Exception e) {
+        void onSinkFailed(Exception originEx) {
+            final Exception e = originEx instanceof TransportException
+                ? (originEx.getCause() instanceof Exception cause ? cause : new ElasticsearchException(originEx.getCause()))
+                : originEx;
             failure.getAndUpdate(first -> {
                 if (first == null) {
                     return e;

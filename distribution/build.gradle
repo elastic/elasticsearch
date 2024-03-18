@@ -261,7 +261,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -292,6 +292,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
+    libsNative project(':libs:elasticsearch-native:elasticsearch-native-libraries')
   }
 
   project.ext {
@@ -299,7 +300,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles =
+    libFiles = { os, architecture ->
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
@@ -330,12 +331,19 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/ansi-console') {
           from(configurations.libsAnsiConsole)
         }
+        into('platform') {
+          from(configurations.libsNative)
+          if (os != null) {
+            include (os + '-' + architecture + '/*')
+          }
+        }
       }
+    }
 
-    modulesFiles = { platform ->
+    modulesFiles = { os, architecture ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || ((platform == 'darwin-x86_64' || platform == 'darwin-aarch64') && it.relativePath.segments[-2] == 'MacOS')) {
+          if (it.relativePath.segments[-2] == 'bin' || (os == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             // and MacOS is an alternative to bin on macOS
             it.mode = 0755
@@ -344,7 +352,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           }
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
-        if (platform != null) {
+        if (os != null) {
+          String platform = os + '-' + architecture
+          if (architecture == 'x64') {
+            // ML platform dir uses the x86_64 nomenclature
+            platform = os + '-x86_64'
+          }
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
@@ -430,15 +443,15 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    jdkFiles = { Project project, String platform, String architecture ->
+    jdkFiles = { Project project, String os, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${platform}_${architecture}"
+        from project.jdks."bundled_${os}_${architecture}"
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
          * it from the build.
          */
-        if ("darwin".equals(platform)) {
+        if ("darwin".equals(os)) {
           exclude "Contents/MacOS"
         }
         eachFile { FileCopyDetails details ->

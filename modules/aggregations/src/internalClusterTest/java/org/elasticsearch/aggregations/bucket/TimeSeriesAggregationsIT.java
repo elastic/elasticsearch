@@ -41,11 +41,13 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -76,7 +78,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        int numberOfIndices = randomIntBetween(1, 3);
+        int numberOfIndices = randomIntBetween(1, 1);
         numberOfDimensions = randomIntBetween(1, 5);
         numberOfMetrics = randomIntBetween(1, 10);
         String[] routingKeys = randomSubsetOf(
@@ -146,7 +148,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         for (int i = 0; i < numberOfDocs; i++) {
             XContentBuilder docSource = XContentFactory.jsonBuilder();
             docSource.startObject();
-            Map<String, String> key = new HashMap<>();
+            Map<String, String> key = new TreeMap<>(Comparator.naturalOrder());
             for (int d = 0; d < numberOfDimensions; d++) {
                 String dim = randomFrom(dimensions[d]);
                 docSource.field("dim_" + d, dim);

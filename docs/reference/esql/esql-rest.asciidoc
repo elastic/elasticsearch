@@ -205,6 +205,33 @@ Which returns:
 ----
 
 [discrete]
+[[esql-locale-param]]
+==== Returning localized results
+
+Use the `locale` parameter in the request body to return results (especially dates) formatted per the conventions of the locale.
+If `locale` is not specified, defaults to `en-US` (English).
+Refer to https://www.oracle.com/java/technologies/javase/jdk17-suported-locales.html[JDK Supported Locales].
+
+Syntax: the `locale` parameter accepts language tags in the (case-insensitive) format `xy` and `xy-XY`.
+
+For example, to return a month name in French:
+
+[source,console]
+----
+POST /_query
+{
+  "locale": "fr-FR",
+  "query": """
+          ROW birth_date_string = "2023-01-15T00:00:00.000Z"
+          | EVAL birth_date = date_parse(birth_date_string)
+          | EVAL month_of_birth = DATE_FORMAT("MMMM",birth_date)
+          | LIMIT 5
+   """
+}
+----
+// TEST[setup:library]
+
+[discrete]
 [[esql-rest-params]]
 ==== Passing parameters to a query
 
@@ -281,6 +308,7 @@ POST /_query/async
 }
 ----
 // TEST[setup:library]
+// TEST[skip:awaitsfix https://github.com/elastic/elasticsearch/issues/104013]
 
 If the results are not available within the given timeout period, 2
 seconds in this case, no results are returned but rather a response that

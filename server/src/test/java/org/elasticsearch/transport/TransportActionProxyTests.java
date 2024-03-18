@@ -266,22 +266,17 @@ public class TransportActionProxyTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(2);
 
         final boolean cancellable = randomBoolean();
-        serviceB.registerRequestHandler(
-            "internal:test",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            SimpleTestRequest::new,
-            (request, channel, task) -> {
-                try {
-                    assertThat(task instanceof CancellableTask, equalTo(cancellable));
-                    assertEquals(request.sourceNode, "TS_A");
-                    final SimpleTestResponse responseB = new SimpleTestResponse("TS_B");
-                    channel.sendResponse(responseB);
-                    response.set(responseB);
-                } finally {
-                    latch.countDown();
-                }
+        serviceB.registerRequestHandler("internal:test", randomExecutor(threadPool), SimpleTestRequest::new, (request, channel, task) -> {
+            try {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                assertEquals(request.sourceNode, "TS_A");
+                final SimpleTestResponse responseB = new SimpleTestResponse("TS_B");
+                channel.sendResponse(responseB);
+                response.set(responseB);
+            } finally {
+                latch.countDown();
             }
-        );
+        });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
@@ -524,13 +519,13 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(TransportResponse response) throws IOException {
+        public void sendResponse(TransportResponse response) {
             onResponse.accept(response);
             in.sendResponse(response);
         }
 
         @Override
-        public void sendResponse(Exception exception) throws IOException {
+        public void sendResponse(Exception exception) {
             in.sendResponse(exception);
         }
 

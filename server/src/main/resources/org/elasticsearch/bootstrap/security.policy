@@ -70,6 +70,7 @@ grant codeBase "${codebase.elasticsearch-cli}" {
 grant codeBase "${codebase.jna}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.org.elasticsearch.preallocate";
 };
 
 grant codeBase "${codebase.log4j-api}" {
@@ -79,8 +80,7 @@ grant codeBase "${codebase.log4j-api}" {
 grant codeBase "${codebase.elasticsearch-preallocate}" {
   // for registering native methods
   permission java.lang.RuntimePermission "accessDeclaredMembers";
-  // for accessing the file descriptor field in FileChannel
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.org.elasticsearch.preallocate";
 };
 
 //// Everything else:

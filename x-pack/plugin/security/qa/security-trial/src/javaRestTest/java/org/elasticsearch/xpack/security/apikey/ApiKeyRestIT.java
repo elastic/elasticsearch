@@ -300,6 +300,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         ApiKey apiKey = getApiKey((String) responseBody.get("id"));
         assertThat(apiKey.getUsername(), equalTo(END_USER));
+        assertThat(apiKey.getRealm(), equalTo("default_native"));
+        assertThat(apiKey.getRealmType(), equalTo("native"));
     }
 
     public void testGrantApiKeyForOtherUserWithAccessToken() throws IOException {
@@ -329,6 +331,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         ApiKey apiKey = getApiKey((String) responseBody.get("id"));
         assertThat(apiKey.getUsername(), equalTo(END_USER));
+        assertThat(apiKey.getRealm(), equalTo("default_native"));
+        assertThat(apiKey.getRealmType(), equalTo("native"));
 
         Instant minExpiry = before.plus(2, ChronoUnit.HOURS);
         Instant maxExpiry = after.plus(2, ChronoUnit.HOURS);
@@ -458,6 +462,33 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertEquals(List.of(apiKey1.id(), apiKey2.id()), response.get("updated"));
         assertNull(response.get("errors"));
         assertEquals(List.of(), response.get("noops"));
+    }
+
+    public void testUpdateBadExpirationTimeApiKey() throws IOException {
+        final EncodedApiKey apiKey = createApiKey("my-api-key-name", Map.of());
+
+        final boolean bulkUpdate = randomBoolean();
+        TimeValue expiration = randomFrom(TimeValue.ZERO, TimeValue.MINUS_ONE);
+        final String method;
+        final Map<String, Object> requestBody;
+        final String requestPath;
+
+        if (bulkUpdate) {
+            method = "POST";
+            requestBody = Map.of("expiration", expiration, "ids", List.of(apiKey.id));
+            requestPath = "_security/api_key/_bulk_update";
+        } else {
+            method = "PUT";
+            requestBody = Map.of("expiration", expiration);
+            requestPath = "_security/api_key/" + apiKey.id;
+        }
+
+        final var bulkUpdateApiKeyRequest = new Request(method, requestPath);
+        bulkUpdateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
+
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(bulkUpdateApiKeyRequest));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("API key expiration must be in the future"));
     }
 
     public void testGrantTargetCanUpdateApiKey() throws IOException {

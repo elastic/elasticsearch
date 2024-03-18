@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Map.entry;
@@ -87,21 +86,16 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     }
 
     public void testExtractFieldMappings() {
-        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(new String[] { "some-index" }, new HashMap<>() {
-            {
-                put("field-1", new HashMap<>() {
-                    {
-                        put("keyword", createFieldCapabilities("field-1", "keyword"));
-                    }
-                });
-                put("field-2", new HashMap<>() {
-                    {
-                        put("long", createFieldCapabilities("field-2", "long"));
-                        put("keyword", createFieldCapabilities("field-2", "keyword"));
-                    }
-                });
-            }
-        });
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(
+            new String[] { "some-index" },
+            Map.ofEntries(
+                entry("field-1", Map.of("keyword", createFieldCapabilities("field-1", "keyword"))),
+                entry(
+                    "field-2",
+                    Map.of("long", createFieldCapabilities("field-2", "long"), "keyword", createFieldCapabilities("field-2", "keyword"))
+                )
+            )
+        );
 
         assertThat(
             DocumentConversionUtils.extractFieldMappings(response),

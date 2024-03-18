@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -110,15 +109,13 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testXContentRoundtrip() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
-
         RatedRequest testItem = createTestItem(randomBoolean());
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(builder, ToXContent.EMPTY_PARAMS));
         try (XContentParser itemParser = createParser(shuffled)) {
             itemParser.nextToken();
 
-            RatedRequest parsedItem = RatedRequest.fromXContent(itemParser);
+            RatedRequest parsedItem = RatedRequest.fromXContent(itemParser, nf -> false);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -126,14 +123,12 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testXContentParsingIsNotLenient() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
-
         RatedRequest testItem = createTestItem(randomBoolean());
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            Throwable exception = expectThrows(XContentParseException.class, () -> RatedRequest.fromXContent(parser));
+            Throwable exception = expectThrows(XContentParseException.class, () -> RatedRequest.fromXContent(parser, nf -> false));
             if (exception.getCause() != null) {
                 assertThat(exception.getMessage(), containsString("[request] failed to parse field"));
                 exception = exception.getCause();
@@ -266,8 +261,6 @@ public class RatedRequestsTests extends ESTestCase {
     }
 
     public void testSuggestionsNotAllowed() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
-
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         SearchSourceBuilder query = new SearchSourceBuilder();
         query.suggest(new SuggestBuilder().addSuggestion("id", SuggestBuilders.completionSuggestion("fieldname")));
@@ -306,8 +299,6 @@ public class RatedRequestsTests extends ESTestCase {
      * matter for parsing xContent
      */
     public void testParseFromXContent() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
-
         String querySpecString = """
             {
               "id": "my_qa_query",
@@ -368,7 +359,7 @@ public class RatedRequestsTests extends ESTestCase {
               ]
             }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, querySpecString)) {
-            RatedRequest specification = RatedRequest.fromXContent(parser);
+            RatedRequest specification = RatedRequest.fromXContent(parser, nf -> false);
             assertEquals("my_qa_query", specification.getId());
             assertNotNull(specification.getEvaluationRequest());
             List<RatedDocument> ratedDocs = specification.getRatedDocs();

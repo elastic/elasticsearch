@@ -102,7 +102,7 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: "
                     + (bytesRef.utf8ToString().isEmpty()
-                        ? "cannot parse empty date"
+                        ? "cannot parse empty datetime"
                         : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"))
             )
         );

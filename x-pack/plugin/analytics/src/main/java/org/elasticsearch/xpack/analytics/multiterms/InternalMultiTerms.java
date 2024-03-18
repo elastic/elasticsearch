@@ -14,6 +14,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -539,25 +540,35 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         );
     }
 
-    public InternalAggregation reduce(
-        List<InternalAggregation> aggregations,
-        AggregationReduceContext reduceContext,
-        boolean[] needsPromotionToDouble
-    ) {
+    public List<InternalAggregation> getProcessedAggs(List<InternalAggregation> aggregations, boolean[] needsPromotionToDouble) {
         if (needsPromotionToDouble != null) {
             List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
             for (InternalAggregation agg : aggregations) {
                 newAggs.add(promoteToDouble(agg, needsPromotionToDouble));
             }
-            return ((InternalMultiTerms) newAggs.get(0)).reduce(newAggs, reduceContext, null);
+            return newAggs;
         } else {
-            return super.reduce(aggregations, reduceContext);
+            return aggregations;
         }
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return reduce(aggregations, reduceContext, needsPromotionToDouble(aggregations));
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            final List<InternalAggregation> aggregations = new ArrayList<>(size);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                aggregations.add(aggregation);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                List<InternalAggregation> processed = getProcessedAggs(aggregations, needsPromotionToDouble(aggregations));
+                return ((AbstractInternalTerms<?, ?>) processed.get(0)).doReduce(processed, reduceContext);
+            }
+        };
     }
 
     @Override

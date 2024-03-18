@@ -1,0 +1,6 @@
+pr: 106351
+summary: "Fix error on sorting unsortable `geo_point` and `cartesian_point`"
+area: ES|QL
+type: bug
+issues:
+ - 106007

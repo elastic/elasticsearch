@@ -182,7 +182,9 @@ string:keyword                                          |datetime:date
 // end::to_datetime-str-result[]
 ;
 
-convertFromUnsignedLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
+convertFromUnsignedLong
+required_feature:esql.convert_warn
+
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
 warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:58: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
@@ -326,6 +328,59 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
+autoBucketYearInAggConstRefsString#[skip:-8.12.99, reason:date type is supported in 8.13]
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket_start = "1999-01-01T00:00:00Z"
+| EVAL bucket_end = NOW()
+| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| STATS COUNT(*) by bucket
+| sort bucket;
+
+COUNT(*):long            | bucket:date
+1                        | 1999-01-01T00:00:00.000Z
+;
+
+autoBucketYearInAggConstRefsConcat#[skip:-8.12.99, reason:date type is supported in 8.13]
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket_start = CONCAT("1999-01-01", "T", "00:00:00Z")
+| EVAL bucket_end = NOW()
+| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| STATS COUNT(*) by bucket
+| sort bucket;
+
+COUNT(*):long            | bucket:date
+1                        | 1999-01-01T00:00:00.000Z
+;
+
+autoBucketYearInAggConstRefsDate#[skip:-8.12.99, reason:date type is supported in 8.13]
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket_start = TO_DATETIME("1999-01-01T00:00:00.000Z")
+| EVAL bucket_end = NOW()
+| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| keep bucket_start, bucket_end, bucket
+| STATS COUNT(*) by bucket
+| sort bucket;
+
+COUNT(*):long            | bucket:date
+1                        | 1999-01-01T00:00:00.000Z
+;
+
+autoBucketYearInAggConstRefsRename#[skip:-8.12.99, reason:date type is supported in 8.13]
+FROM employees
+| WHERE hire_date >= "1999-01-01T00:00:00Z"
+| EVAL bucket_start = "1999-01-01T00:00:00Z"
+| EVAL bucket_end = NOW()
+| RENAME bucket_end as be, bucket_start as bs
+| STATS c = COUNT(*) by AUTO_BUCKET(hire_date, 5, bs, be)
+| SORT c
+;
+
+c:long            | AUTO_BUCKET(hire_date, 5, bs, be):date
+1                 | 1999-01-01T00:00:00.000Z
+;
 
 autoBucketMonthInAgg
 // tag::auto_bucket_in_agg[]
@@ -1097,4 +1152,14 @@ FROM sample_data
 // tag::docsNowWhere-result[]
 @timestamp:date   | client_ip:ip | event_duration:long | message:keyword
 // end::docsNowWhere-result[]
+;
+
+mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+row a = ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"]
+| eval datetime = TO_DATETIME(a)
+| eval sa = mv_sort(datetime), sd = mv_sort(datetime, "DESC")
+| keep datetime, sa, sd;
+
+datetime:date                                                                       | sa:date                                                                              | sd:date
+["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"]| ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"] | ["1987-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1985-01-01T00:00:00.000Z"]
 ;

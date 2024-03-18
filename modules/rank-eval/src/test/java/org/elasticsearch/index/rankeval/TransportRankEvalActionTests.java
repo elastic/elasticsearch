@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -16,8 +15,10 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -43,8 +44,6 @@ public final class TransportRankEvalActionTests extends ESTestCase {
      * Test that request parameters like indicesOptions or searchType from ranking evaluation request are transfered to msearch request
      */
     public void testTransferRequestParameters() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/104570", Constants.WINDOWS);
-
         String indexName = "test_index";
         List<RatedRequest> specifications = new ArrayList<>();
         specifications.add(
@@ -84,7 +83,9 @@ public final class TransportRankEvalActionTests extends ESTestCase {
             client,
             transportService,
             mock(ScriptService.class),
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            mock(ClusterService.class),
+            mock(FeatureService.class)
         );
         action.doExecute(null, rankEvalRequest, null);
     }

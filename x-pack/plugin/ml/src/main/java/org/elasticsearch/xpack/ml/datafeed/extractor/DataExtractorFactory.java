@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtracto
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 
 public interface DataExtractorFactory {
+
     DataExtractor newExtractor(long start, long end);
 
     /**
@@ -58,13 +59,12 @@ public interface DataExtractorFactory {
     ) {
         final boolean hasAggs = datafeed.hasAggregations();
         final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
-        ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
-            factory -> listener.onResponse(
+        ActionListener<DataExtractorFactory> factoryHandler = listener.delegateFailureAndWrap(
+            (l, factory) -> l.onResponse(
                 datafeed.getChunkingConfig().isEnabled()
-                    ? new ChunkedDataExtractorFactory(client, datafeed, extraFilters, job, xContentRegistry, factory, timingStatsReporter)
+                    ? new ChunkedDataExtractorFactory(datafeed, job, xContentRegistry, factory)
                     : factory
-            ),
-            listener::onFailure
+            )
         );
 
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.existence;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -14,7 +15,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.AbstractFrozenAutoscalingIntegTestCase;
@@ -83,7 +83,6 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102405")
     public void testZeroToOne() throws Exception {
         internalCluster().startMasterOnlyNode();
         setupRepoAndPolicy();
@@ -91,7 +90,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
         internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE));
         internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE));
         // create an ignored snapshot to initialize the latest-N file.
-        final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
+        createFullSnapshot(fsRepoName, snapshotName);
 
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.emptyMap());
         Phase frozenPhase = new Phase(
@@ -111,9 +110,9 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
             .build();
         CreateIndexResponse res = indicesAdmin().prepareCreate(INDEX_NAME).setSettings(settings).get();
         assertTrue(res.isAcknowledged());
-        logger.info("created index");
+        logger.info("-> created index");
 
-        assertBusy(() -> { assertMinimumCapacity(capacity().results().get("frozen").requiredCapacity().total()); });
+        assertBusy(() -> assertMinimumCapacity(capacity().results().get("frozen").requiredCapacity().total()));
         assertMinimumCapacity(capacity().results().get("frozen").requiredCapacity().node());
 
         assertThat(
@@ -134,14 +133,19 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
         // verify that SearchableSnapshotAction uses WaitForDataTierStep and that it waits.
         assertThat(indices(), not(arrayContaining(PARTIAL_INDEX_NAME)));
 
-        logger.info("starting dedicated frozen node");
+        logger.info("-> starting dedicated frozen node");
         internalCluster().startNode(NodeRoles.onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
 
+        // we've seen a case where bootstrapping a node took just over 60 seconds in the test environment, so using an (excessive) 90
+        // seconds max wait time to avoid flakiness
         assertBusy(() -> {
+            // cause a bit of cluster activity using an empty reroute call in case the `wait-for-index-colour` ILM step missed the
+            // notification that partial-index is now GREEN.
+            client().admin().cluster().reroute(new ClusterRerouteRequest()).actionGet();
             String[] indices = indices();
             assertThat(indices, arrayContaining(PARTIAL_INDEX_NAME));
             assertThat(indices, not(arrayContaining(INDEX_NAME)));
-        }, 60, TimeUnit.SECONDS);
+        }, 90, TimeUnit.SECONDS);
         ensureGreen();
     }
 

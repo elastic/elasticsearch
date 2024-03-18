@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.rank;
+package org.elasticsearch.xpack.core.ml.reranking;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;

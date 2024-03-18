@@ -117,9 +117,11 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
     exports org.elasticsearch.xpack.core.ml.job.results;
     exports org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
+    exports org.elasticsearch.xpack.core.ml.ltr;
     exports org.elasticsearch.xpack.core.ml.notifications;
     exports org.elasticsearch.xpack.core.ml.packageloader.action;
     exports org.elasticsearch.xpack.core.ml.process.writer;
+    exports org.elasticsearch.xpack.core.ml.reranking;
     exports org.elasticsearch.xpack.core.ml.stats;
     exports org.elasticsearch.xpack.core.ml.utils.time;
     exports org.elasticsearch.xpack.core.ml.utils;
@@ -225,7 +227,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.trigger;
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
-    exports org.elasticsearch.xpack.core.ml.ltr;
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with

@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.xpack.inference.InferenceFeatures;
-
 module org.elasticsearch.inference {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
@@ -21,12 +19,8 @@ module org.elasticsearch.inference {
     requires org.apache.lucene.core;
 
     exports org.elasticsearch.xpack.inference.action;
-    exports org.elasticsearch.xpack.inference.rank;
     exports org.elasticsearch.xpack.inference.registry;
     exports org.elasticsearch.xpack.inference.rest;
-    exports org.elasticsearch.xpack.inference.retriever;
     exports org.elasticsearch.xpack.inference.services;
     exports org.elasticsearch.xpack.inference;
-
-    provides org.elasticsearch.features.FeatureSpecification with InferenceFeatures;
 }

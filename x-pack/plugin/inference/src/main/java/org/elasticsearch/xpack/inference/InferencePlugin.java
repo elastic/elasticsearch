@@ -30,14 +30,11 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
@@ -56,13 +53,11 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.rank.TextSimilarityRankBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
-import org.elasticsearch.xpack.inference.retriever.TextSimilarityRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
@@ -79,8 +74,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, InferenceRegistryPlugin,
-    SearchPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, InferenceRegistryPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -195,16 +189,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        var entries = new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankRetrieverBuilder.NAME,
-            TextSimilarityRankBuilder::new));
-        return entries;
-    }
-
-    @Override
-    public List<RetrieverSpec<?>> getRetrievers() {
-        return List.of(new RetrieverSpec<>(new ParseField(TextSimilarityRankRetrieverBuilder.NAME),
-            TextSimilarityRankRetrieverBuilder::fromXContent));
+        return new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
     }
 
     @Override

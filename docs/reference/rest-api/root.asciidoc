@@ -12,6 +12,7 @@ version, and cluster information.
 GET /
 --------------------------------------------------
 
+[discrete]
 [[rest-api-root-prereq]]
 === {api-prereq-title}
 
@@ -20,6 +21,7 @@ GET /
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [role="child_attributes"]
+[discrete]
 [[rest-api-root-response-body]]
 === {api-response-body-title}
 
@@ -75,6 +77,7 @@ Minimum index version with which the responding node can read
 from disk.
 ====
 
+[discrete]
 [[rest-api-root-response-example]]
 === {api-examples-title}
 

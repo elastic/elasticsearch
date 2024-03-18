@@ -169,9 +169,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             default -> throw new AssertionError("impossible");
         }
 
-        /// MP TODO: this fails when run with event.created - why?
-        // String timeField = randomFrom("event.ingested", "event.created", DataStream.TIMESTAMP_FIELD_NAME);
-        String timeField = randomFrom("event.ingested", DataStream.TIMESTAMP_FIELD_NAME);
+        String timeField = randomFrom("event.created", "event.ingested", DataStream.TIMESTAMP_FIELD_NAME);
 
         assertAcked(
             prepareCreate("index").setSettings(

@@ -161,13 +161,13 @@ FROM sample_data
 ;
 
 client_ip:ip | count_env:i | max_env:keyword
-172.21.3.15  | 2           | Production
-172.21.3.15  | 2           | Production
-172.21.3.15  | 2           | Production
-172.21.3.15  | 2           | Production
 172.21.0.5   | 1           | Development
 172.21.2.113 | 2           | QA
 172.21.2.162 | 2           | QA
+172.21.3.15  | 2           | Production
+172.21.3.15  | 2           | Production
+172.21.3.15  | 2           | Production
+172.21.3.15  | 2           | Production
 ;
 
 enrichCidr2#[skip:-8.99.99, reason:ip_range support not added yet]

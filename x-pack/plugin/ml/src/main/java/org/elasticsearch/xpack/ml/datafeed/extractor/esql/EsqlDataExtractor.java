@@ -105,7 +105,6 @@ public class EsqlDataExtractor implements DataExtractor {
             XContentBuilder jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
 
             List<? extends ColumnInfo> columns = response.response().columns();
-            int valueCount = 0;
             for (Iterable<Object> row : response.response().rows()) {
                 jsonBuilder.startObject();
                 int index = 0;
@@ -120,17 +119,8 @@ public class EsqlDataExtractor implements DataExtractor {
                     index++;
                 }
                 jsonBuilder.endObject();
-                valueCount++;
             }
             jsonBuilder.close();
-
-            logger.info(
-                "query interval: {} - {}, valueCount: {}",
-                DATE_TIME_FORMATTER.formatMillis(interval.startMs()),
-                DATE_TIME_FORMATTER.formatMillis(interval.endMs()),
-                valueCount
-            );
-
             return new Result(interval, Optional.of(outputStream.bytes().streamInput()));
         }
     }

@@ -183,41 +183,6 @@ public class AuthorizationService {
         this.authorizationDenialMessages = authorizationDenialMessages;
     }
 
-    public AuthorizationService(
-        Settings settings,
-        CompositeRolesStore rolesStore,
-        FieldPermissionsCache fieldPermissionsCache,
-        ClusterService clusterService,
-        AuditTrailService auditTrailService,
-        AuthenticationFailureHandler authcFailureHandler,
-        ThreadPool threadPool,
-        AnonymousUser anonymousUser,
-        @Nullable AuthorizationEngine authorizationEngine,
-        Set<RequestInterceptor> requestInterceptors,
-        XPackLicenseState licenseState,
-        IndexNameExpressionResolver resolver,
-        OperatorPrivilegesService operatorPrivilegesService,
-        RestrictedIndices restrictedIndices
-    ) {
-        this(
-            settings,
-            rolesStore,
-            fieldPermissionsCache,
-            clusterService,
-            auditTrailService,
-            authcFailureHandler,
-            threadPool,
-            anonymousUser,
-            authorizationEngine,
-            requestInterceptors,
-            licenseState,
-            resolver,
-            operatorPrivilegesService,
-            restrictedIndices,
-            new AuthorizationDenialMessages.Default()
-        );
-    }
-
     public void checkPrivileges(
         Subject subject,
         AuthorizationEngine.PrivilegesToCheck privilegesToCheck,

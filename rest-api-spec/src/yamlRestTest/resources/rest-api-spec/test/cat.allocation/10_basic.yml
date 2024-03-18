@@ -261,8 +261,8 @@
 ---
 "Node roles":
 
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["cat_allocation_node_role"]
       reason:  "node.role column added in 8.10.0"
 
   - do:

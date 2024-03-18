@@ -308,12 +308,7 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.cli.EnvironmentAwareCommand',
     'org.elasticsearch.cli.KeyStoreAwareCommand',
     'org.elasticsearch.cli.LoggingAwareCommand',
-    'org.elasticsearch.cli.LoggingAwareMultiCommand',
-
-    // We temporarily need to have modified versions of the lucene Tessellator and LatLonShape classes while we wait for a bugfix
-    'org.apache.lucene.document.XLatLonShape',
-    'org.apache.lucene.geo.XTessellator'
-
+    'org.elasticsearch.cli.LoggingAwareMultiCommand'
 }
 
 tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }

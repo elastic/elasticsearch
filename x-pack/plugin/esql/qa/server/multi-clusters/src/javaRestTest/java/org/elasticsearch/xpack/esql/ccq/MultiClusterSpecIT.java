@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.ccq;
 
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.TestFeatureService;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
@@ -21,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;

@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.junit.ClassRule;
 
+import java.io.IOException;
+
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
 
@@ -32,7 +34,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected void shouldSkipTest(String testName) {
+    protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, bwcVersion));
         if (mode == ASYNC) {

@@ -210,11 +210,11 @@ public class BulkOperationTests extends ESTestCase {
         FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(
             Map.of(
                 FIRST_INFERENCE_FIELD_SERVICE_1,
-                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()),
+                new FieldInferenceMetadata.FieldInferenceOptions(INFERENCE_SERVICE_1_ID, Set.of()),
                 SECOND_INFERENCE_FIELD_SERVICE_1,
-                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()),
+                new FieldInferenceMetadata.FieldInferenceOptions(INFERENCE_SERVICE_1_ID, Set.of()),
                 INFERENCE_FIELD_SERVICE_2,
-                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_2_ID, Set.of())
+                new FieldInferenceMetadata.FieldInferenceOptions(INFERENCE_SERVICE_2_ID, Set.of())
             )
         );
 
@@ -285,7 +285,7 @@ public class BulkOperationTests extends ESTestCase {
     public void testFailedInference() {
 
         FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(
-            Map.of(FIRST_INFERENCE_FIELD_SERVICE_1, new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()))
+            Map.of(FIRST_INFERENCE_FIELD_SERVICE_1, new FieldInferenceMetadata.FieldInferenceOptions(INFERENCE_SERVICE_1_ID, Set.of()))
         );
 
         ModelRegistry modelRegistry = createModelRegistry(Map.of(INFERENCE_SERVICE_1_ID, SERVICE_1_ID));
@@ -321,7 +321,7 @@ public class BulkOperationTests extends ESTestCase {
     public void testInferenceFailsForIncorrectRootObject() {
 
         FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(
-            Map.of(FIRST_INFERENCE_FIELD_SERVICE_1, new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()))
+            Map.of(FIRST_INFERENCE_FIELD_SERVICE_1, new FieldInferenceMetadata.FieldInferenceOptions(INFERENCE_SERVICE_1_ID, Set.of()))
         );
 
         ModelRegistry modelRegistry = createModelRegistry(Map.of(INFERENCE_SERVICE_1_ID, SERVICE_1_ID));
@@ -355,11 +355,11 @@ public class BulkOperationTests extends ESTestCase {
         FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(
             Map.of(
                 FIRST_INFERENCE_FIELD_SERVICE_1,
-                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()),
+                new FieldInferenceMetadata.FieldInferenceOptions(INFERENCE_SERVICE_1_ID, Set.of()),
                 SECOND_INFERENCE_FIELD_SERVICE_1,
-                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_1_ID, Set.of()),
+                new FieldInferenceMetadata.FieldInferenceOptions(INFERENCE_SERVICE_1_ID, Set.of()),
                 INFERENCE_FIELD_SERVICE_2,
-                new FieldInferenceMetadata.FieldInference(INFERENCE_SERVICE_2_ID, Set.of())
+                new FieldInferenceMetadata.FieldInferenceOptions(INFERENCE_SERVICE_2_ID, Set.of())
             )
         );
 

@@ -569,7 +569,7 @@ public class IndexMetadataTests extends ESTestCase {
             return null;
         }
 
-        Map<String, FieldInferenceMetadata.FieldInference> fieldInferenceMap = randomMap(
+        Map<String, FieldInferenceMetadata.FieldInferenceOptions> fieldInferenceMap = randomMap(
             0,
             10,
             () -> new Tuple<>(randomIdentifier(), randomFieldInference())
@@ -577,8 +577,8 @@ public class IndexMetadataTests extends ESTestCase {
         return new FieldInferenceMetadata(fieldInferenceMap);
     }
 
-    private static FieldInferenceMetadata.FieldInference randomFieldInference() {
-        return new FieldInferenceMetadata.FieldInference(randomIdentifier(), randomSet(0, 5, ESTestCase::randomIdentifier));
+    private static FieldInferenceMetadata.FieldInferenceOptions randomFieldInference() {
+        return new FieldInferenceMetadata.FieldInferenceOptions(randomIdentifier(), randomSet(0, 5, ESTestCase::randomIdentifier));
     }
 
     private IndexMetadataStats randomIndexStats(int numberOfShards) {

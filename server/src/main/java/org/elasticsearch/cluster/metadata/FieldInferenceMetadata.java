@@ -23,14 +23,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Contains field inference information. This is necessary to add to cluster state as inference can be calculated in the coordinator
@@ -38,82 +36,47 @@ import java.util.function.Function;
  */
 public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>, ToXContentFragment {
 
-    private final ImmutableOpenMap<String, FieldInference> fieldInferenceMap;
-
-    // Contains a lazily cached, reversed map of inferenceId -> fields
-    private volatile Map<String, Set<String>> fieldsForInferenceIds;
+    private final ImmutableOpenMap<String, FieldInferenceOptions> fieldInferenceOptions;
 
     public static final FieldInferenceMetadata EMPTY = new FieldInferenceMetadata(ImmutableOpenMap.of());
 
     public FieldInferenceMetadata(MappingLookup mappingLookup) {
-        ImmutableOpenMap.Builder<String, FieldInference> builder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, FieldInferenceOptions> builder = ImmutableOpenMap.builder();
         mappingLookup.getInferenceIdsForFields().entrySet().forEach(entry -> {
-            builder.put(entry.getKey(), new FieldInference(entry.getValue(), mappingLookup.sourcePaths(entry.getKey())));
+            builder.put(entry.getKey(), new FieldInferenceOptions(entry.getValue(), mappingLookup.sourcePaths(entry.getKey())));
         });
-        fieldInferenceMap = builder.build();
+        fieldInferenceOptions = builder.build();
     }
 
     public FieldInferenceMetadata(StreamInput in) throws IOException {
-        fieldInferenceMap = in.readImmutableOpenMap(StreamInput::readString, FieldInference::new);
+        fieldInferenceOptions = in.readImmutableOpenMap(StreamInput::readString, FieldInferenceOptions::new);
     }
 
-    public FieldInferenceMetadata(Map<String, FieldInference> fieldsToInferenceMap) {
-        fieldInferenceMap = ImmutableOpenMap.builder(fieldsToInferenceMap).build();
+    public FieldInferenceMetadata(Map<String, FieldInferenceOptions> fieldsToInferenceMap) {
+        fieldInferenceOptions = ImmutableOpenMap.builder(fieldsToInferenceMap).build();
+    }
+
+    public ImmutableOpenMap<String, FieldInferenceOptions> getFieldInferenceOptions() {
+        return fieldInferenceOptions;
     }
 
     public boolean isEmpty() {
-        return fieldInferenceMap.isEmpty();
+        return fieldInferenceOptions.isEmpty();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(fieldInferenceMap, (o, v) -> v.writeTo(o));
+        out.writeMap(fieldInferenceOptions, (o, v) -> v.writeTo(o));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.map(fieldInferenceMap);
+        builder.map(fieldInferenceOptions);
         return builder;
     }
 
     public static FieldInferenceMetadata fromXContent(XContentParser parser) throws IOException {
-        return new FieldInferenceMetadata(parser.map(HashMap::new, FieldInference::fromXContent));
-    }
-
-    public String getInferenceIdForField(String field) {
-        return getInferenceSafe(field, FieldInference::inferenceId);
-    }
-
-    private <T> T getInferenceSafe(String field, Function<FieldInference, T> fieldInferenceFunction) {
-        FieldInference fieldInference = fieldInferenceMap.get(field);
-        if (fieldInference == null) {
-            return null;
-        }
-        return fieldInferenceFunction.apply(fieldInference);
-    }
-
-    public Set<String> getSourceFields(String field) {
-        return getInferenceSafe(field, FieldInference::sourceFields);
-    }
-
-    public Map<String, Set<String>> getFieldsForInferenceIds() {
-        if (fieldsForInferenceIds != null) {
-            return fieldsForInferenceIds;
-        }
-
-        // Cache the result as a field
-        Map<String, Set<String>> fieldsForInferenceIdsMap = new HashMap<>();
-        for (Map.Entry<String, FieldInference> entry : fieldInferenceMap.entrySet()) {
-            String fieldName = entry.getKey();
-            String inferenceId = entry.getValue().inferenceId();
-
-            // Get or create the set associated with the inferenceId
-            Set<String> fields = fieldsForInferenceIdsMap.computeIfAbsent(inferenceId, k -> new HashSet<>());
-            fields.add(fieldName);
-        }
-
-        fieldsForInferenceIds = Collections.unmodifiableMap(fieldsForInferenceIdsMap);
-        return fieldsForInferenceIds;
+        return new FieldInferenceMetadata(parser.map(HashMap::new, FieldInferenceOptions::fromXContent));
     }
 
     @Override
@@ -121,12 +84,12 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldInferenceMetadata that = (FieldInferenceMetadata) o;
-        return Objects.equals(fieldInferenceMap, that.fieldInferenceMap);
+        return Objects.equals(fieldInferenceOptions, that.fieldInferenceOptions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldInferenceMap);
+        return Objects.hash(fieldInferenceOptions);
     }
 
     @Override
@@ -144,15 +107,15 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
             FieldInferenceMetadata.EMPTY
         );
 
-        private final Diff<ImmutableOpenMap<String, FieldInference>> fieldInferenceMapDiff;
+        private final Diff<ImmutableOpenMap<String, FieldInferenceOptions>> fieldInferenceMapDiff;
 
-        private static final DiffableUtils.DiffableValueReader<String, FieldInference> FIELD_INFERENCE_DIFF_VALUE_READER =
-            new DiffableUtils.DiffableValueReader<>(FieldInference::new, FieldInferenceMetadataDiff::readDiffFrom);
+        private static final DiffableUtils.DiffableValueReader<String, FieldInferenceOptions> FIELD_INFERENCE_DIFF_VALUE_READER =
+            new DiffableUtils.DiffableValueReader<>(FieldInferenceOptions::new, FieldInferenceMetadataDiff::readDiffFrom);
 
         FieldInferenceMetadataDiff(FieldInferenceMetadata before, FieldInferenceMetadata after) {
             fieldInferenceMapDiff = DiffableUtils.diff(
-                before.fieldInferenceMap,
-                after.fieldInferenceMap,
+                before.fieldInferenceOptions,
+                after.fieldInferenceOptions,
                 DiffableUtils.getStringKeySerializer(),
                 FIELD_INFERENCE_DIFF_VALUE_READER
             );
@@ -166,8 +129,8 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
             );
         }
 
-        public static Diff<FieldInference> readDiffFrom(StreamInput in) throws IOException {
-            return SimpleDiffable.readDiffFrom(FieldInference::new, in);
+        public static Diff<FieldInferenceOptions> readDiffFrom(StreamInput in) throws IOException {
+            return SimpleDiffable.readDiffFrom(FieldInferenceOptions::new, in);
         }
 
         @Override
@@ -177,19 +140,19 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
 
         @Override
         public FieldInferenceMetadata apply(FieldInferenceMetadata part) {
-            return new FieldInferenceMetadata(fieldInferenceMapDiff.apply(part.fieldInferenceMap));
+            return new FieldInferenceMetadata(fieldInferenceMapDiff.apply(part.fieldInferenceOptions));
         }
     }
 
-    public record FieldInference(String inferenceId, Set<String> sourceFields)
+    public record FieldInferenceOptions(String inferenceId, Set<String> sourceFields)
         implements
-            SimpleDiffable<FieldInference>,
+            SimpleDiffable<FieldInferenceOptions>,
             ToXContentFragment {
 
         public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
         public static final ParseField SOURCE_FIELDS_FIELD = new ParseField("source_fields");
 
-        FieldInference(StreamInput in) throws IOException {
+        FieldInferenceOptions(StreamInput in) throws IOException {
             this(in.readString(), in.readCollectionAsImmutableSet(StreamInput::readString));
         }
 
@@ -208,15 +171,15 @@ public class FieldInferenceMetadata implements Diffable<FieldInferenceMetadata>,
             return builder;
         }
 
-        public static FieldInference fromXContent(XContentParser parser) throws IOException {
+        public static FieldInferenceOptions fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<FieldInference, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<FieldInferenceOptions, Void> PARSER = new ConstructingObjectParser<>(
             "field_inference_parser",
             false,
-            (args, unused) -> new FieldInference((String) args[0], new HashSet<>((List<String>) args[1]))
+            (args, unused) -> new FieldInferenceOptions((String) args[0], new HashSet<>((List<String>) args[1]))
         );
 
         static {

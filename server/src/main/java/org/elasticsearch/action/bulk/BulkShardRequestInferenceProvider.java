@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
@@ -75,11 +76,10 @@ public class BulkShardRequestInferenceProvider {
         Set<ShardId> shardIds,
         ActionListener<BulkShardRequestInferenceProvider> listener
     ) {
-        Set<String> inferenceIds = new HashSet<>();
-        shardIds.stream().map(ShardId::getIndex).collect(Collectors.toSet()).stream().forEach(index -> {
-            var fieldsForInferenceIds = clusterState.metadata().index(index).getFieldInferenceMetadata().getFieldsForInferenceIds();
-            inferenceIds.addAll(fieldsForInferenceIds.keySet());
-        });
+        Set<String> inferenceIds =
+            shardIds.stream().map(ShardId::getIndex).collect(Collectors.toSet()).stream()
+                .map(index -> clusterState.metadata().index(index).getFieldInferenceMetadata().getFieldInferenceOptions().values())
+                .flatMap(o -> o.stream().map(FieldInferenceMetadata.FieldInferenceOptions::inferenceId)).collect(Collectors.toSet());
         final Map<String, InferenceProvider> inferenceProviderMap = new ConcurrentHashMap<>();
         Runnable onModelLoadingComplete = () -> listener.onResponse(
             new BulkShardRequestInferenceProvider(clusterState, inferenceProviderMap)
@@ -134,10 +134,9 @@ public class BulkShardRequestInferenceProvider {
         BiConsumer<BulkItemRequest, Exception> onBulkItemFailure
     ) {
 
-        Map<String, Set<String>> fieldsForInferenceIds = clusterState.metadata()
-            .index(bulkShardRequest.shardId().getIndex())
-            .getFieldInferenceMetadata()
-            .getFieldsForInferenceIds();
+        Map<String, Set<String>> fieldsForInferenceIds = getFieldsForInferenceIds(
+            clusterState.metadata().index(bulkShardRequest.shardId().getIndex()).getFieldInferenceMetadata().getFieldInferenceOptions()
+        );
         // No inference fields? Terminate early
         if (fieldsForInferenceIds.isEmpty()) {
             listener.onResponse(bulkShardRequest);
@@ -185,6 +184,22 @@ public class BulkShardRequestInferenceProvider {
                 }
             }
         }
+    }
+
+    private static Map<String, Set<String>> getFieldsForInferenceIds(
+        Map<String, FieldInferenceMetadata.FieldInferenceOptions> fieldInferenceMap
+    ) {
+        Map<String, Set<String>> fieldsForInferenceIdsMap = new HashMap<>();
+        for (Map.Entry<String, FieldInferenceMetadata.FieldInferenceOptions> entry : fieldInferenceMap.entrySet()) {
+            String fieldName = entry.getKey();
+            String inferenceId = entry.getValue().inferenceId();
+
+            // Get or create the set associated with the inferenceId
+            Set<String> fields = fieldsForInferenceIdsMap.computeIfAbsent(inferenceId, k -> new HashSet<>());
+            fields.add(fieldName);
+        }
+
+        return fieldsForInferenceIdsMap;
     }
 
     @SuppressWarnings("unchecked")

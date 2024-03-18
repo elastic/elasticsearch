@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;

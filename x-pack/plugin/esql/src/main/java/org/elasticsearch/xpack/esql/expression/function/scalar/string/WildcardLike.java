@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex;
+package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;

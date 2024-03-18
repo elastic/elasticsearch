@@ -2,7 +2,7 @@
 // or more contributor license agreements. Licensed under the Elastic License
 // 2.0; you may not use this file except in compliance with the Elastic License
 // 2.0.
-package org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex;
+package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
@@ -19,7 +19,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RegexMatch;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**

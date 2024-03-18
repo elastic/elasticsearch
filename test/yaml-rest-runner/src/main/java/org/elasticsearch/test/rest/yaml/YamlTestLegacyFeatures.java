@@ -20,6 +20,15 @@ import java.util.Map;
  */
 public class YamlTestLegacyFeatures implements FeatureSpecification {
 
+    private static final NodeFeature BULK_AUTO_ID = new NodeFeature("bulk_auto_id");
+    private static final NodeFeature BULK_REQUIRE_ALIAS = new NodeFeature("bulk_require_alias");
+    private static final NodeFeature BULK_DYNAMIC_TEMPLATE_OP_TYPE = new NodeFeature("bulk_dynamic_template_op_type");
+    private static final NodeFeature BULK_DYNAMIC_TEMPLATE_DOCUMENT_PARSE_EXCEPTION = new NodeFeature(
+        "bulk_dynamic_template_document_parse_exception"
+    );
+
+    private static final NodeFeature BULK_PIPELINE_VALIDATE = new NodeFeature("bulk_pipeline_validate");
+
     private static final NodeFeature CAT_ALIASES_SHOW_WRITE_INDEX = new NodeFeature("cat_aliases_show_write_index");
     private static final NodeFeature CAT_ALIASES_HIDDEN = new NodeFeature("cat_aliases_hidden");
     private static final NodeFeature CAT_ALIASES_LOCAL_DEPRECATED = new NodeFeature("cat_aliases_local_deprecated");
@@ -45,6 +54,12 @@ public class YamlTestLegacyFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.ofEntries(
+            Map.entry(BULK_AUTO_ID, Version.V_7_5_0),
+            Map.entry(BULK_REQUIRE_ALIAS, Version.V_7_10_0),
+            Map.entry(BULK_PIPELINE_VALIDATE, Version.V_7_9_1),
+            Map.entry(BULK_DYNAMIC_TEMPLATE_OP_TYPE, Version.V_8_6_1),
+            Map.entry(BULK_DYNAMIC_TEMPLATE_DOCUMENT_PARSE_EXCEPTION, Version.V_8_8_0),
+
             Map.entry(CAT_ALIASES_SHOW_WRITE_INDEX, Version.V_7_4_0),
             Map.entry(CAT_ALIASES_HIDDEN, Version.V_7_7_0),
             Map.entry(CAT_ALIASES_LOCAL_DEPRECATED, Version.V_8_12_0),

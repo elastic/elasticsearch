@@ -11,6 +11,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -198,7 +199,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType == false) {
+        if (fieldType == null) {
+            return new MatchNoDocsQuery();
+        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType == false) {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
             );

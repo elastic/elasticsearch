@@ -149,6 +149,28 @@ setup:
   - match: { error.root_cause.0.reason: "failed to create query: Field [non_inference_field] of type [text] does not support semantic_query queries" }
 
 ---
+"Query a missing field":
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic_query:
+              missing_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
+---
 "Query a missing index":
   - do:
       catch: missing

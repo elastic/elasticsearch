@@ -45,7 +45,6 @@ public class FieldFetcher {
         List<String> unmappedFetchPattern = new ArrayList<>();
         List<ResolvedField> resolvedFields = new ArrayList<>();
 
-        context.setAllowedFields(context::isMetadataField);
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
             String matchingPattern = Regex.isSimpleMatchPattern(fieldPattern) ? fieldPattern : null;

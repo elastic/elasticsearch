@@ -521,8 +521,12 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
                 () -> executeRemote(
-                    remoteClusterService.getRemoteClusterClient("my_remote_cluster", threadPool.generic()),
-                    new RemoteClusterActionType<GetResponse>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
+                    remoteClusterService.getRemoteClusterClient(
+                        "my_remote_cluster",
+                        threadPool.generic(),
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    ),
+                    new RemoteClusterActionType<>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
                     malformedGetRequest
                 )
             );

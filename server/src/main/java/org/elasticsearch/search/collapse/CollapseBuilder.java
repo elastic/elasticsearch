@@ -195,6 +195,11 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return result;
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
+
     public CollapseContext build(SearchExecutionContext searchExecutionContext) {
         MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
         if (fieldType == null) {

@@ -9,6 +9,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,6 +60,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             MetadataRolloverService rolloverService,
             AllocationService allocationService,
             MetadataDataStreamsService metadataDataStreamsService,
+            DataStreamAutoShardingService dataStreamAutoShardingService,
             Client client
         ) {
             super(
@@ -71,7 +73,8 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 rolloverService,
                 client,
                 allocationService,
-                metadataDataStreamsService
+                metadataDataStreamsService,
+                dataStreamAutoShardingService
             );
         }
 
@@ -121,6 +124,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 new RolloverRequest(rolloverRequest.getRolloverTarget(), null),
                 null,
                 trialRolloverResponse,
+                null,
                 listener
             );
             submitRolloverTask(rolloverRequest, source, rolloverTask);

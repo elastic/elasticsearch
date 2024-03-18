@@ -88,7 +88,11 @@ public final class Case extends EsqlScalarFunction {
         for (int c = 0; c < conditionCount; c++) {
             conditions.add(new Condition(children().get(c * 2), children().get(c * 2 + 1)));
         }
-        elseValue = children().size() % 2 == 0 ? new Literal(source, null, NULL) : children().get(children().size() - 1);
+        elseValue = elseValueIsExplicit() ? children().get(children().size() - 1) : new Literal(source, null, NULL);
+    }
+
+    private boolean elseValueIsExplicit() {
+        return children().size() % 2 == 1;
     }
 
     @Override
@@ -175,7 +179,6 @@ public final class Case extends EsqlScalarFunction {
 
     @Override
     public Object fold() {
-        // TODO can we partially fold? like CASE(false, foo, bar) -> bar
         for (Condition condition : conditions) {
             Boolean b = (Boolean) condition.condition.fold();
             if (b != null && b) {
@@ -183,6 +186,55 @@ public final class Case extends EsqlScalarFunction {
             }
         }
         return elseValue.fold();
+    }
+
+    /**
+     * Fold the arms of {@code CASE} statements.
+     * <ol>
+     *     <li>
+     *         Conditions that evaluate to {@code false} are removed so
+     *         {@code EVAL c=CASE(false, foo, b, bar, bort)} becomes
+     *         {@code EVAL c=CASE(b, bar, bort)}.
+     *     </li>
+     *     <li>
+     *         Conditions that evaluate to {@code true} stop evaluation and
+     *         return themselves so {@code EVAL c=CASE(true, foo, bar)} becomes
+     *         {@code EVAL c=foo}.
+     *     </li>
+     * </ol>
+     * And those two combine so {@code EVAL c=CASE(false, foo, b, bar, true, bort, el)} becomes
+     * {@code EVAL c=CASE(b, bar, bort)}.
+     */
+    public Expression partiallyFold() {
+        List<Expression> newChildren = new ArrayList<>(children().size());
+        boolean modified = false;
+        for (Condition condition : conditions) {
+            if (condition.condition.foldable() == false) {
+                newChildren.add(condition.condition);
+                newChildren.add(condition.value);
+                continue;
+            }
+            modified = true;
+            Boolean b = (Boolean) condition.condition.fold();
+            if (b != null && b) {
+                newChildren.add(condition.value);
+                return finishPartialFold(newChildren);
+            }
+        }
+        if (modified == false) {
+            return this;
+        }
+        if (elseValueIsExplicit()) {
+            newChildren.add(elseValue);
+        }
+        return finishPartialFold(newChildren);
+    }
+
+    private Expression finishPartialFold(List<Expression> newChildren) {
+        if (newChildren.size() == 1) {
+            return newChildren.get(0);
+        }
+        return replaceChildren(newChildren);
     }
 
     @Override

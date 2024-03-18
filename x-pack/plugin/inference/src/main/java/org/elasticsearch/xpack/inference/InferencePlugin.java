@@ -53,7 +53,7 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -107,7 +107,7 @@ public class InferencePlugin extends Plugin
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     private final Settings settings;
-    private final SetOnce<HttpRequestSenderFactory> httpFactory = new SetOnce<>();
+    private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
@@ -156,11 +156,10 @@ public class InferencePlugin extends Plugin
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
 
-        var httpRequestSenderFactory = new HttpRequestSenderFactory(
-            services.threadPool(),
+        var httpRequestSenderFactory = new HttpRequestSender.Factory(
+            serviceComponents.get(),
             HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager),
-            services.clusterService(),
-            settings
+            services.clusterService()
         );
         httpFactory.set(httpRequestSenderFactory);
 
@@ -253,7 +252,7 @@ public class InferencePlugin extends Plugin
         return Stream.of(
             HttpSettings.getSettings(),
             HttpClientManager.getSettings(),
-            HttpRequestSenderFactory.HttpRequestSender.getSettings(),
+            HttpRequestSender.getSettings(),
             ThrottlerManager.getSettings(),
             RetrySettings.getSettingsDefinitions(),
             Truncator.getSettings(),

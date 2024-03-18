@@ -105,6 +105,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return sorts;
     }
 
+    public List<Attribute> attrs() {
+        return attrs;
+    }
+
     /**
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
@@ -126,10 +130,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             size = state.consumeAllFields(true);
         }
         return Objects.equals(this.estimatedRowSize, size) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, size);
-    }
-
-    public EsQueryExec withQuery(QueryBuilder query) {
-        return Objects.equals(this.query, query) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize);
     }
 
     public EsQueryExec withLimit(Expression limit) {

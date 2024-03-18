@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -187,7 +188,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
         // <3> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(validationResponse -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
+            if (TransformEffectiveSettings.isUnattended(transformConfigHolder.get().getSettings())) {
                 logger.debug(
                     () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );
@@ -205,7 +206,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 createOrGetIndexListener
             );
         }, e -> {
-            if (Boolean.TRUE.equals(transformConfigHolder.get().getSettings().getUnattended())) {
+            if (TransformEffectiveSettings.isUnattended(transformConfigHolder.get().getSettings())) {
                 logger.debug(
                     () -> format("[%s] Skip dest index creation as this is an unattended transform", transformConfigHolder.get().getId())
                 );
@@ -268,7 +269,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
             transformConfigHolder.set(config);
 
-            if (Boolean.TRUE.equals(config.getSettings().getUnattended())) {
+            if (TransformEffectiveSettings.isUnattended(config.getSettings())) {
                 // We do not fail the _start request of the unattended transform due to permission issues,
                 // we just let it run
                 fetchAuthStateListener.onResponse(null);

@@ -301,7 +301,7 @@ teardown:
                   ],
                   "applications": [
                     {
-                      "application": "myapp",
+                      "application": "kibana-.kibana",
                       "privileges": ["read"],
                       "resources": ["*"]
                     }

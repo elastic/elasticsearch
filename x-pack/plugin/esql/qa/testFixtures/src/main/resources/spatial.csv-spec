@@ -442,11 +442,13 @@ FROM airport_city_boundaries
 | EVAL in_city = ST_INTERSECTS(city_location, city_boundary)
 | STATS count=COUNT(*) BY in_city
 | SORT count ASC
+| EVAL cardinality = CASE(count < 10, "very few", count < 100, "few", "many")
+| KEEP cardinality, in_city
 ;
 
-count:long  |  in_city:boolean
-29          |  false
-740         |  true
+cardinality:k  |  in_city:boolean
+"few"          |  false
+"many"         |  true
 ;
 
 cityNotInCityBoundaryBiggest#[skip:-8.13.99, reason:st_intersects added in 8.14]

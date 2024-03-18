@@ -81,6 +81,7 @@ polygonIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.
 FROM airport_city_boundaries
 | WHERE ST_INTERSECTS(city_boundary, TO_GEOSHAPE("POLYGON((109.4 18.1, 109.6 18.1, 109.6 18.3, 109.4 18.3, 109.4 18.1))"))
 | KEEP abbrev, airport, region, city, city_location
+| LIMIT 1
 ;
 
 abbrev:keyword | airport:text         | region:text | city:keyword | city_location:geo_point

@@ -853,6 +853,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             this.primaryTerm = primaryTerm;
         }
 
+        /// MP TODO: where is this called from - who creates and passes in the timestamp range?
         @Override
         public void onRecoveryDone(final RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
             shardStateAction.shardStarted(

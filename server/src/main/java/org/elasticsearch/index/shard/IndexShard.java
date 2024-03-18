@@ -2200,12 +2200,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapperService() == null) {
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
-        final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
-            return ShardLongFieldRange.UNKNOWN; // field missing or not a date
-        }
-        if (mappedFieldType.isIndexed() == false) {
-            return ShardLongFieldRange.UNKNOWN; // range information missing
+        final MappedFieldType timestampMappedType = mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
+        final MappedFieldType eventIngestedMappedType = mapperService().fieldType("event.ingested"); /// MP TODO: static final ref
+        final MappedFieldType eventCreatedMappedType = mapperService().fieldType("event.created");   /// MP TODO: static final ref
+
+        if (allTimestampFieldsMissingOrNotIndexed(timestampMappedType, eventIngestedMappedType, eventCreatedMappedType)) {
+            return ShardLongFieldRange.UNKNOWN; // field missing, not a date or range info missing for all three
         }
 
         final ShardLongFieldRange rawTimestampFieldRange;
@@ -2224,6 +2224,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
 
         return ShardLongFieldRange.of(rawTimestampFieldRange.getMin(), rawTimestampFieldRange.getMax());
+    }
+
+    /**
+     * @param mappedTypes types to inspect
+     * @return true if for all the mappedFieldTypes passed in, all fields are missing or not a date or not indexed.
+     */
+    private boolean allTimestampFieldsMissingOrNotIndexed(MappedFieldType... mappedTypes) {
+        for (MappedFieldType mappedType : mappedTypes) {
+            if (mappedType instanceof DateFieldMapper.DateFieldType && mappedType.isIndexed()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

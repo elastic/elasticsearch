@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -65,7 +66,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
 
-    private TestFeatureService remoteFeaturesService;
+    private static TestFeatureService remoteFeaturesService;
+    private static RestClient remoteFeaturesServiceClient;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -103,15 +105,20 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
             HttpHost[] remoteHosts = parseClusterHosts(remoteCluster.getHttpAddresses()).toArray(HttpHost[]::new);
-            RestClient remoteClient = super.buildClient(restAdminSettings(), remoteHosts);
-            var remoteNodeVersions = readVersionsFromNodesInfo(remoteClient);
+            remoteFeaturesServiceClient = super.buildClient(restAdminSettings(), remoteHosts);
+            var remoteNodeVersions = readVersionsFromNodesInfo(remoteFeaturesServiceClient);
             var semanticNodeVersions = remoteNodeVersions.stream()
                 .map(ESRestTestCase::parseLegacyVersion)
                 .flatMap(Optional::stream)
                 .collect(Collectors.toSet());
-            remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClient), semanticNodeVersions);
+            remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteFeaturesServiceClient), semanticNodeVersions);
         }
         return remoteFeaturesService;
+    }
+
+    @AfterClass
+    public static void closeRemoveFeaturesService() throws IOException {
+        IOUtils.close(remoteFeaturesServiceClient);
     }
 
     @Override

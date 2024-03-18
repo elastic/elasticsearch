@@ -247,9 +247,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.includes = includes;
         this.excludes = excludes;
         if (this.sourceFilter != null && (mode == Mode.SYNTHETIC || indexMode == IndexMode.TIME_SERIES)) {
-            throw new IllegalArgumentException(
-                "filtering the stored _source is incompatible with era solo per dire che ho pushato un altro source"
-            );
+            throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
         }
         this.complete = stored() && sourceFilter == null;
         this.indexMode = indexMode;

@@ -70,7 +70,7 @@ Grants access to manage *all* enrich indices (`.enrich-*`) and *all* operations 
 ingest pipelines.
 
 [[built-in-roles-inference-admin]] `inference_admin`::
-Provides all of the privileges of the `inference_user` role plus the full
+Provides all of the privileges of the `inference_user` role and the full
 use of the {inference} APIs. Grants the `manage_inference` cluster privilege
 and read access to the `.inference` index.
 

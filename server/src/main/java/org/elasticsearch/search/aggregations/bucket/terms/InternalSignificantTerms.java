@@ -227,33 +227,34 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             public InternalAggregation get() {
                 final SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
                 final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
-                final BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
-                for (ReducerAndProto<B> reducerAndProto : buckets.values()) {
-                    final B b = createBucket(
-                        reducerAndProto.subsetDf[0],
-                        globalSubsetSize,
-                        reducerAndProto.supersetDf[0],
-                        globalSupersetSize,
-                        reducerAndProto.reducer.get(),
-                        reducerAndProto.proto
-                    );
-                    b.updateScore(heuristic);
-                    if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
-                        final B removed = ordered.insertWithOverflow(b);
-                        if (removed == null) {
-                            reduceContext.consumeBucketsAndMaybeBreak(1);
+                try (BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size, reduceContext.bigArrays())) {
+                    for (ReducerAndProto<B> reducerAndProto : buckets.values()) {
+                        final B b = createBucket(
+                            reducerAndProto.subsetDf[0],
+                            globalSubsetSize,
+                            reducerAndProto.supersetDf[0],
+                            globalSupersetSize,
+                            reducerAndProto.reducer.get(),
+                            reducerAndProto.proto
+                        );
+                        b.updateScore(heuristic);
+                        if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
+                            final B removed = ordered.insertWithOverflow(b);
+                            if (removed == null) {
+                                reduceContext.consumeBucketsAndMaybeBreak(1);
+                            } else {
+                                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                            }
                         } else {
-                            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
                         }
-                    } else {
-                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
                     }
+                    final B[] list = createBucketsArray((int) ordered.size());
+                    for (int i = (int) ordered.size() - 1; i >= 0; i--) {
+                        list[i] = ordered.pop();
+                    }
+                    return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
                 }
-                final B[] list = createBucketsArray(ordered.size());
-                for (int i = ordered.size() - 1; i >= 0; i--) {
-                    list[i] = ordered.pop();
-                }
-                return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
             }
 
             @Override

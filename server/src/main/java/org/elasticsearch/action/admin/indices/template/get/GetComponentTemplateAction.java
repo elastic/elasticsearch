@@ -160,6 +160,10 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             return rolloverConfiguration;
         }
 
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(componentTemplates, StreamOutput::writeWriteable);

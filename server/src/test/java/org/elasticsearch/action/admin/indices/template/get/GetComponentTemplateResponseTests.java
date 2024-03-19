@@ -8,12 +8,15 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComponentTemplateTests;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSerializationTests;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,18 +28,39 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
 
     @Override
     protected GetComponentTemplateAction.Response createTestInstance() {
-        if (randomBoolean()) {
-            return new GetComponentTemplateAction.Response(Collections.emptyMap());
-        }
-        Map<String, ComponentTemplate> templates = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(1, 4); i++) {
-            templates.put(randomAlphaOfLength(4), ComponentTemplateTests.randomInstance());
-        }
-        return new GetComponentTemplateAction.Response(templates);
+        return new GetComponentTemplateAction.Response(
+            randomBoolean() ? Map.of() : randomTemplates(),
+            RolloverConfigurationTests.randomRolloverConditions(),
+            DataStreamGlobalRetentionSerializationTests.randomGlobalRetention()
+        );
     }
 
     @Override
     protected GetComponentTemplateAction.Response mutateInstance(GetComponentTemplateAction.Response instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        var templates = instance.getComponentTemplates();
+        var rolloverConditions = instance.getRolloverConfiguration();
+        var globalRetention = instance.getGlobalRetention();
+        switch (randomInt(2)) {
+            case 0 -> templates = templates == null ? randomTemplates() : null;
+            case 1 -> rolloverConditions = randomValueOtherThan(rolloverConditions, RolloverConfigurationTests::randomRolloverConditions);
+            case 2 -> globalRetention = randomValueOtherThan(
+                globalRetention,
+                DataStreamGlobalRetentionSerializationTests::randomGlobalRetention
+            );
+        }
+        return new GetComponentTemplateAction.Response(templates, rolloverConditions, globalRetention);
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
+    }
+
+    private static Map<String, ComponentTemplate> randomTemplates() {
+        Map<String, ComponentTemplate> templates = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(1, 4); i++) {
+            templates.put(randomAlphaOfLength(4), ComponentTemplateTests.randomInstance());
+        }
+        return templates;
     }
 }

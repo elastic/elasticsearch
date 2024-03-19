@@ -281,7 +281,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             }
 
             /**
-             * Converts the response to XContent and passes the RolloverConditions, when provided, to the data stream.
+             * Converts the response to XContent and passes the RolloverConditions and the global retention, when provided,
+             * to the data stream.
              */
             public XContentBuilder toXContent(
                 XContentBuilder builder,

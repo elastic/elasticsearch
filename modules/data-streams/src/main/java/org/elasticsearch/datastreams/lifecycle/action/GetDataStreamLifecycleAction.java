@@ -163,7 +163,8 @@ public class GetDataStreamLifecycleAction {
             }
 
             /**
-             * Converts the response to XContent and passes the RolloverConditions, when provided, to the data stream lifecycle.
+             * Converts the response to XContent and passes the RolloverConditions and the global retention, when provided,
+             * to the data stream lifecycle.
              */
             public XContentBuilder toXContent(
                 XContentBuilder builder,
@@ -221,11 +222,6 @@ public class GetDataStreamLifecycleAction {
             return rolloverConfiguration;
         }
 
-        @Nullable
-        public DataStreamGlobalRetention getGlobalRetention() {
-            return globalRetention;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreamLifecycles);
@@ -265,12 +261,13 @@ public class GetDataStreamLifecycleAction {
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
             return dataStreamLifecycles.equals(response.dataStreamLifecycles)
-                && Objects.equals(rolloverConfiguration, response.rolloverConfiguration);
+                && Objects.equals(rolloverConfiguration, response.rolloverConfiguration)
+                && Objects.equals(globalRetention, response.globalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(dataStreamLifecycles, rolloverConfiguration);
+            return Objects.hash(dataStreamLifecycles, rolloverConfiguration, globalRetention);
         }
     }
 }

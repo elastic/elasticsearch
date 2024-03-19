@@ -32,6 +32,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<ComponentTemplate> {
     @Override
@@ -278,7 +279,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         ComponentTemplate template = new ComponentTemplate(
             new Template(settings, mappings, aliases, lifecycle),
             randomNonNegativeLong(),
@@ -297,6 +298,9 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
+            // We check that even if there was not retention provided by the user, the global retention applies
+            assertThat(serialized, not(containsString("data_retention")));
+            assertThat(serialized, containsString("effective_retention"));
         }
     }
 }

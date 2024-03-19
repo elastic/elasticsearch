@@ -138,11 +138,11 @@ public class ExplainDataStreamLifecycleAction {
     }
 
     /**
-     * Class representing the response for the explain of the data stream lifecycle action for one or more indices.
+     * Class representing the response for the 'explain' of the data stream lifecycle action for one or more indices.
      */
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField INDICES_FIELD = new ParseField("indices");
-        private List<ExplainIndexDataStreamLifecycle> indices;
+        private final List<ExplainIndexDataStreamLifecycle> indices;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
         @Nullable

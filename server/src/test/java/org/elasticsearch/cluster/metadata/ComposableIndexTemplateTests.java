@@ -30,6 +30,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTestCase<ComposableIndexTemplate> {
     @Override
@@ -107,10 +108,6 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .writeIndex(randomBoolean() ? null : randomBoolean())
             .build();
         return Collections.singletonMap(aliasName, aliasMeta);
-    }
-
-    private static DataStreamLifecycle randomLifecycle() {
-        return DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
     }
 
     private static CompressedXContent randomMappings(ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate) {
@@ -212,7 +209,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), List.of(randomAlphaOfLength(5))), equalTo(false));
     }
 
-    public void testXContentSerializationWithRollover() throws IOException {
+    public void testXContentSerializationWithRolloverAndGlobalRetention() throws IOException {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
@@ -226,7 +223,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataStreamLifecycle lifecycle = randomLifecycle();
+        // We use the empty lifecycle so the global retention can be in effect
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         Template template = new Template(settings, mappings, aliases, lifecycle);
         ComposableIndexTemplate.builder()
             .indexPatterns(List.of(randomAlphaOfLength(4)))
@@ -249,6 +247,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
+            // We check that even if there was not retention provided by the user, the global retention applies
+            assertThat(serialized, not(containsString("data_retention")));
+            assertThat(serialized, containsString("effective_retention"));
         }
     }
 

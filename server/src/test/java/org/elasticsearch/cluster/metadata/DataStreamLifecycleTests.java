@@ -317,7 +317,10 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
             TimeValue maxRetentionLessThanDataStream = TimeValue.timeValueDays(dataStreamRetention.days() - 1);
             effectiveDataRetentionWithSource = lifecycleRetention.getEffectiveDataRetentionWithSource(
-                new DataStreamGlobalRetention(randomBoolean() ? null : TimeValue.timeValueDays(10), maxRetentionLessThanDataStream)
+                new DataStreamGlobalRetention(
+                    TimeValue.timeValueDays(randomIntBetween(1, (int) (maxRetentionLessThanDataStream.days() - 1))),
+                    maxRetentionLessThanDataStream
+                )
             );
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(maxRetentionLessThanDataStream));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(MAX_GLOBAL_RETENTION));

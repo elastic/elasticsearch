@@ -206,4 +206,20 @@ public class RateLimiterTests extends ESTestCase {
         limiter.acquire(1);
         verify(sleeper, times(1)).sleep(TimeUnit.SECONDS.toMicros(30));
     }
+
+    public void testAcquire_ShouldAccumulateTokens() throws InterruptedException {
+        var now = Clock.systemUTC().instant();
+        var clock = mock(Clock.class);
+        when(clock.instant()).thenReturn(now);
+
+        var sleeper = mock(RateLimiter.Sleeper.class);
+
+        var limiter = new RateLimiter(10, 10, TimeUnit.MINUTES, sleeper, clock);
+        limiter.acquire(5);
+        verify(sleeper, times(1)).sleep(0);
+        // it should accumulate 5 tokens
+        when(clock.instant()).thenReturn(now.plus(Duration.ofSeconds(30)));
+        limiter.acquire(10);
+        verify(sleeper, times(2)).sleep(0);
+    }
 }

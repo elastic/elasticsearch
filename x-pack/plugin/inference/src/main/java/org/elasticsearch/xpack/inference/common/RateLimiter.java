@@ -79,8 +79,8 @@ public class RateLimiter {
 
         accumulatedTokensLimit = newAccumulatedTokensLimit;
 
-        var unitsInNanos = newUnit.toMicros(1);
-        tokensPerMicros = newTokensPerTimeUnit / unitsInNanos;
+        var unitsInMicros = newUnit.toMicros(1);
+        tokensPerMicros = newTokensPerTimeUnit / unitsInMicros;
         assert Double.isInfinite(tokensPerMicros) == false : "Tokens per microsecond should not be infinity";
 
         accumulateTokens();
@@ -112,9 +112,9 @@ public class RateLimiter {
     private void accumulateTokens() {
         var now = Instant.now(clock);
         if (now.isAfter(nextTokenAvailability)) {
-            var elapsedTimeNanos = microsBetweenExact(nextTokenAvailability, now);
-            var newTokens = tokensPerMicros * elapsedTimeNanos;
-            accumulatedTokens = Math.min(accumulatedTokensLimit, newTokens);
+            var elapsedTimeMicros = microsBetweenExact(nextTokenAvailability, now);
+            var newTokens = tokensPerMicros * elapsedTimeMicros;
+            accumulatedTokens = Math.min(accumulatedTokensLimit, accumulatedTokens + newTokens);
             nextTokenAvailability = now;
         }
     }

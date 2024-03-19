@@ -40,7 +40,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
-import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonIndicesPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;

@@ -17,5 +17,5 @@ public interface InferenceModelFieldType {
      *
      * @return model id used by the field type
      */
-    String getInferenceModel();
+    String getInferenceId();
 }

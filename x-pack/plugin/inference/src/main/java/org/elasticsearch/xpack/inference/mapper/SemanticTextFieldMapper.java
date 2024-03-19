@@ -108,7 +108,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public String getInferenceModel() {
+        public String getInferenceId() {
             return modelId;
         }
 

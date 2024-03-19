@@ -1,0 +1,163 @@
+setup:
+  - skip:
+      version: ' - 8.13.99'
+      reason: 'hex encoding for byte vectors was added in 8.14'
+
+  - do:
+      indices.create:
+        index: knn_hex_vector_index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: false
+            properties:
+              my_vector_byte:
+                type: dense_vector
+                dims: 3
+                index : true
+                similarity : l2_norm
+                element_type: byte
+              my_vector_float:
+                type: dense_vector
+                dims: 3
+                index: true
+                element_type: float
+                similarity : l2_norm
+
+  # [-128, 127, 10] - is encoded as '807f0a'
+  - do:
+      index:
+        index: knn_hex_vector_index
+        id: "1"
+        body:
+          my_vector_byte: "807f0a"
+
+
+  # [0, 1, 0] - is encoded as '000100'
+  - do:
+      index:
+        index: knn_hex_vector_index
+        id: "2"
+        body:
+          my_vector_byte: "000100"
+
+  # [64, -10, -30] - is encoded as '40f6e2'
+  - do:
+      index:
+        index: knn_hex_vector_index
+        id: "3"
+        body:
+          my_vector_byte: "40f6e2"
+
+  - do:
+      index:
+        index: knn_hex_vector_index
+        id: "4"
+        body:
+          my_vector_float: [10.5, -10, 1024]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Fail to index hex-encoded vector on float field":
+
+  # [-128, 127, 10] - is encoded as '807f0a'
+  - do:
+      catch: /Failed to parse object./
+      index:
+        index: knn_hex_vector_index
+        id: "5"
+        body:
+          my_vector_float: "807f0a"
+
+---
+"Knn search with hex string for float field" :
+  # [64, 10, -30] - is encoded as '400ae2'
+  # this will be properly decoded but only because:
+  # (i) the provided input is compatible as the values are within [Byte.MIN_VALUE, Byte.MAX_VALUE] range
+  # (ii) we do not differentiate between byte and float fields when initially parsing a query even for hex
+  # (iii) we support expansion from byte to float
+
+  - do:
+      search:
+        index: knn_hex_vector_index
+        body:
+          size: 3
+          knn:
+            field: my_vector_float
+            query_vector: "400ae2"
+            num_candidates: 100
+            k: 10
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "4" }
+
+---
+"Knn search with hex string for byte field" :
+  # [64, 10, -30] - is encoded as '400ae2'
+  - do:
+      search:
+        index: knn_hex_vector_index
+        body:
+          size: 3
+          knn:
+            field: my_vector_byte
+            query_vector: "400ae2"
+            num_candidates: 100
+            k: 10
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"Knn search with hex string for byte field - dimensions mismatch" :
+  # [64, 10, -30, 10] - is encoded as '400ae20a'
+  - do:
+      catch: /the query vector has a different dimension \[4\] than the index vectors \[3\]/
+      search:
+        index: knn_hex_vector_index
+        body:
+          size: 3
+          knn:
+            field: my_vector_byte
+            query_vector: "400ae20a"
+            num_candidates: 100
+            k: 10
+
+
+---
+"Knn search with hex string for byte field - cannot decode string" :
+  # '40af20a' is garbage :)
+  - do:
+      catch: /failed to parse field \[query_vector\]/
+      search:
+        index: knn_hex_vector_index
+        body:
+          size: 3
+          knn:
+            field: my_vector_byte
+            query_vector: "40af20a"
+            num_candidates: 100
+            k: 10
+
+---
+"Knn search with standard byte vector matching against hex-encoded indexed docs" :
+  - do:
+      search:
+        index: knn_hex_vector_index
+        body:
+          size: 3
+          knn:
+            field: my_vector_byte
+            query_vector: [64, 10, -30]
+            num_candidates: 100
+            k: 10
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "1" }

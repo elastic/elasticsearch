@@ -128,6 +128,32 @@ public final class DataStreamTestHelper {
         Map<String, Object> metadata,
         boolean replicated,
         @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            false,
+            replicated,
+            false,
+            false,
+            null,
+            lifecycle,
+            false,
+            List.of(),
+            autoShardingEvent
+        );
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
         return new DataStream(

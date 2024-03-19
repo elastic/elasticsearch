@@ -277,10 +277,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         builder.startObject();
         builder.field(ENABLED_FIELD.getPreferredName(), enabled);
         if (dataRetention != null) {
-            if (dataRetention.value == null) {
+            if (dataRetention.value() == null) {
                 builder.nullField(DATA_RETENTION_FIELD.getPreferredName());
             } else {
-                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value.getStringRep());
+                builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
             }
         }
         Tuple<TimeValue, RetentionSource> effectiveRetention = getEffectiveDataRetentionWithSource(globalRetention);
@@ -508,7 +508,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * This enum represents an aspect that can influence the retention of a data stream.
+     * This enum represents all configuration sources that can influence the retention of a data stream.
      */
     public enum RetentionSource {
         DATA_STREAM_CONFIGURATION,

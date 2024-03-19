@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -56,6 +57,35 @@ public class MultivalueDedupeBoolean {
                     default -> {
                         readValues(first, count);
                         writeValues(builder);
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
+    public BooleanBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int totalCount = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (totalCount) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendBoolean(block.getBoolean(first));
+                    default -> {
+                        int trueCount = countTrue(first, totalCount);
+                        builder.beginPositionEntry();
+                        if (ascending) {
+                            writeValues(builder, false, 1, totalCount - trueCount);
+                            writeValues(builder, true, totalCount - trueCount + 1, totalCount);
+                        } else {
+                            writeValues(builder, true, 1, trueCount);
+                            writeValues(builder, false, trueCount + 1, totalCount);
+                        }
+                        builder.endPositionEntry();
                     }
                 }
             }
@@ -197,5 +227,22 @@ public class MultivalueDedupeBoolean {
         }
         everSeen[FALSE_ORD] = true;
         return FALSE_ORD;
+    }
+
+    private int countTrue(int first, int count) {
+        int trueCount = 0;
+        int end = first + count;
+        for (int i = first; i < end; i++) {
+            if (block.getBoolean(i)) {
+                trueCount++;
+            }
+        }
+        return trueCount;
+    }
+
+    private void writeValues(BooleanBlock.Builder builder, boolean value, int startIndex, int endIndex) {
+        for (int i = startIndex; i <= endIndex; i++) {
+            builder.appendBoolean(value);
+        }
     }
 }

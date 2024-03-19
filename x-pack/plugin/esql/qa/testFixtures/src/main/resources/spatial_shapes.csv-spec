@@ -54,6 +54,18 @@ abbrev:keyword | name:text    | location:geo_shape                         | cou
 "VLC"          | "Valencia"   | POINT(-0.473474930771676 39.4914597884489) | "Spain"         | "Paterna"    | POINT(-0.4406 39.5028)
 ;
 
+simpleLoadFromCityBoundaries#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| KEEP abbrev, region, city_location, airport, boundary_wkt_length
+| LIMIT 1
+;
+
+abbrev:keyword  |  region:text         |  city_location:geo_point |  airport:text  |  boundary_wkt_length:integer
+CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen    |  265
+;
+
 geo_shapeEquals#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
 
 ROW wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POINT(75.8092915005895 22.727749187571)"]

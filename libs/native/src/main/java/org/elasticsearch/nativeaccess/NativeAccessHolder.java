@@ -37,10 +37,10 @@ class NativeAccessHolder {
             logger.warn("Unable to load native provider. Native methods will be disabled.", e);
         }
         if (inst == null) {
-            inst = new NoopNativeAccess();
+            INSTANCE = new NoopNativeAccess();
         } else {
             logger.info("Using [" + libProvider.getName() + "] native provider and native methods for [" + inst.getName() + "]");
+            INSTANCE = inst;
         }
-        INSTANCE = inst;
     }
 }

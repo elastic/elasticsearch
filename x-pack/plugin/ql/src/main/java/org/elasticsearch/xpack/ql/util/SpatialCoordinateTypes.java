@@ -108,7 +108,19 @@ public enum SpatialCoordinateTypes {
         }
     }
 
+    public Geometry wktToGeometry(String wkt) {
+        try {
+            return WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
+        }
+    }
+
     public String wkbToWkt(BytesRef wkb) {
         return WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length);
+    }
+
+    public Geometry wkbToGeometry(BytesRef wkb) {
+        return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
     }
 }

@@ -54,6 +54,7 @@ public abstract class HealthTracker<T> {
      */
     public boolean trackHealth() {
         var health = determineCurrentHealth();
+        assert health != null : "health trackers must return unknown health instead of null";
         if (health.equals(lastReportedHealth)) {
             return false;
         }

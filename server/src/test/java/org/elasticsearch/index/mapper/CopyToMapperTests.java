@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -106,6 +107,12 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
         fieldMapper = mapperService.documentMapper().mappers().getMapper("new_field");
         assertThat(fieldMapper.typeName(), equalTo("long"));
+
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        assertThat(mappingLookup.sourcePaths("another_field"), equalTo(Set.of("copy_test", "int_to_str_test", "another_field")));
+        assertThat(mappingLookup.sourcePaths("new_field"), equalTo(Set.of("new_field", "int_to_str_test")));
+        assertThat(mappingLookup.sourcePaths("copy_test"), equalTo(Set.of("copy_test", "cyclic_test")));
+        assertThat(mappingLookup.sourcePaths("cyclic_test"), equalTo(Set.of("cyclic_test", "copy_test")));
     }
 
     public void testCopyToFieldsInnerObjectParsing() throws Exception {

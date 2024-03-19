@@ -87,7 +87,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
 
         internalCluster().stopNode(nodeToRestartName);
-        putNodeShutdown(nodeToRestartId, SingleNodeShutdownMetadata.Type.REMOVE, null);
 
         NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));

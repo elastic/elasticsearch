@@ -39,17 +39,13 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         return METADATA_FIELDS.stream().map(fieldAndFormat -> fieldAndFormat.field).anyMatch(fieldName -> fieldName.equals(field));
     }
 
-    private static <T> List<T> emptyListIfNull(final List<T> theList) {
-        return theList == null ? Collections.emptyList() : theList;
-    }
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
 
-        final List<FieldAndFormat> fetchFields = fetchFieldsContext == null
-            ? Collections.emptyList()
-            : emptyListIfNull(fetchFieldsContext.fields());
+        final List<FieldAndFormat> fetchFields = fetchFieldsContext == null ? Collections.emptyList()
+            : fetchFieldsContext.fields() == null ? Collections.emptyList()
+            : fetchFieldsContext.fields();
         final FieldFetcher fieldFetcher = FieldFetcher.create(
             fetchContext.getSearchExecutionContext(),
             Stream.concat(fetchFields.stream(), METADATA_FIELDS.stream()).toList()

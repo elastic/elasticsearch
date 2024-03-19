@@ -35,7 +35,13 @@ import java.util.Set;
  */
 public class FieldFetcher {
 
-    private record ResolvedField(String field, String matchingPattern, MappedFieldType ft, String format, boolean isMetadataField) {}
+    private record ResolvedField(
+        String field,
+        String matchingPattern,
+        MappedFieldType mappedFieldType,
+        String format,
+        boolean isMetadataField
+    ) {}
 
     /**
      * Build a FieldFetcher for a given search context and collection of fields and formats
@@ -65,7 +71,7 @@ public class FieldFetcher {
         }
 
         // The fields need to be sorted so that the nested partition functions will work correctly.
-        resolvedFields.sort(Comparator.comparing(f -> f.ft.name()));
+        resolvedFields.sort(Comparator.comparing(resolvedField -> resolvedField.mappedFieldType.name()));
 
         Map<String, FieldContext> fieldContexts = buildFieldContexts(context, "", resolvedFields, unmappedFetchPattern);
 
@@ -92,7 +98,7 @@ public class FieldFetcher {
 
     private static ValueFetcher buildValueFetcher(SearchExecutionContext context, ResolvedField resolvedField) {
         try {
-            return resolvedField.ft.valueFetcher(context, resolvedField.format);
+            return resolvedField.mappedFieldType.valueFetcher(context, resolvedField.format);
         } catch (IllegalArgumentException e) {
             StringBuilder error = new StringBuilder("error fetching [").append(resolvedField.field).append(']');
             if (resolvedField.matchingPattern != null) {
@@ -120,7 +126,7 @@ public class FieldFetcher {
             nestedScope,
             context.nestedLookup().getImmediateChildMappers(nestedScope),
             fields,
-            f -> f.ft.name()
+            resolvedField -> resolvedField.mappedFieldType.name()
         );
 
         // Keep the outputs sorted for easier testing
@@ -128,8 +134,11 @@ public class FieldFetcher {
         for (String scope : fieldsByNestedMapper.keySet()) {
             if (nestedScope.equals(scope)) {
                 // These are fields in the current scope, so add them directly to the output map
-                for (ResolvedField ff : fieldsByNestedMapper.get(nestedScope)) {
-                    output.put(ff.field, new FieldContext(ff.field, buildValueFetcher(context, ff), ff.isMetadataField));
+                for (ResolvedField resolvedField : fieldsByNestedMapper.get(nestedScope)) {
+                    output.put(
+                        resolvedField.field,
+                        new FieldContext(resolvedField.field, buildValueFetcher(context, resolvedField), resolvedField.isMetadataField)
+                    );
                 }
             } else {
                 // don't create nested fetchers if no children have been requested as part of the fields
@@ -165,7 +174,7 @@ public class FieldFetcher {
         this.unmappedFieldFetcher = unmappedFieldFetcher;
         this.storedFieldsSpec = StoredFieldsSpec.build(
             fieldContexts.values().stream().filter(f -> f.isMetadataField == false).toList(),
-            fc -> fc.valueFetcher.storedFieldsSpec()
+            fieldContext -> fieldContext.valueFetcher.storedFieldsSpec()
         );
     }
 

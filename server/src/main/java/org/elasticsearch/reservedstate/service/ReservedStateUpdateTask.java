@@ -175,8 +175,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
                 () -> format(
                     "Not updating reserved cluster state for namespace [%s], because version [%s] is less or equal to 0",
                     namespace,
-                    reservedStateVersion.version(),
-                    existingMetadata.version()
+                    reservedStateVersion.version()
                 )
             );
             return false;

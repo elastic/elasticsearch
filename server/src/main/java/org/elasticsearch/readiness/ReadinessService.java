@@ -245,19 +245,19 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             }
         } else {
             boolean masterElected = clusterState.nodes().getMasterNodeId() != null;
-            ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-            boolean fileSettingsApplied = fileSettingsMetadata != null && fileSettingsMetadata.errorMetadata() == null;
-            logger.debug(
-                "readiness: masterElected={}, file settings exist={} and applied={}",
-                masterElected,
-                fileSettingsMetadata != null,
-                fileSettingsApplied
-            );
+            boolean fileSettingsApplied = areFileSettingsApplied(clusterState);
+            logger.info("readiness: masterElected={}, fileSettingsApplied={}", masterElected, fileSettingsApplied);
             boolean nowReady = masterElected && fileSettingsApplied;
             if (nowReady && ready() == false) {
                 setReady(true);
             }
         }
+    }
+
+    // protected to allow mock service to override
+    protected boolean areFileSettingsApplied(ClusterState clusterState) {
+        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+        return fileSettingsMetadata != null && fileSettingsMetadata.errorMetadata() == null;
     }
 
     private void setReady(boolean ready) {

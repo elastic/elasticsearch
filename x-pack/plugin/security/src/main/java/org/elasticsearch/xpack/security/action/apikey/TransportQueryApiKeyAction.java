@@ -21,9 +21,11 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.support.ApiKeyAggregationsBuilder;
 import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -47,17 +49,20 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
+    private final ProfileService profileService;
 
     @Inject
     public TransportQueryApiKeyAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ApiKeyService apiKeyService,
-        SecurityContext context
+        SecurityContext context,
+        ProfileService profileService
     ) {
         super(QueryApiKeyAction.NAME, actionFilters, transportService.getTaskManager());
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
+        this.profileService = profileService;
     }
 
     @Override
@@ -113,7 +118,24 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
         }
 
         final SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
-        apiKeyService.queryApiKeys(searchRequest, request.withLimitedBy(), listener);
+        apiKeyService.queryApiKeys(searchRequest, request.withLimitedBy(), ActionListener.wrap(queryApiKeyResponse -> {
+            if (request.withProfileUid()) {
+                profileService.resolveProfileUidsForApiKeys(
+                    Arrays.asList(queryApiKeyResponse.getItems()),
+                    ActionListener.wrap(
+                        apiKeysWithProfileUid -> listener.onResponse(
+                            new QueryApiKeyResponse(
+                                queryApiKeyResponse.getTotal(),
+                                apiKeysWithProfileUid,
+                                queryApiKeyResponse.getAggregations()
+                            )
+                        ),
+                        listener::onFailure
+                    )
+                );
+            } else {
+                listener.onResponse(queryApiKeyResponse);
+            }
+        }, listener::onFailure));
     }
-
 }

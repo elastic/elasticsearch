@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyWithProfileUid;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -45,6 +46,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -144,7 +146,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     || getApiKeyRequest.getRealmName() != null && getApiKeyRequest.getRealmName().equals("realm-1")
                     || getApiKeyRequest.getUserName() != null && getApiKeyRequest.getUserName().equals("user-x")) {
                     if (replyEmptyResponse) {
-                        listener.onResponse((Response) GetApiKeyResponse.emptyResponse());
+                        listener.onResponse((Response) GetApiKeyResponse.EMPTY);
                     } else {
                         listener.onResponse((Response) getApiKeyResponseExpected);
                     }
@@ -167,20 +169,23 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             assertThat(
                 actual.getApiKeyInfos(),
                 arrayContaining(
-                    new ApiKey(
-                        "api-key-name-1",
-                        "api-key-id-1",
-                        type,
-                        creation,
-                        expiration,
-                        false,
-                        null,
-                        "user-x",
-                        "realm-1",
-                        "realm-type-1",
-                        metadata,
-                        roleDescriptors,
-                        limitedByRoleDescriptors
+                    new ApiKeyWithProfileUid(
+                        new ApiKey(
+                            "api-key-name-1",
+                            "api-key-id-1",
+                            type,
+                            creation,
+                            expiration,
+                            false,
+                            null,
+                            "user-x",
+                            "realm-1",
+                            "realm-type-1",
+                            metadata,
+                            roleDescriptors,
+                            limitedByRoleDescriptors
+                        ),
+                        null
                     )
                 )
             );
@@ -287,10 +292,11 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
         if (isGetRequestForOwnedKeysOnly) {
             assertThat(actual.getApiKeyInfos().length, is(1));
-            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1));
+            assertThat(actual.getApiKeyInfos()[0], equalTo(new ApiKeyWithProfileUid(apiKey1, null)));
         } else {
             assertThat(actual.getApiKeyInfos().length, is(2));
-            assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
+            assertThat(actual.getApiKeyInfos()[0], equalTo(new ApiKeyWithProfileUid(apiKey1, null)));
+            assertThat(actual.getApiKeyInfos()[1], equalTo(new ApiKeyWithProfileUid(apiKey2, null)));
         }
     }
 }

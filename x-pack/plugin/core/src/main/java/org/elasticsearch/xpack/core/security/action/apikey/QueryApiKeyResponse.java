@@ -28,13 +28,13 @@ import java.util.Objects;
 public final class QueryApiKeyResponse extends ActionResponse implements ToXContentObject {
 
     private final long total;
-    private final Item[] items;
+    private final ApiKey[] items;
     private final @Nullable InternalAggregations aggregations;
 
-    public QueryApiKeyResponse(long total, Collection<Item> items, @Nullable InternalAggregations aggregations) {
+    public QueryApiKeyResponse(long total, Collection<? extends ApiKey> items, @Nullable InternalAggregations aggregations) {
         this.total = total;
         Objects.requireNonNull(items, "items must be provided");
-        this.items = items.toArray(new Item[0]);
+        this.items = items.toArray(ApiKey[]::new);
         this.aggregations = aggregations;
     }
 
@@ -46,7 +46,7 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         return total;
     }
 
-    public Item[] getItems() {
+    public ApiKey[] getItems() {
         return items;
     }
 
@@ -91,55 +91,5 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
     @Override
     public String toString() {
         return "QueryApiKeyResponse{total=" + total + ", items=" + Arrays.toString(items) + ", aggs=" + aggregations + "}";
-    }
-
-    public static class Item implements ToXContentObject {
-        private final ApiKey apiKey;
-        @Nullable
-        private final Object[] sortValues;
-
-        public Item(ApiKey apiKey, @Nullable Object[] sortValues) {
-            this.apiKey = apiKey;
-            this.sortValues = sortValues;
-        }
-
-        public ApiKey getApiKey() {
-            return apiKey;
-        }
-
-        public Object[] getSortValues() {
-            return sortValues;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            apiKey.innerToXContent(builder, params);
-            if (sortValues != null && sortValues.length > 0) {
-                builder.array("_sort", sortValues);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Item item = (Item) o;
-            return Objects.equals(apiKey, item.apiKey) && Arrays.equals(sortValues, item.sortValues);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hash(apiKey);
-            result = 31 * result + Arrays.hashCode(sortValues);
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "Item{" + "apiKey=" + apiKey + ", sortValues=" + Arrays.toString(sortValues) + '}';
-        }
     }
 }

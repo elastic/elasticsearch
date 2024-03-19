@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.profile.ProfileDocument.ProfileDocumentUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
@@ -206,6 +207,8 @@ public class ProfileServiceTests extends ESTestCase {
         when(featureService.clusterHasFeature(any(), eq(SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE))).thenReturn(
             useProfileOrigin
         );
+        Realms realms = mock(Realms.class);
+        when(realms.getDomainConfig(anyString())).then(args -> new DomainConfig(args.getArgument(0), Set.of(), false, null));
         this.profileService = new ProfileService(
             Settings.EMPTY,
             Clock.systemUTC(),
@@ -213,7 +216,7 @@ public class ProfileServiceTests extends ESTestCase {
             profileIndex,
             clusterService,
             featureService,
-            name -> new DomainConfig(name, Set.of(), false, null)
+            realms
         );
     }
 
@@ -486,6 +489,8 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testLiteralUsernameWillThrowOnDuplicate() throws IOException {
         final Subject subject = new Subject(AuthenticationTestHelper.randomUser(), AuthenticationTestHelper.randomRealmRef(true));
+        Realms realms = mock(Realms.class);
+        when(realms.getDomainConfig(anyString())).then(args -> new DomainConfig(args.getArgument(0), Set.of(), true, "suffix"));
         final ProfileService service = new ProfileService(
             Settings.EMPTY,
             Clock.systemUTC(),
@@ -493,7 +498,7 @@ public class ProfileServiceTests extends ESTestCase {
             profileIndex,
             mock(ClusterService.class),
             mock(FeatureService.class),
-            domainName -> new DomainConfig(domainName, Set.of(), true, "suffix")
+            realms
         );
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
         service.maybeIncrementDifferentiatorAndCreateNewProfile(
@@ -648,6 +653,15 @@ public class ProfileServiceTests extends ESTestCase {
     }
 
     public void testActivateProfileWithDifferentUidFormats() throws IOException {
+        Realms realms = mock(Realms.class);
+        when(realms.getDomainConfig(anyString())).then(args -> {
+            String domainName = args.getArgument(0);
+            if (domainName.startsWith("hash")) {
+                return new DomainConfig(domainName, Set.of(), false, null);
+            } else {
+                return new DomainConfig(domainName, Set.of(), true, "suffix");
+            }
+        });
         final ProfileService service = spy(
             new ProfileService(
                 Settings.EMPTY,
@@ -656,13 +670,7 @@ public class ProfileServiceTests extends ESTestCase {
                 profileIndex,
                 mock(ClusterService.class),
                 mock(FeatureService.class),
-                domainName -> {
-                    if (domainName.startsWith("hash")) {
-                        return new DomainConfig(domainName, Set.of(), false, null);
-                    } else {
-                        return new DomainConfig(domainName, Set.of(), true, "suffix");
-                    }
-                }
+                realms
             )
         );
 

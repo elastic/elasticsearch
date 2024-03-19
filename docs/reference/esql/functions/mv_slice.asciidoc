@@ -1,0 +1,47 @@
+[discrete]
+[[esql-mv_slice]]
+=== `MV_SLICE`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/mv_slice.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`field`::
+Multivalue expression. If `null`, the function returns `null`.
+
+`start`::
+Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list.
+
+`end`::
+End position. Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list.
+
+*Description*
+
+Returns a subset of the multivalued field using the start and end index values.
+
+*Supported types*
+
+include::types/mv_slice.asciidoc[]
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/ints.csv-spec[tag=mv_slice_positive]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/ints.csv-spec[tag=mv_slice_positive-result]
+|===
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/ints.csv-spec[tag=mv_slice_negative]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/ints.csv-spec[tag=mv_slice_negative-result]
+|===

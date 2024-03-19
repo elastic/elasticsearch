@@ -222,7 +222,7 @@ POST /_query
 {
   "locale": "fr-FR",
   "query": """
-          ROW birth_date_string = "2023-01-15T00:00:00.000Z" 
+          ROW birth_date_string = "2023-01-15T00:00:00.000Z"
           | EVAL birth_date = date_parse(birth_date_string)
           | EVAL month_of_birth = DATE_FORMAT("MMMM",birth_date)
           | LIMIT 5
@@ -308,6 +308,7 @@ POST /_query/async
 }
 ----
 // TEST[setup:library]
+// TEST[skip:awaitsfix https://github.com/elastic/elasticsearch/issues/104013]
 
 If the results are not available within the given timeout period, 2
 seconds in this case, no results are returned but rather a response that

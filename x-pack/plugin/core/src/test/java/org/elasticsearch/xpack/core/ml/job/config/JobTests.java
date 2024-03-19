@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -100,7 +101,7 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
 
     @Override
     protected Job doParseInstance(XContentParser parser) {
-        return Job.LENIENT_PARSER.apply(parser, null).build();
+        return Job.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testToXContentForInternalStorage() throws IOException {
@@ -118,10 +119,10 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
         }
     }
 
-    public void testRestRequestParser_DoesntAllowInternalFields() throws IOException {
+    public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, FUTURE_JOB);
-        XContentParseException e = expectThrows(XContentParseException.class, () -> Job.REST_REQUEST_PARSER.apply(parser, null).build());
-        assertEquals("[3:5] [job_details] unknown field [create_time]", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> Job.STRICT_PARSER.apply(parser, null).build());
+        assertEquals("[4:5] [job_details] unknown field [tomorrows_technology_today]", e.getMessage());
     }
 
     public void testFutureMetadataParse() throws IOException {
@@ -551,6 +552,22 @@ public class JobTests extends AbstractXContentSerializingTestCase<Job> {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, jobBuilder::build);
         assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG)));
+    }
+
+    public void testInvalidCreateTimeSettings() {
+        Job.Builder builder = new Job.Builder("invalid-settings");
+        builder.setModelSnapshotId("snapshot-foo");
+        assertEquals(Collections.singletonList(Job.MODEL_SNAPSHOT_ID.getPreferredName()), builder.invalidCreateTimeSettings());
+
+        builder.setCreateTime(new Date());
+        builder.setFinishedTime(new Date());
+
+        Set<String> expected = new HashSet<>();
+        expected.add(Job.CREATE_TIME.getPreferredName());
+        expected.add(Job.FINISHED_TIME.getPreferredName());
+        expected.add(Job.MODEL_SNAPSHOT_ID.getPreferredName());
+
+        assertEquals(expected, new HashSet<>(builder.invalidCreateTimeSettings()));
     }
 
     public void testEmptyGroup() {

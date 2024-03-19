@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
+import java.lang.invoke.MethodHandles;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -70,7 +72,6 @@ import java.util.stream.Stream;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
 
-    public static final String ESQL_THREAD_POOL_NAME = "esql";
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
@@ -102,6 +103,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
+        setupSharedSecrets();
         return List.of(
             new PlanExecutor(
                 new IndexResolver(
@@ -112,14 +114,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 ),
                 new EsqlIndexResolver(services.client(), EsqlDataTypeRegistry.INSTANCE)
             ),
-            new ExchangeService(
-                services.clusterService().getSettings(),
-                services.threadPool(),
-                EsqlPlugin.ESQL_THREAD_POOL_NAME,
-                blockFactory
-            ),
+            new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );
+    }
+
+    private void setupSharedSecrets() {
+        try {
+            // EsqlQueryRequestBuilder.<clinit> initializes the shared secret access
+            MethodHandles.lookup().ensureInitialized(EsqlQueryRequestBuilder.class);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
+        }
     }
 
     /**
@@ -186,18 +192,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         ).toList();
     }
 
-    @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         return List.of(
-            new FixedExecutorBuilder(
-                settings,
-                ESQL_THREAD_POOL_NAME,
-                allocatedProcessors,
-                1000,
-                ESQL_THREAD_POOL_NAME,
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            ),
             // TODO: Maybe have two types of threadpools for workers: one for CPU-bound and one for I/O-bound tasks.
             // And we should also reduce the number of threads of the CPU-bound threadpool to allocatedProcessors.
             new FixedExecutorBuilder(

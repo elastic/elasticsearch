@@ -21,10 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -60,23 +58,10 @@ import static org.hamcrest.Matchers.hasSize;
 public class HeapAttackIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = buildCluster();
+    public static ElasticsearchCluster cluster = Clusters.buildCluster();
 
     static volatile boolean SUITE_ABORTED = false;
 
-    static ElasticsearchCluster buildCluster() {
-        var spec = ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
-            .module("test-esql-heap-attack")
-            .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial");
-        String javaVersion = JvmInfo.jvmInfo().version();
-        if (javaVersion.equals("20") || javaVersion.equals("21")) {
-            // see https://github.com/elastic/elasticsearch/issues/99592
-            spec.jvmArg("-XX:+UnlockDiagnosticVMOptions -XX:+G1UsePreventiveGC");
-        }
-        return spec.build();
-    }
 
     @Override
     protected String getTestRestCluster() {

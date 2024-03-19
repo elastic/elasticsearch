@@ -52,6 +52,10 @@ class ValuesIntAggregator {
     }
 
     public static void combine(GroupingState state, int groupId, int v) {
+        /*
+         * Encode the groupId and value into a single long -
+         * the top 32 bits for the group, the bottom 32 for the value.
+         */
         state.values.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
     }
 

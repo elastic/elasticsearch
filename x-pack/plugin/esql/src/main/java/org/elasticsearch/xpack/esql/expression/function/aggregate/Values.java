@@ -28,14 +28,11 @@ import java.util.List;
 
 public class Values extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
-        returnType = { "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version" },
+        returnType = { "boolean|date|double|integer|ip|keyword|long|text|version" },
         description = "Collect values for a field.",
         isAggregation = true
     )
-    public Values(
-        Source source,
-        @Param(name = "v", type = { "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|version" }) Expression v
-    ) {
+    public Values(Source source, @Param(name = "v", type = { "boolean|date|double|integer|ip|keyword|long|text|version" }) Expression v) {
         super(source, v);
     }
 

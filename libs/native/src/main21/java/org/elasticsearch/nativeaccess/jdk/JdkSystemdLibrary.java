@@ -24,6 +24,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 class JdkSystemdLibrary implements SystemdLibrary {
+
     static {
         System.load(findLibSystemd());
     }
@@ -39,6 +40,7 @@ class JdkSystemdLibrary implements SystemdLibrary {
                 continue;
             }
             try (var stream = Files.walk(basepath)) {
+
                 var foundpath = stream.filter(Files::isDirectory).map(p -> p.resolve(libsystemd)).filter(Files::exists).findAny();
                 if (foundpath.isPresent()) {
                     return foundpath.get().toAbsolutePath().toString();

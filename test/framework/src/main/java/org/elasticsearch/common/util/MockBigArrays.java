@@ -476,6 +476,11 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
+
+        @Override
         public void set(long index, byte[] buf, int offset, int len) {
             in.set(index, buf, offset, len);
         }
@@ -628,6 +633,11 @@ public class MockBigArrays extends BigArrays {
         @Override
         public void fill(long fromIndex, long toIndex, double value) {
             in.fill(fromIndex, toIndex, value);
+        }
+
+        @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
         }
 
         @Override

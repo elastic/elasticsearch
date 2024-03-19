@@ -256,9 +256,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 // 5. force the initial projection in place
                 if (transientEval.isEmpty() == false) {
                     plan = new Eval(source, plan, transientEval);
-                    // project away transient fields and re-enforce the original order using references (not copies) to the original
-                    // aggs this works since the replaced aliases have their nameId copied to avoid having to update all references
-                    // (which has a cascading effect)
+                    // project away transient fields and re-enforce the original order using references (not copies) to the original aggs
+                    // this works since the replaced aliases have their nameId copied to avoid having to update all references (which has
+                    // a cascading effect)
                     plan = new Project(source, plan, Expressions.asAttributes(aggs));
                 }
             }

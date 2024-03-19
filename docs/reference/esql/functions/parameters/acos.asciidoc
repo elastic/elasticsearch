@@ -1,4 +1,4 @@
 *Parameters*
 
 `n`::
-Number between -1 and 1
+Number between -1 and 1. If `null`, the function returns `null`.

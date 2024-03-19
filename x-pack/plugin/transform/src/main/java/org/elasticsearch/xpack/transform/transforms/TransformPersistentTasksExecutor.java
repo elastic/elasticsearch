@@ -341,12 +341,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         });
 
         // <2> Get the transform config
-        ActionListener<Void> templateCheckListener = buildTask.maybeRegisterRetryableAsyncTask(
-            "getTransformConfig",
-            l -> transformServices.getConfigManager().getTransformConfiguration(transformId, l),
-            getTransformConfigListener,
-            markAsRetrying(buildTask)
-        );
+        var templateCheckListener = getTransformConfig(buildTask, params, getTransformConfigListener);
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
         TransformInternalIndex.createLatestVersionedIndexIfRequired(
@@ -396,7 +391,39 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
     }
 
-    private ActionListener<Boolean> markAsRetrying(TransformTask task) {
+    private ActionListener<Void> getTransformConfig(
+        TransformTask task,
+        TransformTaskParams params,
+        ActionListener<TransformConfig> listener
+    ) {
+        return ActionListener.running(() -> {
+            var transformId = params.getId();
+            // if this call fails for the first time, we are going to retry it indefinitely
+            // register the retry using the TransformScheduler, when the call eventually succeeds, deregister it before returning
+            var scheduler = transformServices.getScheduler();
+            scheduler.registerTransform(
+                params,
+                new TransformRetryableStartUpListener<>(
+                    transformId,
+                    l -> transformServices.getConfigManager().getTransformConfiguration(transformId, l),
+                    ActionListener.runBefore(listener, () -> scheduler.deregisterTransform(transformId)),
+                    retryListener(task),
+                    () -> true, // because we can't determine if this is an unattended transform yet, retry indefinitely
+                    task.getContext()
+                )
+            );
+        });
+    }
+
+    /**
+     * This listener is always called after the first execution of a {@link TransformRetryableStartUpListener}.
+     *
+     * When the result is true, then the first call has failed and will retry. Save the state as Started and unblock the network thread,
+     * notifying the user with a 200 OK (acknowledged).
+     *
+     * When the result is false, then the first call has succeeded, and no further action is required for this listener.
+     */
+    private ActionListener<Boolean> retryListener(TransformTask task) {
         return ActionListener.wrap(isRetrying -> {
             if (isRetrying) {
                 var oldState = task.getState();
@@ -461,8 +488,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             transformServices.getScheduler(),
             auditor,
             threadPool,
-            headers,
-            transformServices.getRetryableActions()
+            headers
         );
     }
 }

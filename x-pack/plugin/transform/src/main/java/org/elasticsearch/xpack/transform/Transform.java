@@ -103,7 +103,6 @@ import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpgradeTransformsAction;
 import org.elasticsearch.xpack.transform.transforms.TransformPersistentTasksExecutor;
-import org.elasticsearch.xpack.transform.transforms.TransformRetryableActions;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.io.IOException;
@@ -257,9 +256,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         );
         scheduler.start();
 
-        var retryableActions = new TransformRetryableActions(services.threadPool(), auditor);
-
-        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler, retryableActions));
+        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
 
         return List.of(
             transformServices.get(),

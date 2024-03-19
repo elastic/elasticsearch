@@ -230,8 +230,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         configManager,
                         mock(TransformCheckpointService.class),
                         mock(TransformAuditor.class),
-                        new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                        mock(TransformRetryableActions.class)
+                        new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO)
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -316,8 +315,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                         configManager,
                         mock(TransformCheckpointService.class),
                         mock(TransformAuditor.class),
-                        new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                        mock(TransformRetryableActions.class)
+                        new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO)
                     ),
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
@@ -451,8 +449,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     configManager,
                     mock(TransformCheckpointService.class),
                     mock(TransformAuditor.class),
-                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformRetryableActions.class)
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO)
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),

@@ -89,10 +89,8 @@ public final class TransformHealthChecker {
     public static TransformHealth checkTransform(TransformTask transformTask, @Nullable AuthorizationState authState) {
         // quick check
         if (TransformTaskState.FAILED.equals(transformTask.getState().getTaskState()) == false
-            && transformTask.getContext().getFailureCount() == 0
-            && transformTask.getContext().getStatePersistenceFailureCount() == 0
-            && AuthorizationState.isNullOrGreen(authState)
-            && transformTask.startupTasks().isEmpty()) {
+            && transformTask.getContext().doesNotHaveFailures()
+            && AuthorizationState.isNullOrGreen(authState)) {
             return TransformHealth.GREEN;
         }
 
@@ -147,14 +145,22 @@ public final class TransformHealthChecker {
             );
         }
 
-        var startupTasks = transformTask.startupTasks();
-        if (startupTasks.isEmpty() == false) {
+        if (transformContext.getStartUpFailureCount() != 0) {
             if (HealthStatus.RED.equals(maxStatus) == false) {
                 maxStatus = HealthStatus.YELLOW;
             }
-            startupTasks.stream()
-                .map(task -> IssueType.TRANSFORM_STARTING.newIssue(task.message(), task.retryCount(), task.occurrence()))
-                .forEach(issues::add);
+
+            var lastFailure = transformContext.getStartUpFailure();
+            var lastFailureMessage = lastFailure instanceof ElasticsearchException elasticsearchException
+                ? elasticsearchException.getDetailedMessage()
+                : lastFailure.getMessage();
+            issues.add(
+                IssueType.TRANSFORM_STARTING.newIssue(
+                    lastFailureMessage,
+                    transformContext.getStartUpFailureCount(),
+                    transformContext.getStartUpFailureTime()
+                )
+            );
         }
 
         return new TransformHealth(maxStatus, issues);

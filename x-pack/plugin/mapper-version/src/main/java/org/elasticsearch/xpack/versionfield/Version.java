@@ -8,6 +8,11 @@
 package org.elasticsearch.xpack.versionfield;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.BytesRefProducer;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -17,7 +22,8 @@ import java.io.IOException;
 /**
  * Version value class, also exposed to scripting consumers.
  */
-public class Version implements ToXContentFragment, BytesRefProducer, Comparable<Version> {
+public class Version implements ToXContentFragment, BytesRefProducer, Comparable<Version>, GenericNamedWriteable {
+    static final String NAMED_WRITEABLE_NAME = "VersionField";
     protected String version;
     protected BytesRef bytes;
 
@@ -29,6 +35,10 @@ public class Version implements ToXContentFragment, BytesRefProducer, Comparable
     public Version(BytesRef bytes) {
         this.version = VersionEncoder.decodeVersion(bytes).utf8ToString();
         this.bytes = bytes;
+    }
+
+    public Version(StreamInput input) throws IOException {
+        this(input.readString());
     }
 
     @Override
@@ -49,5 +59,20 @@ public class Version implements ToXContentFragment, BytesRefProducer, Comparable
     @Override
     public int compareTo(Version o) {
         return toBytesRef().compareTo(o.toBytesRef());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAMED_WRITEABLE_NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.VERSION_FIELD_WRITEABLE;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(version);
     }
 }

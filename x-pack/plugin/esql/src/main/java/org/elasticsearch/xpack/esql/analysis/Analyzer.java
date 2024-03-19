@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
@@ -78,11 +80,19 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeStringToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
@@ -569,10 +579,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
-                if (resolved.resolved() && resolved.dataType() != KEYWORD) {
-                    resolved = ua.withUnresolvedMessage(
-                        "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; only KEYWORD allowed"
-                    );
+                if (resolved.resolved() && enrich.policy() != null) {
+                    final DataType dataType = resolved.dataType();
+                    String matchType = enrich.policy().getType();
+                    DataType[] allowed = allowedEnrichTypes(matchType);
+                    if (Arrays.asList(allowed).contains(dataType) == false) {
+                        String suffix = "only " + Arrays.toString(allowed) + " allowed for type [" + matchType + "]";
+                        resolved = ua.withUnresolvedMessage(
+                            "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; " + suffix
+                        );
+                    }
                 }
                 return new Enrich(
                     enrich.source(),
@@ -586,6 +602,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             return enrich;
+        }
+
+        private static final DataType[] GEO_TYPES = new DataType[] { GEO_POINT, GEO_SHAPE };
+        private static final DataType[] NON_GEO_TYPES = new DataType[] { KEYWORD, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
+
+        private DataType[] allowedEnrichTypes(String matchType) {
+            return matchType.equals(GEO_MATCH_TYPE) ? GEO_TYPES : NON_GEO_TYPES;
         }
     }
 

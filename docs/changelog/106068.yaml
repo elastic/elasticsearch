@@ -1,0 +1,5 @@
+pr: 106068
+summary: Add `modelId` and `modelText` to `KnnVectorQueryBuilder`
+area: Search
+type: enhancement
+issues: []

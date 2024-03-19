@@ -223,8 +223,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private Map<String, Set<String>> computeInferenceIdsForFields(Collection<IndexMetadata> indexMetadataCollection) {
         Map<String, Set<String>> inferenceIdsForFields = new HashMap<>();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            Map<String, FieldInferenceMetadata.FieldInferenceOptions> fieldInferenceOptionsMap = indexMetadata
-                .getFieldInferenceMetadata()
+            Map<String, FieldInferenceMetadata.FieldInferenceOptions> fieldInferenceOptionsMap = indexMetadata.getFieldInferenceMetadata()
                 .getFieldInferenceOptions();
 
             for (Map.Entry<String, FieldInferenceMetadata.FieldInferenceOptions> entry : fieldInferenceOptionsMap.entrySet()) {

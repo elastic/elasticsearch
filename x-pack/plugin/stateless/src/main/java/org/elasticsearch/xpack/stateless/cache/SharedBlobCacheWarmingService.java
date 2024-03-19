@@ -156,6 +156,7 @@ public class SharedBlobCacheWarmingService {
                 var added = regions.add(new BlobRegion(blobLocation.blobFile(), region));
                 logDetectedRegion(shardId, added, region, fileName, blobLocation, range, "content");
             });
+            return;
         }
 
         // prewarm the header of the file (header have no fixed length so we prewarm BUFFER_SIZE at least)

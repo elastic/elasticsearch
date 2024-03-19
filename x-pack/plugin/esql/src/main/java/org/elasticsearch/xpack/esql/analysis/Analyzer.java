@@ -607,8 +607,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static final DataType[] GEO_TYPES = new DataType[] { GEO_POINT, GEO_SHAPE };
-        private static final DataType[] RANGE_TYPES = new DataType[] { KEYWORD, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
-        private static final DataType[] MATCH_TYPES = new DataType[] { TEXT, KEYWORD, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
+        private static final DataType[] RANGE_TYPES = new DataType[] { IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
+        private static final DataType[] MATCH_TYPES = new DataType[] { KEYWORD, TEXT, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
 
         private DataType[] allowedEnrichTypes(String matchType) {
             return switch (matchType) {

@@ -44,10 +44,9 @@ public class WildcardLike extends org.elasticsearch.xpack.ql.expression.predicat
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        return RegexMatch.toEvaluator(
-            toEvaluator,
+        return AutomataMatch.toEvaluator(
             source(),
-            field(),
+            toEvaluator.apply(field()),
             // The empty pattern will accept the empty string
             pattern().pattern().length() == 0 ? Automata.makeEmptyString() : pattern().createAutomaton()
         );

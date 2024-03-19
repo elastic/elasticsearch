@@ -129,7 +129,7 @@ public class RLikeTests extends AbstractFunctionTestCase {
                         new TestCaseSupplier.TypedData(new BytesRef(v.pattern), type, "pattern").forceLiteral(),
                         new TestCaseSupplier.TypedData(false, DataTypes.BOOLEAN, "caseInsensitive").forceLiteral()
                     ),
-                    startsWith("RegexMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                    startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
                     DataTypes.BOOLEAN,
                     equalTo(expected)
                 );

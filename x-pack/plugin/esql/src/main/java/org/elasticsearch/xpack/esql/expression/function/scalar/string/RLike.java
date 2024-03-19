@@ -47,6 +47,6 @@ public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        return RegexMatch.toEvaluator(toEvaluator, source(), field(), pattern().createAutomaton());
+        return AutomataMatch.toEvaluator(source(), toEvaluator.apply(field()), pattern().createAutomaton());
     }
 }

@@ -39,7 +39,7 @@ public class MockInferenceModelFieldType extends SimpleMappedFieldType implement
     }
 
     @Override
-    public String getInferenceModel() {
+    public String getInferenceId() {
         return modelId;
     }
 }

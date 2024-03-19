@@ -71,7 +71,9 @@ public final class LuceneSliceQueue {
                 weight.get(); // eagerly build Weight once
             }
             for (List<PartialLeafReaderContext> group : groups) {
-                slices.add(new LuceneSlice(ctx, group, weight));
+                if (group.isEmpty() == false) {
+                    slices.add(new LuceneSlice(ctx, group, weight));
+                }
             }
         }
         return new LuceneSliceQueue(slices);

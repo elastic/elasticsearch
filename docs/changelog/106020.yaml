@@ -1,0 +1,5 @@
+pr: 106020
+summary: Fix resetting a job if the original reset task no longer exists.
+area: Machine Learning
+type: bug
+issues: []

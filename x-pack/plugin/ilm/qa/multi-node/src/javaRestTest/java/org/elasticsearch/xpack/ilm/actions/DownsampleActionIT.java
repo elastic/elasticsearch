@@ -327,7 +327,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), backingIndexName).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -374,7 +374,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), backingIndexName).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -465,7 +465,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), firstBackingIndex).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -505,6 +505,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105485")
     public void testDownsampleTwiceSameInterval() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);
@@ -546,7 +547,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), firstBackingIndex).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 

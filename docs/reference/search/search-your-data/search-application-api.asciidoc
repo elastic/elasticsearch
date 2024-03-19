@@ -215,31 +215,35 @@ PUT _application/search_application/my-search-app
       "lang": "mustache",
       "source": """
       {
-        "sub_searches": [
-          {{#text_fields}}
-          {
-            "query": {
-              "match": {
-                "{{.}}": "{{query_string}}"
-              }
-            }
-          },
-          {{/text_fields}}
-          {{#elser_fields}}
-          {
-            "query": {
-              "text_expansion": {
-                "ml.inference.{{.}}_expanded.predicted_value": {
-                  "model_text": "{{query_string}}",
-                    "model_id": "<elser_model_id>"
+        "retriever": {
+          "rrf": {
+            "retrievers": [
+              {{#text_fields}}
+              {
+                "standard": {
+                  "query": {
+                    "match": {
+                      "{{.}}": "{{query_string}}"
+                    }
+                  }
+                }
+              },
+              {{/text_fields}}
+              {{#elser_fields}}
+              {
+                "standard": {
+                  "query": {
+                    "text_expansion": {
+                      "ml.inference.{{.}}_expanded.predicted_value": {
+                        "model_text": "{{query_string}}",
+                        "model_id": "<elser_model_id>"
+                      }
+                    }
+                  }
                 }
               }
-            }
-          },
-          {{/elser_fields}}
-        ],
-        "rank": {
-          "rrf": {
+              {{/elser_fields}}
+            ],
             "window_size": {{rrf.window_size}},
             "rank_constant": {{rrf.rank_constant}}
           }

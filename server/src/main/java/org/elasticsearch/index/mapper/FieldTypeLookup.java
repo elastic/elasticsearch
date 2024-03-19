@@ -39,7 +39,7 @@ final class FieldTypeLookup {
     /**
      * A map from inference model ID to all fields that use the model to generate embeddings.
      */
-    private final Map<String, Set<String>> fieldsForModels;
+    private final Map<String, String> inferenceIdsForFields;
 
     private final int maxParentPathDots;
 
@@ -53,7 +53,7 @@ final class FieldTypeLookup {
         final Map<String, String> fullSubfieldNameToParentPath = new HashMap<>();
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
-        final Map<String, Set<String>> fieldsForModels = new HashMap<>();
+        final Map<String, String> inferenceIdsForFields = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -72,11 +72,7 @@ final class FieldTypeLookup {
                 fieldToCopiedFields.get(targetField).add(fieldName);
             }
             if (fieldType instanceof InferenceModelFieldType inferenceModelFieldType) {
-                String inferenceModel = inferenceModelFieldType.getInferenceModel();
-                if (inferenceModel != null) {
-                    Set<String> fields = fieldsForModels.computeIfAbsent(inferenceModel, v -> new HashSet<>());
-                    fields.add(fieldName);
-                }
+                inferenceIdsForFields.put(fieldName, inferenceModelFieldType.getInferenceId());
             }
         }
 
@@ -110,8 +106,7 @@ final class FieldTypeLookup {
         // make values into more compact immutable sets to save memory
         fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
         this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
-        fieldsForModels.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
-        this.fieldsForModels = Map.copyOf(fieldsForModels);
+        this.inferenceIdsForFields = Map.copyOf(inferenceIdsForFields);
     }
 
     public static int dotCount(String path) {
@@ -220,8 +215,8 @@ final class FieldTypeLookup {
         return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);
     }
 
-    Map<String, Set<String>> getFieldsForModels() {
-        return fieldsForModels;
+    Map<String, String> getInferenceIdsForFields() {
+        return inferenceIdsForFields;
     }
 
     /**
@@ -229,5 +224,12 @@ final class FieldTypeLookup {
      */
     public String parentField(String field) {
         return fullSubfieldNameToParentPath.get(field);
+    }
+
+    /**
+     * @return A map from field name to the MappedFieldType
+     */
+    public Map<String, MappedFieldType> getFullNameToFieldType() {
+        return fullNameToFieldType;
     }
 }

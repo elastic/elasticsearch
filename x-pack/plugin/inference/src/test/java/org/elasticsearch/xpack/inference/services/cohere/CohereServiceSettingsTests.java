@@ -151,7 +151,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
         var serviceSettings = CohereServiceSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
-        assertNull(serviceSettings.getUri());
+        assertNull(serviceSettings.uri());
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {

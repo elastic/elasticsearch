@@ -216,13 +216,16 @@ public class CohereService extends SenderService {
     }
 
     private CohereEmbeddingsModel updateModelWithEmbeddingDetails(CohereEmbeddingsModel model, int embeddingSize) {
+        var similarityFromModel = model.getServiceSettings().similarity();
+        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
         CohereEmbeddingsServiceSettings serviceSettings = new CohereEmbeddingsServiceSettings(
             new CohereServiceSettings(
-                model.getServiceSettings().getCommonSettings().getUri(),
-                SimilarityMeasure.DOT_PRODUCT,
+                model.getServiceSettings().getCommonSettings().uri(),
+                similarityToUse,
                 embeddingSize,
-                model.getServiceSettings().getCommonSettings().getMaxInputTokens(),
-                model.getServiceSettings().getCommonSettings().getModelId()
+                model.getServiceSettings().getCommonSettings().maxInputTokens(),
+                model.getServiceSettings().getCommonSettings().modelId()
             ),
             model.getServiceSettings().getEmbeddingType()
         );

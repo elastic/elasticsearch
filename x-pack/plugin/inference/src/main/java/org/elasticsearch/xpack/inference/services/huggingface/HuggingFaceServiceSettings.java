@@ -144,10 +144,12 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         return uri;
     }
 
+    @Override
     public SimilarityMeasure similarity() {
         return similarity;
     }
 
+    @Override
     public Integer dimensions() {
         return dimensions;
     }

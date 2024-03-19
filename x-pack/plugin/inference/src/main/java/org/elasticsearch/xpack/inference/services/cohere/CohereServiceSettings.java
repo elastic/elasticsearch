@@ -65,10 +65,10 @@ public class CohereServiceSettings implements ServiceSettings {
             throw validationException;
         }
 
-        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, getModelId(oldModelId, modelId));
+        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, modelId(oldModelId, modelId));
     }
 
-    private static String getModelId(@Nullable String model, @Nullable String modelId) {
+    private static String modelId(@Nullable String model, @Nullable String modelId) {
         return modelId != null ? modelId : model;
     }
 
@@ -110,23 +110,25 @@ public class CohereServiceSettings implements ServiceSettings {
         modelId = in.readOptionalString();
     }
 
-    public URI getUri() {
+    public URI uri() {
         return uri;
     }
 
-    public SimilarityMeasure getSimilarity() {
+    @Override
+    public SimilarityMeasure similarity() {
         return similarity;
     }
 
-    public Integer getDimensions() {
+    @Override
+    public Integer dimensions() {
         return dimensions;
     }
 
-    public Integer getMaxInputTokens() {
+    public Integer maxInputTokens() {
         return maxInputTokens;
     }
 
-    public String getModelId() {
+    public String modelId() {
         return modelId;
     }
 

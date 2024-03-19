@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.services.huggingface.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
@@ -49,6 +51,22 @@ public class HuggingFaceEmbeddingsModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             new HuggingFaceServiceSettings(createUri(url), null, dimensions, tokenLimit),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static HuggingFaceEmbeddingsModel createModel(
+        String url,
+        String apiKey,
+        int tokenLimit,
+        int dimensions,
+        @Nullable SimilarityMeasure similarityMeasure
+    ) {
+        return new HuggingFaceEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new HuggingFaceServiceSettings(createUri(url), similarityMeasure, dimensions, tokenLimit),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

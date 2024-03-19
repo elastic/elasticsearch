@@ -224,4 +224,27 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
+
+    public static CohereEmbeddingsModel createModel(
+        String url,
+        String apiKey,
+        CohereEmbeddingsTaskSettings taskSettings,
+        @Nullable Integer tokenLimit,
+        @Nullable Integer dimensions,
+        @Nullable String model,
+        @Nullable CohereEmbeddingType embeddingType,
+        @Nullable SimilarityMeasure similarityMeasure
+    ) {
+        return new CohereEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new CohereEmbeddingsServiceSettings(
+                new CohereServiceSettings(url, similarityMeasure, dimensions, tokenLimit, model),
+                embeddingType
+            ),
+            taskSettings,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
 }

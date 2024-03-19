@@ -191,10 +191,12 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         return organizationId;
     }
 
+    @Override
     public SimilarityMeasure similarity() {
         return similarity;
     }
 
+    @Override
     public Integer dimensions() {
         return dimensions;
     }

@@ -247,20 +247,20 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             if (changed) {
                 var source = aggregate.source();
                 if (newAggs.isEmpty() == false) {
-                    plan = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs);
-                    // 5. force the initial projection in place
-                    if (transientEval.isEmpty() == false) {
-                        plan = new Eval(source, plan, transientEval);
-                        // project away transient fields and re-enforce the original order using references (not copies) to the original
-                        // aggs this works since the replaced aliases have their nameId copied to avoid having to update all references
-                        // (which has a cascading effect)
-                        plan = new Project(source, plan, Expressions.asAttributes(aggs));
-                    }
+                    plan = new Aggregate(source, aggregate.child(), aggregate.groupings(), newAggs);
                 } else {
-                    // All aggs actually have been surrogates for evals - empty aggregation.
-                    plan = new Row(plan.source(), transientEval);
+                    // All aggs actually have been surrogates for evals - empty aggregation, but there still needs to be 1 row.
+                    // Put a bogus literal into the row since empty rows are not allowed.
+                    plan = new Row(source, List.of(new Alias(Source.EMPTY, "$$placeholder", Literal.NULL)));
                 }
-
+                // 5. force the initial projection in place
+                if (transientEval.isEmpty() == false) {
+                    plan = new Eval(source, plan, transientEval);
+                    // project away transient fields and re-enforce the original order using references (not copies) to the original
+                    // aggs this works since the replaced aliases have their nameId copied to avoid having to update all references
+                    // (which has a cascading effect)
+                    plan = new Project(source, plan, Expressions.asAttributes(aggs));
+                }
             }
 
             return plan;

@@ -3299,9 +3299,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *
      * Expects e.g.
      *
-     * EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
-     * \_Limit[1000[INTEGER]]
-     *   \_Row[[1.5[DOUBLE] AS s, 3.14[DOUBLE] AS s_expr, null[DOUBLE] AS s_null]]
+     * Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
+     * \_Eval[[1.5[DOUBLE] AS s, null[DOUBLE] AS s_null, 6.28[DOUBLE] AS s_expr]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Row[[null[NULL] AS $$$placeholder]]
      */
     public void testAggOfLiteral() {
         List<AggOfLiteralTestCase> cases = List.of(
@@ -3322,18 +3323,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var plan = optimizedPlan(query);
 
             var project = as(plan, Project.class);
-            var limit = as(project.child(), Limit.class);
+            var eval = as(project.child(), Eval.class);
+            var limit = as(eval.child(), Limit.class);
             var row = as(limit.child(), Row.class);
-            var exprs = row.fields();
+            assertThat(row.fields().size(), equalTo(1));
+            assertThat(row.fields().get(0).child(), equalTo(NULL));
 
+            var exprs = eval.fields();
             var s = as(Alias.unwrap(exprs.get(0)), Literal.class);
             assertThat(s.source().text(), equalTo(testCase.aggFunctionName + "([1,2])"));
             assertThat(s.value(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
-
             var s_expr = as(Alias.unwrap(exprs.get(1)), Literal.class);
             assertThat(s_expr.source().text(), equalTo(testCase.aggFunctionName + "(314.0/100)"));
             assertThat(s_expr.value(), equalTo(3.14));
-
             var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
             assertThat(s_null.source().text(), equalTo(testCase.aggFunctionName + "(null)"));
             assertThat(s_null.value(), equalTo(null));

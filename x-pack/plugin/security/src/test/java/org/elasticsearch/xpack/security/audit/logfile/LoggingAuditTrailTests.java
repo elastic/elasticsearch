@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -360,7 +361,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             securityIndexManager,
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            mock(FeatureService.class)
         );
     }
 

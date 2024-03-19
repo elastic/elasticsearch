@@ -209,6 +209,19 @@ public class QueryUserIT extends SecurityInBasicRestTestCase {
             {"query":{"term":{"username":"%s"}}}""", reservedUsername), users -> assertTrue(users.isEmpty()));
     }
 
+    public void testQueryOnMetadata() throws IOException {
+        User user = createUser(
+            randomValueOtherThanMany(reservedUsers::contains, () -> randomAlphaOfLengthBetween(3, 8)) + "-random",
+            randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            Map.of("test_key", "test_value"),
+            randomBoolean()
+        );
+        assertQuery("""
+            {"query":{"term":{"metadata.test_key":"test_value"}}}""", users -> assertUser(user, users.get(0)));
+    }
+
     public void testPagination() throws IOException {
         final List<User> users = createRandomUsers();
 

@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,17 +116,22 @@ public class NativePrivilegeStore {
     private final SecurityIndexManager securityIndexManager;
     private volatile boolean allowExpensiveQueries;
     private final DescriptorsAndApplicationNamesCache descriptorsAndApplicationNamesCache;
+    private final FeatureService featureService;
+    private final ClusterService clusterService;
 
     public NativePrivilegeStore(
         Settings settings,
         Client client,
         SecurityIndexManager securityIndexManager,
         CacheInvalidatorRegistry cacheInvalidatorRegistry,
-        ClusterService clusterService
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         this.settings = settings;
         this.client = client;
         this.securityIndexManager = securityIndexManager;
+        this.featureService = featureService;
+        this.clusterService = clusterService;
         this.allowExpensiveQueries = ALLOW_EXPENSIVE_QUERIES.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
@@ -406,7 +413,11 @@ public class NativePrivilegeStore {
     private IndexRequest preparePutPrivilege(ApplicationPrivilegeDescriptor privilege) throws IOException {
         try {
             final String name = privilege.getName();
-            final XContentBuilder xContentBuilder = privilege.toXContent(jsonBuilder(), true);
+            final XContentBuilder xContentBuilder = privilege.toXContent(
+                jsonBuilder(),
+                true,
+                featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)
+            );
             return client.prepareIndex(SECURITY_MAIN_ALIAS)
                 .setId(toDocId(privilege.getApplication(), name))
                 .setSource(xContentBuilder)

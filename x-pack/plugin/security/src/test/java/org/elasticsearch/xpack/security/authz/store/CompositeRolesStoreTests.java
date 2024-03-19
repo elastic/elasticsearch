@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
@@ -1906,7 +1907,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                mock(FeatureService.class)
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -1989,7 +1991,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                mock(FeatureService.class)
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2089,7 +2092,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 mock(SecurityIndexManager.class),
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
-                mock(ThreadPool.class)
+                mock(ThreadPool.class),
+                mock(FeatureService.class)
             )
         );
         final NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2246,7 +2250,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            mock(FeatureService.class)
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -2358,7 +2363,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            mock(FeatureService.class)
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {

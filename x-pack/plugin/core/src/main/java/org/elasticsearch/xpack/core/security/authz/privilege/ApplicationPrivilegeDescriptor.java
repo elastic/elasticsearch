@@ -43,6 +43,7 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         PARSER.declareString(Builder::privilegeName, Fields.NAME);
         PARSER.declareStringArray(Builder::actions, Fields.ACTIONS);
         PARSER.declareObject(Builder::metadata, (parser, context) -> parser.map(), Fields.METADATA);
+        PARSER.declareObject(Builder::metadata, (parser, context) -> parser.map(), Fields.METADATA_FLATTENED);
         PARSER.declareField(
             (parser, builder, allowType) -> builder.type(parser.text(), allowType),
             Fields.TYPE,
@@ -98,14 +99,21 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         return toXContent(builder, false);
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, boolean includeTypeField) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, boolean indexFormat) throws IOException {
+        return toXContent(builder, indexFormat, false);
+    }
+
+    public XContentBuilder toXContent(XContentBuilder builder, boolean indexFormat, boolean includeMetadataFlattened) throws IOException {
         builder.startObject()
             .field(Fields.APPLICATION.getPreferredName(), application)
             .field(Fields.NAME.getPreferredName(), name)
             .field(Fields.ACTIONS.getPreferredName(), actions)
             .field(Fields.METADATA.getPreferredName(), metadata);
-        if (includeTypeField) {
+        if (indexFormat) {
             builder.field(Fields.TYPE.getPreferredName(), DOC_TYPE_VALUE);
+        }
+        if (includeMetadataFlattened) {
+            builder.field(Fields.METADATA_FLATTENED.getPreferredName(), metadata);
         }
         return builder.endObject();
     }
@@ -204,6 +212,7 @@ public class ApplicationPrivilegeDescriptor implements ToXContentObject, Writeab
         ParseField NAME = new ParseField("name");
         ParseField ACTIONS = new ParseField("actions");
         ParseField METADATA = new ParseField("metadata");
+        ParseField METADATA_FLATTENED = new ParseField("metadata_flattened");
         ParseField TYPE = new ParseField("type");
     }
 }

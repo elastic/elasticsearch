@@ -80,7 +80,7 @@ public class ApplicationPrivilegeDescriptorTests extends ESTestCase {
 
             final ApplicationPrivilegeDescriptor original = randomPrivilege();
             if (includeTypeField) {
-                original.toXContent(builder, true);
+                original.toXContent(builder, true, true);
             } else if (randomBoolean()) {
                 original.toXContent(builder, false);
             } else {

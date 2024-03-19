@@ -62,6 +62,7 @@ import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -108,6 +109,7 @@ import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -216,6 +218,8 @@ public class ApiKeyService {
     private final ThreadPool threadPool;
     private final ApiKeyDocCache apiKeyDocCache;
 
+    private final FeatureService featureService;
+
     // The API key secret is a Base64 encoded v4 UUID without padding. The UUID is 128 bits, i.e. 16 byte,
     // which requires 22 digits of Base64 characters for encoding without padding.
     // See also UUIDs.randomBase64UUIDSecureString
@@ -234,12 +238,14 @@ public class ApiKeyService {
         SecurityIndexManager securityIndex,
         ClusterService clusterService,
         CacheInvalidatorRegistry cacheInvalidatorRegistry,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        FeatureService featureService
     ) {
         this.clock = clock;
         this.client = client;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);
         this.hasher = Hasher.resolve(PASSWORD_HASHING_ALGORITHM.get(settings));
         this.settings = settings;
@@ -442,7 +448,8 @@ public class ApiKeyService {
                     request.getRoleDescriptors(),
                     request.getType(),
                     ApiKey.CURRENT_API_KEY_VERSION,
-                    request.getMetadata()
+                    request.getMetadata(),
+                    featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)
                 )
             ) {
                 final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
@@ -761,7 +768,8 @@ public class ApiKeyService {
         List<RoleDescriptor> keyRoleDescriptors,
         ApiKey.Type type,
         ApiKey.Version version,
-        @Nullable Map<String, Object> metadata
+        @Nullable Map<String, Object> metadata,
+        boolean includeMetadataFlattened
     ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
@@ -772,8 +780,8 @@ public class ApiKeyService {
             .field("api_key_invalidated", false);
 
         addApiKeyHash(builder, apiKeyHashChars);
-        addRoleDescriptors(builder, keyRoleDescriptors);
-        addLimitedByRoleDescriptors(builder, userRoleDescriptors);
+        addRoleDescriptors(builder, keyRoleDescriptors, includeMetadataFlattened);
+        addLimitedByRoleDescriptors(builder, userRoleDescriptors, includeMetadataFlattened);
 
         builder.field("name", name).field("version", version.version()).field("metadata_flattened", metadata);
         addCreator(builder, authentication);
@@ -794,7 +802,8 @@ public class ApiKeyService {
         final Authentication authentication,
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors,
-        final Clock clock
+        final Clock clock,
+        final boolean includeMetadataFlattened
     ) throws IOException {
         assert currentApiKeyDoc.type == request.getType();
         if (isNoop(apiKeyId, currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
@@ -820,13 +829,13 @@ public class ApiKeyService {
 
         if (keyRoles != null) {
             logger.trace(() -> format("Building API key doc with updated role descriptors [%s]", keyRoles));
-            addRoleDescriptors(builder, keyRoles);
+            addRoleDescriptors(builder, keyRoles, includeMetadataFlattened);
         } else {
             assert currentApiKeyDoc.roleDescriptorsBytes != null;
             builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
         }
 
-        addLimitedByRoleDescriptors(builder, userRoleDescriptors);
+        addLimitedByRoleDescriptors(builder, userRoleDescriptors, includeMetadataFlattened);
 
         builder.field("name", currentApiKeyDoc.name).field("version", targetDocVersion.version());
 
@@ -1547,7 +1556,8 @@ public class ApiKeyService {
             authentication,
             request,
             userRoleDescriptors,
-            clock
+            clock,
+            featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)
         );
         final boolean isNoop = builder == null;
         return isNoop
@@ -1856,12 +1866,18 @@ public class ApiKeyService {
         clearApiKeyDocCache(responseBuilder.build(), listener);
     }
 
-    private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> limitedByRoleDescriptors)
-        throws IOException {
+    private static void addLimitedByRoleDescriptors(
+        final XContentBuilder builder,
+        final Set<RoleDescriptor> limitedByRoleDescriptors,
+        boolean includeMetadataFlattened
+    ) throws IOException {
         assert limitedByRoleDescriptors != null;
         builder.startObject("limited_by_role_descriptors");
         for (RoleDescriptor descriptor : limitedByRoleDescriptors) {
-            builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+            builder.field(
+                descriptor.getName(),
+                (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true, includeMetadataFlattened)
+            );
         }
         builder.endObject();
     }
@@ -1894,11 +1910,18 @@ public class ApiKeyService {
         builder.endObject();
     }
 
-    private static void addRoleDescriptors(final XContentBuilder builder, final List<RoleDescriptor> keyRoles) throws IOException {
+    private static void addRoleDescriptors(
+        final XContentBuilder builder,
+        final List<RoleDescriptor> keyRoles,
+        boolean includeMetadataFlattened
+    ) throws IOException {
         builder.startObject("role_descriptors");
         if (keyRoles != null && keyRoles.isEmpty() == false) {
             for (RoleDescriptor descriptor : keyRoles) {
-                builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
+                builder.field(
+                    descriptor.getName(),
+                    (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true, includeMetadataFlattened)
+                );
             }
         }
         builder.endObject();

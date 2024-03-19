@@ -57,6 +57,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -1164,7 +1165,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             keyRoles,
             type,
             ApiKey.CURRENT_API_KEY_VERSION,
-            metadataMap
+            metadataMap,
+            false
         );
         Map<String, Object> keyMap = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
         if (invalidated) {
@@ -2373,7 +2375,8 @@ public class ApiKeyServiceTests extends ESTestCase {
                         oldKeyRoles,
                         type,
                         oldVersion,
-                        oldMetadata
+                        oldMetadata,
+                        false
                     )
                 ),
                 XContentType.JSON
@@ -2437,7 +2440,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             newAuthentication,
             request,
             newUserRoles,
-            clock
+            clock,
+            true
         );
 
         final boolean noop = (changeCreator
@@ -2718,7 +2722,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            mock(FeatureService.class)
         );
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
@@ -2855,7 +2860,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            mock(FeatureService.class)
         );
 
         final List<RoleDescriptor> roleDescriptorsWithWorkflowsRestriction = randomList(
@@ -2920,7 +2926,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            mock(FeatureService.class)
         );
 
         final Set<RoleDescriptor> userRoleDescriptorsWithWorkflowsRestriction = randomSet(
@@ -3014,7 +3021,8 @@ public class ApiKeyServiceTests extends ESTestCase {
                 keyRoles,
                 ApiKey.Type.REST,
                 ApiKey.CURRENT_API_KEY_VERSION,
-                randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))
+                randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+                false
             );
             final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
                 XContentHelper.createParser(
@@ -3101,7 +3109,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             securityIndex,
             ClusterServiceUtils.createClusterService(threadPool, clusterSettings),
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            mock(FeatureService.class)
         );
         if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {
             verify(cacheInvalidatorRegistry, never()).registerCacheInvalidator(eq("api_key"), any());

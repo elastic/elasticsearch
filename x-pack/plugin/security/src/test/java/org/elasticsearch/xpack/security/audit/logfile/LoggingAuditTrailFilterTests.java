@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -124,7 +125,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             mock(SecurityIndexManager.class),
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            mock(ThreadPool.class)
+            mock(ThreadPool.class),
+            mock(FeatureService.class)
         );
     }
 

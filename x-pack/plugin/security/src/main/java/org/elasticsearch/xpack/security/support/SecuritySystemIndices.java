@@ -53,6 +53,7 @@ public class SecuritySystemIndices {
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
     public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
     public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
+    public static final NodeFeature SECURITY_METADATA_MIGRATED = new NodeFeature("security.metadata_migrated");
 
     /**
      * Security managed index mappings used to be updated based on the product version. They are now updated based on per-index mappings

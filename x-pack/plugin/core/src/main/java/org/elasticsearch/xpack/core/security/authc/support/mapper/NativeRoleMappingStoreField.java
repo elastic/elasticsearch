@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper;
 public final class NativeRoleMappingStoreField {
 
     public static final String DOC_TYPE_FIELD = "doc_type";
+
+    public static final String METADATA_FLATTENED = "metadata_flattened";
     public static final String DOC_TYPE_ROLE_MAPPING = "role-mapping";
     public static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
 

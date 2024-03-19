@@ -36,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -163,7 +164,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             client,
             securityIndex,
             cacheInvalidatorRegistry,
-            clusterService
+            clusterService,
+            mock(FeatureService.class)
         );
     }
 
@@ -526,7 +528,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             client,
             securityIndex,
             new CacheInvalidatorRegistry(),
-            clusterService
+            clusterService,
+            mock(FeatureService.class)
         ) {
             @Override
             protected void cacheFetchedDescriptors(
@@ -648,7 +651,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
                 mockClient,
                 mockSecurityIndexManager,
                 new CacheInvalidatorRegistry(),
-                clusterService
+                clusterService,
+                mock(FeatureService.class)
             );
             store1.getPrivileges(applications, actions, future);
             assertResult(emptyList(), future);
@@ -754,7 +758,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             client,
             securityIndex,
             new CacheInvalidatorRegistry(),
-            clusterService
+            clusterService,
+            mock(FeatureService.class)
         );
         assertNull(store1.getApplicationNamesCache());
         assertNull(store1.getDescriptorsCache());
@@ -767,7 +772,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             client,
             securityIndex,
             new CacheInvalidatorRegistry(),
-            clusterService
+            clusterService,
+            mock(FeatureService.class)
         );
         assertNull(store1.getDescriptorsAndApplicationNamesCache());
         final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(

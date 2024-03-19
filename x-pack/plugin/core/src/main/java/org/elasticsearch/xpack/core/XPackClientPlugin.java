@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.MigrateSecurityIndexFieldTaskParams;
 import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
@@ -295,7 +296,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 XPackField.ENTERPRISE_SEARCH,
                 EnterpriseSearchFeatureSetUsage::new
             ),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new),
+            new NamedWriteableRegistry.Entry(
+                PersistentTaskParams.class,
+                MigrateSecurityIndexFieldTaskParams.TASK_NAME,
+                MigrateSecurityIndexFieldTaskParams::new
+            )
         ).filter(Objects::nonNull).toList();
     }
 
@@ -366,6 +372,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 Metadata.Custom.class,
                 new ParseField(TransformMetadata.TYPE),
                 parser -> TransformMetadata.LENIENT_PARSER.parse(parser, null).build()
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(MigrateSecurityIndexFieldTaskParams.TASK_NAME),
+                MigrateSecurityIndexFieldTaskParams::fromXContent
             )
         );
     }

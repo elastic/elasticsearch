@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -72,6 +73,8 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -79,6 +82,7 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -205,6 +209,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.MigrateSecurityIndexFieldTaskParams;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -390,6 +395,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
+import org.elasticsearch.xpack.security.support.SecurityIndexFieldMigrationExecutor;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -443,7 +449,8 @@ public class Security extends Plugin
         ExtensiblePlugin,
         SearchPlugin,
         RestServerActionPlugin,
-        ReloadablePlugin {
+        ReloadablePlugin,
+        PersistentTaskPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -583,6 +590,8 @@ public class Security extends Plugin
     private final SetOnce<RestGrantApiKeyAction.RequestTranslator> grantApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
+
+    private final SetOnce<PersistentTasksService> persistentTasksService = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
@@ -593,6 +602,8 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleNameChecker.Factory> reservedRoleNameCheckerFactory = new SetOnce<>();
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
+
+    private final SetOnce<SecurityIndexFieldMigrationExecutor> migrateSecurityIndexFieldServiceExecutor = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -682,7 +693,8 @@ public class Security extends Plugin
                 services.environment(),
                 services.nodeEnvironment().nodeMetadata(),
                 services.indexNameExpressionResolver(),
-                services.telemetryProvider()
+                services.telemetryProvider(),
+                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client())
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -701,7 +713,8 @@ public class Security extends Plugin
         Environment environment,
         NodeMetadata nodeMetadata,
         IndexNameExpressionResolver expressionResolver,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        PersistentTasksService persistentTasksService
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -714,7 +727,42 @@ public class Security extends Plugin
         // See Plugin#additionalSettings()
         this.settings = environment.settings();
 
+        this.persistentTasksService.set(persistentTasksService);
+
         systemIndices.init(client, clusterService);
+
+        this.migrateSecurityIndexFieldServiceExecutor.set(
+            new SecurityIndexFieldMigrationExecutor(
+                clusterService,
+                MigrateSecurityIndexFieldTaskParams.TASK_NAME,
+                threadPool.generic(), // TODO Need to investigate what works best for this
+                systemIndices,
+                client
+            )
+        );
+
+        // Add a state listener to see if a migration of metadata is needed after a security index state change
+        systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
+            if (newState.indexExists()
+                && featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)) {
+                if (this.migrateSecurityIndexFieldServiceExecutor.get().shouldStartMetadataMigration(clusterService.state())) {
+                    persistentTasksService.sendStartRequest(
+                        // The constant id guarantees that this job only runs once
+                        "migrate-security-field-task-id",
+                        MigrateSecurityIndexFieldTaskParams.TASK_NAME,
+                        // Migration only needed if index already existed
+                        new MigrateSecurityIndexFieldTaskParams(oldState.indexExists()),
+                        null,
+                        ActionListener.wrap((response) -> {
+                            logger.trace("Security index field migration task submitted");
+                        },
+                            // This would be nice to track using metrics and also disable query on metadata if the migration fails.
+                            (exception) -> logger.warn("Submit security index field migration task failed: " + exception.getMessage())
+                        )
+                    );
+                }
+            }
+        });
 
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
@@ -760,12 +808,20 @@ public class Security extends Plugin
         components.add(tokenService);
 
         // realms construction
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, systemIndices.getMainIndexManager());
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(
+            settings,
+            client,
+            systemIndices.getMainIndexManager(),
+            clusterService,
+            featureService
+        );
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(
             settings,
             client,
             systemIndices.getMainIndexManager(),
-            scriptService
+            scriptService,
+            featureService,
+            clusterService
         );
         final ClusterStateRoleMapper clusterStateRoleMapper = new ClusterStateRoleMapper(settings, scriptService, clusterService);
         final UserRoleMapper userRoleMapper = new CompositeRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);
@@ -825,7 +881,8 @@ public class Security extends Plugin
             client,
             systemIndices.getMainIndexManager(),
             cacheInvalidatorRegistry,
-            clusterService
+            clusterService,
+            featureService
         );
         components.add(privilegeStore);
 
@@ -838,7 +895,8 @@ public class Security extends Plugin
             client,
             getLicenseState(),
             systemIndices.getMainIndexManager(),
-            clusterService
+            clusterService,
+            featureService
         );
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
         // Need to set to default if it wasn't set by an extension
@@ -892,7 +950,8 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             clusterService,
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            featureService
         );
         components.add(apiKeyService);
 
@@ -2178,6 +2237,19 @@ public class Security extends Plugin
             return null;
         }
         return new DlsFlsRequestCacheDifferentiator(getLicenseState(), securityContext, scriptServiceReference);
+    }
+
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
+        return this.migrateSecurityIndexFieldServiceExecutor.get() != null
+            ? Collections.singletonList(this.migrateSecurityIndexFieldServiceExecutor.get())
+            : Collections.emptyList();
     }
 
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {

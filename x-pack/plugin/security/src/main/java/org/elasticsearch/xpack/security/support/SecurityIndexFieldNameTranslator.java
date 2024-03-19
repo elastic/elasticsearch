@@ -42,31 +42,69 @@ public class SecurityIndexFieldNameTranslator {
     }
 
     public static FieldName exact(String name, Function<String, String> translation) {
-        return new SecurityIndexFieldNameTranslator.FieldName(name, translation);
+        return new SecurityIndexFieldNameTranslator.ExactFieldName(name, translation);
     }
 
-    public static class FieldName {
-        private final String name;
+    public static FieldName prefix(String queryFieldPrefix, String indexFieldPrefix) {
+        return new SecurityIndexFieldNameTranslator.PrefixFieldName(queryFieldPrefix, indexFieldPrefix);
+    }
+
+    public abstract static class FieldName {
         private final Function<String, String> toIndexFieldName;
         protected final Predicate<String> validIndexNamePredicate;
 
-        private FieldName(String name, Function<String, String> toIndexFieldName) {
-            this.name = name;
+        FieldName(Function<String, String> toIndexFieldName, Predicate<String> validIndexNamePredicate) {
             this.toIndexFieldName = toIndexFieldName;
-            this.validIndexNamePredicate = fieldName -> toIndexFieldName.apply(name).equals(fieldName);
-
+            this.validIndexNamePredicate = validIndexNamePredicate;
         }
 
+        public abstract boolean supportsQueryName(String queryFieldName);
+
+        public abstract boolean supportsIndexName(String indexFieldName);
+
+        public String indexFieldName(String queryFieldName) {
+            return toIndexFieldName.apply(queryFieldName);
+        }
+    }
+
+    private static class ExactFieldName extends FieldName {
+        private final String name;
+
+        private ExactFieldName(String name, Function<String, String> toIndexFieldName) {
+            super(toIndexFieldName, fieldName -> toIndexFieldName.apply(name).equals(fieldName));
+            this.name = name;
+        }
+
+        @Override
         public boolean supportsQueryName(String queryFieldName) {
             return queryFieldName.equals(name);
         }
 
+        @Override
         public boolean supportsIndexName(String indexFieldName) {
             return validIndexNamePredicate.test(indexFieldName);
         }
+    }
 
-        public String indexFieldName(String queryFieldName) {
-            return toIndexFieldName.apply(queryFieldName);
+    private static class PrefixFieldName extends FieldName {
+        private final String queryPrefix;
+
+        private PrefixFieldName(String queryPrefix, String indexPrefix) {
+            super(
+                queryFieldName -> queryFieldName.replaceFirst(queryPrefix, indexPrefix),
+                indexFieldName -> indexFieldName.startsWith(indexPrefix)
+            );
+            this.queryPrefix = queryPrefix;
+        }
+
+        @Override
+        public boolean supportsQueryName(String queryFieldName) {
+            return queryFieldName.startsWith(queryPrefix);
+        }
+
+        @Override
+        public boolean supportsIndexName(String indexFieldName) {
+            return validIndexNamePredicate.test(indexFieldName);
         }
     }
 }

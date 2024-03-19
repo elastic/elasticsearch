@@ -41,6 +41,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -332,7 +333,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             mock(CacheInvalidatorRegistry.class),
-            threadPool
+            threadPool,
+            mock(FeatureService.class)
         );
         tokenService = new TokenService(
             settings,

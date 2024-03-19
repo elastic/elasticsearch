@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
@@ -106,14 +108,26 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     private final boolean lastLoadCacheEnabled;
     private final AtomicReference<List<ExpressionRoleMapping>> lastLoadRef = new AtomicReference<>(null);
     private final boolean enabled;
+    private final FeatureService featureService;
+    private final ClusterService clusterService;
 
-    public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
+    public NativeRoleMappingStore(
+        Settings settings,
+        Client client,
+        SecurityIndexManager securityIndex,
+        ScriptService scriptService,
+        FeatureService featureService,
+        ClusterService clusterService
+    ) {
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
         this.scriptService = scriptService;
         this.lastLoadCacheEnabled = LAST_LOAD_CACHE_ENABLED_SETTING.get(settings);
         this.enabled = settings.getAsBoolean(NATIVE_ROLE_MAPPINGS_ENABLED, true);
+        this.featureService = featureService;
+        this.clusterService = clusterService;
+
     }
 
     /**
@@ -232,7 +246,12 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
-                xContentBuilder = mapping.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
+                xContentBuilder = mapping.toXContent(
+                    jsonBuilder(),
+                    ToXContent.EMPTY_PARAMS,
+                    true,
+                    featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)
+                );
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;

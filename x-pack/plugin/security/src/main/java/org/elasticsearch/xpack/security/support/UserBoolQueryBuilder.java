@@ -24,10 +24,18 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexFieldNameTranslator.exact;
+import static org.elasticsearch.xpack.security.support.SecurityIndexFieldNameTranslator.prefix;
 
 public class UserBoolQueryBuilder extends BoolQueryBuilder {
     public static final SecurityIndexFieldNameTranslator USER_FIELD_NAME_TRANSLATOR = new SecurityIndexFieldNameTranslator(
-        List.of(exact("username"), exact("roles"), exact("full_name"), exact("email"), exact("enabled"))
+        List.of(
+            exact("username"),
+            exact("roles"),
+            exact("full_name"),
+            exact("email"),
+            exact("enabled"),
+            prefix("metadata", "metadata_flattened")
+        )
     );
 
     private UserBoolQueryBuilder() {}

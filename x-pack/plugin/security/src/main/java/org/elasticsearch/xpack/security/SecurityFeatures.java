@@ -13,8 +13,15 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.util.Map;
+import java.util.Set;
 
 public class SecurityFeatures implements FeatureSpecification {
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(SecuritySystemIndices.SECURITY_METADATA_MIGRATED);
+    }
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE, SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN);

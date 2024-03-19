@@ -16,11 +16,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
@@ -82,6 +84,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
     private ScriptService scriptService;
     private SecurityIndexManager securityIndex;
+    private FeatureService featureService;
+    private ClusterService clusterService;
 
     @Before
     public void setup() {
@@ -92,6 +96,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             () -> 1L
         );
         securityIndex = mockHealthySecurityIndex();
+        featureService = mock(FeatureService.class);
+        clusterService = mock(ClusterService.class);
     }
 
     public void testResolveRoles() throws Exception {
@@ -149,7 +155,14 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
         final Client client = mock(Client.class);
 
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, securityIndex, scriptService) {
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(
+            Settings.EMPTY,
+            client,
+            securityIndex,
+            scriptService,
+            featureService,
+            clusterService
+        ) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
                 final List<ExpressionRoleMapping> mappings = Arrays.asList(mapping1, mapping2, mapping3, mapping4);
@@ -203,7 +216,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
             client,
             securityIndex,
-            scriptService
+            scriptService,
+            featureService,
+            clusterService
         );
 
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
@@ -245,7 +260,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
             client,
             securityIndex,
-            scriptService
+            scriptService,
+            featureService,
+            clusterService
         );
 
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
@@ -307,7 +324,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
             client,
             securityIndex,
-            scriptService
+            scriptService,
+            featureService,
+            clusterService
         );
 
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
@@ -504,7 +523,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.EMPTY,
             mock(Client.class),
             mock(SecurityIndexManager.class),
-            scriptService
+            scriptService,
+            featureService,
+            clusterService
         );
         expectThrows(IllegalArgumentException.class, () -> nativeRoleMappingStore.putRoleMapping(putRoleMappingRequest, null));
     }
@@ -541,7 +562,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             Settings.EMPTY,
             client,
             mock(SecurityIndexManager.class),
-            mock(ScriptService.class)
+            mock(ScriptService.class),
+            featureService,
+            clusterService
         );
 
         if (attachRealm) {

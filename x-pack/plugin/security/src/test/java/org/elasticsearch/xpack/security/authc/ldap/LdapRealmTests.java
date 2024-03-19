@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -541,7 +543,9 @@ public class LdapRealmTests extends LdapTestCase {
             defaultGlobalSettings,
             mockClient,
             mockSecurityIndex,
-            scriptService
+            scriptService,
+            mock(FeatureService.class),
+            mock(ClusterService.class)
         ) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {

@@ -54,6 +54,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.TransportVersions.ADD_METADATA_FLATTENED_TO_ROLES;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -76,6 +77,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CR
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Fields.METADATA_FLATTENED;
 
 /**
  * The Authentication class encapsulates identity information created after successful authentication
@@ -109,6 +111,11 @@ public final class Authentication implements ToXContentObject {
     public static final TransportVersion VERSION_API_KEY_ROLES_AS_BYTES = TransportVersions.V_7_9_0;
     public static final TransportVersion VERSION_REALM_DOMAINS = TransportVersions.V_8_2_0;
     public static final TransportVersion VERSION_METADATA_BEYOND_GENERIC_MAP = TransportVersions.V_8_8_0;
+
+    private static final List<String> AUTH_SUBJECT_META_ROLE_DESCRIPTOR_FIELDS = List.of(
+        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY
+    );
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
@@ -1303,51 +1310,52 @@ public final class Authentication implements ToXContentObject {
                 : "metadata must contain role descriptor for API key authentication";
             assert metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
                 : "metadata must contain limited role descriptor for API key authentication";
+
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
                 && streamVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
                 metadata = new HashMap<>(metadata);
-                metadata.put(
-                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                    maybeRemoveRemoteIndicesFromRoleDescriptors(
-                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
-                    )
-                );
-                metadata.put(
-                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                    maybeRemoveRemoteIndicesFromRoleDescriptors(
-                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
-                    )
-                );
+                for (String roleKey : AUTH_SUBJECT_META_ROLE_DESCRIPTOR_FIELDS) {
+                    metadata.put(roleKey, maybeRemoveRemoteIndicesFromRoleDescriptors((BytesReference) metadata.get(roleKey)));
+                }
             }
+
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
-                metadata.put(
-                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                    convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY))
-                );
-                metadata.put(
-                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                    convertRoleDescriptorsBytesToMap(
-                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
-                    )
-                );
+                for (String roleKey : AUTH_SUBJECT_META_ROLE_DESCRIPTOR_FIELDS) {
+                    metadata.put(roleKey, convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(roleKey)));
+                    if (streamVersion.before(ADD_METADATA_FLATTENED_TO_ROLES)) {
+                        ((Map<String, Object>) metadata.get(roleKey)).forEach(
+                            (name, descriptor) -> ((Map<String, Object>) descriptor).remove(METADATA_FLATTENED.getPreferredName())
+                        );
+                    }
+                }
             } else if (authentication.getEffectiveSubject().getTransportVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
                     metadata = new HashMap<>(metadata);
-                    metadata.put(
-                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                        convertRoleDescriptorsMapToBytes(
-                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
-                        )
-                    );
-                    metadata.put(
-                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                        convertRoleDescriptorsMapToBytes(
-                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
-                        )
-                    );
-                }
+                    for (String roleKey : AUTH_SUBJECT_META_ROLE_DESCRIPTOR_FIELDS) {
+                        if (streamVersion.before(ADD_METADATA_FLATTENED_TO_ROLES)) {
+                            ((Map<String, Object>) metadata.get(roleKey)).forEach(
+                                (name, descriptor) -> ((Map<String, Object>) descriptor).remove(METADATA_FLATTENED.getPreferredName())
+                            );
+                        }
+                        metadata.put(roleKey, convertRoleDescriptorsMapToBytes((Map<String, Object>) metadata.get(roleKey)));
+                    }
+                } else if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
+                    && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
+                    && streamVersion.before(ADD_METADATA_FLATTENED_TO_ROLES)) {
+                        metadata = new HashMap<>(metadata);
+                        for (String roleKey : AUTH_SUBJECT_META_ROLE_DESCRIPTOR_FIELDS) {
+                            final boolean[] updated = new boolean[1];
+                            Map<String, Object> mapToUpdate = convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(roleKey));
+                            mapToUpdate.forEach((name, descriptor) -> {
+                                updated[0] |= ((Map<String, Object>) descriptor).remove(METADATA_FLATTENED.getPreferredName()) != null;
+                            });
+                            if (updated[0]) {
+                                metadata.put(roleKey, convertRoleDescriptorsMapToBytes(mapToUpdate));
+                            }
+                        }
+                    }
         }
         return metadata;
     }

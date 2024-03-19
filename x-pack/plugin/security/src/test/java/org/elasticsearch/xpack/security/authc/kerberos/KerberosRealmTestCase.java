@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -182,7 +184,9 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
             Settings.EMPTY,
             mockClient,
             mock(SecurityIndexManager.class),
-            mock(ScriptService.class)
+            mock(ScriptService.class),
+            mock(FeatureService.class),
+            mock(ClusterService.class)
         );
         final NativeRoleMappingStore roleMapper = spy(store);
 

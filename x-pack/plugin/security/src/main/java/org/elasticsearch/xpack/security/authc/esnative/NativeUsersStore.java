@@ -25,12 +25,14 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -51,7 +53,9 @@ import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.User.Fields;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -88,10 +92,21 @@ public class NativeUsersStore {
 
     private final SecurityIndexManager securityIndex;
 
-    public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
+    private final FeatureService featureService;
+    private final ClusterService clusterService;
+
+    public NativeUsersStore(
+        Settings settings,
+        Client client,
+        SecurityIndexManager securityIndex,
+        ClusterService clusterService,
+        FeatureService featureService
+    ) {
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
+        this.clusterService = clusterService;
+        this.featureService = featureService;
     }
 
     /**
@@ -389,29 +404,37 @@ public class NativeUsersStore {
      */
     private void updateUserWithoutPassword(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() == null;
+
+        List<Object> userDoc = new ArrayList<>(
+            Arrays.asList(
+                Fields.USERNAME.getPreferredName(),
+                putUserRequest.username(),
+                Fields.ROLES.getPreferredName(),
+                putUserRequest.roles(),
+                Fields.FULL_NAME.getPreferredName(),
+                putUserRequest.fullName(),
+                Fields.EMAIL.getPreferredName(),
+                putUserRequest.email(),
+                Fields.METADATA.getPreferredName(),
+                putUserRequest.metadata(),
+                Fields.ENABLED.getPreferredName(),
+                putUserRequest.enabled(),
+                Fields.TYPE.getPreferredName(),
+                USER_DOC_TYPE
+            )
+        );
+
+        if (featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)) {
+            userDoc.add(Fields.METADATA_FLATTENED.getPreferredName());
+            userDoc.add(putUserRequest.metadata());
+        }
         // We must have an existing document
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
-                    .setDoc(
-                        Requests.INDEX_CONTENT_TYPE,
-                        Fields.USERNAME.getPreferredName(),
-                        putUserRequest.username(),
-                        Fields.ROLES.getPreferredName(),
-                        putUserRequest.roles(),
-                        Fields.FULL_NAME.getPreferredName(),
-                        putUserRequest.fullName(),
-                        Fields.EMAIL.getPreferredName(),
-                        putUserRequest.email(),
-                        Fields.METADATA.getPreferredName(),
-                        putUserRequest.metadata(),
-                        Fields.ENABLED.getPreferredName(),
-                        putUserRequest.enabled(),
-                        Fields.TYPE.getPreferredName(),
-                        USER_DOC_TYPE
-                    )
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, userDoc.toArray())
                     .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                     .request(),
                 new ActionListener<UpdateResponse>() {
@@ -444,30 +467,39 @@ public class NativeUsersStore {
 
     private void indexUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() != null;
+        List<Object> userDoc = new ArrayList<>(
+            Arrays.asList(
+                Fields.USERNAME.getPreferredName(),
+                putUserRequest.username(),
+                Fields.PASSWORD.getPreferredName(),
+                String.valueOf(putUserRequest.passwordHash()),
+                Fields.ROLES.getPreferredName(),
+                putUserRequest.roles(),
+                Fields.FULL_NAME.getPreferredName(),
+                putUserRequest.fullName(),
+                Fields.EMAIL.getPreferredName(),
+                putUserRequest.email(),
+                Fields.METADATA.getPreferredName(),
+                putUserRequest.metadata(),
+                Fields.ENABLED.getPreferredName(),
+                putUserRequest.enabled(),
+                Fields.TYPE.getPreferredName(),
+                USER_DOC_TYPE
+            )
+        );
+
+        if (featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)) {
+            userDoc.add(Fields.METADATA_FLATTENED.getPreferredName());
+            userDoc.add(putUserRequest.metadata());
+        }
+
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setId(getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
-                    .setSource(
-                        Fields.USERNAME.getPreferredName(),
-                        putUserRequest.username(),
-                        Fields.PASSWORD.getPreferredName(),
-                        String.valueOf(putUserRequest.passwordHash()),
-                        Fields.ROLES.getPreferredName(),
-                        putUserRequest.roles(),
-                        Fields.FULL_NAME.getPreferredName(),
-                        putUserRequest.fullName(),
-                        Fields.EMAIL.getPreferredName(),
-                        putUserRequest.email(),
-                        Fields.METADATA.getPreferredName(),
-                        putUserRequest.metadata(),
-                        Fields.ENABLED.getPreferredName(),
-                        putUserRequest.enabled(),
-                        Fields.TYPE.getPreferredName(),
-                        USER_DOC_TYPE
-                    )
+                    .setSource(userDoc.toArray())
                     .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                     .request(),
                 listener.<DocWriteResponse>delegateFailure(

@@ -374,7 +374,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         final ExpressionRoleMapping mapping = parse(source, getTestName());
         assertThat(mapping.getRoleTemplates(), iterableWithSize(2));
 
-        final String xcontent = Strings.toString(mapping.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS, true));
+        final String xcontent = Strings.toString(mapping.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS, true, true));
         assertThat(xcontent, equalTo(XContentHelper.stripWhitespace("""
             {
               "enabled": false,
@@ -396,7 +396,10 @@ public class ExpressionRoleMappingTests extends ESTestCase {
               "metadata": {
                 "answer": 42
               },
-              "doc_type": "role-mapping"
+              "doc_type": "role-mapping",
+              "metadata_flattened": {
+                "answer": 42
+              }
             }""")));
 
         final ExpressionRoleMapping parsed = parse(xcontent, getTestName(), true);

@@ -18,6 +18,7 @@ import com.unboundid.ldap.sdk.schema.Schema;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptModule;
@@ -438,7 +440,14 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
-        NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(settings, mockClient, mockSecurityIndex, scriptService) {
+        NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(
+            settings,
+            mockClient,
+            mockSecurityIndex,
+            scriptService,
+            mock(FeatureService.class),
+            mock(ClusterService.class)
+        ) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
                 listener.onResponse(Arrays.asList(NativeRoleMappingStore.buildMapping("m1", new BytesArray("""

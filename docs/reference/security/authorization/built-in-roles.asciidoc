@@ -71,13 +71,11 @@ ingest pipelines.
 
 [[built-in-roles-inference-admin]] `inference_admin`::
 Provides all of the privileges of the `inference_user` role and the full
-use of the {inference} APIs. Grants the `manage_inference` cluster privilege
-and read access to the `.inference` index.
+use of the {inference} APIs. Grants the `manage_inference` cluster privilege.
 
 [[built-in-roles-inference-user]] `inference_user`::
-Grants the minimum privileges required to view {inference} configurations
-and perform inference. Grants the `monintor_inference` cluster privilege
-and read access to the `.inference` index.
+Provides the minimum privileges required to view {inference} configurations
+and perform inference. Grants the `monintor_inference` cluster privilege.
 
 [[built-in-roles-ingest-user]] `ingest_admin` ::
 Grants access to manage *all* index templates and *all* ingest pipeline configurations.

@@ -292,7 +292,6 @@ public class NodeShutdownIT extends ESRestTestCase {
         ensureGreen(indexName);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77456")
     public void testStalledShardMigrationProperlyDetected() throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
         int numberOfShards = randomIntBetween(1, 5);

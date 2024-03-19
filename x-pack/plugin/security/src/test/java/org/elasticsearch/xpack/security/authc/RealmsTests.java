@@ -194,6 +194,7 @@ public class RealmsTests extends ESTestCase {
         String fileRealmName = randomFrom("f" + randomAlphaOfLength(8), FileRealmSettings.DEFAULT_NAME);
         builder.put("xpack.security.authc.realms.file." + fileRealmName + ".enabled", randomBoolean());
         builder.put("xpack.security.authc.realms.file." + fileRealmName + ".order", 5);
+        builder.put("xpack.security.authc.reserved_realm.enabled", randomBoolean());
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);

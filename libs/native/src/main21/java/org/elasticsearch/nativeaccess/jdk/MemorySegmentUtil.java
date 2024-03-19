@@ -8,6 +8,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 
 /**
@@ -17,6 +18,10 @@ class MemorySegmentUtil {
 
     static String getString(MemorySegment segment, long offset) {
         return segment.getUtf8String(offset);
+    }
+
+    static MemorySegment allocateString(Arena arena, String s) {
+        return arena.allocateUtf8String(s);
     }
 
     private MemorySegmentUtil() {}

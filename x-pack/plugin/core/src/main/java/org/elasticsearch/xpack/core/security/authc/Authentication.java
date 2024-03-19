@@ -28,7 +28,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -1008,6 +1010,10 @@ public final class Authentication implements ToXContentObject {
         return builder.toString();
     }
 
+    /**
+     * This encapsulates the grouping of realms, identified with {@link RealmIdentifier}s, under {@link RealmDomain}s.
+     * The same username, from different realms, but from the <b>same domain</b> must be associated to a single {@link Profile}.
+     */
     public static class RealmRef implements Writeable, ToXContentObject {
 
         private final String nodeName;
@@ -1080,6 +1086,10 @@ public final class Authentication implements ToXContentObject {
          */
         public @Nullable RealmDomain getDomain() {
             return domain;
+        }
+
+        public RealmIdentifier getIdentifier() {
+            return new RealmIdentifier(type, name);
         }
 
         @Override

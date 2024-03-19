@@ -162,12 +162,12 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                 new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), nodeName, realmDomain)
             );
         }
+        assert realmRefs.values().stream().filter(realmRef -> ReservedRealm.TYPE.equals(realmRef.getType())).toList().size() == 1
+                : "there must be exactly one reserved realm configured";
         assert realmRefs.values().stream().filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType())).toList().size() == 1
             : "there must be exactly one native realm configured";
         assert realmRefs.values().stream().filter(realmRef -> FileRealmSettings.TYPE.equals(realmRef.getType())).toList().size() == 1
             : "there must be exactly one file realm configured";
-        assert realmRefs.values().stream().filter(realmRef -> ReservedRealm.TYPE.equals(realmRef.getType())).toList().size() == 1
-            : "there must be exactly one reserved realm configured";
         return Map.copyOf(realmRefs);
     }
 
@@ -381,7 +381,13 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         }
     }
 
-    public Authentication.RealmRef getRealmRef(RealmConfig.RealmIdentifier realmIdentifier) {
+    /**
+     * Retrieves the {@link Authentication.RealmRef}, which contains the {@link DomainConfig}, if configured,
+     * for the passed in {@link RealmConfig.RealmIdentifier}.
+     * If the realm is not currently configured, {@code null} is returned.
+     */
+    public @Nullable Authentication.RealmRef getRealmRef(RealmConfig.RealmIdentifier realmIdentifier) {
+        // "file", "native", and "reserved" realms may be renamed, but they refer to the same corpus of users
         if (FileRealmSettings.TYPE.equals(realmIdentifier.getType())) {
             return getFileRealmRef();
         } else if (NativeRealmSettings.TYPE.equals(realmIdentifier.getType())) {
@@ -389,6 +395,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         } else if (ReservedRealm.TYPE.equals(realmIdentifier.getType())) {
             return getReservedRealmRef();
         } else {
+            // but for other realms, it is assumed that a different realm name or realm type signifies a different corpus of users
             return realmRefs.get(realmIdentifier);
         }
     }

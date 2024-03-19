@@ -160,6 +160,25 @@ public class RealmsTests extends ESTestCase {
         licenseStateListeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
+    public void testNativeDisabled() throws Exception {
+        String nodeName = randomAlphaOfLengthBetween(3, 8);
+        Settings.Builder builder = Settings.builder().put("path.home", createTempDir()).put(Node.NODE_NAME_SETTING.getKey(), nodeName);
+        String nativeRealmName = randomAlphaOfLength(8);
+        builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".enabled", false);
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        Authentication.RealmRef nativeRealmRef = randomFrom(
+            realms.getNativeRealmRef(),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, nativeRealmName)),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, randomAlphaOfLength(4)))
+        );
+        assertThat(nativeRealmRef.getName(), is(nativeRealmName));
+        assertThat(nativeRealmRef.getType(), is(NativeRealmSettings.TYPE));
+        assertThat(nativeRealmRef.getIdentifier(), is(new RealmConfig.RealmIdentifier("native", nativeRealmName)));
+        assertThat(nativeRealmRef.getDomain(), nullValue());
+    }
+
     public void testRealmTypeAvailable() {
         final Set<String> basicRealmTypes = Sets.newHashSet("file", "native", "reserved");
         final Set<String> goldRealmTypes = Sets.newHashSet("ldap", "active_directory", "pki");

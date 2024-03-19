@@ -62,7 +62,6 @@ public class HeapAttackIT extends ESRestTestCase {
 
     static volatile boolean SUITE_ABORTED = false;
 
-
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();

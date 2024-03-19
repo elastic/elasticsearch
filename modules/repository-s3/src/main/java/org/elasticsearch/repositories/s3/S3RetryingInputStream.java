@@ -21,6 +21,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -100,10 +101,28 @@ class S3RetryingInputStream extends InputStream {
                 this.currentStream = s3Object.getObjectContent();
                 return;
             } catch (AmazonClientException e) {
-                if (e instanceof AmazonS3Exception amazonS3Exception && 404 == amazonS3Exception.getStatusCode()) {
-                    throw addSuppressedExceptions(
-                        new NoSuchFileException("Blob object [" + blobKey + "] not found: " + amazonS3Exception.getMessage())
-                    );
+                if (e instanceof AmazonS3Exception amazonS3Exception) {
+                    if (amazonS3Exception.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                        throw addSuppressedExceptions(
+                            new NoSuchFileException("Blob object [" + blobKey + "] not found: " + amazonS3Exception.getMessage())
+                        );
+                    }
+                    if (amazonS3Exception.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                        throw addSuppressedExceptions(
+                            new IOException(
+                                "Requested range [start="
+                                    + start
+                                    + ", end="
+                                    + end
+                                    + ", currentOffset="
+                                    + currentOffset
+                                    + "] cannot be satisfied for blob object ["
+                                    + blobKey
+                                    + ']',
+                                amazonS3Exception
+                            )
+                        );
+                    }
                 }
 
                 if (attempt == 1) {

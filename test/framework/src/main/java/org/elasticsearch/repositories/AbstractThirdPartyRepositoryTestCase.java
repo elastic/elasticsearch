@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -292,18 +291,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     protected static BytesReference readBlob(BlobStoreRepository repository, String blobName, long position, long length) {
-        return readBlob(repository, randomPurpose(), blobName, position, length);
-    }
-
-    protected static BytesReference readBlob(
-        BlobStoreRepository repository,
-        OperationPurpose purpose,
-        String blobName,
-        long position,
-        long length
-    ) {
         return executeOnBlobStore(repository, blobContainer -> {
-            try (var input = blobContainer.readBlob(purpose, blobName, position, length); var output = new BytesStreamOutput()) {
+            try (var input = blobContainer.readBlob(randomPurpose(), blobName, position, length); var output = new BytesStreamOutput()) {
                 Streams.copy(input, output);
                 return output.bytes();
             }

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -44,13 +44,14 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonIndicesPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -239,13 +240,26 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
         long position = randomLongBetween(blobBytes.length(), Long.MAX_VALUE - 1L);
         long length = randomLongBetween(1L, Long.MAX_VALUE - position);
-        var exception = expectThrows(
-            AmazonClientException.class,
-            // non Indices operation purpose to avoid Integer.MAX_VALUE number of retries
-            () -> readBlob(repository, randomNonIndicesPurpose(), blobName, position, length)
+
+        var exception = expectThrows(UncategorizedExecutionException.class, () -> readBlob(repository, blobName, position, length));
+        assertThat(exception.getCause(), instanceOf(ExecutionException.class));
+        assertThat(exception.getCause().getCause(), instanceOf(IOException.class));
+        assertThat(
+            exception.getCause().getCause().getMessage(),
+            containsString(
+                "Requested range [start="
+                    + position
+                    + ", end="
+                    + (position + length - 1L)
+                    + ", currentOffset=0] cannot be satisfied for blob object ["
+                    + repository.basePath().buildAsString()
+                    + blobName
+                    + ']'
+            )
         );
 
-        assertThat(exception, instanceOf(AmazonS3Exception.class));
-        assertThat(((AmazonS3Exception) exception).getStatusCode(), equalTo(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()));
+        var cause = exception.getRootCause();
+        assertThat(cause, instanceOf(AmazonS3Exception.class));
+        assertThat(((AmazonS3Exception) cause).getStatusCode(), equalTo(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()));
     }
 }

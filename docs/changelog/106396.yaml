@@ -1,6 +1,6 @@
 pr: 106396
-summary: "fix check preTags and postTags with empty argument"
-area: search
+summary: "Check preTags and postTags params for empty values"
+area: Highlighting
 type: bug
 issues:
   - 69009

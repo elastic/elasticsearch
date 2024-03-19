@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: ' - 8.13.99'
+      reason: 'check of preTags and postTags params for empty values was added in 8.14'
+
   - do:
       indices.create:
         index: test

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical.show;
+package org.elasticsearch.xpack.esql.plan.logical.meta;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -28,11 +28,11 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 
-public class ShowFunctions extends LeafPlan {
+public class MetaFunctions extends LeafPlan {
 
     private final List<Attribute> attributes;
 
-    public ShowFunctions(Source source) {
+    public MetaFunctions(Source source) {
         super(source);
 
         attributes = new ArrayList<>();

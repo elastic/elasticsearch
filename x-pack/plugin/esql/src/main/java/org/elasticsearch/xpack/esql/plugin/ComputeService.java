@@ -690,6 +690,7 @@ public class ComputeService {
             dataNodeRequestExecutor.start();
             // run the node-level reduction
             var externalSink = exchangeService.getSinkHandler(externalId);
+            task.addListener(() -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled())));
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
             exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1);
             ActionListener<Void> reductionListener = cancelOnFailure(task, cancelled, refs.acquire());

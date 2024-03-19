@@ -325,6 +325,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
      * Ensure that when some exchange requests fail, we cancel the ESQL request, and complete all
      * exchange sinks with the failure, despite having outstanding pages in the buffer.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106443")
     public void testCancelRequestWhenFailingFetchingPages() throws Exception {
         String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         String dataNode = internalCluster().startDataOnlyNode();

@@ -68,6 +68,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
                 new SortedNumericIndexFieldData("field", IndexNumericFieldData.NumericType.LONG, CoreValuesSourceType.NUMERIC, null)
             )
         );
+        when(fieldType.name()).thenReturn("field");
         when(sec.getFieldType(any())).thenReturn(fieldType);
         when(sec.getMatchingFieldNames(any())).thenReturn(Set.of("field"));
         when(sec.nestedLookup()).thenReturn(NestedLookup.EMPTY);

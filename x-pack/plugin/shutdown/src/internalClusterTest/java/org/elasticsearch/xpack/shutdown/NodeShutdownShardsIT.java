@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;

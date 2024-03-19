@@ -1,0 +1,6 @@
+pr: 106435
+summary: "ESQL: Enrich match text"
+area: ES|QL
+type: enhancement
+issues:
+ - 105384

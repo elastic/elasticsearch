@@ -163,7 +163,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
             );
         }
         assert realmRefs.values().stream().filter(realmRef -> ReservedRealm.TYPE.equals(realmRef.getType())).toList().size() == 1
-                : "there must be exactly one reserved realm configured";
+            : "there must be exactly one reserved realm configured";
         assert realmRefs.values().stream().filter(realmRef -> NativeRealmSettings.TYPE.equals(realmRef.getType())).toList().size() == 1
             : "there must be exactly one native realm configured";
         assert realmRefs.values().stream().filter(realmRef -> FileRealmSettings.TYPE.equals(realmRef.getType())).toList().size() == 1

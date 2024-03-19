@@ -54,7 +54,11 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = resultingState.metadata().index("test").getFieldInferenceMetadata().getFieldInferenceOptions().get("field");
+        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = resultingState.metadata()
+            .index("test")
+            .getFieldInferenceMetadata()
+            .getFieldInferenceOptions()
+            .get("field");
         assertEquals(fieldInferenceOptions.inferenceId(), "test_model");
         assertEquals(fieldInferenceOptions.sourceFields(), Set.of("field"));
     }
@@ -87,7 +91,9 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             singleTask(request)
         );
         IndexMetadata indexMetadata = resultingState.metadata().index("test");
-        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata().getFieldInferenceOptions().get("top_field.semantic");
+        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
+            .getFieldInferenceOptions()
+            .get("top_field.semantic");
         assertEquals(fieldInferenceOptions.inferenceId(), "test_model");
         assertEquals(fieldInferenceOptions.sourceFields(), Set.of("top_field"));
     }
@@ -123,7 +129,9 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             singleTask(request)
         );
         IndexMetadata indexMetadata = resultingState.metadata().index("test");
-        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata().getFieldInferenceOptions().get("semantic");
+        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
+            .getFieldInferenceOptions()
+            .get("semantic");
         assertEquals(fieldInferenceOptions.inferenceId(), "test_model");
         assertEquals(fieldInferenceOptions.sourceFields(), Set.of("semantic", "copy_origin_1", "copy_origin_2"));
     }
@@ -164,7 +172,9 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             singleTask(request)
         );
         IndexMetadata indexMetadata = resultingState.metadata().index("test");
-        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata().getFieldInferenceOptions().get("top_field.semantic");
+        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
+            .getFieldInferenceOptions()
+            .get("top_field.semantic");
         assertEquals(fieldInferenceOptions.inferenceId(), "test_model");
         assertEquals(fieldInferenceOptions.sourceFields(), Set.of("top_field", "copy_origin_1", "copy_origin_2"));
     }

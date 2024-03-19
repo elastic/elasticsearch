@@ -89,7 +89,11 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
-            return new SemanticTextFieldMapper(name(), new SemanticTextFieldType(context.buildFullName(name()), modelId.getValue(), meta.getValue()), copyTo);
+            return new SemanticTextFieldMapper(
+                name(),
+                new SemanticTextFieldType(context.buildFullName(name()), modelId.getValue(), meta.getValue()),
+                copyTo
+            );
         }
     }
 

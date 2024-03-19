@@ -494,8 +494,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 reference.getGeneration(),
                 fileName -> getBlobLocation(shardId, fileName)
             );
-            virtualBatchedCompoundCommit.appendCommit(reference);
-            // TODO: freeze virtualBatchedCompoundCommit
+            if (virtualBatchedCompoundCommit.appendCommit(reference) == false) {
+                // TODO: handle potential append failure due to frozen VBCC by another thread
+                assert false : "appendCommit must be successful for singleton BCC";
+                throw new IllegalStateException("appendCommit must be successful for singleton BCC");
+            }
+            virtualBatchedCompoundCommit.freeze();
 
             objectStoreService.uploadBatchedCompoundCommitFile(
                 reference.getPrimaryTerm(),

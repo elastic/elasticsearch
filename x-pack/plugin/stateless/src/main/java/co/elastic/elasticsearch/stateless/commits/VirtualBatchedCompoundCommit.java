@@ -23,13 +23,14 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -57,6 +58,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.groupingBy;
+
 /**
  * Represents a collection of non-uploaded compound commits, where multiple commits can be added and read,
  * ensuring they will all be uploaded as a single blob with fixed offsets within the final batched compound commit.
@@ -80,6 +83,8 @@ import java.util.stream.Collectors;
  *
  * */
 public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements Closeable {
+    private static final Logger logger = LogManager.getLogger(VirtualBatchedCompoundCommit.class);
+
     private final ShardId shardId;
     private final String nodeEphemeralId;
     private final Function<String, BlobLocation> uploadedBlobLocationsSupplier;
@@ -92,6 +97,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final String blobName;
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
+    // VBCC can no longer be appended to once it is frozen
+    private volatile boolean frozen = false;
 
     public VirtualBatchedCompoundCommit(
         ShardId shardId,
@@ -108,10 +115,31 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.blobName = StatelessCompoundCommit.blobNameFromGeneration(generation);
     }
 
-    public void appendCommit(StatelessCommitRef reference) {
+    /**
+     * Freeze the VBCC so that no more CC can be appended. The VBCC is guaranteed to be frozen afterwards.
+     * @return {@code true} if the VBCC is frozen by this thread or
+     * {@code false} if it is already frozen or concurrently frozen by other threads.
+     */
+    public boolean freeze() {
+        assert pendingCompoundCommits.isEmpty() == false : "Cannot freeze an empty virtual batch compound commit";
+
+        if (isFrozen()) {
+            return false;
+        }
+        synchronized (this) {
+            if (isFrozen()) {
+                return false;
+            }
+            frozen = true;
+            logger.debug("VBCC is successfully frozen");
+            return true;
+        }
+    }
+
+    public boolean appendCommit(StatelessCommitRef reference) {
         assert assertCompareAndSetAppendingCommitThread(null, Thread.currentThread());
         try {
-            doAppendCommit(reference);
+            return doAppendCommit(reference);
         } catch (IOException e) {
             throw new UncheckedIOException(
                 "Unable to append commit [" + reference.getPrimaryTerm() + ", " + reference.getGeneration() + "]",
@@ -122,12 +150,22 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
-    private void doAppendCommit(StatelessCommitRef reference) throws IOException {
+    // package private for testing
+    boolean isFrozen() {
+        return frozen;
+    }
+
+    private boolean doAppendCommit(StatelessCommitRef reference) throws IOException {
         assert primaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
-        assert primaryTermAndGeneration.generation() <= reference.getGeneration();
+        assert (pendingCompoundCommits.isEmpty() && primaryTermAndGeneration.generation() == reference.getGeneration())
+            || (pendingCompoundCommits.isEmpty() == false && primaryTermAndGeneration.generation() < reference.getGeneration());
         assert pendingCompoundCommits.isEmpty() || pendingCompoundCommits.last().getGeneration() < reference.getGeneration();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.FLUSH, ThreadPool.Names.REFRESH, Stateless.SHARD_WRITE_THREAD_POOL);
-        // TODO: add #freeze method to ensure that no new commits are added after a new VBCC is created
+
+        // bail early if VBCC is already frozen to avoid doing any work
+        if (isFrozen()) {
+            return false;
+        }
 
         // TODO: align 4KiB
         var internalFiles = computeInternalFiles(reference);
@@ -135,32 +173,62 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var header = materializeCompoundCommitHeader(reference, internalFiles);
         var pendingCompoundCommit = new PendingCompoundCommit(header, header.length + compoundCommitFilesSize, reference, internalFiles);
 
-        long headerOffset = currentOffset.get();
-        var newInternalFilesByOffset = Maps.<Long, InternalHeaderOrFile>newMapWithExpectedSize(internalFiles.size() + 1);
-        newInternalFilesByOffset.put(headerOffset, new InternalHeaderOrFile(pendingCompoundCommit, null));
-        long startingOffset = headerOffset + header.length;
-        // TODO: get rid of the blob length
-        long blobLength = startingOffset + compoundCommitFilesSize;
-        long internalFileOffset = startingOffset;
-        for (var internalFile : internalFiles) {
-            var fileLength = internalFile.length();
-            var previousLocation = internalLocations.put(
-                internalFile.name(),
-                new BlobLocation(primaryTermAndGeneration.primaryTerm(), blobName, blobLength, internalFileOffset, fileLength)
-            );
-            assert previousLocation == null;
-            var previousOffset = newInternalFilesByOffset.put(
-                internalFileOffset,
-                new InternalHeaderOrFile(pendingCompoundCommit, internalFile.name())
-            );
-            assert previousOffset == null;
-            internalFileOffset += fileLength;
-        }
+        // Blocking when adding the new CC and updating relevant fields so that they offer consistent view to other (freezing) threads
+        synchronized (this) {
+            if (isFrozen()) {
+                return false;
+            }
+            pendingCompoundCommits.add(pendingCompoundCommit);
+            logger.debug("appended new CC [{}] to VBCC [{}]", pendingCompoundCommit, primaryTermAndGeneration);
 
-        currentOffset.set(internalFileOffset);
-        pendingCompoundCommits.add(pendingCompoundCommit);
-        assert Sets.intersection(internalFilesByOffset.keySet(), newInternalFilesByOffset.keySet()).isEmpty() : "found duplicate keys";
-        internalFilesByOffset.putAll(newInternalFilesByOffset);
+            long headerOffset = currentOffset.get();
+            internalFilesByOffset.put(headerOffset, new InternalHeaderOrFile(pendingCompoundCommit, null));
+            long startingOffset = headerOffset + header.length;
+            // TODO: get rid of the blob length
+            long blobLength = startingOffset + compoundCommitFilesSize;
+            long internalFileOffset = startingOffset;
+            for (var internalFile : internalFiles) {
+                var fileLength = internalFile.length();
+                var previousLocation = internalLocations.put(
+                    internalFile.name(),
+                    new BlobLocation(primaryTermAndGeneration.primaryTerm(), blobName, blobLength, internalFileOffset, fileLength)
+                );
+                assert previousLocation == null;
+                var previousOffset = internalFilesByOffset.put(
+                    internalFileOffset,
+                    new InternalHeaderOrFile(pendingCompoundCommit, internalFile.name())
+                );
+                assert previousOffset == null;
+                internalFileOffset += fileLength;
+            }
+
+            currentOffset.set(internalFileOffset);
+        }
+        // The consistency can be asserted outside the blocking code since appendCommit runs single-threaded
+        assert assertInternalConsistency();
+        return true;
+    }
+
+    private boolean assertInternalConsistency() {
+        final Set<String> allInternalFiles = pendingCompoundCommits.stream()
+            .flatMap(pc -> pc.internalFiles.stream())
+            .map(StatelessCompoundCommit.InternalFile::name)
+            .collect(Collectors.toUnmodifiableSet());
+        assert allInternalFiles.equals(internalLocations.keySet()) : "all internal files must have internal blobLocations";
+
+        final var sizeInBytes = pendingCompoundCommits.stream().mapToLong(pendingCompoundCommit -> pendingCompoundCommit.sizeInBytes).sum();
+        assert sizeInBytes == currentOffset.get() : "current offset must be at the end of the VBCC";
+        final Map<Boolean, List<String>> internalFileGroup = internalFilesByOffset.values()
+            .stream()
+            .collect(
+                groupingBy(
+                    internalHeaderOrFile -> internalHeaderOrFile.internalFile == null,
+                    Collectors.mapping(pc -> pc.internalFile, Collectors.toList())
+                )
+            );
+        assert internalFileGroup.get(true).size() == pendingCompoundCommits.size() : "all pending CCs must have header offsets";
+        assert allInternalFiles.equals(Set.copyOf(internalFileGroup.get(false))) : "all internal files must have offsets";
+        return true;
     }
 
     private List<StatelessCompoundCommit.InternalFile> computeInternalFiles(StatelessCommitRef commitRef) throws IOException {
@@ -178,6 +246,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     public BatchedCompoundCommit writeToStore(OutputStream output) throws IOException {
+        assert isFrozen() : "Cannot serialize before freeze";
+        assert assertInternalConsistency();
+
         for (PendingCompoundCommit compoundCommit : pendingCompoundCommits) {
             compoundCommit.writeToStore(output);
         }
@@ -236,6 +307,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         IOUtils.closeWhileHandlingException(pendingCompoundCommits);
     }
 
+    // package private for testing
+    List<PendingCompoundCommit> getPendingCompoundCommits() {
+        return List.copyOf(pendingCompoundCommits);
+    }
+
     private byte[] materializeCompoundCommitHeader(StatelessCommitRef reference, List<StatelessCompoundCommit.InternalFile> internalFiles)
         throws IOException {
         assert getBlobName() != null;
@@ -268,11 +344,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     BlobLocation getBlobLocation(String fileName) {
         var internalLocation = internalLocations.get(fileName);
         return internalLocation == null ? uploadedBlobLocationsSupplier.apply(fileName) : internalLocation;
-    }
-
-    // package-private for testing
-    Set<PendingCompoundCommit> getPendingCompoundCommits() {
-        return pendingCompoundCommits;
     }
 
     /**

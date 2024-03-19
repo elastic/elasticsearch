@@ -129,15 +129,16 @@ public class AzureHttpHandler implements HttpHandler {
                     throw new AssertionError("Range header does not match expected format: " + range);
                 }
 
-                final int start = Integer.parseInt(matcher.group(1));
-                final int length = Integer.parseInt(matcher.group(2)) - start + 1;
+                final long start = Long.parseLong(matcher.group(1));
+                final long end = Long.parseLong(matcher.group(2));
+                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(responseBlob.length()));
                 exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                exchange.getResponseBody().write(blob.toBytesRef().bytes, start, length);
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBlob.length());
+                responseBlob.writeTo(exchange.getResponseBody());
 
             } else if (Regex.simpleMatch("DELETE /" + account + "/" + container + "/*", request)) {
                 // Delete Blob (https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob)

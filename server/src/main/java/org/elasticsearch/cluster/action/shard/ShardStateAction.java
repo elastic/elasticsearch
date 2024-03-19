@@ -552,7 +552,7 @@ public class ShardStateAction {
         final ShardRouting shardRouting,
         final long primaryTerm,
         final String message,
-        final ShardLongFieldRange timestampRange,
+        final ShardLongFieldRange timestampRange,  // from IndexShard.getTimestampRange (checks @timestamp, event.created, event.timestamp)
         final ActionListener<Void> listener,
         final ClusterState currentState
     ) {
@@ -747,7 +747,7 @@ public class ShardStateAction {
         final String allocationId;
         final long primaryTerm;
         final String message;
-        final ShardLongFieldRange timestampRange;
+        final ShardLongFieldRange timestampRange;  // TODO: how is this set? -> via the ctor below
 
         StartedShardEntry(StreamInput in) throws IOException {
             super(in);
@@ -758,6 +758,9 @@ public class ShardStateAction {
             this.timestampRange = ShardLongFieldRange.readFrom(in);
         }
 
+        /// MP TODO: called from two (prod) places:
+        /// MP TODO: ShardStateAction - ts range comes from IndexShard.getTimestampRange using event.created, event.ingested and @timestamp
+        /// MP TODO: ClusterStateChanges - timestamp is UNKNOWN
         public StartedShardEntry(
             final ShardId shardId,
             final String allocationId,

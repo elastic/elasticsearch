@@ -2195,6 +2195,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.recoveryState;
     }
 
+    /**
+     * @return the min and max timestamp range combined across 3 possible fields: '@timestamp', 'event.created' and
+     *         'event.ingested'. The minimum min and the maximum max across all 3 fields are used.
+     *         Can also return ShardLongFieldRange.UNKNOWN or ShardLongFieldRange.EMPTY.
+     */
     @Override
     public ShardLongFieldRange getTimestampRange() {
         if (mapperService() == null) {

@@ -257,9 +257,9 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                     + ']'
             )
         );
-
-        var cause = exception.getRootCause();
-        assertThat(cause, instanceOf(AmazonS3Exception.class));
-        assertThat(((AmazonS3Exception) cause).getStatusCode(), equalTo(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()));
+        assertThat(
+            asInstanceOf(AmazonS3Exception.class, exception.getRootCause()).getStatusCode(),
+            equalTo(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus())
+        );
     }
 }

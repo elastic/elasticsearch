@@ -1538,13 +1538,13 @@ public class DateFormatters {
      */
     private static final DateFormatter DATE = newDateFormatter(
         "date",
-        DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT),
+        DateTimeFormatter.ISO_LOCAL_DATE.withLocale(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT),
         DATE_FORMATTER
     );
 
     // only the formatter, nothing optional here
     private static final DateTimeFormatter DATE_TIME_NO_MILLIS_PRINTER = new DateTimeFormatterBuilder().append(
-        DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.LENIENT)
+        DateTimeFormatter.ISO_LOCAL_DATE.withLocale(Locale.ROOT).withResolverStyle(ResolverStyle.LENIENT)
     )
         .appendLiteral('T')
         .appendPattern("HH:mm")

@@ -65,6 +65,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.action.user to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.settings to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.operator to org.elasticsearch.internal.operator, org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.authz to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent;
     exports org.elasticsearch.xpack.security.slowlog to org.elasticsearch.server;
 

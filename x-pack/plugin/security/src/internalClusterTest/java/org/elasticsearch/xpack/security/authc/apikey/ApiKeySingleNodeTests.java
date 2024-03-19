@@ -148,10 +148,10 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                 .filter(QueryBuilders.rangeQuery("expiration").from(Instant.now().toEpochMilli()))
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getItems().length, equalTo(1));
-        assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getId(), equalTo(id2));
-        assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getName(), equalTo("long-lived"));
-        assertThat(queryApiKeyResponse.getItems()[0].getSortValues(), emptyArray());
+        assertThat(queryApiKeyResponse.getApiKeyInfos().length, equalTo(1));
+        assertThat(queryApiKeyResponse.getApiKeyInfos()[0].getId(), equalTo(id2));
+        assertThat(queryApiKeyResponse.getApiKeyInfos()[0].getName(), equalTo("long-lived"));
+        assertThat(queryApiKeyResponse.getSortValues()[0], emptyArray());
     }
 
     public void testCreatingApiKeyWithNoAccess() {
@@ -631,11 +631,12 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             null,
             null,
             null,
-            randomBoolean()
+            randomBoolean(),
+            false
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
+        assertThat(queryApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
+        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getApiKeyInfos()[0];
         assertThat(queryApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(queryApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
         assertThat(queryApiKeyInfo.getLimitedBy(), nullValue());
@@ -737,11 +738,12 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             null,
             null,
             null,
-            randomBoolean()
+            randomBoolean(),
+            false
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
+        assertThat(queryApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
+        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getApiKeyInfos()[0];
         assertThat(queryApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(
             queryApiKeyInfo.getRoleDescriptors(),

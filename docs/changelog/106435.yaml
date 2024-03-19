@@ -1,5 +1,5 @@
 pr: 106435
-summary: "ESQL: Enrich match text"
+summary: "ENRICH support for TEXT fields"
 area: ES|QL
 type: enhancement
 issues:

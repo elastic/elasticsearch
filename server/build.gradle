@@ -39,7 +39,7 @@ dependencies {
   api project(":libs:elasticsearch-tdigest")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
-  testImplementation project(path: ':modules:data-streams')
+  testImplementation project(':modules:data-streams')
   // no compile dependency by server, but server defines security policy for this codebase so it i>
   runtimeOnly project(":libs:elasticsearch-preallocate")
 

@@ -107,6 +107,7 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig DECADES_ENRICH = new EnrichConfig("decades_policy", "enrich-policy-decades.json");
     private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
     private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
+    private static final EnrichConfig CITY_AIRPORTS_ENRICH = new EnrichConfig("city_airports", "enrich-policy-city_airports.json");
 
     public static final List<String> ENRICH_SOURCE_INDICES = List.of(
         "languages",
@@ -125,7 +126,8 @@ public class CsvTestsDataLoader {
         HEIGHTS_ENRICH,
         DECADES_ENRICH,
         CITY_NAMES_ENRICH,
-        CITY_BOUNDARIES_ENRICH
+        CITY_BOUNDARIES_ENRICH,
+        CITY_AIRPORTS_ENRICH
     );
 
     /**

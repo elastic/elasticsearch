@@ -334,3 +334,16 @@ count:long  |  centroid:geo_point            |  airport_in_city:boolean
 396         |  POINT (-2.534797 20.667712)   |  true
 455         |  POINT (3.090752 27.676442)    |  false
 ;
+
+
+spatialEnrichmentTextMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM airports
+| WHERE abbrev == "IDR"
+| ENRICH city_airports ON name WITH city_name = city, region, city_boundary
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| KEEP abbrev, city_name, city_location, country, location, name, name, region, boundary_wkt_length
+;
+
+abbrev:k  |  city_name:k  |  city_location:geo_point |  country:k  |  location:geo_point                       |  name:text                    |  region:text  |  boundary_wkt_length:i
+IDR       |  Indore       |  POINT(75.8472 22.7167)  |  India      |  POINT(75.8092915005895 22.727749187571)  |  Devi Ahilyabai Holkar Int'l  |  Indore City  |  231
+;

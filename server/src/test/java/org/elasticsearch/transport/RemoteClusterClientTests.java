@@ -97,7 +97,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 var client = remoteClusterService.getRemoteClusterClient(
                     "test",
                     threadPool.executor(TEST_THREAD_POOL_NAME),
-                    randomBoolean()
+                    randomFrom(RemoteClusterService.DisconnectedStrategy.values())
                 );
                 ClusterStateResponse clusterStateResponse = PlainActionFuture.get(
                     future -> client.execute(
@@ -171,7 +171,14 @@ public class RemoteClusterClientTests extends ESTestCase {
                     connectionManager.disconnectFromNode(remoteNode);
                     closeFuture.get();
 
-                    var client = remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE, true);
+                    var client = remoteClusterService.getRemoteClusterClient(
+                        "test",
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        randomFrom(
+                            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED,
+                            RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                        )
+                    );
                     ClusterStateResponse clusterStateResponse = PlainActionFuture.get(
                         f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
                     );
@@ -199,7 +206,11 @@ public class RemoteClusterClientTests extends ESTestCase {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE, randomBoolean())
+                () -> remoteClusterService.getRemoteClusterClient(
+                    "test",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    randomFrom(RemoteClusterService.DisconnectedStrategy.values())
+                )
             );
             assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
         }
@@ -242,7 +253,14 @@ public class RemoteClusterClientTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-                var client = remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                var client = remoteClusterService.getRemoteClusterClient(
+                    "test",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    randomFrom(
+                        RemoteClusterService.DisconnectedStrategy.FAIL_IF_DISCONNECTED,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    )
+                );
 
                 try {
                     assertFalse(remoteClusterService.isRemoteNodeConnected("test", remoteNode));

@@ -541,14 +541,42 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     /**
+     * Specifies how to behave when executing a request against a disconnected remote cluster.
+     */
+    public enum DisconnectedStrategy {
+        /**
+         * Always try and reconnect before executing a request, waiting for {@link TransportSettings#CONNECT_TIMEOUT} before failing if the
+         * remote cluster is totally unresponsive.
+         */
+        RECONNECT_IF_DISCONNECTED,
+
+        /**
+         * Fail the request immediately if the remote cluster is disconnected (but also trigger another attempt to reconnect to the remote
+         * cluster in the background so that the next request might succeed).
+         */
+        FAIL_IF_DISCONNECTED,
+
+        /**
+         * Behave according to the {@link #REMOTE_CLUSTER_SKIP_UNAVAILABLE} setting for this remote cluster: if this setting is
+         * {@code false} (the default) then behave like {@link #RECONNECT_IF_DISCONNECTED}, but if it is {@code true} then behave like
+         * {@link #FAIL_IF_DISCONNECTED}.
+         */
+        RECONNECT_UNLESS_SKIP_UNAVAILABLE
+    }
+
+    /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      *
-     * @param clusterAlias     the cluster alias the remote cluster is registered under
-     * @param responseExecutor the executor to use to process the response
-     * @param ensureConnected  whether requests should wait for a connection attempt when there isn't a connection available
+     * @param clusterAlias         the cluster alias the remote cluster is registered under
+     * @param responseExecutor     the executor to use to process the response
+     * @param disconnectedStrategy how to handle the situation where the remote cluster is disconnected when executing a request
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor, boolean ensureConnected) {
+    public RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        DisconnectedStrategy disconnectedStrategy
+    ) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -557,22 +585,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(transportService, clusterAlias, responseExecutor, ensureConnected);
-    }
-
-    /**
-     * Returns a client to the remote cluster if the given cluster alias exists.
-     *
-     * @param clusterAlias     the cluster alias the remote cluster is registered under
-     * @param responseExecutor the executor to use to process the response
-     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
-     */
-    public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-        return getRemoteClusterClient(
-            clusterAlias,
-            responseExecutor,
-            transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false
-        );
+        return new RemoteClusterAwareClient(transportService, clusterAlias, responseExecutor, switch (disconnectedStrategy) {
+            case RECONNECT_IF_DISCONNECTED -> true;
+            case FAIL_IF_DISCONNECTED -> false;
+            case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
+        });
     }
 
     Collection<RemoteClusterConnection> getConnections() {

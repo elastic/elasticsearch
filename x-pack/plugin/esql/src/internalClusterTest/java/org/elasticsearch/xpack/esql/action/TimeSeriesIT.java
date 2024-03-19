@@ -22,6 +22,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         return super.run(request);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106444")
     public void testEmpty() {
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("pod")).build();
         client().admin()

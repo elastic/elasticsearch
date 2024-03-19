@@ -70,7 +70,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ASYNC
     }
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s %6$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
@@ -241,7 +241,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 Map<?, ?> node = (Map<?, ?>) n;
                 Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");
                 Map<?, ?> request = (Map<?, ?>) breakers.get("request");
-                assertMap(request, matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b"));
+                assertMap(
+                    "circuit breakers not reset to 0",
+                    request,
+                    matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b")
+                );
             }
         });
     }

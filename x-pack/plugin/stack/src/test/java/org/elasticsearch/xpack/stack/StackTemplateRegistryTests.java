@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -513,11 +514,19 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .build();
 
         client.setVerifier((a, r, l) -> {
-            fail("if some cluster mode are not updated to at least v.8.9.0 nothing should happen");
+            fail("if some cluster node doesn't have the kibana-reporting managed by dsl feature nothing should happen");
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
+        ClusterState cs = createClusterState(Settings.EMPTY, Map.of(), Map.of(), nodes, true, false);
+        ClusterChangedEvent realEvent = new ClusterChangedEvent(
+            "created-from-test",
+            cs,
+            ClusterState.builder(new ClusterName("test")).build()
+        );
+        ClusterChangedEvent event = spy(realEvent);
+        when(event.localNodeMaster()).thenReturn(nodes.isLocalNodeElectedMaster());
+
         registry.clusterChanged(event);
     }
 
@@ -632,6 +641,17 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes,
         boolean addRegistryPipelines
     ) {
+        return createClusterState(nodeSettings, existingComponentTemplates, existingPolicies, nodes, addRegistryPipelines, true);
+    }
+
+    private ClusterState createClusterState(
+        Settings nodeSettings,
+        Map<String, Integer> existingComponentTemplates,
+        Map<String, LifecyclePolicy> existingPolicies,
+        DiscoveryNodes nodes,
+        boolean addRegistryPipelines,
+        boolean allNodesHaveLatestFeature
+    ) {
         Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (Map.Entry<String, Integer> template : existingComponentTemplates.entrySet()) {
             ComponentTemplate mockTemplate = mock(ComponentTemplate.class);
@@ -657,6 +677,16 @@ public class StackTemplateRegistryTests extends ESTestCase {
         }
         IngestMetadata ingestMetadata = new IngestMetadata(ingestPipelines);
 
+        Map<String, Set<String>> nodeFeatures = new HashMap<>();
+        for (DiscoveryNode node : nodes) {
+            nodeFeatures.put(node.getId(), Set.of(StackTemplateRegistry.KIBANA_REPORTING_MANAGED_BY_LIFECYCLE.id()));
+        }
+
+        if (allNodesHaveLatestFeature == false) {
+            // remove the feature from one of the provided nodes
+            nodeFeatures.remove(nodes.getNodes().keySet().iterator().next());
+        }
+
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
@@ -668,6 +698,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             )
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
+            .nodeFeatures(nodeFeatures)
             .build();
     }
 

@@ -38,8 +38,12 @@ import java.util.Map;
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
-    // Current version of the registry requires all nodes to be at least 8.9.0.
+    // Historical node feature kept here as LegacyStackTemplateRegistry is deprecated
     public static final NodeFeature STACK_TEMPLATES_FEATURE = new NodeFeature("stack.templates_supported");
+
+    // Current version of the registry requires all nodes to know of kibana reporting being managed by data stream lifecycle (a feature
+    // that was released only in 8.11)
+    public static final NodeFeature KIBANA_REPORTING_MANAGED_BY_LIFECYCLE = new NodeFeature("kibana-reporting-managed-by-dsl");
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
@@ -326,9 +330,9 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected boolean isClusterReady(ClusterChangedEvent event) {
-        // Ensure current version of the components are installed only once all nodes are updated to 8.9.0.
-        // This is necessary to prevent an error caused nby the usage of the ignore_missing_pipeline property
-        // in the pipeline processor, which has been introduced only in 8.9.0
-        return featureService.clusterHasFeature(event.state(), STACK_TEMPLATES_FEATURE);
+        // Ensure current version of the components are installed only once all nodes are aware of kibana reporting being managed by DSL.
+        // Data stream lifecycle has been available only after 8.11 so installing `.kibana-reporting` with the `lifecycle: {}`
+        // configuration in 8.10 would be problematic
+        return featureService.clusterHasFeature(event.state(), KIBANA_REPORTING_MANAGED_BY_LIFECYCLE);
     }
 }

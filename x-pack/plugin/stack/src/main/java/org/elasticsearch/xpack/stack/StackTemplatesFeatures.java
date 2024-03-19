@@ -12,10 +12,16 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
 import java.util.Map;
+import java.util.Set;
 
 public class StackTemplatesFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(StackTemplateRegistry.STACK_TEMPLATES_FEATURE, Version.V_8_9_0);
+    }
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(StackTemplateRegistry.KIBANA_REPORTING_MANAGED_BY_LIFECYCLE);
     }
 }

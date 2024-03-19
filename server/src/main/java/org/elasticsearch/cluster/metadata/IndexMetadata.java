@@ -137,6 +137,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
+    // 'event.ingested' (part of Elastic Common Schema) range is also tracked in cluster state, along with @timestamp
+    public static final String EVENT_INGESTED_FIELD_NAME = "event.ingested";
+
     @Nullable
     public String getDownsamplingInterval() {
         return settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY);

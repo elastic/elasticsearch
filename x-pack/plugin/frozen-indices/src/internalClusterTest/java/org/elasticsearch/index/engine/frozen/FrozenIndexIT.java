@@ -75,8 +75,15 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         createIndex("index", 1, 1);
 
-        final DocWriteResponse indexResponse = prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z")
-            .get();
+        String timestampVal = "2010-01-06T02:03:04.567Z";
+        String eventIngestedVal = "2010-01-06T02:03:05.567Z";  // one second later
+
+        final DocWriteResponse indexResponse = prepareIndex("index").setSource(
+            DataStream.TIMESTAMP_FIELD_NAME,
+            timestampVal,
+            IndexMetadata.EVENT_INGESTED_FIELD_NAME,
+            eventIngestedVal
+        ).get();
 
         ensureGreen("index");
 
@@ -106,7 +113,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureYellowAndNoInitializingShards("index");
 
-        final IndexLongFieldRange timestampFieldRange = clusterAdmin().prepareState()
+        IndexLongFieldRange timestampFieldRange = clusterAdmin().prepareState()
             .get()
             .getState()
             .metadata()
@@ -115,8 +122,20 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
-        assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
-        assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
+        assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse(timestampVal).toEpochMilli()));
+        assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse(timestampVal).toEpochMilli()));
+
+        IndexLongFieldRange eventIngestedFieldRange = clusterAdmin().prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index("index")
+            .getEventIngestedRange();
+        assertThat(eventIngestedFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertThat(eventIngestedFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+        assertTrue(eventIngestedFieldRange.isComplete());
+        assertThat(eventIngestedFieldRange.getMin(), equalTo(Instant.parse(eventIngestedVal).toEpochMilli()));
+        assertThat(eventIngestedFieldRange.getMax(), equalTo(Instant.parse(eventIngestedVal).toEpochMilli()));
     }
 
     public void testTimestampFieldTypeExposedByAllIndicesServices() throws Exception {
@@ -141,6 +160,8 @@ public class FrozenIndexIT extends ESIntegTestCase {
             default -> throw new AssertionError("impossible");
         }
 
+        String timeField = randomFrom(IndexMetadata.EVENT_INGESTED_FIELD_NAME, DataStream.TIMESTAMP_FIELD_NAME);
+
         assertAcked(
             prepareCreate("index").setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -149,7 +170,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
                     jsonBuilder().startObject()
                         .startObject("_doc")
                         .startObject("properties")
-                        .startObject(DataStream.TIMESTAMP_FIELD_NAME)
+                        .startObject(timeField)
                         .field("type", "date")
                         .field("format", "dd LLL yyyy HH:mm:ssX")
                         .field("locale", locale)
@@ -172,7 +193,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         ensureGreen("index");
         if (randomBoolean()) {
-            prepareIndex("index").setSource(DataStream.TIMESTAMP_FIELD_NAME, date).get();
+            prepareIndex("index").setSource(timeField, date).get();
         }
 
         for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
@@ -185,10 +206,17 @@ public class FrozenIndexIT extends ESIntegTestCase {
             final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
             assertBusy(() -> {
                 Map<String, DateFieldMapper.DateFieldType> fieldTypeMap = indicesService.getTimestampFieldTypeMap(index);
-                /// MP TODO add tests that exercise event.ingested as well
                 DateFieldMapper.DateFieldType timestampFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
-                assertNotNull(timestampFieldType);
-                timestampFieldTypeFuture.onResponse(timestampFieldType);
+                DateFieldMapper.DateFieldType eventIngestedFieldType = fieldTypeMap.get(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
+                if (timeField.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+                    assertNull(eventIngestedFieldType);
+                    assertNotNull(timestampFieldType);
+                    timestampFieldTypeFuture.onResponse(timestampFieldType);
+                } else {
+                    assertNull(timestampFieldType);
+                    assertNotNull(eventIngestedFieldType);
+                    timestampFieldTypeFuture.onResponse(eventIngestedFieldType);
+                }
             });
             assertTrue(timestampFieldTypeFuture.isDone());
             assertThat(timestampFieldTypeFuture.get().dateTimeFormatter().locale().toString(), equalTo(locale));

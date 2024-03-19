@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.lucene;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +65,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                     randomIOContext(),
                     TestUtils.singleBlobContainer(fileName, input),
-                    sharedBlobCacheService,
+                    (position, length) -> BlobCacheUtils.computeRange(sharedBlobCacheService.getRangeSize(), position, length),
                     input.length,
                     0
                 );
@@ -98,7 +99,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                 randomIOContext(),
                 TestUtils.singleBlobContainer(fileName, input),
-                sharedBlobCacheService,
+                (position, length) -> BlobCacheUtils.computeRange(sharedBlobCacheService.getRangeSize(), position, length),
                 input.length,
                 0
             );

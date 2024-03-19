@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -162,7 +163,7 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, compoundFileName), allBytes.length),
                     randomIOContext(),
                     TestUtils.singleBlobContainer(compoundFileName, allBytes),
-                    sharedBlobCacheService,
+                    (position, length) -> BlobCacheUtils.computeRange(sharedBlobCacheService.getRangeSize(), position, length),
                     checksumAndLength.length,
                     offset
                 ),

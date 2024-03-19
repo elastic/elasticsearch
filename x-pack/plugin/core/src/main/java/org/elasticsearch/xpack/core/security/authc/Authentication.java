@@ -1011,8 +1011,9 @@ public final class Authentication implements ToXContentObject {
     }
 
     /**
-     * This encapsulates the grouping of realms, identified with {@link RealmIdentifier}s, under {@link RealmDomain}s.
-     * The same username, from different realms, but from the <b>same domain</b> must be associated to a single {@link Profile}.
+     * {@link RealmRef} expresses the grouping of realms, identified with {@link RealmIdentifier}s, under {@link RealmDomain}s.
+     * A domain groups different realms, such that any username, authenticated by different realms from the <b>same domain</b>,
+     * is to be associated to a single {@link Profile}.
      */
     public static class RealmRef implements Writeable, ToXContentObject {
 
@@ -1088,6 +1089,9 @@ public final class Authentication implements ToXContentObject {
             return domain;
         }
 
+        /**
+         * The {@code RealmIdentifier} is the fully qualified way to refer to a realm.
+         */
         public RealmIdentifier getIdentifier() {
             return new RealmIdentifier(type, name);
         }

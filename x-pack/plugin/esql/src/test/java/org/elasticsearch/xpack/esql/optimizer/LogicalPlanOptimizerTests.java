@@ -112,9 +112,11 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.junit.BeforeClass;
 
 import java.lang.reflect.Constructor;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -3246,7 +3248,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *       \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
      *         \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
-    public void testSumOfConstant() {
+    public void testSumOfLiteral() {
         var plan = optimizedPlan("""
             from test
             | stats s = sum([1,2]),
@@ -3289,45 +3291,59 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(w.name(), equalTo("w"));
     }
 
+    private record AggOfLiteralTestCase(String aggFunctionName, Function<int[], Object> aggMultiValue) {};
+
     /**
-     * Expects
+     * Aggs of literals in case that the agg can be simply replaced by a corresponding mv-function;
+     * e.g. avg([1,2,3]) which is equivalent to mv_avg([1,2,3]).
+     *
+     * Expects e.g.
      *
      * EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
      * \_Limit[1000[INTEGER]]
      *   \_Row[[1.5[DOUBLE] AS s, 3.14[DOUBLE] AS s_expr, null[DOUBLE] AS s_null]]
      */
-    public void testAvgOfConstant() {
-        var plan = optimizedPlan("""
-            from test
-            | stats s = avg([1,2]),
-                    s_expr = avg(314.0/100),
-                    s_null = avg(null)
-            | keep s, s_expr, s_null
-            """);
+    public void testAggOfLiteral() {
+        List<AggOfLiteralTestCase> cases = List.of(
+            new AggOfLiteralTestCase("avg", ints -> ((double) Arrays.stream(ints).sum()) / ints.length),
+            new AggOfLiteralTestCase("min", ints -> Arrays.stream(ints).min().getAsInt()),
+            new AggOfLiteralTestCase("max", ints -> Arrays.stream(ints).max().getAsInt())
+        );
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var row = as(limit.child(), Row.class);
-        var exprs = row.fields();
+        for (AggOfLiteralTestCase testCase : cases) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats s = {}([1,2]),
+                        s_expr = {}(314.0/100),
+                        s_null = {}(null)
+                | keep s, s_expr, s_null
+                """, testCase.aggFunctionName, testCase.aggFunctionName, testCase.aggFunctionName);
 
-        // s = mv_avg([1,2]) == 1.5
-        var s = as(Alias.unwrap(exprs.get(0)), Literal.class);
-        assertThat(s.source().text(), equalTo("avg([1,2])"));
-        assertThat(s.value(), equalTo(1.5));
+            var plan = optimizedPlan(query);
 
-        // s_expr = mv_avg(314.0/100) == 3.14
-        var s_expr = as(Alias.unwrap(exprs.get(1)), Literal.class);
-        assertThat(s_expr.source().text(), equalTo("avg(314.0/100)"));
-        assertThat(s_expr.value(), equalTo(3.14));
+            var project = as(plan, Project.class);
+            var limit = as(project.child(), Limit.class);
+            var row = as(limit.child(), Row.class);
+            var exprs = row.fields();
 
-        // s_null = null
-        var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
-        assertThat(s_null.source().text(), equalTo("avg(null)"));
-        assertThat(s_null.value(), equalTo(null));
+            var s = as(Alias.unwrap(exprs.get(0)), Literal.class);
+            assertThat(s.source().text(), equalTo(testCase.aggFunctionName + "([1,2])"));
+            assertThat(s.value(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
+
+            var s_expr = as(Alias.unwrap(exprs.get(1)), Literal.class);
+            assertThat(s_expr.source().text(), equalTo(testCase.aggFunctionName + "(314.0/100)"));
+            assertThat(s_expr.value(), equalTo(3.14));
+
+            var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
+            assertThat(s_null.source().text(), equalTo(testCase.aggFunctionName + "(null)"));
+            assertThat(s_null.value(), equalTo(null));
+        }
     }
 
     /**
-     * Expects
+     * Like {@link LogicalPlanOptimizerTests#testAggOfLiteral()} but with a grouping key.
+     *
+     * Expects e.g.
      *
      * Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
      * \_Eval[[1.5[DOUBLE] AS s, 3.14[DOUBLE] AS s_expr, null[DOUBLE] AS s_null]]
@@ -3335,40 +3351,48 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *     \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
      *       \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
-    public void testAvgOfConstantWithGrouping() {
-        var plan = optimizedPlan("""
-            from test
-            | stats s = avg([1,2]),
-                    s_expr = avg(314.0/100),
-                    s_null = avg(null)
-                    by emp_no
-            | keep s, s_expr, s_null, emp_no
-            """);
+    public void testAggOfLiteralGrouped() {
+        List<AggOfLiteralTestCase> cases = List.of(
+            new AggOfLiteralTestCase("avg", ints -> ((double) Arrays.stream(ints).sum()) / ints.length),
+            new AggOfLiteralTestCase("min", ints -> Arrays.stream(ints).min().getAsInt()),
+            new AggOfLiteralTestCase("max", ints -> Arrays.stream(ints).max().getAsInt())
+        );
 
-        var project = as(plan, Project.class);
-        var eval = as(project.child(), Eval.class);
-        var limit = as(eval.child(), Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.child(), instanceOf(EsRelation.class));
+        for (AggOfLiteralTestCase testCase : cases) {
+            String query = LoggerMessageFormat.format(null, """
+                    from test
+                    | stats s = {}([1,2]),
+                            s_expr = {}(314.0/100),
+                            s_null = {}(null)
+                            by emp_no
+                    | keep s, s_expr, s_null, emp_no
+                """, testCase.aggFunctionName, testCase.aggFunctionName, testCase.aggFunctionName);
 
-        // Assert exprs
-        var exprs = eval.fields();
-        // s = mv_avg([1,2]) == 1.5
-        var s = as(Alias.unwrap(exprs.get(0)), Literal.class);
-        assertThat(s.source().text(), equalTo("avg([1,2])"));
-        assertThat(s.value(), equalTo(1.5));
-        // s_expr = mv_avg(314.0/100) == 3.14
-        var s_expr = as(Alias.unwrap(exprs.get(1)), Literal.class);
-        assertThat(s_expr.source().text(), equalTo("avg(314.0/100)"));
-        assertThat(s_expr.value(), equalTo(3.14));
-        // s_null = null
-        var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
-        assertThat(s_null.source().text(), equalTo("avg(null)"));
-        assertThat(s_null.value(), equalTo(null));
+            var plan = optimizedPlan(query);
 
-        // Assert that the aggregate only does the grouping by emp_no
-        assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
-        assertThat(agg.aggregates().size(), equalTo(1));
+            var project = as(plan, Project.class);
+            var eval = as(project.child(), Eval.class);
+            var limit = as(eval.child(), Limit.class);
+            var agg = as(limit.child(), Aggregate.class);
+            assertThat(agg.child(), instanceOf(EsRelation.class));
+
+            // Assert exprs
+            var exprs = eval.fields();
+
+            var s = as(Alias.unwrap(exprs.get(0)), Literal.class);
+            assertThat(s.source().text(), equalTo(testCase.aggFunctionName + "([1,2])"));
+            assertThat(s.value(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
+            var s_expr = as(Alias.unwrap(exprs.get(1)), Literal.class);
+            assertThat(s_expr.source().text(), equalTo(testCase.aggFunctionName + "(314.0/100)"));
+            assertThat(s_expr.value(), equalTo(3.14));
+            var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
+            assertThat(s_null.source().text(), equalTo(testCase.aggFunctionName + "(null)"));
+            assertThat(s_null.value(), equalTo(null));
+
+            // Assert that the aggregate only does the grouping by emp_no
+            assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
+            assertThat(agg.aggregates().size(), equalTo(1));
+        }
     }
 
     public void testEmptyMappingIndex() {

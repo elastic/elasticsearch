@@ -152,9 +152,9 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         // We override the poll interval like this to avoid the min value set by the setting which is too high for this test
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
-        assertThat(mockHealthTracker.getLastReportedHealth(), nullValue());
+        assertThat(mockHealthTracker.getLastDeterminedHealth(), nullValue());
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedHealth(), equalTo(GREEN)));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(GREEN)));
     }
 
     @SuppressWarnings("unchecked")
@@ -169,7 +169,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("initialize", clusterState, ClusterState.EMPTY_STATE));
         assertBusy(() -> assertThat(clientCalled.get(), equalTo(true)));
-        assertThat(mockHealthTracker.getLastReportedHealth(), nullValue());
+        assertThat(mockHealthTracker.getLastDeterminedHealth(), nullValue());
     }
 
     @SuppressWarnings("unchecked")
@@ -192,7 +192,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
         when(clusterService.state()).thenReturn(previous);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedHealth(), equalTo(GREEN)));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(GREEN)));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
         assertBusy(() -> assertThat(counter.get(), equalTo(2)));
     }
@@ -217,7 +217,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         localHealthMonitor.setMonitorInterval(TimeValue.timeValueMillis(10));
         when(clusterService.state()).thenReturn(previous);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("start-up", previous, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedHealth(), equalTo(GREEN)));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(GREEN)));
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("health-node-switch", current, previous));
         assertBusy(() -> assertThat(counter.get(), equalTo(2)));
     }
@@ -235,12 +235,12 @@ public class LocalHealthMonitorTests extends ESTestCase {
 
         // Ensure that there are no issues if the cluster state hasn't been initialized yet
         localHealthMonitor.setEnabled(true);
-        assertThat(mockHealthTracker.getLastReportedHealth(), nullValue());
+        assertThat(mockHealthTracker.getLastDeterminedHealth(), nullValue());
         assertThat(clientCalledCount.get(), equalTo(0));
 
         when(clusterService.state()).thenReturn(clusterState);
         localHealthMonitor.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedHealth(), equalTo(GREEN)));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(GREEN)));
         assertBusy(() -> assertThat(clientCalledCount.get(), equalTo(1)));
 
         DiskHealthInfo nextHealthStatus = new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
@@ -252,7 +252,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         assertThat(clientCalledCount.get(), equalTo(1));
 
         localHealthMonitor.setEnabled(true);
-        assertBusy(() -> assertThat(mockHealthTracker.getLastReportedHealth(), equalTo(nextHealthStatus)));
+        assertBusy(() -> assertThat(mockHealthTracker.getLastDeterminedHealth(), equalTo(nextHealthStatus)));
     }
 
     /**

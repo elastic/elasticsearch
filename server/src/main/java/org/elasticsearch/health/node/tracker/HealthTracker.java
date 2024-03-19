@@ -22,7 +22,7 @@ public abstract class HealthTracker<T> {
     /**
      * We can "simply" use a volatile field here, as we've ensured only one monitoring instance/thread at a time can update this value.
      */
-    private volatile T lastReportedHealth;
+    private volatile T lastDeterminedHealth;
 
     /**
      * Determine the health info for this health check.
@@ -43,7 +43,7 @@ public abstract class HealthTracker<T> {
      * Add the last reported health to the request builder.
      */
     public void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder) {
-        addToRequestBuilder(builder, lastReportedHealth);
+        addToRequestBuilder(builder, lastDeterminedHealth);
     }
 
     /**
@@ -55,10 +55,10 @@ public abstract class HealthTracker<T> {
     public boolean trackHealth() {
         var health = determineCurrentHealth();
         assert health != null : "health trackers must return unknown health instead of null";
-        if (health.equals(lastReportedHealth)) {
+        if (health.equals(lastDeterminedHealth)) {
             return false;
         }
-        lastReportedHealth = health;
+        lastDeterminedHealth = health;
         return true;
     }
 
@@ -67,10 +67,10 @@ public abstract class HealthTracker<T> {
      * Should be used when, for example, the master or health node has changed.
      */
     public void reset() {
-        lastReportedHealth = null;
+        lastDeterminedHealth = null;
     }
 
-    public T getLastReportedHealth() {
-        return lastReportedHealth;
+    public T getLastDeterminedHealth() {
+        return lastDeterminedHealth;
     }
 }

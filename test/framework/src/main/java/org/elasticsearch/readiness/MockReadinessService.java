@@ -8,7 +8,6 @@
 
 package org.elasticsearch.readiness;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.MockNode;

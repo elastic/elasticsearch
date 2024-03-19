@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.toolchain
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainResolver
-import org.gradle.platform.OperatingSystem
 
 import static org.elasticsearch.gradle.internal.toolchain.AbstractCustomJavaToolchainResolver.toArchString
 import static org.elasticsearch.gradle.internal.toolchain.AbstractCustomJavaToolchainResolver.toOsString

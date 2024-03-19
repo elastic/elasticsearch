@@ -94,7 +94,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -243,7 +243,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
     ) {
         public String fullSignature() {
             StringBuilder builder = new StringBuilder();
-            builder.append(ShowFunctions.withPipes(returnType));
+            builder.append(MetaFunctions.withPipes(returnType));
             builder.append(" ");
             builder.append(name);
             builder.append("(");
@@ -260,7 +260,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                     builder.append("...");
                 }
                 builder.append(":");
-                builder.append(ShowFunctions.withPipes(arg.type()));
+                builder.append(MetaFunctions.withPipes(arg.type()));
             }
             builder.append(")");
             return builder.toString();

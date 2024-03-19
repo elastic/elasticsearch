@@ -65,7 +65,7 @@ public class FieldFetcher {
         }
 
         // The fields need to be sorted so that the nested partition functions will work correctly.
-        resolvedFields.sort(Comparator.comparing(f -> f.field));
+        resolvedFields.sort(Comparator.comparing(f -> f.ft.name()));
 
         Map<String, FieldContext> fieldContexts = buildFieldContexts(context, "", resolvedFields, unmappedFetchPattern);
 
@@ -90,13 +90,13 @@ public class FieldFetcher {
         return new UnmappedFieldFetcher(mappedFields, context.nestedLookup().getImmediateChildMappers(nestedScope), unmappedFetchPatterns);
     }
 
-    private static ValueFetcher buildValueFetcher(SearchExecutionContext context, ResolvedField fieldAndFormat) {
+    private static ValueFetcher buildValueFetcher(SearchExecutionContext context, ResolvedField resolvedField) {
         try {
-            return fieldAndFormat.ft.valueFetcher(context, fieldAndFormat.format);
+            return resolvedField.ft.valueFetcher(context, resolvedField.format);
         } catch (IllegalArgumentException e) {
-            StringBuilder error = new StringBuilder("error fetching [").append(fieldAndFormat.field).append(']');
-            if (fieldAndFormat.matchingPattern != null) {
-                error.append(" which matched [").append(fieldAndFormat.matchingPattern).append(']');
+            StringBuilder error = new StringBuilder("error fetching [").append(resolvedField.field).append(']');
+            if (resolvedField.matchingPattern != null) {
+                error.append(" which matched [").append(resolvedField.matchingPattern).append(']');
             }
             error.append(": ").append(e.getMessage());
             throw new IllegalArgumentException(error.toString(), e);
@@ -120,7 +120,7 @@ public class FieldFetcher {
             nestedScope,
             context.nestedLookup().getImmediateChildMappers(nestedScope),
             fields,
-            f -> f.field
+            f -> f.ft.name()
         );
 
         // Keep the outputs sorted for easier testing
@@ -197,8 +197,8 @@ public class FieldFetcher {
     }
 
     public void setNextReader(LeafReaderContext readerContext) {
-        for (FieldContext field : fieldContexts.values()) {
-            field.valueFetcher.setNextReader(readerContext);
+        for (FieldContext fieldContext : fieldContexts.values()) {
+            fieldContext.valueFetcher.setNextReader(readerContext);
         }
     }
 

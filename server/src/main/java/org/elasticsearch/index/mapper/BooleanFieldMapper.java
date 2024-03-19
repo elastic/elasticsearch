@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -317,8 +318,9 @@ public class BooleanFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return super.termsQuery(values, context);
             } else {
+                Set<?> dedupe = new HashSet<>(values);
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (Object value : values) {
+                for (Object value : dedupe) {
                     builder.add(termQuery(value, context), BooleanClause.Occur.SHOULD);
                 }
                 return new ConstantScoreQuery(builder.build());

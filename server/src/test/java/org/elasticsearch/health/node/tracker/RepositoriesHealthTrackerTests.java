@@ -45,7 +45,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
     public void testGetHealthNoRepos() {
         when(repositoriesService.getRepositories()).thenReturn(Map.of());
 
-        var health = repositoriesHealthTracker.checkCurrentHealth();
+        var health = repositoriesHealthTracker.determineCurrentHealth();
 
         assertTrue(health.unknownRepositories().isEmpty());
         assertTrue(health.invalidRepositories().isEmpty());
@@ -59,7 +59,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         when(repo.getMetadata()).thenReturn(metadata);
         when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), repo));
 
-        var health = repositoriesHealthTracker.checkCurrentHealth();
+        var health = repositoriesHealthTracker.determineCurrentHealth();
 
         assertTrue(health.unknownRepositories().isEmpty());
         assertTrue(health.invalidRepositories().isEmpty());
@@ -69,7 +69,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         var repo = createRepositoryMetadata();
         when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), new UnknownTypeRepository(repo)));
 
-        var health = repositoriesHealthTracker.checkCurrentHealth();
+        var health = repositoriesHealthTracker.determineCurrentHealth();
 
         assertEquals(1, health.unknownRepositories().size());
         assertEquals(repo.name(), health.unknownRepositories().get(0));
@@ -82,7 +82,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
             Map.of(repo.name(), new InvalidRepository(repo, new RepositoryException(repo.name(), "Test")))
         );
 
-        var health = repositoriesHealthTracker.checkCurrentHealth();
+        var health = repositoriesHealthTracker.determineCurrentHealth();
 
         assertTrue(health.unknownRepositories().isEmpty());
         assertEquals(1, health.invalidRepositories().size());

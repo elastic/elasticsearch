@@ -117,10 +117,14 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         String input,
         String model,
         @Nullable String user
-    ){
+    ) {
         var chatCompletionModel = OpenAiChatCompletionModelTests.createChatCompletionModel(url, org, apiKey, model, user);
 
-        var account = new OpenAiAccount(chatCompletionModel.getServiceSettings().uri(), org, chatCompletionModel.getSecretSettings().apiKey());
+        var account = new OpenAiAccount(
+            chatCompletionModel.getServiceSettings().uri(),
+            org,
+            chatCompletionModel.getSecretSettings().apiKey()
+        );
         return new OpenAiChatCompletionRequest(
             TruncatorTests.createTruncator(),
             account,

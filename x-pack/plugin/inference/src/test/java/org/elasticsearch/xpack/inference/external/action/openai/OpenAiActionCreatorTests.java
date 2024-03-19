@@ -290,7 +290,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiChatCompletionModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try(var sender = senderFactory.createSender("test_service")){
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """
@@ -352,7 +352,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiChatCompletionModel_WithoutUser() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try(var sender = senderFactory.createSender("test_service")){
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """
@@ -413,7 +413,7 @@ public class OpenAiActionCreatorTests extends ESTestCase {
     public void testCreate_OpenAiChatCompletionModel_WithoutOrganization() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try(var sender = senderFactory.createSender("test_service")){
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """
@@ -520,8 +520,14 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             action.execute(List.of("abc"), listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-            assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI chat completions request to [%s]", getUrl(webServer))));
-            assertThat(thrownException.getCause().getMessage(), is("Failed to find required field [choices] in OpenAI chat completions response"));
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Failed to send OpenAI chat completions request to [%s]", getUrl(webServer)))
+            );
+            assertThat(
+                thrownException.getCause().getMessage(),
+                is("Failed to find required field [choices] in OpenAI chat completions response")
+            );
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());

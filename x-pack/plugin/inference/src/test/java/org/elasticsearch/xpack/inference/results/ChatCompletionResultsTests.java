@@ -21,20 +21,13 @@ import static org.hamcrest.Matchers.is;
 
 public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<ChatCompletionResults> {
 
-    public void testToXContent_CreateTheRightFormatForASingleChatCompletionResult(){
+    public void testToXContent_CreateTheRightFormatForASingleChatCompletionResult() {
         String resultContent = "content";
         var result = new ChatCompletionResults(List.of(new ChatCompletionResults.Result(resultContent)));
 
         assertThat(
             result.asMap(),
-            is(
-                Map.of(
-                    ChatCompletionResults.COMPLETION,
-                    List.of(
-                        Map.of(ChatCompletionResults.Result.RESULT, resultContent)
-                    )
-                )
-            )
+            is(Map.of(ChatCompletionResults.COMPLETION, List.of(Map.of(ChatCompletionResults.Result.RESULT, resultContent))))
         );
 
         String xContentResult = Strings.toString(result, true, true);
@@ -48,7 +41,7 @@ public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<
             }"""));
     }
 
-    public void testToXContent_CreatesTheRightFormatForMultipleCompletionResults(){
+    public void testToXContent_CreatesTheRightFormatForMultipleCompletionResults() {
         String resultOneContent = "content 1";
         String resultTwoContent = "content 2";
 
@@ -107,11 +100,11 @@ public class ChatCompletionResultsTests extends AbstractWireSerializingTestCase<
         }
     }
 
-    public static ChatCompletionResults createRandomResults(){
+    public static ChatCompletionResults createRandomResults() {
         int numOfCompletionResults = randomIntBetween(1, 10);
         List<ChatCompletionResults.Result> chatCompletionResults = new ArrayList<>(numOfCompletionResults);
 
-        for(int i = 0; i < numOfCompletionResults; i++){
+        for (int i = 0; i < numOfCompletionResults; i++) {
             chatCompletionResults.add(createRandomChatCompletionResult());
         }
 

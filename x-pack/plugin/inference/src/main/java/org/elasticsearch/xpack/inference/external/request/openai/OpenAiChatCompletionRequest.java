@@ -11,9 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
@@ -56,8 +54,13 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
         HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new OpenAiChatCompletionRequestEntity(truncationResult.input(), model.getServiceSettings().modelId(), model.getTaskSettings().user()))
-                .getBytes(StandardCharsets.UTF_8)
+            Strings.toString(
+                new OpenAiChatCompletionRequestEntity(
+                    truncationResult.input(),
+                    model.getServiceSettings().modelId(),
+                    model.getTaskSettings().user()
+                )
+            ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

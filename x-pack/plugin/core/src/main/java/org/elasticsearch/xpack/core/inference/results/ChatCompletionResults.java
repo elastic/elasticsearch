@@ -24,7 +24,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 /**
  * Writes a chat completion result in the following json format:
  * {

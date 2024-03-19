@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class OpenAiChatCompletionModelTests extends ESTestCase {
 
-    public void testOverrideWith_OverridesUser(){
+    public void testOverrideWith_OverridesUser() {
         var model = createChatCompletionModel("url", "org", "api_key", "model_name", null);
         var requestTaskSettingsMap = getChatCompletionRequestTaskSettingsMap("user_override");
 
@@ -30,7 +30,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel, is(createChatCompletionModel("url", "org", "api_key", "model_name", "user_override")));
     }
 
-    public void testOverrideWith_EmptyMap(){
+    public void testOverrideWith_EmptyMap() {
         var model = createChatCompletionModel("url", "org", "api_key", "model_name", null);
 
         var requestTaskSettingsMap = Map.<String, Object>of();
@@ -39,7 +39,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel, sameInstance(model));
     }
 
-    public void testOverrideWith_NullMap(){
+    public void testOverrideWith_NullMap() {
         var model = createChatCompletionModel("url", "org", "api_key", "model_name", null);
 
         var overriddenModel = OpenAiChatCompletionModel.of(model, null);

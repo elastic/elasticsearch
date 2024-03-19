@@ -35,16 +35,16 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
-import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -58,7 +58,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
     private HttpClientManager clientManager;
 
     @Before
-    public void init() throws Exception{
+    public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
@@ -72,13 +72,9 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
     }
 
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
-        var senderFactory = new HttpRequestSender.Factory(
-            createWithEmptySettings(threadPool),
-            clientManager,
-            mockClusterServiceEmpty()
-        );
+        var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
-        try(var sender = senderFactory.createSender("test_service")){
+        try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
 
             String responseJson = """
@@ -228,7 +224,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is("Failed to send OpenAI chat completions request"));
     }
 
-    public static Map<String, Object> buildExpectedChatCompletionResultMap(List<String> results){
+    public static Map<String, Object> buildExpectedChatCompletionResultMap(List<String> results) {
         return Map.of(
             ChatCompletionResults.COMPLETION,
             results.stream().map(result -> Map.of(ChatCompletionResults.Result.RESULT, result)).toList()
@@ -242,7 +238,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
         String modelName,
         @Nullable String user,
         Sender sender
-    ){
+    ) {
         var model = createChatCompletionModel(url, org, apiKey, modelName, user);
 
         return new OpenAiChatCompletionAction(sender, model, createWithEmptySettings(threadPool));

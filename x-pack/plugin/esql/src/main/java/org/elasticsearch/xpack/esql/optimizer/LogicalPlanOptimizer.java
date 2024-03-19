@@ -111,6 +111,23 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return rules();
     }
 
+    protected static Batch<LogicalPlan> substitutions() {
+        return new Batch<>(
+            "Substitutions",
+            Limiter.ONCE,
+            // first extract nested aggs top-level - this simplifies the rest of the rules
+            new ReplaceStatsAggExpressionWithEval(),
+            // second extract nested aggs inside of them
+            new ReplaceStatsNestedExpressionWithEval(),
+            // lastly replace surrogate functions
+            new SubstituteSurrogates(),
+            new ReplaceRegexMatch(),
+            new ReplaceAliasingEvalWithProject(),
+            new SkipQueryOnEmptyMappings()
+            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
+        );
+    }
+
     protected static Batch<LogicalPlan> operators() {
         return new Batch<>(
             "Operator Optimization",
@@ -154,26 +171,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>(
-            "Substitutions",
-            Limiter.ONCE,
-            // first extract nested aggs top-level - this simplifies the rest of the rules
-            new ReplaceStatsAggExpressionWithEval(),
-            // second extract nested aggs inside of them
-            new ReplaceStatsNestedExpressionWithEval(),
-            // lastly replace surrogate functions
-            new SubstituteSurrogates(),
-            new ReplaceRegexMatch(),
-            new ReplaceAliasingEvalWithProject(),
-            new SkipQueryOnEmptyMappings()
-            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
-        );
-
         var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
         var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(substitutions, operators(), skip, cleanup(), defaultTopN, label);
+        return asList(substitutions(), operators(), skip, cleanup(), defaultTopN, label);
     }
 
     // TODO: currently this rule only works for aggregate functions (AVG)

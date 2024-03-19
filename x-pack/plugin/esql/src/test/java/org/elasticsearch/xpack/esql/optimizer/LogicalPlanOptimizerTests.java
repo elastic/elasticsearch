@@ -174,6 +174,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Analyzer analyzerAirports;
     private static EnrichResolution enrichResolution;
 
+    private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
+        static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+
+        SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
+            super(optimizerContext);
+        }
+
+        @Override
+        protected List<Batch<LogicalPlan>> batches() {
+            return List.of(substitutions());
+        }
+    }
+
     @BeforeClass
     public static void init() {
         parser = new EsqlParser();
@@ -3240,78 +3253,93 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
-     * Expects
-     * Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
-     * \_Eval[[$$COUNT$s$0{r}#25 * 3[INTEGER] AS s, $$COUNT$s$0{r}#25 * 3.14[DOUBLE] AS s_expr, null[LONG] AS s_null]]
-     *   \_Limit[500[INTEGER]]
-     *     \_Aggregate[[w{r}#10],[COUNT([2a][KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
-     *       \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
-     *         \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
+     *
+     * Limit[1000[INTEGER]]
+     * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
+     *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
+     *     \_Eval[[MVSUM([1, 2][INTEGER]) * $$COUNT$s$0{r}#25 AS s, MVSUM(314.0[DOUBLE] / 100[INTEGER]) * $$COUNT$s$0{r}#25 AS s
+     * _expr, MVSUM(null[NULL]) * $$COUNT$s$0{r}#25 AS s_null]]
+     *       \_Aggregate[[w{r}#10],[COUNT(*[KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
+     *         \_Eval[[emp_no{f}#15 % 2[INTEGER] AS w]]
+     *           \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
     public void testSumOfLiteral() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats s = sum([1,2]),
                     s_expr = sum(314.0/100),
                     s_null = sum(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """);
+            """, SubstitutionOnlyOptimizer.INSTANCE);
 
-        var project = as(plan, Project.class);
+        var limit = as(plan, Limit.class);
+        var esqlProject = as(limit.child(), EsqlProject.class);
+        var project = as(esqlProject.child(), Project.class);
         var eval = as(project.child(), Eval.class);
-        var exprs = eval.fields();
+        var agg = as(eval.child(), Aggregate.class);
 
+        var exprs = eval.fields();
         // s = count(*) * 3
-        var mul = as(Alias.unwrap(exprs.get(0)), Mul.class);
-        assertThat(mul.source().text(), equalTo("sum([1,2])"));
-        var left = as(mul.left(), ReferenceAttribute.class);
-        assertThat(left.name(), equalTo("$$COUNT$s$0"));
-        var right = as(mul.right(), Literal.class);
-        assertThat(right.value(), equalTo(3));
+        var s = as(exprs.get(0), Alias.class);
+        assertThat(s.name(), equalTo("s"));
+        var mul = as(s.child(), Mul.class);
+        var mvSum = as(mul.left(), MvSum.class);
+        assertThat(mvSum.fold(), equalTo(3));
+        var count = as(mul.right(), ReferenceAttribute.class);
+        assertThat(count.name(), equalTo("$$COUNT$s$0"));
 
         // s_expr = count(*) * 3.14
-        var mul_expr = as(Alias.unwrap(exprs.get(1)), Mul.class);
-        assertThat(mul_expr.source().text(), equalTo("sum(314.0/100)"));
-        var left_expr = as(mul_expr.left(), ReferenceAttribute.class);
-        assertThat(left_expr.name(), equalTo("$$COUNT$s$0"));
-        var right_expr = as(mul_expr.right(), Literal.class);
-        assertThat(right_expr.value(), equalTo(3.14));
+        var s_expr = as(exprs.get(1), Alias.class);
+        assertThat(s_expr.name(), equalTo("s_expr"));
+        var mul_expr = as(s_expr.child(), Mul.class);
+        var mvSum_expr = as(mul_expr.left(), MvSum.class);
+        assertThat(mvSum_expr.fold(), equalTo(3.14));
+        var count_expr = as(mul_expr.right(), ReferenceAttribute.class);
+        assertThat(count_expr.name(), equalTo("$$COUNT$s$0"));
 
         // s_null = null
-        var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
-        assertThat(s_null.source().text(), equalTo("sum(null)"));
-        assertThat(s_null.value(), equalTo(null));
+        var s_null = as(exprs.get(2), Alias.class);
+        assertThat(s_null.name(), equalTo("s_null"));
+        var mul_null = as(s_null.child(), Mul.class);
+        var mvSum_null = as(mul_null.left(), MvSum.class);
+        assertThat(mvSum_null.field(), equalTo(NULL));
+        var count_null = as(mul_null.right(), ReferenceAttribute.class);
+        assertThat(count_null.name(), equalTo("$$COUNT$s$0"));
 
-        var limit = as(eval.child(), Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-        var count = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
-        assertThat(count.children().get(0), instanceOf(Literal.class));
+        var count_agg = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
+        assertThat(count_agg.children().get(0), instanceOf(Literal.class));
         var w = as(Alias.unwrap(agg.groupings().get(0)), ReferenceAttribute.class);
         assertThat(w.name(), equalTo("w"));
     }
 
-    private record AggOfLiteralTestCase(String aggFunctionName, Function<int[], Object> aggMultiValue) {};
+    private record AggOfLiteralTestCase(
+        String aggFunctionName,
+        Class<? extends Expression> substitution,
+        Function<int[], Object> aggMultiValue
+    ) {};
+
+    private static List<AggOfLiteralTestCase> AGG_OF_CONST_CASES = List.of(
+        new AggOfLiteralTestCase("avg", MvAvg.class, ints -> ((double) Arrays.stream(ints).sum()) / ints.length),
+        new AggOfLiteralTestCase("min", MvMin.class, ints -> Arrays.stream(ints).min().getAsInt()),
+        new AggOfLiteralTestCase("max", MvMax.class, ints -> Arrays.stream(ints).max().getAsInt())
+    );
 
     /**
      * Aggs of literals in case that the agg can be simply replaced by a corresponding mv-function;
      * e.g. avg([1,2,3]) which is equivalent to mv_avg([1,2,3]).
      *
-     * Expects e.g.
+     * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
      *
-     * Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
-     * \_Eval[[1.5[DOUBLE] AS s, null[DOUBLE] AS s_null, 6.28[DOUBLE] AS s_expr]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_Row[[null[NULL] AS $$$placeholder]]
+     * Limit[1000[INTEGER]]
+     * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
+     *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
+     *     \_Eval[[MVAVG([1, 2][INTEGER]) AS s, MVAVG(314.0[DOUBLE] / 100[INTEGER]) AS s_expr, MVAVG(null[NULL]) AS s_null]]
+     *       \_Row[[null[NULL] AS $$placeholder]]
      */
     public void testAggOfLiteral() {
-        List<AggOfLiteralTestCase> cases = List.of(
-            new AggOfLiteralTestCase("avg", ints -> ((double) Arrays.stream(ints).sum()) / ints.length),
-            new AggOfLiteralTestCase("min", ints -> Arrays.stream(ints).min().getAsInt()),
-            new AggOfLiteralTestCase("max", ints -> Arrays.stream(ints).max().getAsInt())
-        );
-
-        for (AggOfLiteralTestCase testCase : cases) {
+        for (AggOfLiteralTestCase testCase : AGG_OF_CONST_CASES) {
             String query = LoggerMessageFormat.format(null, """
                 from test
                 | stats s = {}([1,2]),
@@ -3320,47 +3348,43 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 | keep s, s_expr, s_null
                 """, testCase.aggFunctionName, testCase.aggFunctionName, testCase.aggFunctionName);
 
-            var plan = optimizedPlan(query);
+            var plan = plan(query, SubstitutionOnlyOptimizer.INSTANCE);
 
-            var project = as(plan, Project.class);
+            var limit = as(plan, Limit.class);
+            var esqlProject = as(limit.child(), EsqlProject.class);
+            var project = as(esqlProject.child(), Project.class);
             var eval = as(project.child(), Eval.class);
-            var limit = as(eval.child(), Limit.class);
-            var row = as(limit.child(), Row.class);
+            var row = as(eval.child(), Row.class);
             assertThat(row.fields().size(), equalTo(1));
             assertThat(row.fields().get(0).child(), equalTo(NULL));
 
             var exprs = eval.fields();
-            var s = as(Alias.unwrap(exprs.get(0)), Literal.class);
-            assertThat(s.source().text(), equalTo(testCase.aggFunctionName + "([1,2])"));
-            assertThat(s.value(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
-            var s_expr = as(Alias.unwrap(exprs.get(1)), Literal.class);
-            assertThat(s_expr.source().text(), equalTo(testCase.aggFunctionName + "(314.0/100)"));
-            assertThat(s_expr.value(), equalTo(3.14));
-            var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
-            assertThat(s_null.source().text(), equalTo(testCase.aggFunctionName + "(null)"));
-            assertThat(s_null.value(), equalTo(null));
+            var s = as(exprs.get(0), Alias.class);
+            assertThat(s.child(), instanceOf(testCase.substitution));
+            assertThat(s.child().fold(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
+            var s_expr = as(exprs.get(1), Alias.class);
+            assertThat(s_expr.child(), instanceOf(testCase.substitution));
+            assertThat(s_expr.child().fold(), equalTo(3.14));
+            var s_null = as(exprs.get(2), Alias.class);
+            assertThat(s_null.child(), instanceOf(testCase.substitution));
+            assertThat(s_null.child().fold(), equalTo(null));
         }
     }
 
     /**
      * Like {@link LogicalPlanOptimizerTests#testAggOfLiteral()} but with a grouping key.
      *
-     * Expects e.g.
+     * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
      *
-     * Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
-     * \_Eval[[1.5[DOUBLE] AS s, 3.14[DOUBLE] AS s_expr, null[DOUBLE] AS s_null]]
-     *   \_Limit[1000[INTEGER]]
-     *     \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
-     *       \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     * Limit[1000[INTEGER]]
+     * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
+     *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, emp_no{f}#13]]
+     *     \_Eval[[MVAVG([1, 2][INTEGER]) AS s, MVAVG(314.0[DOUBLE] / 100[INTEGER]) AS s_expr, MVAVG(null[NULL]) AS s_null]]
+     *       \_Aggregate[[emp_no{f}#13],[emp_no{f}#13]]
+     *         \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
     public void testAggOfLiteralGrouped() {
-        List<AggOfLiteralTestCase> cases = List.of(
-            new AggOfLiteralTestCase("avg", ints -> ((double) Arrays.stream(ints).sum()) / ints.length),
-            new AggOfLiteralTestCase("min", ints -> Arrays.stream(ints).min().getAsInt()),
-            new AggOfLiteralTestCase("max", ints -> Arrays.stream(ints).max().getAsInt())
-        );
-
-        for (AggOfLiteralTestCase testCase : cases) {
+        for (AggOfLiteralTestCase testCase : AGG_OF_CONST_CASES) {
             String query = LoggerMessageFormat.format(null, """
                     from test
                     | stats s = {}([1,2]),
@@ -3370,26 +3394,27 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     | keep s, s_expr, s_null, emp_no
                 """, testCase.aggFunctionName, testCase.aggFunctionName, testCase.aggFunctionName);
 
-            var plan = optimizedPlan(query);
+            var plan = plan(query, SubstitutionOnlyOptimizer.INSTANCE);
 
-            var project = as(plan, Project.class);
+            var limit = as(plan, Limit.class);
+            var esqlProject = as(limit.child(), EsqlProject.class);
+            var project = as(esqlProject.child(), Project.class);
             var eval = as(project.child(), Eval.class);
-            var limit = as(eval.child(), Limit.class);
-            var agg = as(limit.child(), Aggregate.class);
+            var agg = as(eval.child(), Aggregate.class);
             assertThat(agg.child(), instanceOf(EsRelation.class));
 
             // Assert exprs
             var exprs = eval.fields();
 
-            var s = as(Alias.unwrap(exprs.get(0)), Literal.class);
-            assertThat(s.source().text(), equalTo(testCase.aggFunctionName + "([1,2])"));
-            assertThat(s.value(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
-            var s_expr = as(Alias.unwrap(exprs.get(1)), Literal.class);
-            assertThat(s_expr.source().text(), equalTo(testCase.aggFunctionName + "(314.0/100)"));
-            assertThat(s_expr.value(), equalTo(3.14));
-            var s_null = as(Alias.unwrap(exprs.get(2)), Literal.class);
-            assertThat(s_null.source().text(), equalTo(testCase.aggFunctionName + "(null)"));
-            assertThat(s_null.value(), equalTo(null));
+            var s = as(exprs.get(0), Alias.class);
+            assertThat(s.child(), instanceOf(testCase.substitution));
+            assertThat(s.child().fold(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
+            var s_expr = as(exprs.get(1), Alias.class);
+            assertThat(s_expr.child(), instanceOf(testCase.substitution));
+            assertThat(s_expr.child().fold(), equalTo(3.14));
+            var s_null = as(exprs.get(2), Alias.class);
+            assertThat(s_null.child(), instanceOf(testCase.substitution));
+            assertThat(s_null.child().fold(), equalTo(null));
 
             // Assert that the aggregate only does the grouping by emp_no
             assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
@@ -3581,9 +3606,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query) {
+        return plan(query, logicalOptimizer);
+    }
+
+    private LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
         var analyzed = analyzer.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
-        var optimized = logicalOptimizer.optimize(analyzed);
+        var optimized = optimizer.optimize(analyzed);
         // System.out.println(optimized);
         return optimized;
     }

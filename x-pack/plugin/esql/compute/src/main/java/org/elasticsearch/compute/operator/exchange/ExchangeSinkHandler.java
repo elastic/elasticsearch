@@ -119,9 +119,9 @@ public final class ExchangeSinkHandler {
     }
 
     /**
-     * Fails this sink exchange handler
+     * Aborts and fails this exchange sink handler
      */
-    void onFailure(Exception failure) {
+    public void onFailure(Exception failure) {
         completionFuture.onFailure(failure);
         buffer.finish(true);
         notifyListeners();
@@ -183,5 +183,13 @@ public final class ExchangeSinkHandler {
      */
     long lastUpdatedTimeInMillis() {
         return lastUpdatedInMillis.get();
+    }
+
+    /**
+     * Returns the number of pages available in the buffer.
+     * This method should be used for testing only.
+     */
+    public int bufferSize() {
+        return buffer.size();
     }
 }

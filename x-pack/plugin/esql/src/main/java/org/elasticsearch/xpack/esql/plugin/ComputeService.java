@@ -605,19 +605,21 @@ public class ComputeService {
             List<DriverProfile> driverProfiles,
             ActionListener<Void> listener
         ) {
+            parentTask.addListener(() -> exchangeSink.onFailure(new TaskCancelledException(parentTask.getReasonCancelled())));
             this.request = request;
             this.parentTask = parentTask;
             this.exchangeSink = exchangeSink;
-            this.listener = listener;
             this.driverProfiles = driverProfiles;
             this.maxConcurrentShards = maxConcurrentShards;
             this.blockingSink = exchangeSink.createExchangeSink();
+            this.listener = listener.delegateResponse((l, e) -> {
+                blockingSink.finish();
+                exchangeSink.onFailure(e);
+                l.onFailure(e);
+            });
         }
 
         void start() {
-            parentTask.addListener(
-                () -> exchangeService.finishSinkHandler(request.sessionId(), new TaskCancelledException(parentTask.getReasonCancelled()))
-            );
             runBatch(0);
         }
 
@@ -634,9 +636,9 @@ public class ComputeService {
                     parentTask,
                     computeContext,
                     request.plan(),
-                    ActionListener.wrap(profiles -> onBatchCompleted(endBatchIndex, profiles), this::onFailure)
+                    listener.delegateFailureAndWrap((l, profiles) -> onBatchCompleted(endBatchIndex, profiles))
                 );
-            }, this::onFailure));
+            }, listener::onFailure));
         }
 
         private void onBatchCompleted(int lastBatchIndex, List<DriverProfile> batchProfiles) {
@@ -649,17 +651,9 @@ public class ComputeService {
                 blockingSink.finish();
                 // don't return until all pages are fetched
                 exchangeSink.addCompletionListener(
-                    ContextPreservingActionListener.wrapPreservingContext(
-                        ActionListener.runBefore(listener, () -> exchangeService.finishSinkHandler(request.sessionId(), null)),
-                        transportService.getThreadPool().getThreadContext()
-                    )
+                    ContextPreservingActionListener.wrapPreservingContext(listener, transportService.getThreadPool().getThreadContext())
                 );
             }
-        }
-
-        private void onFailure(Exception e) {
-            exchangeService.finishSinkHandler(request.sessionId(), e);
-            listener.onFailure(e);
         }
     }
 
@@ -675,10 +669,19 @@ public class ComputeService {
             : List.of();
         final var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
         listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
+        var externalSink = exchangeService.getSinkHandler(externalId);
+        listener = listener.delegateResponse((l, e) -> {
+            externalSink.onFailure(e);
+            l.onFailure(e);
+        });
         try (RefCountingListener refs = new RefCountingListener(listener.map(i -> new ComputeResponse(collectedProfiles)))) {
             final AtomicBoolean cancelled = new AtomicBoolean();
             // run compute with target shards
             var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
+            listener = listener.delegateResponse((l, e) -> {
+                internalSink.onFailure(e);
+                l.onFailure(e);
+            });
             DataNodeRequestExecutor dataNodeRequestExecutor = new DataNodeRequestExecutor(
                 request,
                 task,
@@ -689,7 +692,7 @@ public class ComputeService {
             );
             dataNodeRequestExecutor.start();
             // run the node-level reduction
-            var externalSink = exchangeService.getSinkHandler(externalId);
+            task.addListener(() -> externalSink.onFailure(new TaskCancelledException(task.getReasonCancelled())));
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
             exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1);
             ActionListener<Void> reductionListener = cancelOnFailure(task, cancelled, refs.acquire());
@@ -710,17 +713,13 @@ public class ComputeService {
                         collectedProfiles.addAll(driverProfiles);
                     }
                     // don't return until all pages are fetched
-                    externalSink.addCompletionListener(
-                        ActionListener.runBefore(reductionListener, () -> exchangeService.finishSinkHandler(externalId, null))
-                    );
+                    externalSink.addCompletionListener(reductionListener);
                 }, e -> {
-                    exchangeService.finishSinkHandler(externalId, e);
+                    externalSink.onFailure(e);
                     reductionListener.onFailure(e);
                 })
             );
         } catch (Exception e) {
-            exchangeService.finishSinkHandler(externalId, e);
-            exchangeService.finishSinkHandler(request.sessionId(), e);
             listener.onFailure(e);
         }
     }
@@ -797,9 +796,7 @@ public class ComputeService {
         ActionListener<ComputeResponse> listener
     ) {
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
-        parentTask.addListener(
-            () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
-        );
+        parentTask.addListener(() -> exchangeSink.onFailure(new TaskCancelledException(parentTask.getReasonCancelled())));
         ThreadPool threadPool = transportService.getThreadPool();
         final var responseHeadersCollector = new ResponseHeadersCollector(threadPool.getThreadContext());
         listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);

@@ -96,6 +96,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
         }
+        sinkHandler.addCompletionListener(ActionListener.running(() -> sinks.remove(exchangeId)));
         return sinkHandler;
     }
 
@@ -108,19 +109,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             throw new ResourceNotFoundException("sink exchanger for id [{}] doesn't exist", exchangeId);
         }
         return sinkHandler;
-    }
-
-    /**
-     * Removes the exchange sink handler associated with the given exchange id.
-     */
-    public void finishSinkHandler(String exchangeId, Exception failure) {
-        final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
-        if (sinkHandler != null) {
-            if (failure != null) {
-                sinkHandler.onFailure(failure);
-            }
-            assert sinkHandler.isFinished() : "Exchange sink " + exchangeId + " wasn't finished yet";
-        }
     }
 
     /**
@@ -213,8 +201,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 }
                 long elapsed = nowInMillis - sink.lastUpdatedTimeInMillis();
                 if (elapsed > maxInterval.millis()) {
-                    finishSinkHandler(
-                        e.getKey(),
+                    sink.onFailure(
                         new ElasticsearchTimeoutException(
                             "Exchange sink {} has been inactive for {}",
                             e.getKey(),

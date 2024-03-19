@@ -176,7 +176,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public static void init() {
         parser = new EsqlParser();
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        enrichResolution = AnalyzerTestUtils.loadEnrichPolicyResolution("languages_idx", "id", "languages_idx", "mapping-languages.json");
+        enrichResolution = new EnrichResolution();
+        AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
 
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");

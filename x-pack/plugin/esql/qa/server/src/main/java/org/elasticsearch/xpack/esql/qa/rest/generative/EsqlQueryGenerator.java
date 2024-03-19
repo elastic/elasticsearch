@@ -30,7 +30,7 @@ public class EsqlQueryGenerator {
     public static String sourceCommand(List<String> availabeIndices) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> from(availabeIndices);
-            case 1 -> showFunctions();
+            case 1 -> metaFunctions();
             default -> row();
         };
 
@@ -361,8 +361,8 @@ public class EsqlQueryGenerator {
         return result.toString();
     }
 
-    private static String showFunctions() {
-        return "show functions";
+    private static String metaFunctions() {
+        return "metadata functions";
     }
 
     private static String indexPattern(String indexName) {

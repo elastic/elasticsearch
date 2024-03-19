@@ -22,6 +22,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ProcrunCommandTests extends WindowsServiceCliTestCase {
 
@@ -111,8 +113,10 @@ public class ProcrunCommandTests extends WindowsServiceCliTestCase {
 
     public void testMissingExe() throws Exception {
         Files.delete(serviceExe);
-        var e = expectThrows(IllegalStateException.class, () -> executeMain("install"));
-        assertThat(e.getMessage(), containsString("Missing procrun exe"));
+        int exitCode = executeMain("install");
+
+        assertThat(exitCode, is(ExitCodes.CODE_ERROR));
+        assertThat(terminal.getErrorOutput(), startsWith("java.lang.IllegalStateException: Missing procrun exe"));
     }
 
     public void testServiceId() throws Exception {

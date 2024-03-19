@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ESQL_DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeStringToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -71,6 +70,6 @@ public class ToDatetime extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
-        return convertDatetimeStringToLong(in.utf8ToString(), ESQL_DEFAULT_DATE_TIME_FORMATTER);
+        return convertDatetimeStringToLong(in.utf8ToString());
     }
 }

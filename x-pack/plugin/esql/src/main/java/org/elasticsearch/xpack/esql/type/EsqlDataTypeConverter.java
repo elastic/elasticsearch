@@ -42,9 +42,9 @@ import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 public class EsqlDataTypeConverter {
 
-    public static final DateFormatter ESQL_DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
 
-    public static final DateFormatter ESQL_HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
+    public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
     /**
      * Returns true if the from type can be converted to the to type, false - otherwise
@@ -172,9 +172,9 @@ public class EsqlDataTypeConverter {
         if (DataTypes.isDateTime(exp.dataType())) {
             return ((Number) value).longValue();
         } else if (DataTypes.isString(exp.dataType())) {
-            return convertDatetimeStringToLong(((BytesRef) value).utf8ToString(), ESQL_DEFAULT_DATE_TIME_FORMATTER);
+            return convertDatetimeStringToLong(((BytesRef) value).utf8ToString());
         }
-        throw new IllegalArgumentException("unsupported type [" + exp.dataType() + "]");
+        return null;
     }
 
     /**
@@ -213,8 +213,12 @@ public class EsqlDataTypeConverter {
         return Instant.ofEpochMilli(value).atZone(zone).getLong(chrono);
     }
 
+    public static long convertDatetimeStringToLong(String value) {
+        return DEFAULT_DATE_TIME_FORMATTER.parseMillis(value);
+    }
+
     public static long convertDatetimeStringToLong(String value, DateFormatter formatter) {
-        formatter = formatter == null ? ESQL_DEFAULT_DATE_TIME_FORMATTER : formatter;
+        formatter = formatter == null ? DEFAULT_DATE_TIME_FORMATTER : formatter;
         return formatter.parseMillis(value);
     }
 

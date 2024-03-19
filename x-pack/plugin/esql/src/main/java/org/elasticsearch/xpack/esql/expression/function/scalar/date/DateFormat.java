@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ESQL_DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeLongToString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -99,7 +99,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
             return dvrCtx -> new DateFormatConstantEvaluator(
                 source(),
                 fieldEvaluator.get(dvrCtx),
-                ESQL_DEFAULT_DATE_TIME_FORMATTER,
+                DEFAULT_DATE_TIME_FORMATTER,
                 dvrCtx
             );
         }
@@ -122,7 +122,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     private static DateFormatter toFormatter(Object format, Locale locale) {
         DateFormatter result = format == null
-            ? ESQL_DEFAULT_DATE_TIME_FORMATTER
+            ? DEFAULT_DATE_TIME_FORMATTER
             : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
         return result.withLocale(locale);
     }

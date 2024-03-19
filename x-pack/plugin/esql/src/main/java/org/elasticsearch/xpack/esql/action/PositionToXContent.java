@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ESQL_DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeLongToString;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
@@ -117,7 +117,7 @@ abstract class PositionToXContent {
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {
                     long longVal = ((LongBlock) block).getLong(valueIndex);
-                    return builder.value(convertDatetimeLongToString(longVal, ESQL_DEFAULT_DATE_TIME_FORMATTER));
+                    return builder.value(convertDatetimeLongToString(longVal, DEFAULT_DATE_TIME_FORMATTER));
                 }
             };
             case "geo_point", "geo_shape" -> new PositionToXContent(block) {

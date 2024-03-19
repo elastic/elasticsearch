@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ESQL_DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeStringToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -97,7 +97,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         ZoneId zone = UTC; // TODO session timezone?
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, ESQL_DEFAULT_DATE_TIME_FORMATTER);
+            return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");

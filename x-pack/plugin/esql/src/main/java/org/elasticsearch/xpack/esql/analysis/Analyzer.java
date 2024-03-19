@@ -79,7 +79,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ESQL_DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeStringToLong;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -751,7 +751,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Long millis = null;
             // TODO: better control over this string format - do we want this to be flexible or always redirect folks to use date parsing
             try {
-                millis = str == null ? null : convertDatetimeStringToLong(str, ESQL_DEFAULT_DATE_TIME_FORMATTER);
+                millis = str == null ? null : convertDatetimeStringToLong(str);
             } catch (Exception ex) { // in case of exception, millis will be null which will trigger an error
             }
 

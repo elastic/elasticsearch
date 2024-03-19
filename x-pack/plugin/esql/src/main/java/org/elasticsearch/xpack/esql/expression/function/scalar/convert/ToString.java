@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ESQL_DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeLongToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
@@ -118,7 +118,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromDatetime")
     static BytesRef fromDatetime(long datetime) {
-        return new BytesRef(convertDatetimeLongToString(datetime, ESQL_DEFAULT_DATE_TIME_FORMATTER));
+        return new BytesRef(convertDatetimeLongToString(datetime, DEFAULT_DATE_TIME_FORMATTER));
     }
 
     @ConvertEvaluator(extraName = "FromDouble")

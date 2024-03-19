@@ -315,6 +315,37 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(con.value(), equalTo(5));
     }
 
+    public void testCombineDisjunctionToInEquals() {
+        LogicalPlan plan = plan("""
+            from test
+            | where emp_no == 1 or emp_no == 2
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var condition = as(filter.condition(), In.class);
+        assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
+    }
+
+    public void testCombineDisjunctionToInMixed() {
+        LogicalPlan plan = plan("""
+            from test
+            | where emp_no == 1 or emp_no in (2)
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var condition = as(filter.condition(), In.class);
+        assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
+    }
+    public void testCombineDisjunctionToInFromIn() {
+        LogicalPlan plan = plan("""
+            from test
+            | where emp_no in (1) or emp_no in (2)
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var condition = as(filter.condition(), In.class);
+        assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
+    }
     public void testCombineProjectionWithPruning() {
         var plan = plan("""
             from test

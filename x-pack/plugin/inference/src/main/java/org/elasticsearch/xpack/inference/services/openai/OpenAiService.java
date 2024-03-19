@@ -192,6 +192,13 @@ public class OpenAiService extends SenderService {
             return;
         }
 
+        if (model instanceof OpenAiChatCompletionModel) {
+            if (input.size() > 1) {
+                listener.onFailure(new UnsupportedOperationException("OpenAI completions only accepts 1 input"));
+                return;
+            }
+        }
+
         OpenAiModel openAiModel = (OpenAiModel) model;
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 

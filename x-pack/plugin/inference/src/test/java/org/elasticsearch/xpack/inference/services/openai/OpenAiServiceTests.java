@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 import org.hamcrest.MatcherAssert;
@@ -690,6 +691,49 @@ public class OpenAiServiceTests extends ESTestCase {
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
         verifyNoMoreInteractions(sender);
+    }
+
+    public void testInfer_ThrowsErrorIfModelIsOpenAiChatCompletionModelAndInputIsGreaterThanOne() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+            String responseJson = """
+                {
+                  "id": "chatcmpl-123",
+                  "object": "chat.completion",
+                  "created": 1677652288,
+                  "model": "gpt-3.5-turbo-0613",
+                  "system_fingerprint": "fp_44709d6fcb",
+                  "choices": [
+                      {
+                          "index": 0,
+                          "message": {
+                              "role": "assistant",
+                              "content": "Hello there, how may I assist you today?"
+                             },
+                          "logprobs": null,
+                          "finish_reason": "stop"
+                      }
+                  ],
+                  "usage": {
+                    "prompt_tokens": 9,
+                    "completion_tokens": 12,
+                    "total_tokens": 21
+                  }
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            service.infer(model, List.of("abc", "def"), new HashMap<>(), InputType.INGEST, listener);
+
+            var thrownException = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(thrownException.getMessage(), is("OpenAI completions only accepts 1 input"));
+        }
     }
 
     public void testInfer_SendsRequest() throws IOException {

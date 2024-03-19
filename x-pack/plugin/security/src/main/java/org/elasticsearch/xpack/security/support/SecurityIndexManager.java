@@ -52,6 +52,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
 
 /**
@@ -127,6 +129,10 @@ public class SecurityIndexManager implements ClusterStateListener {
      */
     public boolean isIndexUpToDate() {
         return this.state.isIndexUpToDate;
+    }
+
+    public int indexMappingVersion() {
+        return this.state.indexMappingVersion;
     }
 
     /**
@@ -227,8 +233,10 @@ public class SecurityIndexManager implements ClusterStateListener {
             logger.debug("security index manager waiting until state has been recovered");
             return;
         }
+
         final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
+        final Map<String, String> customMetadata = indexMetadata == null ? null : indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY);
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null
             || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();
@@ -236,7 +244,9 @@ public class SecurityIndexManager implements ClusterStateListener {
         final boolean indexAvailableForWrite = available.v1();
         final boolean indexAvailableForSearch = available.v2();
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
-        final SystemIndexDescriptor.MappingsVersion mappingVersion = getMinSecurityIndexMappingVersion(event.state());
+        final int migrationsVersion = customMetadata == null ? 0 : Integer.parseInt(customMetadata.get(MIGRATION_VERSION_CUSTOM_DATA_KEY));
+        final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion = getMinSecurityIndexMappingVersion(event.state());
+        final int indexMappingVersion = loadIndexMappingVersion(systemIndexDescriptor.getAliasName(), event.state());
         final String concreteIndexName = indexMetadata == null
             ? systemIndexDescriptor.getPrimaryIndex()
             : indexMetadata.getIndex().getName();
@@ -262,7 +272,9 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexAvailableForSearch,
             indexAvailableForWrite,
             mappingIsUpToDate,
-            mappingVersion,
+            migrationsVersion,
+            minClusterMappingVersion,
+            indexMappingVersion,
             concreteIndexName,
             indexHealth,
             indexState,
@@ -398,6 +410,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         }
     }
 
+    public String getConcreteIndexName() {
+        return state.concreteIndexName;
+    }
+
     /**
      * Prepares the index by creating it if it doesn't exist, then executes the runnable.
      * @param consumer a handler for any exceptions that are raised either during preparation or execution
@@ -421,7 +437,9 @@ public class SecurityIndexManager implements ClusterStateListener {
                 );
             } else if (state.indexExists() == false) {
                 assert state.concreteIndexName != null;
-                final SystemIndexDescriptor descriptorForVersion = systemIndexDescriptor.getDescriptorCompatibleWith(state.mappingVersion);
+                final SystemIndexDescriptor descriptorForVersion = systemIndexDescriptor.getDescriptorCompatibleWith(
+                    state.minClusterMappingVersion
+                );
 
                 if (descriptorForVersion == null) {
                     final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("create index");
@@ -470,7 +488,9 @@ public class SecurityIndexManager implements ClusterStateListener {
                     );
                 }
             } else if (state.mappingUpToDate == false) {
-                final SystemIndexDescriptor descriptorForVersion = systemIndexDescriptor.getDescriptorCompatibleWith(state.mappingVersion);
+                final SystemIndexDescriptor descriptorForVersion = systemIndexDescriptor.getDescriptorCompatibleWith(
+                    state.minClusterMappingVersion
+                );
 
                 if (descriptorForVersion == null) {
                     final String error = systemIndexDescriptor.getMinimumMappingsVersionMessage("updating mapping");
@@ -527,13 +547,17 @@ public class SecurityIndexManager implements ClusterStateListener {
      * State of the security index.
      */
     public static class State {
-        public static final State UNRECOVERED_STATE = new State(null, false, false, false, false, null, null, null, null, null);
+        public static final State UNRECOVERED_STATE = new State(null, false, false, false, false, null, null, null, null, null, null, null);
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
         public final boolean indexAvailableForSearch;
         public final boolean indexAvailableForWrite;
         public final boolean mappingUpToDate;
-        public final SystemIndexDescriptor.MappingsVersion mappingVersion;
+        public final Integer migrationsVersion;
+        // Min mapping version supported by the descriptors in the cluster
+        public final SystemIndexDescriptor.MappingsVersion minClusterMappingVersion;
+        // Applied mapping version
+        public final Integer indexMappingVersion;
         public final String concreteIndexName;
         public final ClusterHealthStatus indexHealth;
         public final IndexMetadata.State indexState;
@@ -545,7 +569,9 @@ public class SecurityIndexManager implements ClusterStateListener {
             boolean indexAvailableForSearch,
             boolean indexAvailableForWrite,
             boolean mappingUpToDate,
-            SystemIndexDescriptor.MappingsVersion mappingVersion,
+            Integer migrationsVersion,
+            SystemIndexDescriptor.MappingsVersion minClusterMappingVersion,
+            Integer indexMappingVersion,
             String concreteIndexName,
             ClusterHealthStatus indexHealth,
             IndexMetadata.State indexState,
@@ -556,7 +582,9 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexAvailableForSearch = indexAvailableForSearch;
             this.indexAvailableForWrite = indexAvailableForWrite;
             this.mappingUpToDate = mappingUpToDate;
-            this.mappingVersion = mappingVersion;
+            this.migrationsVersion = migrationsVersion;
+            this.minClusterMappingVersion = minClusterMappingVersion;
+            this.indexMappingVersion = indexMappingVersion;
             this.concreteIndexName = concreteIndexName;
             this.indexHealth = indexHealth;
             this.indexState = indexState;
@@ -573,7 +601,9 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && indexAvailableForSearch == state.indexAvailableForSearch
                 && indexAvailableForWrite == state.indexAvailableForWrite
                 && mappingUpToDate == state.mappingUpToDate
-                && Objects.equals(mappingVersion, state.mappingVersion)
+                && Objects.equals(indexMappingVersion, state.indexMappingVersion)
+                && Objects.equals(migrationsVersion, state.migrationsVersion)
+                && Objects.equals(minClusterMappingVersion, state.minClusterMappingVersion)
                 && Objects.equals(concreteIndexName, state.concreteIndexName)
                 && indexHealth == state.indexHealth
                 && indexState == state.indexState;
@@ -591,7 +621,9 @@ public class SecurityIndexManager implements ClusterStateListener {
                 indexAvailableForSearch,
                 indexAvailableForWrite,
                 mappingUpToDate,
-                mappingVersion,
+                migrationsVersion,
+                minClusterMappingVersion,
+                indexMappingVersion,
                 concreteIndexName,
                 indexHealth
             );

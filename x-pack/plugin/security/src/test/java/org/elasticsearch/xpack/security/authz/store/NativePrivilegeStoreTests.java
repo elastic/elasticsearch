@@ -793,6 +793,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             true,
             true,
             null,
+            null,
+            null,
             concreteSecurityIndexName,
             healthStatus,
             IndexMetadata.State.OPEN,

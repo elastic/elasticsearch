@@ -16,6 +16,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -72,6 +74,8 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -79,6 +83,7 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -120,6 +125,7 @@ import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequestTranslator;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
@@ -205,6 +211,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -390,6 +397,9 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityMigrationExecutor;
+import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -413,6 +423,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -430,6 +441,8 @@ import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
+import static org.elasticsearch.xpack.security.support.SecurityMigrations.clusterReadyForSecurityMigration;
+import static org.elasticsearch.xpack.security.support.SecurityMigrations.isEligibleSecurityMigration;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
@@ -443,9 +456,12 @@ public class Security extends Plugin
         ExtensiblePlugin,
         SearchPlugin,
         RestServerActionPlugin,
-        ReloadablePlugin {
+        ReloadablePlugin,
+        PersistentTaskPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+
+    private static final int MAX_SECURITY_MIGRATION_RETRY_COUNT = 10;
 
     // TODO: ip filtering does not actually track license usage yet
     public static final LicensedFeature.Momentary IP_FILTERING_FEATURE = LicensedFeature.momentaryLenient(
@@ -583,6 +599,8 @@ public class Security extends Plugin
     private final SetOnce<RestGrantApiKeyAction.RequestTranslator> grantApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
+
+    private final SetOnce<PersistentTasksService> persistentTasksService = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
@@ -593,6 +611,13 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleNameChecker.Factory> reservedRoleNameCheckerFactory = new SetOnce<>();
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
+
+    private final SetOnce<SecurityMigrationExecutor> securityMigrationExecutor = new SetOnce<>();
+
+    // Node local retry count for migration jobs that's checked only on the master node to make sure
+    // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
+    // restart or master node change.
+    private final AtomicInteger nodeLocalMigrationRetryCount = new AtomicInteger(0);
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -682,7 +707,8 @@ public class Security extends Plugin
                 services.environment(),
                 services.nodeEnvironment().nodeMetadata(),
                 services.indexNameExpressionResolver(),
-                services.telemetryProvider()
+                services.telemetryProvider(),
+                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client())
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -701,7 +727,8 @@ public class Security extends Plugin
         Environment environment,
         NodeMetadata nodeMetadata,
         IndexNameExpressionResolver expressionResolver,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        PersistentTasksService persistentTasksService
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -715,6 +742,23 @@ public class Security extends Plugin
         this.settings = environment.settings();
 
         systemIndices.init(client, clusterService);
+
+        this.securityMigrationExecutor.set(
+            new SecurityMigrationExecutor(
+                SecurityMigrationTaskParams.TASK_NAME,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                systemIndices.getMainIndexManager(),
+                client,
+                featureService,
+                clusterService,
+                SecurityMigrations.MIGRATIONS_BY_VERSION
+            )
+        );
+        this.persistentTasksService.set(persistentTasksService);
+
+        systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
+            applyPendingSecurityMigrations(clusterService.state(), featureService, newState);
+        });
 
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
@@ -838,7 +882,8 @@ public class Security extends Plugin
             client,
             getLicenseState(),
             systemIndices.getMainIndexManager(),
-            clusterService
+            clusterService,
+            featureService
         );
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
         // Need to set to default if it wasn't set by an extension
@@ -1115,6 +1160,58 @@ public class Security extends Plugin
         );
 
         return components;
+    }
+
+    private void applyPendingSecurityMigrations(
+        ClusterState clusterState,
+        FeatureService featureService,
+        SecurityIndexManager.State newState
+    ) {
+        if (clusterState.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+
+        Integer nextMigrationVersion = SecurityMigrations.MIGRATIONS_BY_VERSION.higherKey(newState.migrationsVersion);
+
+        // Check if next migration that has not been applied is eligible to run on the current cluster
+        boolean eligibleSecurityMigrationExists = nextMigrationVersion != null
+            && isEligibleSecurityMigration(
+                newState.indexMappingVersion,
+                featureService,
+                clusterState,
+                SecurityMigrations.MIGRATIONS_BY_VERSION.get(nextMigrationVersion)
+            );
+
+        if (eligibleSecurityMigrationExists == false) {
+            // Reset retry counter if all eligible migrations have been applied successfully
+            nodeLocalMigrationRetryCount.set(0);
+        } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
+            logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
+            return;
+        }
+
+        if (eligibleSecurityMigrationExists && clusterReadyForSecurityMigration(newState)) {
+            nodeLocalMigrationRetryCount.incrementAndGet();
+            persistentTasksService.get()
+                .sendStartRequest(
+                    SecurityMigrationTaskParams.TASK_NAME,
+                    SecurityMigrationTaskParams.TASK_NAME,
+                    new SecurityMigrationTaskParams(newState.migrationsVersion),
+                    null,
+                    ActionListener.wrap((response) -> {
+                        logger.debug("Security migration task submitted");
+                    }, (exception) -> {
+                        // Do nothing if the task is already in progress
+                        if (exception instanceof ResourceAlreadyExistsException
+                            || exception.getCause() instanceof ResourceAlreadyExistsException) {
+                            // Do not count ResourceAlreadyExistsException as failure
+                            nodeLocalMigrationRetryCount.decrementAndGet();
+                        } else {
+                            logger.warn("Submit security migration task failed: " + exception.getCause());
+                        }
+                    })
+                );
+        }
     }
 
     private AuthorizationEngine getAuthorizationEngine() {
@@ -1444,6 +1541,7 @@ public class Security extends Plugin
             new ActionHandler<>(GetSecuritySettingsAction.INSTANCE, TransportGetSecuritySettingsAction.class),
             new ActionHandler<>(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
             new ActionHandler<>(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
+            new ActionHandler<>(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();
@@ -2178,6 +2276,17 @@ public class Security extends Plugin
             return null;
         }
         return new DlsFlsRequestCacheDifferentiator(getLicenseState(), securityContext, scriptServiceReference);
+    }
+
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
+        return this.securityMigrationExecutor.get() != null ? List.of(this.securityMigrationExecutor.get()) : List.of();
     }
 
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {

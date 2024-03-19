@@ -1,0 +1,6 @@
+pr: 106396
+summary: "fix check preTags and postTags with empty argument"
+area: search
+type: bug
+issues:
+  - 69009

@@ -68,12 +68,11 @@ teardown:
   - match: { _id: "1"}
   - match: { _source: { foo: bar }}
 
-# test that the role works on the cluster level
+  # test that the role works on the cluster level
   - do:
       headers:
         Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
-      cluster.health: {}
-  - match: { timed_out: false }
+      info: {}
 
   - do:
       security.get_role:

@@ -143,6 +143,10 @@ public abstract class Realm implements Comparable<Realm> {
         listener.onResponse(stats);
     }
 
+    /**
+     * Must be called only once by the realms initialization logic, soon after this {@code Realm} is constructed,
+     * in order to link in the realm domain details, which may refer to any of the other realms.
+     */
     public void setRealmRef(RealmRef realmRef) {
         this.realmRef.set(realmRef);
     }

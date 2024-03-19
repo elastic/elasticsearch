@@ -18,6 +18,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -223,7 +224,7 @@ public class SearchApplicationIndexService {
     public void putSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         createOrUpdateAlias(app, new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+            public void onResponse(IndicesAliasesResponse response) {
                 updateSearchApplication(app, create, listener);
             }
 
@@ -240,7 +241,7 @@ public class SearchApplicationIndexService {
         });
     }
 
-    private void createOrUpdateAlias(SearchApplication app, ActionListener<AcknowledgedResponse> listener) {
+    private void createOrUpdateAlias(SearchApplication app, ActionListener<IndicesAliasesResponse> listener) {
 
         final Metadata metadata = clusterService.state().metadata();
         final String searchAliasName = getSearchAliasName(app);

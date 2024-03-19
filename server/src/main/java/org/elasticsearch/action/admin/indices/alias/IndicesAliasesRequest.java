@@ -105,6 +105,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 return value;
             }
 
+            public String getFieldName() {
+                return fieldName;
+            }
+
             public static Type fromValue(byte value) {
                 return switch (value) {
                     case 0 -> ADD;

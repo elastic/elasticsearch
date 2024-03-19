@@ -118,6 +118,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStore
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -1083,12 +1084,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<AcknowledgedResponse> aliases(final IndicesAliasesRequest request) {
+        public ActionFuture<IndicesAliasesResponse> aliases(final IndicesAliasesRequest request) {
             return execute(TransportIndicesAliasesAction.TYPE, request);
         }
 
         @Override
-        public void aliases(final IndicesAliasesRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        public void aliases(final IndicesAliasesRequest request, final ActionListener<IndicesAliasesResponse> listener) {
             execute(TransportIndicesAliasesAction.TYPE, request, listener);
         }
 

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -173,7 +174,7 @@ public final class MlInitializationService implements ClusterStateListener {
         String[] mlHiddenIndexPatterns = MachineLearning.getMlHiddenIndexPatterns();
 
         // Step 5: Handle errors encountered on the way.
-        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(updateAliasesResponse -> {
+        ActionListener<IndicesAliasesResponse> finalListener = ActionListener.wrap(updateAliasesResponse -> {
             if (updateAliasesResponse.isAcknowledged() == false) {
                 logger.warn("One or more of the ML internal aliases could not be made hidden.");
                 return;
@@ -194,7 +195,7 @@ public final class MlInitializationService implements ClusterStateListener {
             }
             if (indicesAliasesRequest.getAliasActions().isEmpty()) {
                 logger.debug("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
-                finalListener.onResponse(AcknowledgedResponse.TRUE);
+                finalListener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
                 return;
             }
             String indicesWithNonHiddenAliasesString = indicesAliasesRequest.getAliasActions()

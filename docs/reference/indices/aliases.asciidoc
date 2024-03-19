@@ -145,10 +145,16 @@ the alias points to one data stream.
 +
 Only the `add` action supports this parameter.
 
+// tag::alias-options[]
 `must_exist`::
 (Optional, Boolean)
-If `true`, the alias must exist to perform the action. Defaults to `false`. Only
-the `remove` action supports this parameter.
+Affects the behavior when attempting to remove an alias which does not exist.
+If `true`, removing an alias which does not exist will cause all actions to fail.
+If `false`, removing an alias which does not exist will only cause that removal to fail.
+Defaults to `false`.
+// end::alias-options[]
++
+Only the `remove` action supports this parameter.
 
 // tag::alias-options[]
 `routing`::

@@ -122,6 +122,66 @@ POST _aliases
 // end::alias-multiple-actions-example[]
 
 [discrete]
+[[Multiple action results]]
+=== Multiple action results
+
+When using multiple actions, if some succeed and some fail, a list of per-action results will be returned.
+
+// tag::alias-multiple-actions-result-example[]
+Consider a similar action list to the previous example, but now with an alias `log-non-existing`, which does not yet exist.
+In this case, the `remove` action will fail, but the `add` action will succeed.
+The response will contain the list `action_results`, with a result for every requested action.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "remove": {
+        "index": "index1",
+        "alias": "logs-non-existing"
+      }
+    },
+    {
+      "add": {
+        "index": "index2",
+        "alias": "logs-non-existing"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT \/index1\nPUT \/index2\n/]
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true,
+  "errors": true,
+  "action_results": [
+    {
+      "action": "remove",
+      "success": false,
+      "error": "aliases_not_found_exception"
+    },
+    {
+      "action": "add",
+      "success": true
+    }
+  ]
+}
+--------------------------------------------------
+
+Allowing the action list to succeed partially may not provide the desired result.
+It may be more appropriate to use set `must_exist` to `true`, which will cause the entire action
+list to fail if a single action fails.
+
+// end::alias-multiple-actions-example[]
+
+[discrete]
 [[add-alias-at-creation]]
 === Add an alias at index creation
 

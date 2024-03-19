@@ -307,3 +307,84 @@
       indices.get_alias:
         name: this-does-not-exist*
   - is_false: ds-first.aliases.my-alias
+---
+"Action Results with multiple matching aliases":
+  - skip:
+      version: " - 7.13.99"
+      reason: "data streams aliases are available from 7.14.0"
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ log-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: log-foobar
+  - is_true: acknowledged
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: log-foobar
+                aliases: test_alias1
+            - remove:
+                index: log-foobar
+                aliases: test_non_existing
+                must_exist: false
+  - is_true: errors
+  - length: { action_results: 2 }
+  - match: { action_results.0.success: true }
+  - match: { action_results.0.action: add }
+  - match: { action_results.1.success: false }
+  - match: { action_results.1.action: remove }
+  - match: { action_results.1.error: aliases_not_found_exception }
+---
+"Single action result per action":
+  - skip:
+      version: " - 7.13.99"
+      reason: "data streams aliases are available from 7.14.0"
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ log-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+  - do:
+      indices.create_data_stream:
+        name: log-test-1
+  - do:
+      indices.create_data_stream:
+        name: log-test-2
+  - is_true: acknowledged
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: log-test-*
+                aliases: test_alias1
+            - remove:
+                index: log-test-*
+                aliases: test_non_existing
+                must_exist: false
+  - is_true: errors
+  - length: { action_results: 2 }
+  - match: { action_results.0.success: true }
+  - match: { action_results.0.action: add }
+  - match: { action_results.1.success: false }
+  - match: { action_results.1.action: remove }
+  - match: { action_results.1.error: aliases_not_found_exception }

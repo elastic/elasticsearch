@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -79,7 +79,10 @@ public class MetadataIndexAliasesService {
         this.taskQueue = clusterService.createTaskQueue("index-aliases", Priority.URGENT, this.executor);
     }
 
-    public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    public void indicesAliases(
+        final IndicesAliasesClusterStateUpdateRequest request,
+        final ActionListener<IndicesAliasesResponse> listener
+    ) {
         taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), null); // TODO use request.masterNodeTimeout() here?
     }
 
@@ -254,7 +257,7 @@ public class MetadataIndexAliasesService {
     /**
      * A cluster state update task that consists of the cluster state request and the listeners that need to be notified upon completion.
      */
-    record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+    record ApplyAliasesTask(IndicesAliasesClusterStateUpdateRequest request, ActionListener<IndicesAliasesResponse> listener)
         implements
             ClusterStateTaskListener,
             ClusterStateAckListener {
@@ -271,17 +274,17 @@ public class MetadataIndexAliasesService {
 
         @Override
         public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            listener.onResponse(IndicesAliasesResponse.build(request.getActionResults()));
         }
 
         @Override
         public void onAckFailure(Exception e) {
-            listener.onResponse(AcknowledgedResponse.FALSE);
+            listener.onResponse(IndicesAliasesResponse.NOT_ACKNOWLEDGED);
         }
 
         @Override
         public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.FALSE);
+            listener.onResponse(IndicesAliasesResponse.NOT_ACKNOWLEDGED);
         }
 
         @Override

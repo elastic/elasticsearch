@@ -82,3 +82,86 @@
             - remove_index:
                 index: test_index
                 must_exist: true
+---
+"Partial success with must_exist == false":
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                aliases: test_alias1
+            - remove:
+                index: test_index
+                aliases: test_non_existing
+                must_exist: false
+  - is_true: errors
+  - match: { action_results.0.success: true }
+  - match: { action_results.0.action: add }
+  - match: { action_results.1.success: false }
+  - match: { action_results.1.action: remove }
+  - match: { action_results.1.error: aliases_not_found_exception }
+---
+"Partial success with must_exist == null (default)":
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                aliases: test_alias1
+            - remove:
+                index: test_index
+                aliases: test_non_existing
+  - is_true: errors
+  - match: { action_results.0.success: true }
+  - match: { action_results.0.action: add }
+  - match: { action_results.1.success: false }
+  - match: { action_results.1.action: remove }
+  - match: { action_results.1.error: aliases_not_found_exception }
+---
+"No action_results field if all actions successful":
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+     indices.update_aliases:
+      body:
+        actions:
+          - add:
+              index: test_index
+              aliases: test_alias1
+  - is_false: errors
+  - match: { action_results: null }
+---
+"Single result per input action":
+  - do:
+      indices.create:
+        index: test_index1
+  - do:
+      indices.create:
+        index: test_index2
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index*
+                aliases: test_alias1
+            - remove:
+                index: test_index*
+                aliases: test_non_existing
+  - length: { action_results: 2 }
+  - is_true: errors
+  - match: { action_results.0.success: true }
+  - match: { action_results.0.action: add }
+  - match: { action_results.1.success: false }
+  - match: { action_results.1.action: remove }
+  - match: { action_results.1.error: aliases_not_found_exception }
+

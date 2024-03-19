@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -371,7 +372,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request The index aliases request
      * @return The result future
      */
-    ActionFuture<AcknowledgedResponse> aliases(IndicesAliasesRequest request);
+    ActionFuture<IndicesAliasesResponse> aliases(IndicesAliasesRequest request);
 
     /**
      * Allows to add/remove aliases from indices.
@@ -379,7 +380,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request  The index aliases request
      * @param listener A listener to be notified with a result
      */
-    void aliases(IndicesAliasesRequest request, ActionListener<AcknowledgedResponse> listener);
+    void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener);
 
     /**
      * Allows to add/remove aliases from indices.

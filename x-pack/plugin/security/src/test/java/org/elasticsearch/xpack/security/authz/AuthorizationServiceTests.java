@@ -321,7 +321,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default()
         );
     }
 
@@ -1743,7 +1744,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new XPackLicenseState(() -> 0),
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1791,7 +1793,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new XPackLicenseState(() -> 0),
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3307,7 +3310,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3462,7 +3466,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             licenseState,
             TestIndexNameExpressionResolver.newInstance(),
             operatorPrivilegesService,
-            RESTRICTED_INDICES
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default()
         );
         Authentication authentication;
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -3561,7 +3566,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                         + " because no remote indices privileges apply for the target cluster",
                     action,
                     clusterAlias,
-                    AuthorizationDenialMessages.successfulAuthenticationDescription(authentication, authorizationInfo)
+                    new AuthorizationDenialMessages.Default().successfulAuthenticationDescription(authentication, authorizationInfo)
                 )
             )
         );
@@ -3583,7 +3588,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 Strings.format(
                     "action [%s] towards remote cluster is unauthorized for %s",
                     action,
-                    AuthorizationDenialMessages.successfulAuthenticationDescription(authentication, authorizationInfo)
+                    new AuthorizationDenialMessages.Default().successfulAuthenticationDescription(authentication, authorizationInfo)
                 )
             )
         );

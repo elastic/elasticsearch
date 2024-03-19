@@ -181,11 +181,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected abstract Expression build(Source source, List<Expression> args);
 
-    protected Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
+    /**
+     * Build an {@link Expression} where all inputs are field references,
+     * <strong>except</strong> those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
+     */
+    protected final Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsFields());
     }
 
-    protected Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
+    /**
+     * Build an {@link Expression} where all inputs are anonymous functions
+     * that make a copy of the values from a field <strong>except</strong>
+     * those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
+     */
+    protected final Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsDeepCopiedFields());
     }
 
@@ -255,7 +264,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         expression = new FoldNull().rule(expression);
-        assertThat(expression.dataType(), equalTo(testCase.expectedType));
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         logger.info("Result type: " + expression.dataType());
 
         Object result;
@@ -278,7 +287,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private Object toJavaObjectUnsignedLongAware(Block block, int position) {
         Object result;
         result = toJavaObject(block, position);
-        if (result != null && testCase.expectedType == DataTypes.UNSIGNED_LONG) {
+        if (result != null && testCase.expectedType() == DataTypes.UNSIGNED_LONG) {
             assertThat(result, instanceOf(Long.class));
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
@@ -524,7 +533,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         var factory = evaluator(buildFieldExpression(testCase));
         try (ExpressionEvaluator ev = factory.get(driverContext())) {
-            assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
+            assertThat(ev.toString(), testCase.evaluatorToString());
         }
     }
 
@@ -532,7 +541,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         var factory = evaluator(buildFieldExpression(testCase));
-        assertThat(factory.toString(), equalTo(testCase.evaluatorToString));
+        assertThat(factory.toString(), testCase.evaluatorToString());
     }
 
     public final void testFold() {
@@ -544,12 +553,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         assertFalse(expression.typeResolved().unresolved());
         Expression nullOptimized = new FoldNull().rule(expression);
-        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType));
+        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());
         if (testCase.foldingExceptionClass() == null) {
             Object result = nullOptimized.fold();
             // Decode unsigned longs into BigIntegers
-            if (testCase.expectedType == DataTypes.UNSIGNED_LONG && result != null) {
+            if (testCase.expectedType() == DataTypes.UNSIGNED_LONG && result != null) {
                 result = NumericUtils.unsignedLongAsBigInteger((Long) result);
             }
             assertThat(result, testCase.getMatcher());
@@ -670,11 +679,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     }).toList();
                     return new TestCaseSupplier.TestCase(
                         data,
-                        oc.evaluatorToString,
-                        oc.expectedType,
+                        oc.evaluatorToString(),
+                        oc.expectedType(),
                         nullValue(),
                         null,
-                        oc.getExpectedTypeError()
+                        oc.getExpectedTypeError(),
+                        null,
+                        null
                     );
                 }));
 
@@ -691,11 +702,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 .toList();
                             return new TestCaseSupplier.TestCase(
                                 data,
-                                "LiteralsEvaluator[lit=null]",
-                                entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType,
+                                equalTo("LiteralsEvaluator[lit=null]"),
+                                entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType(),
                                 nullValue(),
                                 null,
-                                oc.getExpectedTypeError()
+                                oc.getExpectedTypeError(),
+                                null,
+                                null
                             );
                         }));
                     }
@@ -1067,7 +1080,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (testCase.getData().stream().anyMatch(t -> t.type() == DataTypes.NULL)) {
             return;
         }
-        signatures.putIfAbsent(testCase.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), testCase.expectedType);
+        signatures.putIfAbsent(testCase.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), testCase.expectedType());
     }
 
     @AfterClass

@@ -52,7 +52,7 @@ public abstract class HealthTracker<T> {
      *
      * @return whether the health has changed.
      */
-    public boolean trackHealth() {
+    public boolean checkHealthChanged() {
         var health = determineCurrentHealth();
         assert health != null : "health trackers must return unknown health instead of null";
         if (health.equals(lastDeterminedHealth)) {

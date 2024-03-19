@@ -346,7 +346,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 var builder = new UpdateHealthInfoCacheAction.Request.Builder().nodeId(clusterService.localNode().getId());
                 changedHealthTrackers.forEach(changedHealthTracker -> changedHealthTracker.addToRequestBuilder(builder));
 
-                // We don't need to do anything with the response when the request was successful, as HealthTracker#trackHealth has
+                // We don't need to do anything with the response when the request was successful, as HealthTracker#checkHealthChanged has
                 // already updated it's internal state.
                 var listener = ActionListener.<AcknowledgedResponse>wrap(response -> {}, e -> {
                     if (e.getCause() instanceof NodeNotConnectedException || e.getCause() instanceof HealthNodeNotDiscoveredException) {
@@ -384,7 +384,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 return List.of();
             }
 
-            return healthTrackers.stream().filter(HealthTracker::trackHealth).toList();
+            return healthTrackers.stream().filter(HealthTracker::checkHealthChanged).toList();
         }
 
         private void releaseAndScheduleNextRun() {

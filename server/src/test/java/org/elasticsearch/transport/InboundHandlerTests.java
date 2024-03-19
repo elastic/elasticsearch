@@ -32,12 +32,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -137,9 +137,9 @@ public class InboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
 
-        long requestId = responseHandlers.add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
+        long requestId = responseHandlers.add(new TransportResponseHandler<TestResponse>() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -157,7 +157,7 @@ public class InboundHandlerTests extends ESTestCase {
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
             }
-        }, null, action));
+        }, null, action).requestId();
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
             action,
             TestRequest::new,
@@ -198,7 +198,6 @@ public class InboundHandlerTests extends ESTestCase {
 
         TransportChannel transportChannel = channelCaptor.get();
         assertEquals(TransportVersion.current(), transportChannel.getVersion());
-        assertEquals("transport", transportChannel.getChannelType());
         assertEquals(requestValue, requestCaptor.get().value);
 
         String responseValue = randomAlphaOfLength(10);
@@ -238,7 +237,7 @@ public class InboundHandlerTests extends ESTestCase {
         mockAppender.addExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "expected message",
-                InboundHandler.class.getCanonicalName(),
+                EXPECTED_LOGGER_NAME,
                 Level.WARN,
                 "error processing handshake version"
             )
@@ -275,6 +274,12 @@ public class InboundHandlerTests extends ESTestCase {
         }
     }
 
+    /**
+     * This logger is mentioned in the docs by name, so we cannot rename it without adjusting the docs. Thus we fix the expected logger
+     * name in this string constant rather than using {@code InboundHandler.class.getCanonicalName()}.
+     */
+    private static final String EXPECTED_LOGGER_NAME = "org.elasticsearch.transport.InboundHandler";
+
     public void testLogsSlowInboundProcessing() throws Exception {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
@@ -286,12 +291,7 @@ public class InboundHandlerTests extends ESTestCase {
             final TransportVersion remoteVersion = TransportVersion.current();
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "expected slow request",
-                    InboundHandler.class.getCanonicalName(),
-                    Level.WARN,
-                    "handling request "
-                )
+                new MockLogAppender.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
             );
 
             final long requestId = randomNonNegativeLong();
@@ -318,12 +318,7 @@ public class InboundHandlerTests extends ESTestCase {
             mockAppender.assertAllExpectationsMatched();
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "expected slow response",
-                    InboundHandler.class.getCanonicalName(),
-                    Level.WARN,
-                    "handling response "
-                )
+                new MockLogAppender.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
             );
 
             final long responseId = randomNonNegativeLong();

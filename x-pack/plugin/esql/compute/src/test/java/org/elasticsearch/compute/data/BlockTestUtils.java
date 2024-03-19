@@ -32,7 +32,7 @@ public class BlockTestUtils {
             case INT -> randomInt();
             case LONG -> randomLong();
             case DOUBLE -> randomDouble();
-            case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));
+            case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));   // TODO: also test spatial WKB
             case BOOLEAN -> randomBoolean();
             case DOC -> new BlockUtils.Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
             case NULL -> null;
@@ -77,6 +77,7 @@ public class BlockTestUtils {
         for (int i = 0; i < page.getBlockCount(); i++) {
             readInto(values.get(i), page.getBlock(i));
         }
+        page.releaseBlocks();
     }
 
     public static void readInto(List<Object> values, Block block) {
@@ -96,5 +97,17 @@ public class BlockTestUtils {
             assertThat(b.getValueCount(p), equalTo(0));
             assertThat(b.isNull(p), equalTo(true));
         }
+    }
+
+    public static Page deepCopyOf(Page page, BlockFactory blockFactory) {
+        Block[] blockCopies = new Block[page.getBlockCount()];
+        for (int i = 0; i < blockCopies.length; i++) {
+            blockCopies[i] = BlockUtils.deepCopyOf(page.getBlock(i), blockFactory);
+        }
+        return new Page(blockCopies);
+    }
+
+    public static List<Page> deepCopyOf(List<Page> pages, BlockFactory blockFactory) {
+        return pages.stream().map(page -> deepCopyOf(page, blockFactory)).toList();
     }
 }

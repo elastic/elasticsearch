@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestControllerTests;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -38,13 +39,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.usage.UsageService;
@@ -1141,6 +1142,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         return new ActionModule(
             settings.getSettings(),
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+            null,
             settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
@@ -1152,7 +1154,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
-            List.of()
+            null,
+            List.of(),
+            RestExtension.allowAll()
         );
     }
 
@@ -1385,8 +1389,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         @Override
         public void close() {
-            appender.stop();
             Loggers.removeAppender(mockLogger, appender);
+            appender.stop();
             if (checked == false) {
                 fail("did not check expectations matched in TimedOutLogExpectation");
             }

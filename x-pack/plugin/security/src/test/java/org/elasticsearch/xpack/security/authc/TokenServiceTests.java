@@ -16,25 +16,21 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -60,11 +56,13 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -162,18 +160,18 @@ public class TokenServiceTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         doAnswer(invocationOnMock -> {
-            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
+            GetRequestBuilder builder = new GetRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareGet(anyString(), anyString());
-        when(client.prepareIndex(any(String.class))).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client, BulkAction.INSTANCE));
+        when(client.prepareIndex(any(String.class))).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
         when(client.prepareUpdate(any(String.class), any(String.class))).thenAnswer(inv -> {
             final String index = (String) inv.getArguments()[0];
             final String id = (String) inv.getArguments()[1];
-            return new UpdateRequestBuilder(client, UpdateAction.INSTANCE).setIndex(index).setId(id);
+            return new UpdateRequestBuilder(client).setIndex(index).setId(id);
         });
-        when(client.prepareSearch(any(String.class))).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE));
+        when(client.prepareSearch(any(String.class))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<IndexResponse> responseActionListener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[2];
@@ -188,7 +186,7 @@ public class TokenServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), anyActionListener());
         doAnswer(invocationOnMock -> {
             BulkRequest request = (BulkRequest) invocationOnMock.getArguments()[0];
             @SuppressWarnings("unchecked")
@@ -257,7 +255,7 @@ public class TokenServiceTests extends ESTestCase {
             transportVersion = TransportVersions.V_8_8_1;
         } else {
             version = Version.V_8_9_0;
-            transportVersion = TransportVersions.V_8_500_020;
+            transportVersion = TransportVersions.V_8_9_X;
         }
         return addAnotherDataNodeWithVersion(clusterService, version, transportVersion);
     }
@@ -272,6 +270,7 @@ public class TokenServiceTests extends ESTestCase {
     public static void startThreadPool() throws IOException {
         threadPool = new ThreadPool(
             settings,
+            MeterRegistry.NOOP,
             new FixedExecutorBuilder(
                 settings,
                 TokenService.THREAD_POOL_NAME,
@@ -921,14 +920,14 @@ public class TokenServiceTests extends ESTestCase {
         final SecurityIndexManager tokensIndex;
         if (pre72OldNode != null) {
             tokensIndex = securityMainIndex;
-            when(securityTokensIndex.isAvailable()).thenReturn(false);
+            when(securityTokensIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
             when(securityTokensIndex.indexExists()).thenReturn(false);
-            when(securityTokensIndex.freeze()).thenReturn(securityTokensIndex);
+            when(securityTokensIndex.defensiveCopy()).thenReturn(securityTokensIndex);
         } else {
             tokensIndex = securityTokensIndex;
-            when(securityMainIndex.isAvailable()).thenReturn(false);
+            when(securityMainIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
             when(securityMainIndex.indexExists()).thenReturn(false);
-            when(securityMainIndex.freeze()).thenReturn(securityMainIndex);
+            when(securityMainIndex.defensiveCopy()).thenReturn(securityMainIndex);
         }
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContextPreservingResponseHeaders()) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
@@ -936,8 +935,10 @@ public class TokenServiceTests extends ESTestCase {
             tokenService.tryAuthenticateToken(bearerToken3, future);
             assertNull(future.get());
 
-            when(tokensIndex.isAvailable()).thenReturn(false);
-            when(tokensIndex.getUnavailableReason()).thenReturn(new UnavailableShardsException(null, "unavailable"));
+            when(tokensIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+            when(tokensIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(
+                new UnavailableShardsException(null, "unavailable")
+            );
             when(tokensIndex.indexExists()).thenReturn(true);
             future = new PlainActionFuture<>();
             final SecureString bearerToken2 = Authenticator.extractBearerTokenFromHeader(requestContext);
@@ -950,7 +951,7 @@ public class TokenServiceTests extends ESTestCase {
             tokenService.tryAuthenticateToken(bearerToken1, future);
             assertNull(future.get());
 
-            when(tokensIndex.isAvailable()).thenReturn(true);
+            when(tokensIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
             when(tokensIndex.indexExists()).thenReturn(true);
             mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), authentication, false, null);
             future = new PlainActionFuture<>();
@@ -1236,9 +1237,9 @@ public class TokenServiceTests extends ESTestCase {
                 assertThat(refreshFilter.fieldName(), is("refresh_token.token"));
                 final SearchHits hits;
                 if (storedRefreshToken.equals(refreshFilter.value())) {
-                    SearchHit hit = new SearchHit(randomInt(), "token_" + userToken.getId());
+                    SearchHit hit = SearchHit.unpooled(randomInt(), "token_" + userToken.getId());
                     hit.sourceRef(docSource);
-                    hits = new SearchHits(new SearchHit[] { hit }, null, 1);
+                    hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 1);
                 } else {
                     hits = SearchHits.EMPTY_WITH_TOTAL_HITS;
                 }
@@ -1271,7 +1272,7 @@ public class TokenServiceTests extends ESTestCase {
         discoBuilder.add(anotherDataNode);
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);
-        newStateBuilder.putTransportVersion(anotherDataNode.getId(), transportVersion);
+        newStateBuilder.putCompatibilityVersions(anotherDataNode.getId(), transportVersion, SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS);
         setState(clusterService, newStateBuilder.build());
         return anotherDataNode;
     }

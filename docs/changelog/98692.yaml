@@ -1,5 +1,0 @@
-pr: 98692
-summary: Add request header size limit for RCS transport connections
-area: Network
-type: enhancement
-issues: []

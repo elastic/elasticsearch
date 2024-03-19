@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +30,7 @@ import java.util.function.Supplier;
 public class ExchangeSourceOperator extends SourceOperator {
 
     private final ExchangeSource source;
-    private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
+    private SubscribableListener<Void> isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
 
     public record ExchangeSourceOperatorFactory(Supplier<ExchangeSource> exchangeSources) implements SourceOperatorFactory {
@@ -68,7 +70,7 @@ public class ExchangeSourceOperator extends SourceOperator {
     }
 
     @Override
-    public ListenableActionFuture<Void> isBlocked() {
+    public SubscribableListener<Void> isBlocked() {
         if (isBlocked.isDone()) {
             isBlocked = source.waitForReading();
             if (isBlocked.isDone()) {
@@ -156,6 +158,11 @@ public class ExchangeSourceOperator extends SourceOperator {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_11_X;
         }
     }
 }

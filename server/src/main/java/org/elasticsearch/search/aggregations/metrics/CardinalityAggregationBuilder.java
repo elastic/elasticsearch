@@ -114,11 +114,6 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public boolean supportsParallelCollection() {
-        return false;
-    }
-
-    @Override
     protected boolean serializeTargetValueType(TransportVersion version) {
         return true;
     }
@@ -135,25 +130,6 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         }
         this.precisionThreshold = precisionThreshold;
         return this;
-    }
-
-    /**
-     * Get the precision threshold. Higher values improve accuracy but also
-     * increase memory usage. Will return <code>null</code> if the
-     * precisionThreshold has not been set yet.
-     */
-    public Long precisionThreshold() {
-        return precisionThreshold;
-    }
-
-    /**
-     * Get the execution hint.  This is an optional user specified hint that
-     * will be used to decide on the specific collection algorithm.  Since this
-     * is a hint, the implementation may choose to ignore it (typically when
-     * the specified method is not applicable to the given field type)
-     */
-    public String ExecutionHint() {
-        return executionHint;
     }
 
     /**
@@ -216,11 +192,6 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

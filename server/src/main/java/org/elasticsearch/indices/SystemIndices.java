@@ -17,8 +17,8 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -31,7 +31,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -49,7 +51,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -123,6 +124,13 @@ public class SystemIndices {
         new Feature(SYNONYMS_FEATURE_NAME, "Manages synonyms", List.of(SYNONYMS_DESCRIPTOR))
     ).collect(Collectors.toUnmodifiableMap(Feature::getName, Function.identity()));
 
+    public static final Map<String, SystemIndexDescriptor.MappingsVersion> SERVER_SYSTEM_MAPPINGS_VERSIONS =
+        SERVER_SYSTEM_FEATURE_DESCRIPTORS.values()
+            .stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .filter(SystemIndexDescriptor::isAutomaticallyManaged)
+            .collect(Collectors.toMap(SystemIndexDescriptor::getIndexPattern, SystemIndexDescriptor::getMappingsVersion));
+
     /**
      * The node's full list of system features is stored here. The map is keyed
      * on the value of {@link Feature#getName()}, and is used for fast lookup of
@@ -147,6 +155,7 @@ public class SystemIndices {
      *                                These features come from plugins and modules. Non-plugin system
      *                                features such as Tasks will be added automatically.
      */
+    @SuppressWarnings("this-escape")
     public SystemIndices(List<Feature> pluginAndModuleFeatures) {
         featureDescriptors = buildFeatureMap(pluginAndModuleFeatures);
         indexDescriptors = featureDescriptors.values()
@@ -376,11 +385,11 @@ public class SystemIndices {
     public Predicate<String> getProductSystemIndexNamePredicate(ThreadContext threadContext) {
         final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         if (product == null) {
-            return name -> false;
+            return Predicates.never();
         }
         final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
         if (automaton == null) {
-            return name -> false;
+            return Predicates.never();
         }
         return automaton::run;
     }
@@ -522,7 +531,7 @@ public class SystemIndices {
             );
         } else {
             return new IllegalArgumentException(
-                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " use and access is reserved for system operations"
+                "Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) + " may not be accessed by product [" + product + "]"
             );
         }
     }
@@ -888,7 +897,7 @@ public class SystemIndices {
         ) {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
             deleteIndexRequest.indices(indexNames);
-            client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
+            client.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     listener.onResponse(ResetFeatureStateStatus.success(name));
@@ -921,7 +930,7 @@ public class SystemIndices {
             Metadata metadata = clusterService.state().getMetadata();
 
             final List<Exception> exceptions = new ArrayList<>();
-            final Consumer<ResetFeatureStateStatus> handleResponse = resetFeatureStateStatus -> {
+            final CheckedConsumer<ResetFeatureStateStatus, Exception> handleResponse = resetFeatureStateStatus -> {
                 if (resetFeatureStateStatus.getStatus() == ResetFeatureStateStatus.Status.FAILURE) {
                     synchronized (exceptions) {
                         exceptions.add(resetFeatureStateStatus.getException());

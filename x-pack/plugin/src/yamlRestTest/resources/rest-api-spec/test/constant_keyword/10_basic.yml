@@ -413,3 +413,57 @@ setup:
   - match: { aggregations.agg.buckets.1.0-bucket.doc_count: 0 }
   - match: { aggregations.agg.buckets.2.key: 200.0 }
   - match: { aggregations.agg.buckets.2.0-bucket.doc_count: 0 }
+
+
+---
+Cardinality agg:
+  - skip:
+      version: " - 7.6.99, 8.9.00 - 8.10.99"
+      reason: "constant_keyword was added in 7.7, bug introduced in 8.9 and fixed in 8.11"
+
+  - do:
+      indices.create:
+        index: test3
+        body:
+          mappings:
+            properties:
+              test:
+                type: constant_keyword
+                value: value1
+
+  - do:
+      bulk:
+        index: test3
+        refresh: true
+        body: |
+          {"index":{}}
+          { "test": "value1" }
+
+  - do:
+      search:
+        index: test3
+        body:
+          size: 0
+          aggs:
+            card:
+              cardinality:
+                field: test
+
+  - match: { aggregations.card.value: 1 }
+---
+"deprecated use of multi-fields":
+  - skip:
+      version: " - 8.13.99"
+      reason: "deprecation added in 8.14"
+      features: warnings
+
+  - do:
+      warnings:
+        - "Adding multifields to [constant_keyword] mappers has no effect and will be forbidden in future"
+      indices.create:
+        index: constant_keyword-multi-field
+        body:
+          mappings:
+            properties:
+              keyword: { "type": "constant_keyword", "fields": {"keyword": {"type": "keyword"}} }
+

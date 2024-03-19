@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -70,61 +71,61 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
     }
 
     public void testDateTimeFormatInvalidInputs() {
-        SqlIllegalArgumentException siae = expectThrows(
+        Exception e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateTimeFormat(Source.EMPTY, l("foo"), randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A date/datetime/time is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime/time is required; received [foo]", e.getMessage());
 
-        siae = expectThrows(
+        e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateTimeFormat(Source.EMPTY, randomDatetimeLiteral(), l(5), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A string is required; received [5]", siae.getMessage());
+        assertEquals("A string is required; received [5]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateTimeFormat(Source.EMPTY, l(dateTime(2019, 9, 3, 18, 10, 37, 0)), l("invalid"), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
         );
         assertEquals(
             "Invalid pattern [invalid] is received for formatting date/time [2019-09-03T18:10:37Z]; Unknown pattern letter: i",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateTimeFormat(Source.EMPTY, l(time(18, 10, 37, 123000000)), l("MM/dd"), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
         );
         assertEquals(
             "Invalid pattern [MM/dd] is received for formatting date/time [18:10:37.123Z]; Unsupported field: MonthOfYear",
-            siae.getMessage()
+            e.getMessage()
         );
     }
 
     public void testFormatInvalidInputs() {
-        SqlIllegalArgumentException siae = expectThrows(
+        Exception e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new Format(Source.EMPTY, l("foo"), randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A date/datetime/time is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime/time is required; received [foo]", e.getMessage());
 
-        siae = expectThrows(
+        e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new Format(Source.EMPTY, randomDatetimeLiteral(), l(5), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A string is required; received [5]", siae.getMessage());
+        assertEquals("A string is required; received [5]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new Format(Source.EMPTY, l(time(18, 10, 37, 123000000)), l("MM/dd"), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "Invalid pattern [MM/dd] is received for formatting date/time [18:10:37.123Z]; Unsupported field: MonthOfYear",
-            siae.getMessage()
+            e.getMessage()
         );
     }
 

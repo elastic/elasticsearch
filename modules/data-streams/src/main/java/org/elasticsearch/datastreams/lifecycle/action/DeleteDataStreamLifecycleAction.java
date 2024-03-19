@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -24,14 +23,11 @@ import java.util.Objects;
 /**
  * Removes the data stream lifecycle configuration from the requested data streams.
  */
-public class DeleteDataStreamLifecycleAction extends ActionType<AcknowledgedResponse> {
+public class DeleteDataStreamLifecycleAction {
 
-    public static final DeleteDataStreamLifecycleAction INSTANCE = new DeleteDataStreamLifecycleAction();
-    public static final String NAME = "indices:admin/data_stream/lifecycle/delete";
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/data_stream/lifecycle/delete");
 
-    private DeleteDataStreamLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private DeleteDataStreamLifecycleAction() {/* no instances */}
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable {
 
@@ -57,11 +53,6 @@ public class DeleteDataStreamLifecycleAction extends ActionType<AcknowledgedResp
 
         public String[] getNames() {
             return names;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

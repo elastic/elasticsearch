@@ -11,9 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;
@@ -81,6 +83,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -135,7 +138,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             StartDataFrameAnalyticsAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.client = client;
@@ -208,6 +211,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 taskParams,
+                null,
                 waitForAnalyticsToStart
             );
         }, listener::onFailure);
@@ -263,79 +267,70 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener) {
 
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
-        // Step 7. Validate that there are analyzable data in the source index
-        ActionListener<StartContext> validateMappingsMergeListener = ActionListener.wrap(
-            startContext -> validateSourceIndexHasAnalyzableData(startContext, finalListener),
-            finalListener::onFailure
-        );
 
-        // Step 6. Validate mappings can be merged
-        ActionListener<StartContext> toValidateMappingsListener = ActionListener.wrap(
-            startContext -> MappingsMerger.mergeMappings(
-                parentTaskClient,
-                startContext.config.getHeaders(),
-                startContext.config.getSource(),
-                ActionListener.wrap(mappings -> validateMappingsMergeListener.onResponse(startContext), finalListener::onFailure)
-            ),
-            finalListener::onFailure
-        );
+        SubscribableListener
 
-        // Step 5. Validate dest index is empty if task is starting for first time
-        ActionListener<StartContext> toValidateDestEmptyListener = ActionListener.wrap(startContext -> {
-            switch (startContext.startingState) {
-                case FIRST_TIME -> checkDestIndexIsEmptyIfExists(parentTaskClient, startContext, toValidateMappingsListener);
-                case RESUMING_REINDEXING, RESUMING_ANALYZING, RESUMING_INFERENCE -> toValidateMappingsListener.onResponse(startContext);
-                case FINISHED -> {
-                    logger.info("[{}] Job has already finished", startContext.config.getId());
-                    finalListener.onFailure(ExceptionsHelper.badRequestException("Cannot start because the job has already finished"));
-                }
-                default -> finalListener.onFailure(
-                    ExceptionsHelper.serverError("Unexpected starting state {}", startContext.startingState)
+            // Step 1. Get the config
+            .<DataFrameAnalyticsConfig>newForked(l -> configProvider.get(id, l))
+
+            // Step 2. Get stats to recover progress
+            .<StartContext>andThen((l, config) -> getProgress(config, l.map(progress -> new StartContext(config, progress))))
+
+            // Step 3. Validate source and dest
+            .<StartContext>andThen((l, startContext) -> {
+                // Validate the query parses
+                startContext.config.getSource().getParsedQuery();
+
+                // Validate source/dest are valid
+                sourceDestValidator.validate(
+                    clusterService.state(),
+                    startContext.config.getSource().getIndex(),
+                    startContext.config.getDest().getIndex(),
+                    null,
+                    SourceDestValidations.ALL_VALIDATIONS,
+                    l.map(ignored -> startContext)
                 );
-            }
-        }, finalListener::onFailure);
+            })
 
-        // Step 4. Check data extraction is possible
-        ActionListener<StartContext> toValidateExtractionPossibleListener = ActionListener.wrap(startContext -> {
-            new ExtractedFieldsDetectorFactory(parentTaskClient).createFromSource(
-                startContext.config,
-                ActionListener.wrap(extractedFieldsDetector -> {
-                    startContext.extractedFields = extractedFieldsDetector.detect().v1();
-                    toValidateDestEmptyListener.onResponse(startContext);
-                }, finalListener::onFailure)
-            );
-        }, finalListener::onFailure);
-
-        // Step 3. Validate source and dest
-        ActionListener<StartContext> startContextListener = ActionListener.wrap(startContext -> {
-            // Validate the query parses
-            startContext.config.getSource().getParsedQuery();
-
-            // Validate source/dest are valid
-            sourceDestValidator.validate(
-                clusterService.state(),
-                startContext.config.getSource().getIndex(),
-                startContext.config.getDest().getIndex(),
-                null,
-                SourceDestValidations.ALL_VALIDATIONS,
-                ActionListener.wrap(aBoolean -> toValidateExtractionPossibleListener.onResponse(startContext), finalListener::onFailure)
-            );
-        }, finalListener::onFailure);
-
-        // Step 2. Get stats to recover progress
-        ActionListener<DataFrameAnalyticsConfig> getConfigListener = ActionListener.wrap(
-            config -> getProgress(
-                config,
-                ActionListener.wrap(
-                    progress -> startContextListener.onResponse(new StartContext(config, progress)),
-                    finalListener::onFailure
+            // Step 4. Check data extraction is possible
+            .<StartContext>andThen(
+                (l, startContext) -> new ExtractedFieldsDetectorFactory(parentTaskClient).createFromSource(
+                    startContext.config,
+                    l.map(extractedFieldsDetector -> {
+                        startContext.extractedFields = extractedFieldsDetector.detect().v1();
+                        return startContext;
+                    })
                 )
-            ),
-            finalListener::onFailure
-        );
+            )
 
-        // Step 1. Get the config
-        configProvider.get(id, getConfigListener);
+            // Step 5. Validate dest index is empty if task is starting for first time
+            .<StartContext>andThen((l, startContext) -> {
+                switch (startContext.startingState) {
+                    case FIRST_TIME -> checkDestIndexIsEmptyIfExists(parentTaskClient, startContext, l);
+                    case RESUMING_REINDEXING, RESUMING_ANALYZING, RESUMING_INFERENCE -> l.onResponse(startContext);
+                    case FINISHED -> {
+                        logger.info("[{}] Job has already finished", startContext.config.getId());
+                        l.onFailure(ExceptionsHelper.badRequestException("Cannot start because the job has already finished"));
+                    }
+                    default -> l.onFailure(ExceptionsHelper.serverError("Unexpected starting state {}", startContext.startingState));
+                }
+            })
+
+            // Step 6. Validate mappings can be merged
+            .<StartContext>andThen(
+                (l, startContext) -> MappingsMerger.mergeMappings(
+                    parentTaskClient,
+                    startContext.config.getHeaders(),
+                    startContext.config.getSource(),
+                    l.map(ignored -> startContext)
+                )
+            )
+
+            // Step 7. Validate that there are analyzable data in the source index
+            .<StartContext>andThen((l, startContext) -> validateSourceIndexHasAnalyzableData(startContext, l))
+
+            // Step 8. Respond
+            .addListener(finalListener);
     }
 
     private void validateSourceIndexHasAnalyzableData(StartContext startContext, ActionListener<StartContext> listener) {
@@ -347,7 +342,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         validateSourceIndexHasAtLeastOneAnalyzedField(startContext, validateAtLeastOneAnalyzedFieldListener);
     }
 
-    private void validateSourceIndexHasAtLeastOneAnalyzedField(StartContext startContext, ActionListener<Void> listener) {
+    private static void validateSourceIndexHasAtLeastOneAnalyzedField(StartContext startContext, ActionListener<Void> listener) {
         Set<String> requiredFields = startContext.config.getAnalysis()
             .getRequiredFields()
             .stream()
@@ -422,7 +417,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         );
     }
 
-    private void checkDestIndexIsEmptyIfExists(
+    private static void checkDestIndexIsEmptyIfExists(
         ParentTaskAssigningClient parentTaskClient,
         StartContext startContext,
         ActionListener<StartContext> listener
@@ -435,7 +430,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             startContext.config.getHeaders(),
             ClientHelper.ML_ORIGIN,
             parentTaskClient,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             destEmptySearch,
             ActionListener.wrap(searchResponse -> {
                 if (searchResponse.getHits().getTotalHits().value > 0) {
@@ -608,6 +603,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
+            null,
             new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
@@ -795,7 +791,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.STARTED,
                 task.getAllocationId(),
-                null
+                null,
+                Instant.now()
             );
             task.updatePersistentTaskState(
                 startedState,
@@ -814,21 +811,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                     + id
                     + "] on node ["
                     + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics requires a node of version ["
+                    + "], because the data frame analytics requires a node with ML config version ["
                     + TaskParams.VERSION_INTRODUCED
-                    + "] or higher";
-            }
-            if (node.getVersion().before(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)
-                && params.getVersion().onOrAfter(MlConfigVersion.fromVersion(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED))) {
-                return "Not opening job ["
-                    + id
-                    + "] on node ["
-                    + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics created for version ["
-                    + params.getVersion()
-                    + "] requires a node of version "
-                    + "["
-                    + TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED
                     + "] or higher";
             }
 

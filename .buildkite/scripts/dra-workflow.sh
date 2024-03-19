@@ -13,8 +13,8 @@ fi
 echo --- Preparing
 
 # TODO move this to image
-sudo apt-get update -y
-sudo apt-get install -y libxml2-utils python3.10-venv
+sudo NEEDRESTART_MODE=l apt-get update -y
+sudo NEEDRESTART_MODE=l apt-get install -y libxml2-utils python3.10-venv
 
 RM_BRANCH="$BRANCH"
 if [[ "$BRANCH" == "main" ]]; then
@@ -70,8 +70,6 @@ find "$WORKSPACE" -type f -path "*/build/distributions/*" -exec chmod a+r {} \;
 find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
 echo --- Running release-manager
-
-exit 0
 
 # Artifacts should be generated
 docker run --rm \

@@ -15,9 +15,11 @@ import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasable;
 
@@ -32,7 +34,15 @@ import java.util.List;
  */
 public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash,//
-    PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash {
+    NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash {
+
+    protected final BigArrays bigArrays;
+    protected final BlockFactory blockFactory;
+
+    BlockHash(DriverContext driverContext) {
+        bigArrays = driverContext.bigArrays();
+        blockFactory = driverContext.blockFactory();
+    }
 
     /**
      * Add all values for the "group by" columns in the page to the hash and
@@ -62,37 +72,47 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
      * @param emitBatchSize maximum batch size to be emitted when handling combinatorial
      *                      explosion of groups caused by multivalued fields
+     * @param allowBrokenOptimizations true ot allow optimizations with bad null handling. We will fix their
+     *                                 null handling and remove this flag, but we need to disable these in
+     *                                 production until we can. And this lets us continue to compile and
+     *                                 test them.
      */
-    public static BlockHash build(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
+    public static BlockHash build(
+        List<HashAggregationOperator.GroupSpec> groups,
+        DriverContext driverContext,
+        int emitBatchSize,
+        boolean allowBrokenOptimizations
+    ) {
         if (groups.size() == 1) {
-            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), bigArrays);
+            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), driverContext);
         }
-        if (groups.size() == 2) {
+        if (allowBrokenOptimizations && groups.size() == 2) {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
-                return new LongLongBlockHash(bigArrays, g1.channel(), g2.channel(), emitBatchSize);
+                return new LongLongBlockHash(driverContext, g1.channel(), g2.channel(), emitBatchSize);
             }
             if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new BytesRefLongBlockHash(bigArrays, g1.channel(), g2.channel(), false, emitBatchSize);
+                return new BytesRefLongBlockHash(driverContext, g1.channel(), g2.channel(), false, emitBatchSize);
             }
             if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new BytesRefLongBlockHash(bigArrays, g2.channel(), g1.channel(), true, emitBatchSize);
+                return new BytesRefLongBlockHash(driverContext, g2.channel(), g1.channel(), true, emitBatchSize);
             }
         }
-        return new PackedValuesBlockHash(groups, bigArrays, emitBatchSize);
+        return new PackedValuesBlockHash(groups, driverContext, emitBatchSize);
     }
 
     /**
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
-    private static BlockHash newForElementType(int channel, ElementType type, BigArrays bigArrays) {
+    private static BlockHash newForElementType(int channel, ElementType type, DriverContext driverContext) {
         return switch (type) {
-            case BOOLEAN -> new BooleanBlockHash(channel);
-            case INT -> new IntBlockHash(channel, bigArrays);
-            case LONG -> new LongBlockHash(channel, bigArrays);
-            case DOUBLE -> new DoubleBlockHash(channel, bigArrays);
-            case BYTES_REF -> new BytesRefBlockHash(channel, bigArrays);
+            case NULL -> new NullBlockHash(channel, driverContext);
+            case BOOLEAN -> new BooleanBlockHash(channel, driverContext);
+            case INT -> new IntBlockHash(channel, driverContext);
+            case LONG -> new LongBlockHash(channel, driverContext);
+            case DOUBLE -> new DoubleBlockHash(channel, driverContext);
+            case BYTES_REF -> new BytesRefBlockHash(channel, driverContext);
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
     }

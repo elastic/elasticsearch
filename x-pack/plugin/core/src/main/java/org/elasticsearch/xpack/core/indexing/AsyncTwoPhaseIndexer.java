@@ -45,6 +45,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     // min time to trigger delayed execution, this avoids scheduling tasks with super short amount of time
     private static final TimeValue MIN_THROTTLE_WAIT_TIME = TimeValue.timeValueMillis(10);
 
+    @SuppressWarnings("this-escape")
     private final ActionListener<SearchResponse> searchResponseListener = ActionListener.wrap(
         this::onSearchResponse,
         this::finishWithSearchFailure

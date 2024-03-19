@@ -69,13 +69,11 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -177,8 +175,7 @@ public class MasterServiceTests extends ESTestCase {
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
-                .execute(() -> publishListener.onResponse(null));
+            randomExecutor(threadPool).execute(() -> publishListener.onResponse(null));
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
@@ -230,12 +227,6 @@ public class MasterServiceTests extends ESTestCase {
             public void onTaskRegistered(Task task) {
                 registeredActions.add(task.getAction());
             }
-
-            @Override
-            public void onTaskUnregistered(Task task) {}
-
-            @Override
-            public void waitForTaskCompletion(Task task) {}
         });
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -595,12 +586,8 @@ public class MasterServiceTests extends ESTestCase {
                 final var task = new ExpectSuccessTask();
                 executor.executor().addExpectedTaskCount(1);
                 submitThreads[i] = new Thread(() -> {
-                    try {
-                        assertTrue(submissionLatch.await(10, TimeUnit.SECONDS));
-                        executor.queue().submitTask(Thread.currentThread().getName(), task, null);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(submissionLatch);
+                    executor.queue().submitTask(Thread.currentThread().getName(), task, null);
                 }, "submit-thread-" + i);
             }
 
@@ -1680,33 +1667,21 @@ public class MasterServiceTests extends ESTestCase {
         MockLogAppender mockAppender = new MockLogAppender();
         try (MasterService masterService = createMasterService(true); var ignored = mockAppender.capturing(MasterService.class)) {
             final AtomicBoolean keepRunning = new AtomicBoolean(true);
-
-            final Runnable await = new Runnable() {
-                private final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
-
-                @Override
-                public void run() {
-                    try {
-                        cyclicBarrier.await(10, TimeUnit.SECONDS);
-                    } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                        throw new AssertionError("unexpected", e);
-                    }
-                }
-            };
+            final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
             final Runnable awaitNextTask = () -> {
-                await.run();
-                await.run();
+                safeAwait(cyclicBarrier);
+                safeAwait(cyclicBarrier);
             };
 
             final ClusterStateUpdateTask starvationCausingTask = new ClusterStateUpdateTask(Priority.HIGH) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    await.run();
+                    safeAwait(cyclicBarrier);
                     relativeTimeInMillis += taskDurationMillis;
                     if (keepRunning.get()) {
                         masterService.submitUnbatchedStateUpdateTask("starvation-causing task", this);
                     }
-                    await.run();
+                    safeAwait(cyclicBarrier);
                     return currentState;
                 }
 
@@ -2145,6 +2120,59 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
+    public void testTimeoutRejectionBehaviourAtSubmission() {
+
+        final var source = randomIdentifier();
+        final var taskDescription = randomIdentifier();
+        final var timeout = TimeValue.timeValueMillis(between(1, 100000));
+
+        final var actionCount = new AtomicInteger();
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool =
+            // a threadpool which simulates the rejection of a master service timeout handler, but runs all other tasks as normal
+            deterministicTaskQueue.getThreadPool(r -> {
+                if (r.toString().equals(MasterService.getTimeoutTaskDescription(source, taskDescription, timeout))) {
+                    // assertTrue because this should happen exactly once
+                    assertTrue(actionCount.compareAndSet(0, 1));
+                    throw new EsRejectedExecutionException("simulated rejection", true);
+                } else {
+                    return r;
+                }
+            });
+
+        try (var masterService = createMasterService(true, null, threadPool, new StoppableExecutorServiceWrapper(threadPool.generic()))) {
+            masterService.createTaskQueue(
+                "queue",
+                randomFrom(Priority.values()),
+                batchExecutionContext -> fail(null, "should not execute batch")
+            ).submitTask(source, new ClusterStateTaskListener() {
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof FailedToCommitClusterStateException
+                        && e.getMessage().startsWith("could not schedule timeout handler")
+                        && e.getCause() instanceof EsRejectedExecutionException esre
+                        && esre.isExecutorShutdown()
+                        && esre.getMessage().equals("simulated rejection")) {
+                        // assertTrue because we must receive the exception we synthesized, exactly once, after triggering the rejection
+                        assertTrue(actionCount.compareAndSet(1, 2));
+                    } else {
+                        // fail the test if we get anything else
+                        throw new AssertionError("unexpected exception", e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return taskDescription;
+                }
+            }, timeout);
+
+            assertFalse(deterministicTaskQueue.hasRunnableTasks());
+            assertFalse(deterministicTaskQueue.hasDeferredTasks());
+            assertEquals(2, actionCount.get()); // ensures this test doesn't accidentally become trivial: both expected actions happened
+        }
+    }
+
     @TestLogging(reason = "verifying DEBUG logs", value = "org.elasticsearch.cluster.service.MasterService:DEBUG")
     public void testRejectionBehaviourAtCompletion() {
 
@@ -2320,7 +2348,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             }
 
@@ -2415,7 +2443,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             }
 
@@ -2492,7 +2520,7 @@ public class MasterServiceTests extends ESTestCase {
 
                     @Override
                     public void onFailure(Exception e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 });
             }

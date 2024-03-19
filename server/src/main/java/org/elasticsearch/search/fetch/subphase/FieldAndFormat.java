@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -133,20 +132,14 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     public FieldAndFormat(StreamInput in) throws IOException {
         this.field = in.readString();
         format = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            this.includeUnmapped = in.readOptionalBoolean();
-        } else {
-            this.includeUnmapped = null;
-        }
+        this.includeUnmapped = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeOptionalString(format);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            out.writeOptionalBoolean(this.includeUnmapped);
-        }
+        out.writeOptionalBoolean(this.includeUnmapped);
     }
 
     @Override

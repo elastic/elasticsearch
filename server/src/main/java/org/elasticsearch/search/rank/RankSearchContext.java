@@ -59,11 +59,13 @@ public class RankSearchContext extends SearchContext {
     private final int windowSize;
     private final QuerySearchResult querySearchResult;
 
+    @SuppressWarnings("this-escape")
     public RankSearchContext(SearchContext parent, Query rankQuery, int windowSize) {
         this.parent = parent;
         this.rankQuery = parent.buildFilteredQuery(rankQuery);
         this.windowSize = windowSize;
         this.querySearchResult = new QuerySearchResult(parent.readerContext().id(), parent.shardTarget(), parent.request());
+        this.addReleasable(querySearchResult::decRef);
     }
 
     @Override
@@ -321,11 +323,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         throw new UnsupportedOperationException();
     }
@@ -482,16 +479,6 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public int[] docIdsToLoad() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
         throw new UnsupportedOperationException();
     }
 

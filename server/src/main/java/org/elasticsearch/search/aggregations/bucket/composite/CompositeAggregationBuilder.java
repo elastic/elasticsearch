@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -97,11 +98,6 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return true;
     }
 
-    @Override
-    public boolean supportsParallelCollection() {
-        return false;
-    }
-
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         int num = in.readVInt();
@@ -112,7 +108,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         }
         this.size = in.readVInt();
         if (in.readBoolean()) {
-            this.after = in.readMap();
+            this.after = in.readGenericMap();
         }
     }
 
@@ -251,20 +247,24 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 Object obj = after.get(sourceName);
                 if (configs[i].missingBucket() && obj == null) {
                     values[i] = null;
-                } else if (obj instanceof Comparable<?> c) {
-                    values[i] = c;
-                } else if (obj instanceof Map<?, ?> && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
-                    // If input is a _tsid map, encode the map to the _tsid BytesRef
-                    values[i] = configs[i].format().parseBytesRef(obj);
-                } else {
-                    throw new IllegalArgumentException(
-                        "Invalid value for [after."
-                            + sources.get(i).name()
-                            + "], expected comparable, got ["
-                            + (obj == null ? "null" : obj.getClass().getSimpleName())
-                            + "]"
-                    );
-                }
+                } else if (obj instanceof String s
+                    && configs[i].fieldType() != null
+                    && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
+                        values[i] = configs[i].format().parseBytesRef(s);
+                    } else if (obj instanceof Comparable<?> c) {
+                        values[i] = c;
+                    } else if (obj instanceof Map<?, ?> && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
+                        // If input is a _tsid map, encode the map to the _tsid BytesRef
+                        values[i] = configs[i].format().parseBytesRef(obj);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Invalid value for [after."
+                                + sources.get(i).name()
+                                + "], expected comparable, got ["
+                                + (obj == null ? "null" : obj.getClass().getSimpleName())
+                                + "]"
+                        );
+                    }
             }
             afterKey = new CompositeKey(values);
         } else {
@@ -306,5 +306,15 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        for (CompositeValuesSourceBuilder<?> source : sources) {
+            if (source.supportsParallelCollection(fieldCardinalityResolver) == false) {
+                return false;
+            }
+        }
+        return super.supportsParallelCollection(fieldCardinalityResolver);
     }
 }

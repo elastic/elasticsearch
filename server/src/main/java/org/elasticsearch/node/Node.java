@@ -10,217 +10,78 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
-import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
-import org.elasticsearch.action.ingest.ReservedPipelineAction;
-import org.elasticsearch.action.search.SearchExecutionStatsCollector;
-import org.elasticsearch.action.search.SearchPhaseController;
-import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.ClusterInfoService;
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.MasterHistoryService;
-import org.elasticsearch.cluster.coordination.Reconfigurator;
-import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
-import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
-import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.BatchedRerouteService;
-import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
-import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
-import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayMetaState;
-import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthPeriodicLogger;
-import org.elasticsearch.health.HealthService;
-import org.elasticsearch.health.metadata.HealthMetadataService;
-import org.elasticsearch.health.node.DiskHealthIndicatorService;
-import org.elasticsearch.health.node.HealthInfoCache;
-import org.elasticsearch.health.node.LocalHealthMonitor;
-import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
-import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
-import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.index.IndexSettingProvider;
-import org.elasticsearch.index.IndexSettingProviders;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.indices.ExecutorSelector;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.ShardLimitValidator;
-import org.elasticsearch.indices.SystemIndexMappingUpdateService;
-import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.breaker.BreakerSettings;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
-import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
-import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
-import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
-import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
-import org.elasticsearch.node.internal.TerminationHandlerProvider;
-import org.elasticsearch.persistent.PersistentTasksClusterService;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
-import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.HealthPlugin;
-import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
-import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.RecoveryPlannerPlugin;
-import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.plugins.ShutdownAwarePlugin;
-import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.plugins.TracerPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
-import org.elasticsearch.plugins.internal.DocumentParsingObserverPlugin;
-import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
-import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
-import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
-import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchUtils;
-import org.elasticsearch.search.aggregations.support.AggregationUsageService;
-import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.shutdown.PluginShutdownService;
-import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
-import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
-import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
-import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
-import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.upgrades.SystemIndexMigrationExecutor;
-import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -235,31 +96,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.net.ssl.SNIHostName;
 
-import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.common.util.CollectionUtils.concatLists;
-import static org.elasticsearch.core.Types.forciblyCast;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -304,7 +153,11 @@ public class Node implements Closeable {
         Property.NodeScope
     );
 
-    private static final String CLIENT_TYPE = "node";
+    public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "node.maximum_shutdown_grace_period",
+        TimeValue.timeValueMillis(0),
+        Setting.Property.NodeScope
+    );
 
     private final Lifecycle lifecycle = new Lifecycle();
 
@@ -317,7 +170,6 @@ public class Node implements Closeable {
      * initialized.
      */
     private final Logger logger = LogManager.getLogger(Node.class);
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Node.class);
     private final Injector injector;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
@@ -326,7 +178,7 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
-    private final SetOnce<TerminationHandler> terminationHandler = new SetOnce<>();
+    private final TerminationHandler terminationHandler;
     // for testing
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
@@ -337,891 +189,24 @@ public class Node implements Closeable {
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
     public Node(Environment environment) {
-        this(environment, PluginsService.getPluginsServiceCtor(environment), true);
+        this(NodeConstruction.prepareConstruction(environment, new NodeServiceProvider(), true));
     }
 
     /**
-     * Constructs a node
-     *
-     * @param initialEnvironment         the initial environment for this node, which will be added to by plugins
-     * @param pluginServiceCtor          a function that takes a {@link Settings} object and returns a {@link PluginsService}
-     * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
-     *                                   test framework for tests that rely on being able to set private settings
+     * Constructs a node using information from {@code construction}
      */
-    protected Node(
-        final Environment initialEnvironment,
-        final Function<Settings, PluginsService> pluginServiceCtor,
-        boolean forbidPrivateIndexSettings
-    ) {
-        final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
-        boolean success = false;
-        try {
-            // Pass the node settings to the DeprecationLogger class so that it can have the deprecation.skip_deprecated_settings setting:
-            DeprecationLogger.initialize(initialEnvironment.settings());
-            Settings tmpSettings = Settings.builder()
-                .put(initialEnvironment.settings())
-                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE)
-                .build();
-
-            final JvmInfo jvmInfo = JvmInfo.jvmInfo();
-            logger.info(
-                "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Build.current().qualifiedVersion(),
-                jvmInfo.pid(),
-                Build.current().type().displayName(),
-                Build.current().hash(),
-                Build.current().date(),
-                Constants.OS_NAME,
-                Constants.OS_VERSION,
-                Constants.OS_ARCH,
-                Constants.JVM_VENDOR,
-                Constants.JVM_NAME,
-                Constants.JAVA_VERSION,
-                Constants.JVM_VERSION
-            );
-            logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
-            logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-            if (Build.current().isProductionRelease() == false) {
-                logger.warn(
-                    "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                    Build.current().qualifiedVersion()
-                );
-            }
-            if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
-                // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
-                // cause ES to fail to start since logging is not yet initialized on first read of the setting
-                deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
-                    "shared-data-path",
-                    "setting [path.shared_data] is deprecated and will be removed in a future release"
-                );
-            }
-
-            if (initialEnvironment.dataFiles().length > 1) {
-                // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
-                deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
-                    "multiple-data-paths",
-                    "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing "
-                        + "multiple disks. This feature will be removed in a future release."
-                );
-            }
-            if (Environment.dataPathUsesList(tmpSettings)) {
-                // already checked for multiple values above, so if this is a list it is a single valued list
-                deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
-                    "multiple-data-paths-list",
-                    "Configuring [path.data] with a list is deprecated. Instead specify as a string value."
-                );
-            }
-
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "using config [{}], data [{}], logs [{}], plugins [{}]",
-                    initialEnvironment.configFile(),
-                    Arrays.toString(initialEnvironment.dataFiles()),
-                    initialEnvironment.logsFile(),
-                    initialEnvironment.pluginsFile()
-                );
-            }
-
-            deleteTemporaryApmConfig(
-                jvmInfo,
-                (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
-            );
-
-            this.pluginsService = pluginServiceCtor.apply(tmpSettings);
-            final Settings settings = mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
-
-            /*
-             * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
-             * values, no matter they ask for them from.
-             */
-            this.environment = new Environment(settings, initialEnvironment.configFile());
-            Environment.assertEquivalent(initialEnvironment, this.environment);
-
-            final List<ExecutorBuilder<?>> executorBuilders = pluginsService.flatMap(p -> p.getExecutorBuilders(settings)).toList();
-
-            final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder<?>[0]));
-            resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-            final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
-            resourcesToClose.add(resourceWatcherService);
-            // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
-            HeaderWarning.setThreadContext(threadPool.getThreadContext());
-            resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
-
-            final Set<String> taskHeaders = Stream.concat(
-                pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
-                Task.HEADERS_TO_COPY.stream()
-            ).collect(Collectors.toSet());
-
-            final Tracer tracer = getTracer(pluginsService, settings);
-
-            final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
-
-            // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
-            final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.flatMap(Plugin::getSettings).toList());
-            for (final ExecutorBuilder<?> builder : threadPool.builders()) {
-                additionalSettings.addAll(builder.getRegisteredSettings());
-            }
-            SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
-            client = new NodeClient(settings, threadPool);
-
-            final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
-            final ScriptService scriptService = newScriptService(
-                settings,
-                scriptModule.engines,
-                scriptModule.contexts,
-                threadPool::absoluteTimeInMillis
-            );
-            AnalysisModule analysisModule = new AnalysisModule(
-                this.environment,
-                pluginsService.filterPlugins(AnalysisPlugin.class),
-                pluginsService.getStablePluginRegistry()
-            );
-            // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
-            // so we might be late here already
-
-            final SettingsModule settingsModule = new SettingsModule(
-                settings,
-                additionalSettings,
-                pluginsService.flatMap(Plugin::getSettingsFilter).toList()
-            );
-
-            // creating `NodeEnvironment` breaks the ability to rollback to 7.x on an 8.0 upgrade (`upgradeLegacyNodeFolders`) so do this
-            // after settings validation.
-            nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
-            logger.info(
-                "node name [{}], node ID [{}], cluster name [{}], roles {}",
-                NODE_NAME_SETTING.get(tmpSettings),
-                nodeEnvironment.nodeId(),
-                ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
-                DiscoveryNode.getRolesFromSettings(settings)
-                    .stream()
-                    .map(DiscoveryNodeRole::roleName)
-                    .collect(Collectors.toCollection(LinkedHashSet::new))
-            );
-            resourcesToClose.add(nodeEnvironment);
-            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
-
-            ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
-            final NetworkService networkService = new NetworkService(
-                getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class))
-            );
-
-            List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
-            final ClusterService clusterService = new ClusterService(
-                settings,
-                settingsModule.getClusterSettings(),
-                threadPool,
-                taskManager
-            );
-            clusterService.addStateApplier(scriptService);
-            resourcesToClose.add(clusterService);
-
-            final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
-            if (consistentSettings.isEmpty() == false) {
-                clusterService.addLocalNodeMasterListener(
-                    new ConsistentSettingsService(settings, clusterService, consistentSettings).newHashPublisher()
-                );
-            }
-
-            Supplier<DocumentParsingObserver> documentParsingObserverSupplier = getDocumentParsingObserverSupplier();
-
-            final IngestService ingestService = new IngestService(
-                clusterService,
-                threadPool,
-                this.environment,
-                scriptService,
-                analysisModule.getAnalysisRegistry(),
-                pluginsService.filterPlugins(IngestPlugin.class),
-                client,
-                IngestService.createGrokThreadWatchdog(this.environment, threadPool),
-                documentParsingObserverSupplier
-            );
-            final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
-            final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
-            final UsageService usageService = new UsageService();
-
-            SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
-            IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
-            List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
-                NetworkModule.getNamedWriteables().stream(),
-                IndicesModule.getNamedWriteables().stream(),
-                searchModule.getNamedWriteables().stream(),
-                pluginsService.flatMap(Plugin::getNamedWriteables),
-                ClusterModule.getNamedWriteables().stream(),
-                SystemIndexMigrationExecutor.getNamedWriteables().stream()
-            ).flatMap(Function.identity()).toList();
-            final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
-            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
-                Stream.of(
-                    NetworkModule.getNamedXContents().stream(),
-                    IndicesModule.getNamedXContents().stream(),
-                    searchModule.getNamedXContents().stream(),
-                    pluginsService.flatMap(Plugin::getNamedXContent),
-                    ClusterModule.getNamedXWriteables().stream(),
-                    SystemIndexMigrationExecutor.getNamedXContentParsers().stream(),
-                    HealthNodeTaskExecutor.getNamedXContentParsers().stream()
-                ).flatMap(Function.identity()).collect(toList())
-            );
-            final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class).stream().map(plugin -> {
-                SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName());
-                return SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings);
-            }).toList();
-            final SystemIndices systemIndices = new SystemIndices(features);
-            final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();
-
-            ModulesBuilder modules = new ModulesBuilder();
-            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
-            final FsHealthService fsHealthService = new FsHealthService(
-                settings,
-                clusterService.getClusterSettings(),
-                threadPool,
-                nodeEnvironment
-            );
-            final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
-            final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
-                settings,
-                clusterService,
-                repositoriesServiceReference::get,
-                rerouteServiceReference::get
-            );
-            final WriteLoadForecaster writeLoadForecaster = getWriteLoadForecaster(
-                threadPool,
-                settings,
-                clusterService.getClusterSettings()
-            );
-            final ClusterModule clusterModule = new ClusterModule(
-                settings,
-                clusterService,
-                clusterPlugins,
-                clusterInfoService,
-                snapshotsInfoService,
-                threadPool,
-                systemIndices,
-                writeLoadForecaster
-            );
-            modules.add(clusterModule);
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
-            modules.add(indicesModule);
-
-            List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
-                .stream()
-                .map(plugin -> plugin.getCircuitBreaker(settings))
-                .toList();
-            final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
-                settingsModule.getSettings(),
-                pluginCircuitBreakers,
-                settingsModule.getClusterSettings()
-            );
-            pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
-                CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
-                plugin.setCircuitBreaker(breaker);
-            });
-            resourcesToClose.add(circuitBreakerService);
-            modules.add(new GatewayModule());
-
-            CompatibilityVersions compatibilityVersions = new CompatibilityVersions(TransportVersion.current());
-            PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
-            BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
-            modules.add(settingsModule);
-            final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(
-                xContentRegistry,
-                clusterService.getClusterSettings(),
-                threadPool,
-                compatibilityVersions
-            );
-
-            // collect engine factory providers from plugins
-            final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
-            final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = enginePlugins.stream()
-                .map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>) plugin::getEngineFactory)
-                .toList();
-
-            final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
-                .stream()
-                .map(IndexStorePlugin::getDirectoryFactories)
-                .flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-            final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
-                IndexStorePlugin.class
-            )
-                .stream()
-                .map(IndexStorePlugin::getRecoveryStateFactories)
-                .flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-            final List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners = pluginsService.filterPlugins(
-                IndexStorePlugin.class
-            ).stream().map(IndexStorePlugin::getIndexFoldersDeletionListeners).flatMap(List::stream).toList();
-
-            final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers = pluginsService.filterPlugins(
-                IndexStorePlugin.class
-            )
-                .stream()
-                .map(IndexStorePlugin::getSnapshotCommitSuppliers)
-                .flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-            if (DiscoveryNode.isMasterNode(settings)) {
-                clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
-                clusterService.addListener(new TransportVersionsFixupListener(clusterService, client.admin().cluster(), threadPool));
-            }
-
-            final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
-            rerouteServiceReference.set(rerouteService);
-            clusterService.setRerouteService(rerouteService);
-
-            final IndicesService indicesService = new IndicesService(
-                settings,
-                pluginsService,
-                nodeEnvironment,
-                xContentRegistry,
-                analysisModule.getAnalysisRegistry(),
-                clusterModule.getIndexNameExpressionResolver(),
-                indicesModule.getMapperRegistry(),
-                namedWriteableRegistry,
-                threadPool,
-                settingsModule.getIndexScopedSettings(),
-                circuitBreakerService,
-                bigArrays,
-                scriptService,
-                clusterService,
-                client,
-                metaStateService,
-                engineFactoryProviders,
-                indexStoreFactories,
-                searchModule.getValuesSourceRegistry(),
-                recoveryStateFactories,
-                indexFoldersDeletionListeners,
-                snapshotCommitSuppliers,
-                searchModule.getRequestCacheKeyDifferentiator(),
-                documentParsingObserverSupplier
-            );
-
-            final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
-            IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
-                pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
-            );
-
-            final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
-            final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
-                settings,
-                clusterService,
-                indicesService,
-                clusterModule.getAllocationService(),
-                shardLimitValidator,
-                environment,
-                settingsModule.getIndexScopedSettings(),
-                threadPool,
-                xContentRegistry,
-                systemIndices,
-                forbidPrivateIndexSettings,
-                indexSettingProviders
-            );
-
-            final MetadataCreateDataStreamService metadataCreateDataStreamService = new MetadataCreateDataStreamService(
-                threadPool,
-                clusterService,
-                metadataCreateIndexService
-            );
-            final MetadataDataStreamsService metadataDataStreamsService = new MetadataDataStreamsService(clusterService, indicesService);
-
-            final MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
-                clusterService,
-                clusterModule.getAllocationService(),
-                settingsModule.getIndexScopedSettings(),
-                indicesService,
-                shardLimitValidator,
-                threadPool
-            );
-
-            Collection<Object> pluginComponents = pluginsService.flatMap(
-                p -> p.createComponents(
-                    client,
-                    clusterService,
-                    threadPool,
-                    resourceWatcherService,
-                    scriptService,
-                    xContentRegistry,
-                    environment,
-                    nodeEnvironment,
-                    namedWriteableRegistry,
-                    clusterModule.getIndexNameExpressionResolver(),
-                    repositoriesServiceReference::get,
-                    tracer,
-                    clusterModule.getAllocationService(),
-                    indicesService
-                )
-            ).toList();
-
-            List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
-
-            // add all reserved state handlers from server
-            reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
-
-            var templateService = new MetadataIndexTemplateService(
-                clusterService,
-                metadataCreateIndexService,
-                indicesService,
-                settingsModule.getIndexScopedSettings(),
-                xContentRegistry,
-                systemIndices,
-                indexSettingProviders
-            );
-
-            reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
-
-            // add all reserved state handlers from plugins
-            List<? extends ReservedClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(
-                ReservedClusterStateHandlerProvider.class
-            );
-            pluginHandlers.forEach(h -> reservedStateHandlers.addAll(h.handlers()));
-
-            List<TerminationHandler> terminationHandlers = pluginsService.loadServiceProviders(TerminationHandlerProvider.class)
-                .stream()
-                .map(prov -> prov.handler())
-                .toList();
-            if (terminationHandlers.size() == 1) {
-                this.terminationHandler.set(terminationHandlers.get(0));
-            } else if (terminationHandlers.size() > 1) {
-                throw new IllegalStateException(
-                    Strings.format(
-                        "expected at most one termination handler, but found %s: [%s]",
-                        terminationHandlers.size(),
-                        terminationHandlers.stream().map(it -> it.getClass().getCanonicalName())
-                    )
-                );
-            }
-
-            ActionModule actionModule = new ActionModule(
-                settings,
-                clusterModule.getIndexNameExpressionResolver(),
-                settingsModule.getIndexScopedSettings(),
-                settingsModule.getClusterSettings(),
-                settingsModule.getSettingsFilter(),
-                threadPool,
-                pluginsService.filterPlugins(ActionPlugin.class),
-                client,
-                circuitBreakerService,
-                usageService,
-                systemIndices,
-                tracer,
-                clusterService,
-                reservedStateHandlers
-            );
-            modules.add(actionModule);
-
-            final RestController restController = actionModule.getRestController();
-            final NetworkModule networkModule = new NetworkModule(
-                settings,
-                pluginsService.filterPlugins(NetworkPlugin.class),
-                threadPool,
-                bigArrays,
-                pageCacheRecycler,
-                circuitBreakerService,
-                namedWriteableRegistry,
-                xContentRegistry,
-                networkService,
-                restController,
-                actionModule::copyRequestHeadersToThreadContext,
-                clusterService.getClusterSettings(),
-                tracer
-            );
-            Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.map(
-                Plugin::getIndexTemplateMetadataUpgrader
-            ).toList();
-            final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
-            final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
-                settings,
-                clusterService,
-                xContentRegistry,
-                indicesModule.getMapperRegistry(),
-                settingsModule.getIndexScopedSettings(),
-                scriptService
-            );
-            if (DiscoveryNode.isMasterNode(settings)) {
-                clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
-            }
-            new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
-            final Transport transport = networkModule.getTransportSupplier().get();
-            final TransportService transportService = newTransportService(
-                settings,
-                transport,
-                threadPool,
-                networkModule.getTransportInterceptor(),
-                localNodeFactory,
-                settingsModule.getClusterSettings(),
-                taskManager,
-                tracer
-            );
-            final GatewayMetaState gatewayMetaState = new GatewayMetaState();
-            final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-            final SearchTransportService searchTransportService = new SearchTransportService(
-                transportService,
-                client,
-                SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
-            );
-            final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
-            final IndexingPressure indexingLimits = new IndexingPressure(settings);
-
-            final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
-            RepositoriesModule repositoriesModule = new RepositoriesModule(
-                this.environment,
-                pluginsService.filterPlugins(RepositoryPlugin.class),
-                transportService,
-                clusterService,
-                bigArrays,
-                xContentRegistry,
-                recoverySettings
-            );
-            RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
-            repositoriesServiceReference.set(repositoryService);
-            SnapshotsService snapshotsService = new SnapshotsService(
-                settings,
-                clusterService,
-                clusterModule.getIndexNameExpressionResolver(),
-                repositoryService,
-                transportService,
-                actionModule.getActionFilters(),
-                systemIndices
-            );
-            SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
-                settings,
-                clusterService,
-                repositoryService,
-                transportService,
-                indicesService
-            );
-
-            actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoryService));
-            actionModule.getReservedClusterStateService().installStateHandler(new ReservedPipelineAction());
-
-            FileSettingsService fileSettingsService = new FileSettingsService(
-                clusterService,
-                actionModule.getReservedClusterStateService(),
-                environment
-            );
-
-            RestoreService restoreService = new RestoreService(
-                clusterService,
-                repositoryService,
-                clusterModule.getAllocationService(),
-                metadataCreateIndexService,
-                clusterModule.getMetadataDeleteIndexService(),
-                indexMetadataVerifier,
-                shardLimitValidator,
-                systemIndices,
-                indicesService,
-                fileSettingsService,
-                threadPool
-            );
-            final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
-                settings,
-                clusterService::state,
-                clusterService.getClusterSettings(),
-                client,
-                threadPool::relativeTimeInMillis,
-                rerouteService
-            );
-            clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
-
-            final DiscoveryModule discoveryModule = new DiscoveryModule(
-                settings,
-                transportService,
-                client,
-                namedWriteableRegistry,
-                networkService,
-                clusterService.getMasterService(),
-                clusterService.getClusterApplierService(),
-                clusterService.getClusterSettings(),
-                pluginsService.filterPlugins(DiscoveryPlugin.class),
-                pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
-                clusterModule.getAllocationService(),
-                environment.configFile(),
-                gatewayMetaState,
-                rerouteService,
-                fsHealthService,
-                circuitBreakerService,
-                compatibilityVersions
-            );
-            this.nodeService = new NodeService(
-                settings,
-                threadPool,
-                monitorService,
-                discoveryModule.getCoordinator(),
-                transportService,
-                indicesService,
-                pluginsService,
-                circuitBreakerService,
-                scriptService,
-                httpServerTransport,
-                ingestService,
-                clusterService,
-                settingsModule.getSettingsFilter(),
-                responseCollectorService,
-                searchTransportService,
-                indexingLimits,
-                searchModule.getValuesSourceRegistry().getUsageService(),
-                repositoryService
-            );
-
-            final SearchService searchService = newSearchService(
-                clusterService,
-                indicesService,
-                threadPool,
-                scriptService,
-                bigArrays,
-                searchModule.getFetchPhase(),
-                responseCollectorService,
-                circuitBreakerService,
-                executorSelector,
-                tracer
-            );
-
-            final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-            final SystemIndexMigrationExecutor systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
-                client,
-                clusterService,
-                systemIndices,
-                metadataUpdateSettingsService,
-                metadataCreateIndexService,
-                settingsModule.getIndexScopedSettings()
-            );
-            final HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
-                clusterService,
-                persistentTasksService,
-                settings,
-                clusterService.getClusterSettings()
-            );
-            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = List.of(systemIndexMigrationExecutor, healthNodeTaskExecutor);
-            final List<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
-                .stream()
-                .map(
-                    p -> p.getPersistentTasksExecutor(
-                        clusterService,
-                        threadPool,
-                        client,
-                        settingsModule,
-                        clusterModule.getIndexNameExpressionResolver()
-                    )
-                )
-                .flatMap(List::stream)
-                .collect(toList());
-            final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(
-                concatLists(pluginTaskExecutors, builtinTaskExecutors)
-            );
-            final PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(
-                settings,
-                registry,
-                clusterService,
-                threadPool
-            );
-            resourcesToClose.add(persistentTasksClusterService);
-
-            final List<ShutdownAwarePlugin> shutdownAwarePlugins = pluginsService.filterPlugins(ShutdownAwarePlugin.class);
-            final PluginShutdownService pluginShutdownService = new PluginShutdownService(shutdownAwarePlugins);
-            clusterService.addListener(pluginShutdownService);
-
-            final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
-            final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
-                clusterService.getClusterSettings()
-            );
-
-            final MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-            final CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
-                clusterService,
-                transportService,
-                discoveryModule.getCoordinator(),
-                masterHistoryService
-            );
-            final HealthService healthService = createHealthService(
-                clusterService,
-                clusterModule,
-                coordinationDiagnosticsService,
-                threadPool,
-                systemIndices
-            );
-            HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
-            healthPeriodicLogger.init();
-            HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
-            LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
-            HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
-            HealthApiStats healthApiStats = new HealthApiStats();
-
-            List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
-            pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
-
-            modules.add(b -> {
-                b.bind(Node.class).toInstance(this);
-                b.bind(NodeService.class).toInstance(nodeService);
-                b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
-                b.bind(PluginsService.class).toInstance(pluginsService);
-                b.bind(Client.class).toInstance(client);
-                b.bind(NodeClient.class).toInstance(client);
-                b.bind(Environment.class).toInstance(this.environment);
-                b.bind(ThreadPool.class).toInstance(threadPool);
-                b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
-                b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);
-                b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
-                b.bind(BigArrays.class).toInstance(bigArrays);
-                b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
-                b.bind(ScriptService.class).toInstance(scriptService);
-                b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
-                b.bind(IngestService.class).toInstance(ingestService);
-                b.bind(IndexingPressure.class).toInstance(indexingLimits);
-                b.bind(UsageService.class).toInstance(usageService);
-                b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
-                b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                b.bind(MetadataUpgrader.class).toInstance(metadataUpgrader);
-                b.bind(MetaStateService.class).toInstance(metaStateService);
-                b.bind(PersistedClusterStateService.class).toInstance(persistedClusterStateService);
-                b.bind(IndicesService.class).toInstance(indicesService);
-                b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
-                b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
-                b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
-                b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
-                b.bind(SearchService.class).toInstance(searchService);
-                b.bind(SearchTransportService.class).toInstance(searchTransportService);
-                b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
-                b.bind(Transport.class).toInstance(transport);
-                b.bind(TransportService.class).toInstance(transportService);
-                b.bind(NetworkService.class).toInstance(networkService);
-                b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptService));
-                b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
-                b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
-                b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
-                b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
-                b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
-                b.bind(Reconfigurator.class).toInstance(discoveryModule.getReconfigurator());
-                {
-                    processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
-                    final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
-                    b.bind(PeerRecoverySourceService.class)
-                        .toInstance(
-                            new PeerRecoverySourceService(transportService, indicesService, recoverySettings, recoveryPlannerService)
-                        );
-                    b.bind(PeerRecoveryTargetService.class)
-                        .toInstance(
-                            new PeerRecoveryTargetService(
-                                client,
-                                threadPool,
-                                transportService,
-                                recoverySettings,
-                                clusterService,
-                                snapshotFilesProvider
-                            )
-                        );
-                }
-                b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
-                pluginComponents.forEach(p -> {
-                    if (p instanceof PluginComponentBinding<?, ?> pcb) {
-                        @SuppressWarnings("unchecked")
-                        Class<Object> clazz = (Class<Object>) pcb.inter();
-                        b.bind(clazz).toInstance(pcb.impl());
-
-                    } else {
-                        @SuppressWarnings("unchecked")
-                        Class<Object> clazz = (Class<Object>) p.getClass();
-                        b.bind(clazz).toInstance(p);
-                    }
-                });
-                b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
-                b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
-                b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
-                b.bind(RepositoriesService.class).toInstance(repositoryService);
-                b.bind(SnapshotsService.class).toInstance(snapshotsService);
-                b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
-                b.bind(RestoreService.class).toInstance(restoreService);
-                b.bind(RerouteService.class).toInstance(rerouteService);
-                b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
-                b.bind(FsHealthService.class).toInstance(fsHealthService);
-                b.bind(SystemIndices.class).toInstance(systemIndices);
-                b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
-                b.bind(ExecutorSelector.class).toInstance(executorSelector);
-                b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
-                b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
-                b.bind(HealthService.class).toInstance(healthService);
-                b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
-                b.bind(CoordinationDiagnosticsService.class).toInstance(coordinationDiagnosticsService);
-                b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
-                b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
-                b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
-                b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
-                b.bind(HealthApiStats.class).toInstance(healthApiStats);
-                b.bind(Tracer.class).toInstance(tracer);
-                b.bind(FileSettingsService.class).toInstance(fileSettingsService);
-                b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
-                b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
-                b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
-            });
-
-            if (ReadinessService.enabled(environment)) {
-                modules.add(b -> b.bind(ReadinessService.class).toInstance(newReadinessService(clusterService, environment)));
-            }
-
-            injector = modules.createInjector();
-
-            // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
-            // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it
-            // completes we trigger another reroute to try the allocation again. This means there is a circular dependency: the allocation
-            // service needs access to the existing shards allocators (e.g. the GatewayAllocator) which need to be able to trigger a
-            // reroute, which needs to call into the allocation service. We close the loop here:
-            clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
-
-            List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream().map(p -> {
-                if (p instanceof PluginComponentBinding<?, ?> pcb) {
-                    return pcb.impl();
-                }
-                return p;
-            }).filter(p -> p instanceof LifecycleComponent).map(p -> (LifecycleComponent) p).toList();
-            resourcesToClose.addAll(pluginLifecycleComponents);
-            resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
-            this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-
-            // Due to Java's type erasure with generics, the injector can't give us exactly what we need, and we have
-            // to resort to some evil casting.
-            @SuppressWarnings("rawtypes")
-            Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-                forciblyCast(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-                }));
-
-            client.initialize(
-                actions,
-                transportService.getTaskManager(),
-                () -> clusterService.localNode().getId(),
-                transportService.getLocalNodeConnection(),
-                transportService.getRemoteClusterService(),
-                namedWriteableRegistry
-            );
-            this.namedWriteableRegistry = namedWriteableRegistry;
-            this.namedXContentRegistry = xContentRegistry;
-
-            logger.debug("initializing HTTP handlers ...");
-            actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered());
-            logger.info("initialized");
-
-            success = true;
-        } catch (IOException ex) {
-            throw new ElasticsearchException("failed to bind service", ex);
-        } finally {
-            if (success == false) {
-                IOUtils.closeWhileHandlingException(resourcesToClose);
-            }
-        }
-    }
-
-    private Supplier<DocumentParsingObserver> getDocumentParsingObserverSupplier() {
-        List<DocumentParsingObserverPlugin> plugins = pluginsService.filterPlugins(DocumentParsingObserverPlugin.class);
-        if (plugins.size() == 1) {
-            return plugins.get(0).getDocumentParsingObserverSupplier();
-        } else if (plugins.size() == 0) {
-            return () -> DocumentParsingObserver.EMPTY_INSTANCE;
-        }
-        throw new IllegalStateException("too many DocumentParsingObserverPlugin instances");
+    Node(NodeConstruction construction) {
+        injector = construction.injector();
+        environment = construction.environment();
+        nodeEnvironment = construction.nodeEnvironment();
+        pluginsService = construction.pluginsService();
+        client = construction.client();
+        pluginLifecycleComponents = construction.pluginLifecycleComponents();
+        localNodeFactory = construction.localNodeFactory();
+        nodeService = construction.nodeService();
+        terminationHandler = construction.terminationHandler();
+        namedWriteableRegistry = construction.namedWriteableRegistry();
+        namedXContentRegistry = construction.namedXContentRegistry();
     }
 
     /**
@@ -1258,145 +243,6 @@ public class Node implements Closeable {
                 }
             }
         }
-    }
-
-    /**
-     * Wrap a group of reloadable plugins into a single reloadable plugin interface
-     * @param reloadablePlugins A list of reloadable plugins
-     * @return A single ReloadablePlugin that, upon reload, reloads the plugins it wraps
-     */
-    private static ReloadablePlugin wrapPlugins(List<ReloadablePlugin> reloadablePlugins) {
-        return settings -> {
-            for (ReloadablePlugin plugin : reloadablePlugins) {
-                try {
-                    plugin.reload(settings);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        };
-    }
-
-    private Tracer getTracer(PluginsService pluginsService, Settings settings) {
-        final List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
-
-        if (tracerPlugins.size() > 1) {
-            throw new IllegalStateException("A single TracerPlugin was expected but got: " + tracerPlugins);
-        }
-
-        return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(settings);
-    }
-
-    private HealthService createHealthService(
-        ClusterService clusterService,
-        ClusterModule clusterModule,
-        CoordinationDiagnosticsService coordinationDiagnosticsService,
-        ThreadPool threadPool,
-        SystemIndices systemIndices
-    ) {
-        var serverHealthIndicatorServices = List.of(
-            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
-            new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices),
-            new DiskHealthIndicatorService(clusterService),
-            new ShardsCapacityHealthIndicatorService(clusterService)
-        );
-        var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
-            .stream()
-            .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
-            .toList();
-        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices), threadPool);
-    }
-
-    private HealthPeriodicLogger createHealthPeriodicLogger(
-        ClusterService clusterService,
-        Settings settings,
-        NodeClient client,
-        HealthService healthService
-    ) {
-        return new HealthPeriodicLogger(settings, clusterService, client, healthService);
-    }
-
-    private RecoveryPlannerService getRecoveryPlannerService(
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        RepositoriesService repositoryService
-    ) {
-        final List<RecoveryPlannerService> recoveryPlannerServices = pluginsService.filterPlugins(RecoveryPlannerPlugin.class)
-            .stream()
-            .map(
-                plugin -> plugin.createRecoveryPlannerService(
-                    new ShardSnapshotsService(client, repositoryService, threadPool, clusterService)
-                )
-            )
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .toList();
-        if (recoveryPlannerServices.isEmpty()) {
-            return new PeerOnlyRecoveryPlannerService();
-        } else if (recoveryPlannerServices.size() > 1) {
-            throw new IllegalStateException("Expected a single RecoveryPlannerService but got: " + recoveryPlannerServices.size());
-        }
-        return recoveryPlannerServices.get(0);
-    }
-
-    private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
-        final List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
-        final List<WriteLoadForecaster> writeLoadForecasters = clusterPlugins.stream()
-            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings).stream())
-            .toList();
-
-        if (writeLoadForecasters.isEmpty()) {
-            return WriteLoadForecaster.DEFAULT;
-        }
-
-        if (writeLoadForecasters.size() > 1) {
-            throw new IllegalStateException("A single WriteLoadForecaster was expected but got: " + writeLoadForecasters);
-        }
-
-        return writeLoadForecasters.get(0);
-    }
-
-    private PersistedClusterStateService newPersistedClusterStateService(
-        NamedXContentRegistry xContentRegistry,
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool,
-        CompatibilityVersions compatibilityVersions
-    ) {
-        final List<ClusterCoordinationPlugin.PersistedClusterStateServiceFactory> persistedClusterStateServiceFactories = pluginsService
-            .filterPlugins(ClusterCoordinationPlugin.class)
-            .stream()
-            .map(ClusterCoordinationPlugin::getPersistedClusterStateServiceFactory)
-            .flatMap(Optional::stream)
-            .toList();
-
-        if (persistedClusterStateServiceFactories.size() > 1) {
-            throw new IllegalStateException("multiple persisted-state-service factories found: " + persistedClusterStateServiceFactories);
-        }
-
-        if (persistedClusterStateServiceFactories.size() == 1) {
-            return persistedClusterStateServiceFactories.get(0)
-                .newPersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool, compatibilityVersions);
-        }
-
-        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool::relativeTimeInMillis);
-    }
-
-    protected TransportService newTransportService(
-        Settings settings,
-        Transport transport,
-        ThreadPool threadPool,
-        TransportInterceptor interceptor,
-        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-        ClusterSettings clusterSettings,
-        TaskManager taskManager,
-        Tracer tracer
-    ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
-    }
-
-    protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
-        // Noop in production, overridden by tests
     }
 
     /**
@@ -1481,7 +327,7 @@ public class Node implements Closeable {
             injector.getInstance(IndexMetadataVerifier.class),
             injector.getInstance(MetadataUpgrader.class),
             injector.getInstance(PersistedClusterStateService.class),
-            pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class).toList(),
             injector.getInstance(CompatibilityVersions.class)
         );
         // TODO: Do not expect that the legacy metadata file is always present https://github.com/elastic/elasticsearch/issues/95211
@@ -1494,7 +340,7 @@ public class Node implements Closeable {
                     nodeEnvironment.nodeDataPaths()
                 );
                 assert nodeMetadata != null;
-                assert nodeMetadata.nodeVersion().equals(Version.CURRENT);
+                assert nodeMetadata.nodeVersion().equals(BuildVersion.current());
                 assert nodeMetadata.nodeId().equals(localNodeFactory.getNode().getId());
             } catch (IOException e) {
                 assert false : e;
@@ -1585,6 +431,9 @@ public class Node implements Closeable {
             }
         }
 
+        injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(HealthPeriodicLogger.class).start();
+
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
@@ -1608,6 +457,8 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             stopIfStarted(ReadinessService.class);
         }
+        // We stop the health periodic logger first since certain checks won't be possible anyway
+        stopIfStarted(HealthPeriodicLogger.class);
         stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
         stopIfStarted(HttpServerTransport.class);
@@ -1628,6 +479,7 @@ public class Node implements Closeable {
         stopIfStarted(GatewayService.class);
         stopIfStarted(SearchService.class);
         stopIfStarted(TransportService.class);
+        stopIfStarted(NodeMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -1673,8 +525,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
         toClose.add(injector.getInstance(RepositoriesService.class));
-        toClose.add(() -> stopWatch.stop().start("client"));
-        Releasables.close(injector.getInstance(Client.class));
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));
         toClose.add(injector.getInstance(IndicesClusterStateService.class));
         toClose.add(() -> stopWatch.stop().start("indices"));
@@ -1698,6 +548,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(injector.getInstance(NodeMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
@@ -1708,7 +559,7 @@ public class Node implements Closeable {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
             toClose.add(plugin);
         }
-        toClose.addAll(pluginsService.filterPlugins(Plugin.class));
+        pluginsService.filterPlugins(Plugin.class).forEach(toClose::add);
 
         toClose.add(() -> stopWatch.stop().start("script"));
         toClose.add(injector.getInstance(ScriptService.class));
@@ -1743,18 +594,92 @@ public class Node implements Closeable {
      */
     public void prepareForClose() {
         HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
-        FutureTask<Void> stopper = new FutureTask<>(() -> {
-            httpServerTransport.stop();
-            return null;
-        });
-        new Thread(stopper, "http-server-transport-stop").start();
+        Map<String, Runnable> stoppers = new HashMap<>();
+        TimeValue maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(this.settings());
+        stoppers.put("http-server-transport-stop", httpServerTransport::close);
+        stoppers.put("async-search-stop", () -> this.awaitSearchTasksComplete(maxTimeout));
+        if (terminationHandler != null) {
+            stoppers.put("termination-handler-stop", terminationHandler::handleTermination);
+        }
 
-        Optional.ofNullable(terminationHandler.get()).ifPresent(TerminationHandler::handleTermination);
+        Map<String, CompletableFuture<Void>> futures = new HashMap<>(stoppers.size());
+        for (var stopperEntry : stoppers.entrySet()) {
+            var future = new CompletableFuture<Void>();
+            new Thread(() -> {
+                try {
+                    stopperEntry.getValue().run();
+                } catch (Exception ex) {
+                    logger.warn("unexpected exception in shutdown task [" + stopperEntry.getKey() + "]", ex);
+                } finally {
+                    future.complete(null);
+                }
+            }, stopperEntry.getKey()).start();
+            futures.put(stopperEntry.getKey(), future);
+        }
+
+        @SuppressWarnings(value = "rawtypes") // Can't make an array of parameterized types, but it complains if you leave the type out
+        CompletableFuture<Void> allStoppers = CompletableFuture.allOf(futures.values().toArray(new CompletableFuture[stoppers.size()]));
 
         try {
-            stopper.get();
-        } catch (Exception e) {
-            logger.warn("unexpected exception while waiting for http server to close", e);
+            if (maxTimeout.millis() == 0) {
+                FutureUtils.get(allStoppers);
+            } else {
+                FutureUtils.get(allStoppers, maxTimeout.millis(), TimeUnit.MILLISECONDS);
+            }
+
+        } catch (ElasticsearchTimeoutException t) {
+            var unfinishedTasks = futures.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().isDone() == false)
+                .map(Map.Entry::getKey)
+                .toList();
+            logger.warn("timed out while waiting for graceful shutdown tasks: " + unfinishedTasks);
+        }
+    }
+
+    private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout) {
+        TaskManager taskManager = injector.getInstance(TransportService.class).getTaskManager();
+        long millisWaited = 0;
+        while (true) {
+            long searchTasksRemaining = taskManager.getTasks()
+                .values()
+                .stream()
+                .filter(task -> TransportSearchAction.TYPE.name().equals(task.getAction()))
+                .count();
+            if (searchTasksRemaining == 0) {
+                logger.debug("all search tasks complete");
+                return;
+            } else {
+                // Let the system work on those searches for a while. We're on a dedicated thread to manage app shutdown, so we
+                // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
+                // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
+                // be spending on finishing those searches.
+                final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
+                millisWaited += pollPeriod.millis();
+                if (millisWaited >= asyncSearchTimeout.millis()) {
+                    logger.warn(
+                        format(
+                            "timed out after waiting [%s] for [%d] search tasks to finish",
+                            asyncSearchTimeout.toString(),
+                            searchTasksRemaining
+                        )
+                    );
+                    return;
+                }
+                logger.debug(format("waiting for [%s] search tasks to finish, next poll in [%s]", searchTasksRemaining, pollPeriod));
+                try {
+                    Thread.sleep(pollPeriod.millis());
+                } catch (InterruptedException ex) {
+                    logger.warn(
+                        format(
+                            "interrupted while waiting [%s] for [%d] search tasks to finish",
+                            asyncSearchTimeout.toString(),
+                            searchTasksRemaining
+                        )
+                    );
+                    return;
+                }
+            }
         }
     }
 
@@ -1873,136 +798,12 @@ public class Node implements Closeable {
         return builder.put(originalSettings).build();
     }
 
-    /**
-     * Creates a new {@link CircuitBreakerService} based on the settings provided.
-     *
-     * @see #BREAKER_TYPE_KEY
-     */
-    private static CircuitBreakerService createCircuitBreakerService(
-        Settings settings,
-        List<BreakerSettings> breakerSettings,
-        ClusterSettings clusterSettings
-    ) {
-        String type = BREAKER_TYPE_KEY.get(settings);
-        if (type.equals("hierarchy")) {
-            return new HierarchyCircuitBreakerService(settings, breakerSettings, clusterSettings);
-        } else if (type.equals("none")) {
-            return new NoneCircuitBreakerService();
-        } else {
-            throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
-        }
-    }
-
-    /**
-     * Creates a new {@link BigArrays} instance used for this node.
-     * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
-     */
-    BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
-        return new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
-    }
-
-    /**
-     * Creates a new {@link BigArrays} instance used for this node.
-     * This method can be overwritten by subclasses to change their {@link BigArrays} implementation for instance for testing
-     */
-    PageCacheRecycler createPageCacheRecycler(Settings settings) {
-        return new PageCacheRecycler(settings);
-    }
-
-    /**
-     * Creates a new SearchService. This method can be overwritten by tests to inject mock implementations.
-     */
-    protected SearchService newSearchService(
-        ClusterService clusterService,
-        IndicesService indicesService,
-        ThreadPool threadPool,
-        ScriptService scriptService,
-        BigArrays bigArrays,
-        FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
-        CircuitBreakerService circuitBreakerService,
-        ExecutorSelector executorSelector,
-        Tracer tracer
-    ) {
-        return new SearchService(
-            clusterService,
-            indicesService,
-            threadPool,
-            scriptService,
-            bigArrays,
-            fetchPhase,
-            responseCollectorService,
-            circuitBreakerService,
-            executorSelector,
-            tracer
-        );
-    }
-
-    /**
-     * Creates a new ScriptService. This method can be overwritten by tests to inject mock implementations.
-     */
-    protected ScriptService newScriptService(
-        Settings settings,
-        Map<String, ScriptEngine> engines,
-        Map<String, ScriptContext<?>> contexts,
-        LongSupplier timeProvider
-    ) {
-        return new ScriptService(settings, engines, contexts, timeProvider);
-    }
-
-    /**
-     * Creates a new ReadinessService. This method can be overwritten by tests to inject mock implementations.
-     */
-    protected ReadinessService newReadinessService(ClusterService clusterService, Environment environment) {
-        return new ReadinessService(clusterService, environment);
-    }
-
-    /**
-     * Get Custom Name Resolvers list based on a Discovery Plugins list
-     *
-     * @param discoveryPlugins Discovery plugins list
-     */
-    private List<NetworkService.CustomNameResolver> getCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
-        List<NetworkService.CustomNameResolver> customNameResolvers = new ArrayList<>();
-        for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
-            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings());
-            if (customNameResolver != null) {
-                customNameResolvers.add(customNameResolver);
-            }
-        }
-        return customNameResolvers;
-    }
-
-    /**
-     * Constructs a ClusterInfoService which may be mocked for tests.
-     */
-    protected ClusterInfoService newClusterInfoService(
-        Settings settings,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        NodeClient client
-    ) {
-        final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
-        if (DiscoveryNode.isMasterNode(settings)) {
-            // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
-            clusterService.addListener(service);
-        }
-        return service;
-    }
-
-    /**
-     * Constructs a {@link org.elasticsearch.http.HttpServerTransport} which may be mocked for tests.
-     */
-    protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
-        return networkModule.getHttpServerTransportSupplier().get();
-    }
-
-    private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
+    static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
         private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
         private final String persistentNodeId;
         private final Settings settings;
 
-        private LocalNodeFactory(Settings settings, String persistentNodeId) {
+        LocalNodeFactory(Settings settings, String persistentNodeId) {
             this.persistentNodeId = persistentNodeId;
             this.settings = settings;
         }

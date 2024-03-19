@@ -14,11 +14,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -43,6 +43,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -191,7 +192,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
             nodes,
             IndexMetadata.State.OPEN,
             // This is an outdated version that requires indices to be deleted upon migration
-            IndexVersion.V_8_8_2,
+            IndexVersions.V_8_8_2,
             true
         );
 
@@ -223,7 +224,7 @@ public class ProfilingIndexManagerTests extends ESTestCase {
             List.of(existingIndex),
             nodes,
             IndexMetadata.State.OPEN,
-            IndexVersion.V_8_8_2,
+            IndexVersions.V_8_8_2,
             true
         );
 
@@ -421,9 +422,8 @@ public class ProfilingIndexManagerTests extends ESTestCase {
             assertThat(request, instanceOf(CreateIndexRequest.class));
             assertNotNull(listener);
             return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
-        } else if (action instanceof DeleteIndexAction) {
+        } else if (action == TransportDeleteIndexAction.TYPE) {
             indicesDeleted.incrementAndGet();
-            assertThat(action, instanceOf(DeleteIndexAction.class));
             assertThat(request, instanceOf(DeleteIndexRequest.class));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
@@ -441,16 +441,14 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action instanceof PutMappingAction) {
+        if (action == TransportPutMappingAction.TYPE) {
             mappingUpdates.incrementAndGet();
-            assertThat(action, instanceOf(PutMappingAction.class));
             assertThat(request, instanceOf(PutMappingRequest.class));
             assertThat(((PutMappingRequest) request).indices(), equalTo(new String[] { indexName }));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof UpdateSettingsAction) {
+        } else if (action == TransportUpdateSettingsAction.TYPE) {
             settingsUpdates.incrementAndGet();
-            assertThat(action, instanceOf(UpdateSettingsAction.class));
             assertThat(request, instanceOf(UpdateSettingsRequest.class));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;

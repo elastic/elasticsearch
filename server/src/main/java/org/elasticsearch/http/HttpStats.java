@@ -20,18 +20,30 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clientStats) implements Writeable, ChunkedToXContent {
+import static org.elasticsearch.TransportVersions.V_8_12_0;
 
-    public static final HttpStats IDENTITY = new HttpStats(0, 0, List.of());
+public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clientStats, Map<String, HttpRouteStats> httpRouteStats)
+    implements
+        Writeable,
+        ChunkedToXContent {
+
+    public static final HttpStats IDENTITY = new HttpStats(0, 0, List.of(), Map.of());
 
     public HttpStats(long serverOpen, long totalOpened) {
-        this(serverOpen, totalOpened, List.of());
+        this(serverOpen, totalOpened, List.of(), Map.of());
     }
 
     public HttpStats(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readCollectionAsList(ClientStats::new));
+        this(
+            in.readVLong(),
+            in.readVLong(),
+            in.readCollectionAsList(ClientStats::new),
+            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(HttpRouteStats::new) : Map.of()
+        );
     }
 
     @Override
@@ -39,6 +51,9 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
         out.writeCollection(clientStats);
+        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
+            out.writeMap(httpRouteStats, StreamOutput::writeWriteable);
+        }
     }
 
     public long getServerOpen() {
@@ -57,7 +72,9 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
         return new HttpStats(
             first.serverOpen + second.serverOpen,
             first.totalOpen + second.totalOpen,
-            Stream.concat(first.clientStats.stream(), second.clientStats.stream()).toList()
+            Stream.concat(first.clientStats.stream(), second.clientStats.stream()).toList(),
+            Stream.concat(first.httpRouteStats.entrySet().stream(), second.httpRouteStats.entrySet().stream())
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue, HttpRouteStats::merge))
         );
     }
 
@@ -78,6 +95,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
         static final String CLIENT_REQUEST_SIZE_BYTES = "request_size_bytes";
         static final String CLIENT_FORWARDED_FOR = "x_forwarded_for";
         static final String CLIENT_OPAQUE_ID = "x_opaque_id";
+        static final String ROUTES = "routes";
     }
 
     @Override
@@ -90,7 +108,17 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
                     .startArray(Fields.CLIENTS)
             ),
             clientStats.iterator(),
-            Iterators.single((builder, params) -> builder.endArray().endObject())
+            Iterators.single((builder, params) -> {
+                builder.endArray();
+                builder.startObject(Fields.ROUTES);
+                return builder;
+            }),
+            Iterators.map(httpRouteStats.entrySet().iterator(), entry -> (builder, params) -> {
+                builder.field(entry.getKey());
+                entry.getValue().toXContent(builder, params);
+                return builder;
+            }),
+            Iterators.single((builder, params) -> builder.endObject().endObject())
         );
     }
 

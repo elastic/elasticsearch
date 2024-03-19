@@ -1,8 +1,8 @@
 ---
 "Explain backing index lifecycle":
   - skip:
-      version: " - 8.9.99"
-      reason: "Explain data stream lifecycle API was updated in 8.10"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle was released as tech preview in 8.11"
       features: allowed_warnings
   - do:
       allowed_warnings:

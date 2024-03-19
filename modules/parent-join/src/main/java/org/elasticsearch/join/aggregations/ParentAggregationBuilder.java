@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<ParentAggregationBuilder> {
 
@@ -88,6 +88,11 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.ONE;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
     }
 
     @Override
@@ -171,11 +176,6 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return ValuesSourceRegistry.UNREGISTERED_KEY;
     }
 
     @Override

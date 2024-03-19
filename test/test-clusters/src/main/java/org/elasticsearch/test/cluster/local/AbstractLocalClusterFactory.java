@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.cluster.ClusterFactory;
 import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec.LocalNodeSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionDescriptor;
@@ -63,7 +62,7 @@ import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
 
 public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H extends LocalClusterHandle>
     implements
-        ClusterFactory<S, H> {
+        LocalClusterFactory<S, H> {
     private static final Logger LOGGER = LogManager.getLogger(AbstractLocalClusterFactory.class);
     private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(2);
     private static final Map<Pair<Version, DistributionType>, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();
@@ -72,7 +71,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     private static final String TESTS_CLUSTER_FIPS_JAR_PATH_SYSPROP = "tests.cluster.fips.jars.path";
     private static final String TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP = "tests.cluster.debug.enabled";
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
-    private static final int DEFAULT_DEBUG_PORT = 5007;
 
     private final DistributionResolver distributionResolver;
 
@@ -106,6 +104,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private final Path logsDir;
         private final Path configDir;
         private final Path tempDir;
+        private final boolean usesSecureSecretsFile;
+        private final int debugPort;
 
         private Path distributionDir;
         private Version currentVersion;
@@ -113,10 +113,17 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private DistributionDescriptor distributionDescriptor;
 
         public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec) {
-            this(baseWorkingDir, distributionResolver, spec, null);
+            this(baseWorkingDir, distributionResolver, spec, null, false);
         }
 
-        public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec, String suffix) {
+        public Node(
+            Path baseWorkingDir,
+            DistributionResolver distributionResolver,
+            LocalNodeSpec spec,
+            String suffix,
+            boolean usesSecureSecretsFile
+        ) {
+            this.usesSecureSecretsFile = usesSecureSecretsFile;
             this.objectMapper = new ObjectMapper();
             this.baseWorkingDir = baseWorkingDir;
             this.distributionResolver = distributionResolver;
@@ -128,6 +135,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.logsDir = workingDir.resolve("logs");
             this.configDir = workingDir.resolve("config");
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
+            this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
         }
 
         public synchronized void start(Version version) {
@@ -144,10 +152,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 createConfigDirectory();
                 copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install
                 copyExtraJarFiles();
-                installPlugins();
                 if (distributionDescriptor.getType() == DistributionType.INTEG_TEST) {
                     installModules();
                 }
+                installPlugins();
                 currentVersion = spec.getVersion();
             } else {
                 createConfigDirectory();
@@ -155,10 +163,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             writeConfiguration();
-            createKeystore();
-            addKeystoreSettings();
-            addKeystoreFiles();
-            writeSecureSecretsFile();
+            if (usesSecureSecretsFile) {
+                writeSecureSecretsFile();
+            } else {
+                createKeystore();
+                addKeystoreSettings();
+                addKeystoreFiles();
+            }
             configureSecurity();
 
             startElasticsearch();
@@ -432,6 +443,21 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             });
         }
 
+        public void updateStoredSecureSettings() {
+            if (usesSecureSecretsFile) {
+                throw new UnsupportedOperationException("updating stored secure settings is not supported in serverless test clusters");
+            }
+            final Path keystoreFile = workingDir.resolve("config").resolve("elasticsearch.keystore");
+            try {
+                Files.deleteIfExists(keystoreFile);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            createKeystore();
+            addKeystoreSettings();
+            addKeystoreFiles();
+        }
+
         private void createKeystore() {
             if (spec.getKeystorePassword() == null || spec.getKeystorePassword().isEmpty()) {
                 runToolScript("elasticsearch-keystore", null, "-v", "create");
@@ -476,12 +502,20 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void writeSecureSecretsFile() {
-            if (spec.getSecrets().isEmpty() == false) {
+            if (spec.getKeystoreFiles().isEmpty() == false) {
+                throw new IllegalStateException(
+                    "Non-string secure secrets are not supported in serverless. Secrets: ["
+                        + spec.getKeystoreFiles().keySet().stream().collect(Collectors.joining(","))
+                        + "]"
+                );
+            }
+            Map<String, String> secrets = spec.resolveKeystore();
+            if (secrets.isEmpty() == false) {
                 try {
                     Path secretsFile = configDir.resolve("secrets/secrets.json");
                     Files.createDirectories(secretsFile.getParent());
                     Map<String, Object> secretsFileContent = new HashMap<>();
-                    secretsFileContent.put("secrets", spec.getSecrets());
+                    secretsFileContent.put("secrets", secrets);
                     secretsFileContent.put("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString()));
                     Files.writeString(secretsFile, objectMapper.writeValueAsString(secretsFileContent));
                 } catch (IOException e) {
@@ -557,7 +591,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void installPlugins() {
             if (spec.getPlugins().isEmpty() == false) {
-                Pattern pattern = Pattern.compile("(.+)(?:-\\d\\.\\d\\.\\d-SNAPSHOT\\.zip)?");
+                Pattern pattern = Pattern.compile("(.+)(?:-\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?\\.zip)");
 
                 LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), name);
                 List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
@@ -569,8 +603,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     .map(
                         pluginName -> pluginPaths.stream()
                             .map(path -> Pair.of(pattern.matcher(path.getFileName().toString()), path))
-                            .filter(pair -> pair.left.matches())
-                            .map(p -> p.right.getParent().resolve(p.left.group(1)))
+                            .filter(pair -> pair.left.matches() && pair.left.group(1).equals(pluginName))
+                            .map(p -> p.right.getParent().resolve(p.left.group(0)))
                             .findFirst()
                             .orElseThrow(() -> {
                                 String taskPath = System.getProperty("tests.task");
@@ -696,9 +730,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String systemProperties = "";
-            if (spec.getSystemProperties().isEmpty() == false) {
-                systemProperties = spec.getSystemProperties()
-                    .entrySet()
+            Map<String, String> resolvedSystemProperties = new HashMap<>(spec.resolveSystemProperties());
+            if (resolvedSystemProperties.isEmpty() == false) {
+                systemProperties = resolvedSystemProperties.entrySet()
                     .stream()
                     .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
                     .map(p -> p.replace("${ES_PATH_CONF}", configDir.toString()))
@@ -708,8 +742,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
             String debugArgs = "";
             if (Boolean.getBoolean(TESTS_CLUSTER_DEBUG_ENABLED_SYSPROP)) {
-                int port = DEFAULT_DEBUG_PORT + spec.getCluster().getNodes().indexOf(spec);
-                debugArgs = ENABLE_DEBUG_JVM_ARGS + port;
+                debugArgs = ENABLE_DEBUG_JVM_ARGS + debugPort;
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");

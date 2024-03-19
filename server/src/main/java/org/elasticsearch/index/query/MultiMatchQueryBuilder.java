@@ -41,7 +41,7 @@ import java.util.TreeMap;
 /**
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
-public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
+public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
 
     public static final String NAME = "multi_match";
     private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "cutoff_freqency is not supported."

@@ -8,30 +8,27 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MaxIntAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class MaxIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
   private final List<Integer> channels;
 
-  public MaxIntAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
-    this.bigArrays = bigArrays;
+  public MaxIntAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
   }
 
   @Override
-  public MaxIntAggregatorFunction aggregator() {
-    return MaxIntAggregatorFunction.create(channels);
+  public MaxIntAggregatorFunction aggregator(DriverContext driverContext) {
+    return MaxIntAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MaxIntGroupingAggregatorFunction groupingAggregator() {
-    return MaxIntGroupingAggregatorFunction.create(channels, bigArrays);
+  public MaxIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+    return MaxIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

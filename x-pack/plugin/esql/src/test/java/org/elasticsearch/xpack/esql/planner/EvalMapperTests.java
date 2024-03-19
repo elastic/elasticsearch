@@ -10,9 +10,14 @@ package org.elasticsearch.xpack.esql.planner;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
@@ -46,6 +51,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
@@ -53,7 +59,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute DOUBLE1 = field("foo", DataTypes.DOUBLE);
@@ -61,7 +66,17 @@ public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute LONG = field("long", DataTypes.LONG);
     private static final FieldAttribute DATE = field("date", DataTypes.DATETIME);
 
-    private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(ZoneOffset.UTC, Locale.US, "test", null, null, 10000000);
+    private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(
+        ZoneOffset.UTC,
+        Locale.US,
+        "test",
+        null,
+        null,
+        10000000,
+        10000,
+        StringUtils.EMPTY,
+        false
+    );
 
     @ParametersFactory(argumentFormatting = "%1$s")
     public static List<Object[]> params() {
@@ -100,8 +115,8 @@ public class EvalMapperTests extends ESTestCase {
             DOUBLE1,
             literal,
             new Length(Source.EMPTY, literal),
-            new DateFormat(Source.EMPTY, DATE, datePattern, TEST_CONFIG),
-            new DateFormat(Source.EMPTY, literal, datePattern, TEST_CONFIG),
+            new DateFormat(Source.EMPTY, datePattern, DATE, TEST_CONFIG),
+            new DateFormat(Source.EMPTY, datePattern, literal, TEST_CONFIG),
             new StartsWith(Source.EMPTY, literal, literal),
             new Substring(Source.EMPTY, literal, LONG, LONG),
             new DateTrunc(Source.EMPTY, dateInterval, DATE) }) {
@@ -127,9 +142,9 @@ public class EvalMapperTests extends ESTestCase {
         lb.append(LONG);
         Layout layout = lb.build();
 
-        Supplier<EvalOperator.ExpressionEvaluator> supplier = EvalMapper.toEvaluator(expression, layout);
-        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get();
-        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get();
+        var supplier = EvalMapper.toEvaluator(expression, layout);
+        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get(driverContext());
+        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get(driverContext());
         assertNotNull(evaluator1);
         assertNotNull(evaluator2);
         assertTrue(evaluator1 != evaluator2);
@@ -142,5 +157,12 @@ public class EvalMapperTests extends ESTestCase {
 
     private static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Collections.emptyMap(), false));
+    }
+
+    static DriverContext driverContext() {
+        return new DriverContext(
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+            TestBlockFactory.getNonBreakingInstance()
+        );
     }
 }

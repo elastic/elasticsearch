@@ -30,7 +30,7 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
     public static final String NAME = "cluster:internal/xpack/ml/trained_models/cache/info";
 
     private TrainedModelCacheInfoAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseNodesRequest<Request> {

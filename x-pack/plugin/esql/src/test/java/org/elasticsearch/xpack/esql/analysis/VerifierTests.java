@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -16,9 +17,12 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
@@ -26,11 +30,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
-            "1:40: second argument of [a + c] must be [numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a + c] must be [datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
         );
         assertEquals(
-            "1:40: second argument of [a - c] must be [numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a - c] must be [datetime or numeric], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
         );
     }
@@ -60,29 +64,90 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggsExpressionsInStatsAggs() {
         assertEquals(
-            "1:44: expected an aggregate function or group but got [salary] of type [FieldAttribute]",
+            "1:44: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
             error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
         );
         assertEquals(
-            "1:19: expected an aggregate function or group but got [length(first_name)] of type [Length]",
+            "1:26: scalar functions over groupings [first_name] not allowed yet",
             error("from test | stats length(first_name), count(1) by first_name")
         );
         assertEquals(
-            "1:19: aggregate function's parameters must be an attribute or literal; found [emp_no / 2] of type [Div]",
-            error("from test | stats x = avg(emp_no / 2) by emp_no")
+            "1:36: scalar functions over groupings [languages] not allowed yet",
+            error("from test | stats max(languages) + languages by l = languages")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric], found value [first_name] type [keyword]",
+            "1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]",
+            error("from test | stats max(max(salary)) by first_name")
+        );
+        assertEquals(
+            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long], found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
-            "1:19: aggregate function's parameters must be an attribute or literal; found [length(first_name)] of type [Length]",
-            error("from test | stats count(length(first_name)) by first_name")
+            "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
+            error("from test | stats x = percentile(languages, languages) by emp_no")
         );
         assertEquals(
-            "1:23: expected an aggregate function or group but got [emp_no + avg(emp_no)] of type [Add]",
-            error("from test | stats x = emp_no + avg(emp_no) by emp_no")
+            "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
+            error("from test | stats x = count_distinct(languages, languages) by emp_no")
         );
+
+    }
+
+    public void testAggsInsideGrouping() {
+        assertEquals(
+            "1:36: cannot use an aggregate [max(languages)] for grouping",
+            error("from test| stats max(languages) by max(languages)")
+        );
+    }
+
+    public void testAggsWithInvalidGrouping() {
+        assertEquals(
+            "1:35: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + languages by l = languages % 3")
+        );
+    }
+
+    public void testAggsIgnoreCanonicalGrouping() {
+        // the grouping column should appear verbatim - ignore canonical representation as they complicate things significantly
+        // for no real benefit (1+languages != languages + 1)
+        assertEquals(
+            "1:39: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + 1 + languages by l = languages + 1")
+        );
+    }
+
+    public void testAggsWithoutAgg() {
+        // should work
+        assertEquals(
+            "1:35: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
+            error("from test| stats max(languages) + salary by l = languages + 1")
+        );
+    }
+
+    public void testAggsInsideEval() throws Exception {
+        assertEquals("1:29: aggregate function [max(b)] not allowed outside STATS command", error("row a = 1, b = 2 | eval x = max(b)"));
+    }
+
+    public void testAggsWithExpressionOverAggs() {
+        assertEquals(
+            "1:44: scalar functions over groupings [languages] not allowed yet",
+            error("from test | stats max(languages + 1) , m = languages + min(salary + 1) by l = languages, s = salary")
+        );
+    }
+
+    public void testAggScalarOverGroupingColumn() {
+        assertEquals(
+            "1:26: scalar functions over groupings [first_name] not allowed yet",
+            error("from test | stats length(first_name), count(1) by first_name")
+        );
+    }
+
+    public void testGroupingInAggs() {
+        assertEquals("2:12: column [salary] must appear in the STATS BY clause or be used in an aggregate function", error("""
+             from test
+            |stats e = salary + max(salary) by languages
+            """));
     }
 
     public void testDoubleRenamingField() {
@@ -203,16 +268,7 @@ public class VerifierTests extends ESTestCase {
                 var op = left + " " + operation + " " + right;
                 assertThat(
                     error("row n = to_" + type + "(1), ul = to_ul(1) | eval " + op),
-                    containsString(
-                        "first argument of ["
-                            + op
-                            + "] is ["
-                            + leftType
-                            + "] and second is ["
-                            + rightType
-                            + "]."
-                            + " [unsigned_long] can only be operated on together with another [unsigned_long]"
-                    )
+                    containsString("[" + operation + "] has arguments with incompatible types [" + leftType + "] and [" + rightType + "]")
                 );
             }
         }
@@ -220,14 +276,14 @@ public class VerifierTests extends ESTestCase {
 
     public void testUnsignedLongNegation() {
         assertEquals(
-            "1:29: negation unsupported for arguments of type [unsigned_long] in expression [-x]",
+            "1:29: argument of [-x] must be [numeric, date_period or time_duration], found value [x] type [unsigned_long]",
             error("row x = to_ul(1) | eval y = -x")
         );
     }
 
     public void testSumOnDate() {
         assertEquals(
-            "1:19: argument of [sum(hire_date)] must be [numeric], found value [hire_date] type [datetime]",
+            "1:19: argument of [sum(hire_date)] must be [numeric except unsigned_long], found value [hire_date] type [datetime]",
             error("from test | stats sum(hire_date)")
         );
     }
@@ -269,9 +325,61 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testPeriodAndDurationInEval() {
+        for (var unit : List.of("millisecond", "second", "minute", "hour")) {
+            assertEquals(
+                "1:18: EVAL does not support type [time_duration] in expression [1 " + unit + "]",
+                error("row x = 1 | eval y = 1 " + unit)
+            );
+        }
+        for (var unit : List.of("day", "week", "month", "year")) {
+            assertEquals(
+                "1:18: EVAL does not support type [date_period] in expression [1 " + unit + "]",
+                error("row x = 1 | eval y = 1 " + unit)
+            );
+        }
+    }
+
+    public void testFilterNonBoolField() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", error("from test | where emp_no"));
+    }
+
+    public void testFilterDateConstant() {
+        assertEquals("1:19: Condition expression needs to be boolean, found [DATE_PERIOD]", error("from test | where 1 year"));
+    }
+
+    public void testNestedAggField() {
+        assertEquals("1:27: Unknown column [avg]", error("from test | stats c = avg(avg)"));
+    }
+
+    public void testUnfinishedAggFunction() {
+        assertEquals("1:23: invalid stats declaration; [avg] is not an aggregate function", error("from test | stats c = avg"));
+    }
+
+    public void testSpatialSort() {
+        String prefix = "ROW wkt = [\"POINT(42.9711 -14.7553)\", \"POINT(75.8093 22.7277)\"] | MV_EXPAND wkt ";
+        assertEquals("1:130: cannot sort on geo_point", error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_point",
+            error(prefix + "| EVAL shape = TO_CARTESIANPOINT(wkt) | limit 5 | sort shape")
+        );
+        assertEquals("1:130: cannot sort on geo_shape", error(prefix + "| EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_shape",
+            error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
+        );
+        var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
+        var airportsWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports_web.json", "airports_web"));
+        var countriesBbox = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox.json", "countries_bbox"));
+        var countriesBboxWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox_web.json", "countries_bbox_web"));
+        assertEquals("1:32: cannot sort on geo_point", error("FROM airports | LIMIT 5 | sort location", airports));
+        assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
+        assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
+        assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
+    }
+
     private String error(String query) {
         return error(query, defaultAnalyzer);
-
     }
 
     private String error(String query, Object... params) {
@@ -300,5 +408,10 @@ public class VerifierTests extends ESTestCase {
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

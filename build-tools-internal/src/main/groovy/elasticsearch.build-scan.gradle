@@ -95,18 +95,38 @@ buildScan {
       // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
       uploadInBackground = false
 
-      def branch = System.getenv('BUILDKITE_BRANCH')
+      def branch = System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH') ?: System.getenv('BUILDKITE_BRANCH')
       def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
       def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
-      tag 'CI'
-      link 'CI Build', buildKiteUrl
-      value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+      def jobLabel = System.getenv('BUILDKITE_LABEL') ?: ''
+      def jobName = safeName(jobLabel)
 
+      tag 'CI'
+      link 'CI Build', "${buildKiteUrl}#${System.getenv('BUILDKITE_JOB_ID')}"
+      value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+      value 'Build ID', System.getenv('BUILDKITE_BUILD_ID')
+      value 'Job ID', System.getenv('BUILDKITE_JOB_ID')
+
+      value 'Pipeline', System.getenv('BUILDKITE_PIPELINE_SLUG')
+      tag System.getenv('BUILDKITE_PIPELINE_SLUG')
+
+      value 'Job Name', jobName
+      tag jobName
+      if (jobLabel.contains("/")) {
+        jobLabel.split("/").collect {safeName(it) }.each {matrix ->
+          tag matrix
+        }
+      }
+
+      if (branch) {
+        tag branch
+        value 'Git Branch', branch
+      }
 
       // Add SCM information
       def prId = System.getenv('BUILDKITE_PULL_REQUEST')
       if (prId != 'false') {
-        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git")
+        def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git").replaceFirst("git://", "https://")
         value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
         tag "pr/${prId}"
         tag 'pull-request'
@@ -115,25 +135,39 @@ buildScan {
       } else {
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
-        tag branch
       }
 
-      buildScanPublished { scan ->
-        // Attach build scan link as build metadata
-        // See: https://buildkite.com/docs/pipelines/build-meta-data
-        new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}")
-          .start()
-          .waitFor()
+      buildFinished { result ->
 
-        // Add a build annotation
-        // See: https://buildkite.com/docs/agent/v3/cli-annotate
-        def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: build ran: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
-        new ProcessBuilder('buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', 'info', body)
-          .start()
-          .waitFor()
+        buildScanPublished { scan ->
+          // Attach build scan link as build metadata
+          // See: https://buildkite.com/docs/pipelines/build-meta-data
+          new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}")
+            .start()
+            .waitFor()
+
+          // Add a build annotation
+          // See: https://buildkite.com/docs/agent/v3/cli-annotate
+          def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failure ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
+          def process = [
+            'buildkite-agent',
+            'annotate',
+            '--context',
+            result.failure ? 'gradle-build-scans-failed' : 'gradle-build-scans',
+            '--append',
+            '--style',
+            result.failure ? 'error' : 'info'
+          ].execute()
+          process.withWriter { it.write(body) } // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
+          process.waitFor()
+        }
       }
     } else {
       tag 'LOCAL'
     }
   }
+}
+
+static def safeName(String string) {
+  return string.replaceAll(/[^a-zA-Z0-9_\-\.]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 }

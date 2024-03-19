@@ -1,5 +1,0 @@
-pr: 98961
-summary: Fix NPE when `GetUser` with profile uid before profile index exists
-area: Security
-type: bug
-issues: []

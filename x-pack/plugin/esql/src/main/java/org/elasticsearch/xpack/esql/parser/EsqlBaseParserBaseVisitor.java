@@ -158,6 +158,13 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitFunction(EsqlBaseParser.FunctionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitParenthesizedExpression(EsqlBaseParser.ParenthesizedExpressionContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -207,6 +214,20 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitMetadataOption(EsqlBaseParser.MetadataOptionContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitEvalCommand(EsqlBaseParser.EvalCommandContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
@@ -228,14 +249,7 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitGrouping(EsqlBaseParser.GroupingContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
-  @Override public T visitSourceIdentifier(EsqlBaseParser.SourceIdentifierContext ctx) { return visitChildren(ctx); }
+  @Override public T visitFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *
@@ -249,7 +263,21 @@ public class EsqlBaseParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> im
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
+  @Override public T visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
   @Override public T visitIdentifier(EsqlBaseParser.IdentifierContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

@@ -58,6 +58,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -111,7 +112,7 @@ public class StoreTests extends ESTestCase {
         "index",
         Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
     );
-    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
 
     public void testRefCount() {
         final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -774,22 +775,22 @@ public class StoreTests extends ESTestCase {
         final long localStoreSizeDelta = randomLongBetween(-initialStoreSize, initialStoreSize);
         final long reservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES : randomLongBetween(0L, Integer.MAX_VALUE);
         StoreStats stats = store.stats(reservedBytes, size -> size + localStoreSizeDelta);
-        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
-        assertEquals(reservedBytes, stats.getReservedSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.sizeInBytes());
+        assertEquals(reservedBytes, stats.reservedSizeInBytes());
 
         stats.add(null);
-        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
-        assertEquals(reservedBytes, stats.getReservedSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.sizeInBytes());
+        assertEquals(reservedBytes, stats.reservedSizeInBytes());
 
         final long otherStatsDataSetBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsLocalBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES : randomLongBetween(0L, Integer.MAX_VALUE);
         stats.add(new StoreStats(otherStatsLocalBytes, otherStatsDataSetBytes, otherStatsReservedBytes));
-        assertEquals(initialStoreSize + otherStatsDataSetBytes, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.getSize().getBytes());
-        assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
+        assertEquals(initialStoreSize + otherStatsDataSetBytes, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.sizeInBytes());
+        assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.reservedSizeInBytes());
 
         Directory dir = store.directory();
         final long length;
@@ -804,8 +805,8 @@ public class StoreTests extends ESTestCase {
 
         assertTrue(numNonExtraFiles(store) > 0);
         stats = store.stats(0L, size -> size + localStoreSizeDelta);
-        assertEquals(initialStoreSize + length, stats.totalDataSetSize().getBytes());
-        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.getSizeInBytes());
+        assertEquals(initialStoreSize + length, stats.totalDataSetSizeInBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.sizeInBytes());
 
         deleteContent(store.directory());
         IOUtils.close(store);
@@ -815,7 +816,7 @@ public class StoreTests extends ESTestCase {
         // directory that returns total written bytes as the data set size
         final var directory = new ByteSizeDirectory(StoreTests.newDirectory(random())) {
 
-            final AtomicLong dataSetBytes = new AtomicLong(0L);
+            final AtomicLong dataSetBytes = new AtomicLong(estimateSizeInBytes(getDelegate()));
 
             @Override
             public long estimateSizeInBytes() throws IOException {

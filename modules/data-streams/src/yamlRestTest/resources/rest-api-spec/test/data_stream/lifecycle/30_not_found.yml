@@ -1,8 +1,8 @@
 setup:
   - skip:
       features: allowed_warnings
-      version: " - 8.9.99"
-      reason: "Data stream lifecycles only supported in 8.10+"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle was GA in 8.11"
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [my-data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"

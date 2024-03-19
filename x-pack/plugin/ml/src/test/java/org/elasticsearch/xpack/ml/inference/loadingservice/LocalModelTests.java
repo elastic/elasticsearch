@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.license.License;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
+import static org.elasticsearch.inference.InferenceResults.writeResult;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModelTests.serializeFromTrainedModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.closeTo;

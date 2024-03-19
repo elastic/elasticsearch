@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -52,6 +54,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats.AssignmentMemoryBasis;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -163,18 +166,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             if (invocationOnMock.getArguments()[0] instanceof ActionType<?> v) {
                 ActionListener<?> l = (ActionListener<?>) invocationOnMock.getArguments()[2];
+                if (v == TransportClusterHealthAction.TYPE) {
+                    ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
+                    listener.onResponse(
+                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO)
+                    );
+                    return null;
+                }
                 ParameterizedType parameterizedType = (ParameterizedType) v.getClass().getGenericSuperclass();
                 Type t = parameterizedType.getActualTypeArguments()[0];
                 if (t.getTypeName().contains("AcknowledgedResponse")) {
                     ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) l;
                     listener.onResponse(AcknowledgedResponse.TRUE);
-                    return null;
-                }
-                if (t.getTypeName().contains("ClusterHealthResponse")) {
-                    ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
-                    listener.onResponse(
-                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO)
-                    );
                     return null;
                 }
                 fail("Mock not configured to handle generic type " + t.getTypeName());
@@ -268,7 +271,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         assertEquals(1, manager.numberOfOpenJobs());
         assertTrue(manager.jobHasActiveAutodetectProcess(jobTask));
-        verify(jobTask).updatePersistentTaskState(eq(new JobTaskState(JobState.OPENED, 1L, null)), any());
+        ArgumentCaptor<JobTaskState> captor = ArgumentCaptor.forClass(JobTaskState.class);
+        verify(jobTask).updatePersistentTaskState(captor.capture(), any());
+        JobTaskState state = captor.getValue();
+        assertThat(state.getState(), equalTo(JobState.OPENED));
+        assertThat(state.getAllocationId(), equalTo(1L));
+        assertNull(state.getReason());
     }
 
     public void testOpenJob_withoutVersion() {
@@ -807,6 +815,35 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(auditor).warning("foo", "No model snapshot could be found for a job with processed records");
         verify(auditor).warning("foo", "No quantiles could be found for a job with processed records");
         verifyNoMoreInteractions(auditor);
+    }
+
+    public void testGetOpenProcessMemoryUsage() {
+        modelSnapshot = null;
+        quantiles = null;
+        dataCounts = new DataCounts("foo");
+        dataCounts.setLatestRecordTimeStamp(new Date(0L));
+        dataCounts.incrementProcessedRecordCount(42L);
+        long modelMemoryLimitBytes = ByteSizeValue.ofMb(randomIntBetween(10, 1000)).getBytes();
+        long peakModelBytes = randomLongBetween(100000, modelMemoryLimitBytes - 1);
+        long modelBytes = randomLongBetween(1, peakModelBytes - 1);
+        AssignmentMemoryBasis assignmentMemoryBasis = randomFrom(AssignmentMemoryBasis.values());
+        modelSizeStats = new ModelSizeStats.Builder("foo").setModelBytesMemoryLimit(modelMemoryLimitBytes)
+            .setPeakModelBytes(peakModelBytes)
+            .setModelBytes(modelBytes)
+            .setAssignmentMemoryBasis(assignmentMemoryBasis)
+            .build();
+        when(autodetectCommunicator.getModelSizeStats()).thenReturn(modelSizeStats);
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
+
+        long expectedSizeBytes = Job.PROCESS_MEMORY_OVERHEAD.getBytes() + switch (assignmentMemoryBasis) {
+            case MODEL_MEMORY_LIMIT -> modelMemoryLimitBytes;
+            case CURRENT_MODEL_BYTES -> modelBytes;
+            case PEAK_MODEL_BYTES -> peakModelBytes;
+        };
+        assertThat(manager.getOpenProcessMemoryUsage(), equalTo(ByteSizeValue.ofBytes(expectedSizeBytes)));
     }
 
     private AutodetectProcessManager createNonSpyManager(String jobId) {

@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MedianAbsoluteDeviationIntAggregator}.
@@ -26,18 +27,22 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final QuantileStates.SingleState state;
 
   private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationIntAggregatorFunction(List<Integer> channels,
-      QuantileStates.SingleState state) {
+  public MedianAbsoluteDeviationIntAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels, QuantileStates.SingleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static MedianAbsoluteDeviationIntAggregatorFunction create(List<Integer> channels) {
-    return new MedianAbsoluteDeviationIntAggregatorFunction(channels, MedianAbsoluteDeviationIntAggregator.initSingle());
+  public static MedianAbsoluteDeviationIntAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MedianAbsoluteDeviationIntAggregatorFunction(driverContext, channels, MedianAbsoluteDeviationIntAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -51,11 +56,7 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    IntBlock block = (IntBlock) uncastBlock;
+    IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -87,20 +88,24 @@ public final class MedianAbsoluteDeviationIntAggregatorFunction implements Aggre
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    Block quartUncast = page.getBlock(channels.get(0));
+    if (quartUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();
     MedianAbsoluteDeviationIntAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = MedianAbsoluteDeviationIntAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = MedianAbsoluteDeviationIntAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

@@ -162,13 +162,13 @@ public class ServiceAccountService {
     }
 
     // TODO: No production code usage
-    public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
+    public static void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
         final String principal = authentication.getEffectiveSubject().getUser().principal();
         getRoleDescriptorForPrincipal(principal, listener);
     }
 
-    public void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
+    public static void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
         final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(
@@ -179,7 +179,7 @@ public class ServiceAccountService {
         listener.onResponse(account.roleDescriptor());
     }
 
-    private Authentication createAuthentication(
+    private static Authentication createAuthentication(
         ServiceAccount account,
         ServiceAccountToken token,
         TokenSource tokenSource,
@@ -193,7 +193,7 @@ public class ServiceAccountService {
         );
     }
 
-    private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {
+    private static ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {
         return new ElasticsearchSecurityException(
             "failed to authenticate service account [{}] with token name [{}]",
             RestStatus.UNAUTHORIZED,

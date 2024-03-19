@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
@@ -112,13 +113,13 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
     }
 
     public void testRemoteClusterVersionCheck() {
-        Map<String, MlConfigVersion> clusterVersions = Map.of(
+        Map<String, TransportVersion> clusterVersions = Map.of(
             "modern_cluster_1",
-            MlConfigVersion.CURRENT,
+            TransportVersion.current(),
             "modern_cluster_2",
-            MlConfigVersion.CURRENT,
+            TransportVersion.current(),
             "old_cluster_1",
-            MlConfigVersion.V_7_0_0
+            TransportVersions.V_7_0_0
         );
 
         Map<String, Object> field = Map.of("runtime_field_foo", Map.of("type", "keyword", "script", ""));
@@ -137,7 +138,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             containsString(
-                "remote clusters are expected to run at least version [7.11.0] (reason: [runtime_mappings]), "
+                "remote clusters are expected to run at least transport version [7110099] (reason: [runtime_mappings]), "
                     + "but the following clusters were too old: [old_cluster_1]"
             )
         );

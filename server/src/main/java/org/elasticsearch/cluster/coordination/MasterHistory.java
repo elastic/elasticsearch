@@ -56,6 +56,7 @@ public class MasterHistory implements ClusterStateListener {
         Setting.Property.NodeScope
     );
 
+    @SuppressWarnings("this-escape")
     public MasterHistory(ThreadPool threadPool, ClusterService clusterService) {
         this.masterHistory = new ArrayList<>();
         this.currentTimeMillisSupplier = threadPool::relativeTimeInMillis;

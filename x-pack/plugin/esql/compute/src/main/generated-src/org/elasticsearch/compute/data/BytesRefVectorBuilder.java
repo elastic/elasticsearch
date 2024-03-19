@@ -10,20 +10,22 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 /**
- * Block build of BytesRefBlocks.
+ * Builder for {@link BytesRefVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class BytesRefVectorBuilder extends AbstractVectorBuilder implements BytesRefVector.Builder {
 
     private BytesRefArray values;
 
-    BytesRefVectorBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
     }
 
-    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
@@ -33,6 +35,11 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
         values.append(value);
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return -1;
     }
 
     @Override
@@ -47,9 +54,40 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
 
     @Override
     public BytesRefVector build() {
+        finish();
+        BytesRefVector vector;
+        assert estimatedBytes == 0;
         if (valueCount == 1) {
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1);
+            vector = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory);
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(vector.ramBytesUsed());
+            Releasables.closeExpectNoException(values);
+        } else {
+            vector = new BytesRefArrayVector(values, valueCount, blockFactory);
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - values.bigArraysRamBytesUsed());
         }
-        return new BytesRefArrayVector(values, valueCount);
+        values = null;
+        built();
+        return vector;
+    }
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
     }
 }

@@ -25,10 +25,10 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * The base class for transport actions that are interacting with currently running tasks.
@@ -68,10 +69,10 @@ public abstract class TransportTasksAction<
         Writeable.Reader<TasksRequest> requestReader,
         Writeable.Reader<TasksResponse> responsesReader,
         Writeable.Reader<TaskResponse> responseReader,
-        String nodeExecutor
+        Executor nodeExecutor
     ) {
         // coordination can run on SAME because it's only O(#nodes) work
-        super(actionName, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
@@ -79,12 +80,7 @@ public abstract class TransportTasksAction<
         this.responsesReader = responsesReader;
         this.responseReader = responseReader;
 
-        transportService.registerRequestHandler(
-            transportNodeAction,
-            transportService.getThreadPool().executor(nodeExecutor),
-            NodeTaskRequest::new,
-            new NodeTransportHandler()
-        );
+        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, NodeTaskRequest::new, new NodeTransportHandler());
     }
 
     @Override
@@ -138,7 +134,7 @@ public abstract class TransportTasksAction<
 
             @Override
             protected void onItemFailure(String nodeId, Exception e) {
-                logger.debug(() -> Strings.format("failed to execute on node [{}]", nodeId), e);
+                logger.debug(() -> Strings.format("failed to execute on node [%s]", nodeId), e);
                 synchronized (failedNodeExceptions) {
                     failedNodeExceptions.add(new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", e));
                 }
@@ -294,7 +290,7 @@ public abstract class TransportTasksAction<
 
         protected NodeTaskRequest(TasksRequest tasksRequest) {
             super();
-            tasksRequest.incRef();
+            tasksRequest.mustIncRef();
             this.tasksRequest = tasksRequest;
         }
 
@@ -358,14 +354,6 @@ public abstract class TransportTasksAction<
             this.nodeId = nodeId;
             this.results = results;
             this.exceptions = exceptions;
-        }
-
-        public String getNodeId() {
-            return nodeId;
-        }
-
-        public List<TaskOperationFailure> getExceptions() {
-            return exceptions;
         }
 
         @Override

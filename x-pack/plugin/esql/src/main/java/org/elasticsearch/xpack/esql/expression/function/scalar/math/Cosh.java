@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,13 +21,21 @@ import java.util.List;
  * Cosine hyperbolic function.
  */
 public class Cosh extends AbstractTrigonometricFunction {
-    public Cosh(Source source, @Named("n") Expression n) {
+    @FunctionInfo(returnType = "double", description = "Returns the hyperbolic cosine of a number")
+    public Cosh(
+        Source source,
+        @Param(
+            name = "n",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "The number who's hyperbolic cosine is to be returned"
+        ) Expression n
+    ) {
         super(source, n);
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field) {
-        return new CoshEvaluator(field);
+    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+        return new CoshEvaluator.Factory(source(), field);
     }
 
     @Override
@@ -39,8 +48,12 @@ public class Cosh extends AbstractTrigonometricFunction {
         return NodeInfo.create(this, Cosh::new, field());
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
-        return Math.cosh(val);
+        double res = Math.cosh(val);
+        if (Double.isNaN(res) || Double.isInfinite(res)) {
+            throw new ArithmeticException("cosh overflow");
+        }
+        return res;
     }
 }

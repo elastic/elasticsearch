@@ -8,8 +8,11 @@
 
 package org.elasticsearch.aggregations.bucket.timeseries;
 
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -20,11 +23,16 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.BytesKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 public class TimeSeriesAggregator extends BucketsAggregator {
 
@@ -32,6 +40,9 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     private final boolean keyed;
     private final int size;
 
+    private final SortedMap<String, ValuesSource> dimensionValueSources;
+
+    @SuppressWarnings("this-escape")
     public TimeSeriesAggregator(
         String name,
         AggregatorFactories factories,
@@ -46,6 +57,11 @@ public class TimeSeriesAggregator extends BucketsAggregator {
         this.keyed = keyed;
         bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), bucketCardinality);
         this.size = size;
+        dimensionValueSources = new TreeMap<>();
+        for (var dim : context.subSearchContext().getSearchExecutionContext().dimensionFields()) {
+            var valueSource = ValuesSourceConfig.resolve(context, null, dim.name(), null, null, null, null, null).getValuesSource();
+            dimensionValueSources.put(dim.name(), valueSource);
+        }
     }
 
     @Override
@@ -55,14 +71,11 @@ public class TimeSeriesAggregator extends BucketsAggregator {
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
             BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
             List<InternalTimeSeries.InternalBucket> buckets = new ArrayList<>();
-            BytesRef prev = null;
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
                 ordsEnum.readValue(spare);
-                assert prev == null || spare.compareTo(prev) > 0
-                    : "key [" + spare.utf8ToString() + "] is smaller than previous key [" + prev.utf8ToString() + "]";
                 InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(
-                    prev = BytesRef.deepCopyOf(spare), // Closing bucketOrds will corrupt the bytes ref, so need to make a deep copy here.
+                    BytesRef.deepCopyOf(spare), // Closing bucketOrds will corrupt the bytes ref, so need to make a deep copy here.
                     docCount,
                     null,
                     keyed
@@ -73,6 +86,12 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                     break;
                 }
             }
+            // NOTE: after introducing _tsid hashing time series are sorted by (_tsid hash, @timestamp) instead of (_tsid, timestamp).
+            // _tsid hash and _tsid might sort differently, and out of order data might result in incorrect buckets due to _tsid value
+            // changes not matching _tsid hash changes. Changes in _tsid hash are handled creating a new bucket as a result of making
+            // the assumption that sorting data results in new buckets whenever there is a change in _tsid hash. This is no true anymore
+            // because we collect data sorted on (_tsid hash, timestamp) but build aggregation results sorted by (_tsid, timestamp).
+            buckets.sort(Comparator.comparing(bucket -> bucket.key));
             allBucketsPerOrd[ordIdx] = buckets.toArray(new InternalTimeSeries.InternalBucket[0]);
         }
         buildSubAggsForAllBuckets(allBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
@@ -96,12 +115,36 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        SortedMap<String, TsidConsumer> dimensionConsumers = new TreeMap<>();
+        for (var entry : dimensionValueSources.entrySet()) {
+            String fieldName = entry.getKey();
+            if (entry.getValue() instanceof ValuesSource.Numeric numericVS) {
+                SortedNumericDocValues docValues = numericVS.longValues(aggCtx.getLeafReaderContext());
+                dimensionConsumers.put(entry.getKey(), (docId, tsidBuilder) -> {
+                    if (docValues.advanceExact(docId)) {
+                        for (int i = 0; i < docValues.docValueCount(); i++) {
+                            tsidBuilder.addLong(fieldName, docValues.nextValue());
+                        }
+                    }
+                });
+            } else {
+                SortedBinaryDocValues docValues = entry.getValue().bytesValues(aggCtx.getLeafReaderContext());
+                dimensionConsumers.put(entry.getKey(), (docId, tsidBuilder) -> {
+                    if (docValues.advanceExact(docId)) {
+                        for (int i = 0; i < docValues.docValueCount(); i++) {
+                            tsidBuilder.addString(fieldName, docValues.nextValue());
+                        }
+                    }
+                });
+            }
+        }
         return new LeafBucketCollectorBase(sub, null) {
 
             // Keeping track of these fields helps to reduce time spent attempting to add bucket + tsid combos that already were added.
             long currentTsidOrd = -1;
             long currentBucket = -1;
             long currentBucketOrdinal;
+            BytesRef currentTsid;
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -110,12 +153,22 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 // changes to what is stored in currentTsidOrd then that ordinal well never occur again. Same applies
                 // currentBucket if there is no parent aggregation or the immediate parent aggregation creates buckets
                 // based on @timestamp field or dimension fields (fields that make up the tsid).
-                if (currentBucket == bucket && currentTsidOrd == aggCtx.getTsidOrd()) {
+                if (currentBucket == bucket && currentTsidOrd == aggCtx.getTsidHashOrd()) {
                     collectExistingBucket(sub, doc, currentBucketOrdinal);
                     return;
                 }
 
-                long bucketOrdinal = bucketOrds.add(bucket, aggCtx.getTsid());
+                BytesRef tsid;
+                if (currentTsidOrd == aggCtx.getTsidHashOrd()) {
+                    tsid = currentTsid;
+                } else {
+                    TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+                    for (TsidConsumer consumer : dimensionConsumers.values()) {
+                        consumer.accept(doc, tsidBuilder);
+                    }
+                    currentTsid = tsid = tsidBuilder.buildLegacyTsid().toBytesRef();
+                }
+                long bucketOrdinal = bucketOrds.add(bucket, tsid);
                 if (bucketOrdinal < 0) { // already seen
                     bucketOrdinal = -1 - bucketOrdinal;
                     collectExistingBucket(sub, doc, bucketOrdinal);
@@ -124,13 +177,19 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 }
 
                 currentBucketOrdinal = bucketOrdinal;
-                currentTsidOrd = aggCtx.getTsidOrd();
+                currentTsidOrd = aggCtx.getTsidHashOrd();
                 currentBucket = bucket;
             }
+
         };
     }
 
     InternalTimeSeries buildResult(InternalTimeSeries.InternalBucket[] topBuckets) {
         return new InternalTimeSeries(name, List.of(topBuckets), keyed, metadata());
+    }
+
+    @FunctionalInterface
+    interface TsidConsumer {
+        void accept(int docId, TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder) throws IOException;
     }
 }

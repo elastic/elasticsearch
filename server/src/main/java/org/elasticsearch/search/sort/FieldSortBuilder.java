@@ -61,7 +61,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 /**
  * A sort builder to sort based on a document field.
  */
-public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
+public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     public static final String NAME = "field_sort";
     public static final ParseField MISSING = new ParseField("missing");
@@ -145,12 +145,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            numericType = in.readOptionalString();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            format = in.readOptionalString();
-        }
+        numericType = in.readOptionalString();
+        format = in.readOptionalString();
     }
 
     @Override
@@ -165,16 +161,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
         out.writeOptionalWriteable(nestedSort);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_2_0)) {
-            out.writeOptionalString(numericType);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            out.writeOptionalString(format);
-        } else {
-            if (format != null) {
-                throw new IllegalArgumentException("Custom format for output of sort fields requires all nodes on 8.0 or later");
-            }
-        }
+        out.writeOptionalString(numericType);
+        out.writeOptionalString(format);
     }
 
     /** Returns the document field this sort should be based on. */

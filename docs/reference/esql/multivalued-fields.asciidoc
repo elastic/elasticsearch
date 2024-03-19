@@ -1,5 +1,5 @@
 [[esql-multivalued-fields]]
-== {esql} multivalued fields
+=== {esql} multivalued fields
 
 ++++
 <titleabbrev>Multivalued fields</titleabbrev>
@@ -17,7 +17,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv"
+  "query": "FROM mv | LIMIT 2"
 }
 ----
 
@@ -65,7 +65,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv"
+  "query": "FROM mv | LIMIT 2"
 }
 ----
 
@@ -106,7 +106,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv"
+  "query": "FROM mv | LIMIT 2"
 }
 ----
 
@@ -148,7 +148,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | EVAL b=TO_STRING(b)"
+  "query": "FROM mv | EVAL b=TO_STRING(b) | LIMIT 2"
 }
 ----
 
@@ -180,12 +180,20 @@ POST /mv/_bulk?refresh
 { "a": 1, "b": [2, 1] }
 { "index" : {} }
 { "a": 2, "b": 3 }
+----
 
+[source,console]
+----
 POST /_query
 {
-  "query": "FROM mv | EVAL b + 2, a + b"
+  "query": "FROM mv | EVAL b + 2, a + b | LIMIT 4"
 }
 ----
+// TEST[continued]
+// TEST[warning:Line 1:16: evaluation of [b + 2] failed, treating result as null. Only first 20 failures recorded.]
+// TEST[warning:Line 1:16: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+// TEST[warning:Line 1:23: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.]
+// TEST[warning:Line 1:23: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 [source,console-result]
 ----
@@ -193,8 +201,8 @@ POST /_query
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},
-    { "name": "b+2", "type": "long"},
-    { "name": "a+b", "type": "long"}
+    { "name": "b + 2", "type": "long"},
+    { "name": "a + b", "type": "long"}
   ],
   "values": [
     [1, [1, 2], null, null],
@@ -217,7 +225,7 @@ Work around this limitation by converting the field to single value with one of:
 ----
 POST /_query
 {
-  "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b"
+  "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b | LIMIT 4"
 }
 ----
 // TEST[continued]
@@ -228,8 +236,8 @@ POST /_query
   "columns": [
     { "name": "a",   "type": "long"},
     { "name": "b",   "type": "long"},
-    { "name": "b+2", "type": "long"},
-    { "name": "a+b", "type": "long"}
+    { "name": "b + 2", "type": "long"},
+    { "name": "a + b", "type": "long"}
   ],
   "values": [
     [1, 1, 3, 2],

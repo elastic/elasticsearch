@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -29,6 +31,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.commonType;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -69,9 +72,6 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
      * @return True if the type combination is supported by the respective function.
      */
     protected boolean supportsTypes(DataType lhsType, DataType rhsType) {
-        if (isNull(lhsType) || isNull(rhsType)) {
-            return false;
-        }
         if ((lhsType == DataTypes.UNSIGNED_LONG || rhsType == DataTypes.UNSIGNED_LONG) && lhsType != rhsType) {
             // UL can only be operated on together with another UL, so skip non-UL&UL combinations
             return false;
@@ -80,6 +80,7 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
     }
 
     public final void testApplyToAllTypes() {
+        // TODO replace with test cases
         for (DataType lhsType : EsqlDataTypes.types()) {
             for (DataType rhsType : EsqlDataTypes.types()) {
                 if (supportsTypes(lhsType, rhsType) == false) {
@@ -92,15 +93,19 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
                 Source src = new Source(Location.EMPTY, lhsType.typeName() + " " + rhsType.typeName());
                 if (isRepresentable(lhsType) && isRepresentable(rhsType)) {
                     op = build(src, field("lhs", lhsType), field("rhs", rhsType));
-                    result = toJavaObject(evaluator(op).get().eval(row(List.of(lhs.value(), rhs.value()))), 0);
+                    try (Block block = evaluator(op).get(driverContext()).eval(row(Arrays.asList(lhs.value(), rhs.value())))) {
+                        result = toJavaObject(block, 0);
+                    }
                 } else {
                     op = build(src, lhs, rhs);
                     result = op.fold();
                 }
-                if (result == null) {
+                if (isNull(lhsType) || isNull(rhsType)) {
+                    assertThat(op.toString(), result, is(nullValue()));
+                } else if (result == null) {
                     assertCriticalWarnings(
                         "Line -1:-1: evaluation of [" + op + "] failed, treating result as null. Only first 20 failures recorded.",
-                        "java.lang.ArithmeticException: " + commonType(lhsType, rhsType).typeName() + " overflow"
+                        "Line -1:-1: java.lang.ArithmeticException: " + commonType(lhsType, rhsType).typeName() + " overflow"
                     );
                 } else {
                     // The type's currently only used for distinguishing between LONG and UNSIGNED_LONG. UL requires both operands be of

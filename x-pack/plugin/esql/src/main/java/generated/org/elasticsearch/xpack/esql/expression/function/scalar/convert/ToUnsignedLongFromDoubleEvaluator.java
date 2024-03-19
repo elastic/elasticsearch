@@ -6,16 +6,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
-import java.util.BitSet;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.LongArrayBlock;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -23,13 +21,14 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * This class is generated. Do not edit it.
  */
 public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToUnsignedLongFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source) {
-    super(field, source);
+  public ToUnsignedLongFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+      DriverContext driverContext) {
+    super(driverContext, field, source);
   }
 
   @Override
   public String name() {
-    return "ToUnsignedLong";
+    return "ToUnsignedLongFromDouble";
   }
 
   @Override
@@ -38,29 +37,23 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
       try {
-        return new ConstantLongVector(evalValue(vector, 0), positionCount).asBlock();
-      } catch (Exception e) {
+        return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
+      } catch (InvalidArgumentException  e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount);
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    BitSet nullsMask = null;
-    long[] values = new long[positionCount];
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        values[p] = evalValue(vector, p);
-      } catch (Exception e) {
-        registerException(e);
-        if (nullsMask == null) {
-          nullsMask = new BitSet(positionCount);
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendLong(evalValue(vector, p));
+        } catch (InvalidArgumentException  e) {
+          registerException(e);
+          builder.appendNull();
         }
-        nullsMask.set(p);
       }
+      return builder.build();
     }
-    return nullsMask == null
-          ? new LongArrayVector(values, positionCount).asBlock()
-          // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-          : new LongArrayBlock(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED);
   }
 
   private static long evalValue(DoubleVector container, int index) {
@@ -72,37 +65,59 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
   public Block evalBlock(Block b) {
     DoubleBlock block = (DoubleBlock) b;
     int positionCount = block.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = block.getValueCount(p);
-      int start = block.getFirstValueIndex(p);
-      int end = start + valueCount;
-      boolean positionOpened = false;
-      boolean valuesAppended = false;
-      for (int i = start; i < end; i++) {
-        try {
-          long value = evalValue(block, i);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = block.getValueCount(p);
+        int start = block.getFirstValueIndex(p);
+        int end = start + valueCount;
+        boolean positionOpened = false;
+        boolean valuesAppended = false;
+        for (int i = start; i < end; i++) {
+          try {
+            long value = evalValue(block, i);
+            if (positionOpened == false && valueCount > 1) {
+              builder.beginPositionEntry();
+              positionOpened = true;
+            }
+            builder.appendLong(value);
+            valuesAppended = true;
+          } catch (InvalidArgumentException  e) {
+            registerException(e);
           }
-          builder.appendLong(value);
-          valuesAppended = true;
-        } catch (Exception e) {
-          registerException(e);
+        }
+        if (valuesAppended == false) {
+          builder.appendNull();
+        } else if (positionOpened) {
+          builder.endPositionEntry();
         }
       }
-      if (valuesAppended == false) {
-        builder.appendNull();
-      } else if (positionOpened) {
-        builder.endPositionEntry();
-      }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static long evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToUnsignedLong.fromDouble(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToUnsignedLongFromDoubleEvaluator get(DriverContext context) {
+      return new ToUnsignedLongFromDoubleEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToUnsignedLongFromDoubleEvaluator[field=" + field + "]";
+    }
   }
 }

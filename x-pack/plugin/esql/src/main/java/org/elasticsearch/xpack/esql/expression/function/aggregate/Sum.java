@@ -6,11 +6,12 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -27,7 +28,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
  */
 public class Sum extends NumericAggregate {
 
-    public Sum(Source source, Expression field) {
+    @FunctionInfo(returnType = "long", description = "The sum of a numeric field.", isAggregation = true)
+    public Sum(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 
@@ -48,17 +50,17 @@ public class Sum extends NumericAggregate {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new SumLongAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
+        return new SumLongAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new SumIntAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
+        return new SumIntAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new SumDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
+        return new SumDoubleAggregatorFunctionSupplier(inputChannels);
     }
 }

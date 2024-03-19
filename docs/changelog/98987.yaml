@@ -1,6 +1,0 @@
-pr: 98987
-summary: EQL and ESQL to use only the necessary fields in the internal `field_caps`
-  calls
-area: EQL
-type: enhancement
-issues: []

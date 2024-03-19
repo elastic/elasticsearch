@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -39,8 +40,10 @@ import java.util.Map;
  */
 public class NodeInfo extends BaseNodeResponse {
 
-    private final Version version;
+    private final String version;
     private final TransportVersion transportVersion;
+    private final IndexVersion indexVersion;
+    private final Map<String, Integer> componentVersions;
     private final Build build;
 
     @Nullable
@@ -58,11 +61,28 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
-        version = Version.readVersion(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            version = in.readString();
             transportVersion = TransportVersion.readVersion(in);
+            indexVersion = IndexVersion.readVersion(in);
         } else {
-            transportVersion = TransportVersion.fromId(version.id);
+            Version legacyVersion = Version.readVersion(in);
+            version = legacyVersion.toString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+                transportVersion = TransportVersion.readVersion(in);
+            } else {
+                transportVersion = TransportVersion.fromId(legacyVersion.id);
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+                indexVersion = IndexVersion.readVersion(in);
+            } else {
+                indexVersion = IndexVersion.fromId(legacyVersion.id);
+            }
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+            componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
+        } else {
+            componentVersions = Map.of();
         }
         build = Build.readBuild(in);
         if (in.readBoolean()) {
@@ -92,8 +112,10 @@ public class NodeInfo extends BaseNodeResponse {
     }
 
     public NodeInfo(
-        Version version,
+        String version,
         TransportVersion transportVersion,
+        IndexVersion indexVersion,
+        Map<String, Integer> componentVersions,
         Build build,
         DiscoveryNode node,
         @Nullable Settings settings,
@@ -112,6 +134,8 @@ public class NodeInfo extends BaseNodeResponse {
         super(node);
         this.version = version;
         this.transportVersion = transportVersion;
+        this.indexVersion = indexVersion;
+        this.componentVersions = componentVersions;
         this.build = build;
         this.settings = settings;
         addInfoIfNonNull(OsInfo.class, os);
@@ -138,7 +162,7 @@ public class NodeInfo extends BaseNodeResponse {
     /**
      * The current ES version
      */
-    public Version getVersion() {
+    public String getVersion() {
         return version;
     }
 
@@ -147,6 +171,20 @@ public class NodeInfo extends BaseNodeResponse {
      */
     public TransportVersion getTransportVersion() {
         return transportVersion;
+    }
+
+    /**
+     * The most recent index version that can be used by this node
+     */
+    public IndexVersion getIndexVersion() {
+        return indexVersion;
+    }
+
+    /**
+     * The version numbers of other installed components
+     */
+    public Map<String, Integer> getComponentVersions() {
+        return componentVersions;
     }
 
     /**
@@ -196,9 +234,17 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        Version.writeVersion(version, out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeString(version);
+        } else {
+            Version.writeVersion(Version.fromString(version), out);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             TransportVersion.writeVersion(transportVersion, out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+            IndexVersion.writeVersion(indexVersion, out);
+            out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
         }
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {

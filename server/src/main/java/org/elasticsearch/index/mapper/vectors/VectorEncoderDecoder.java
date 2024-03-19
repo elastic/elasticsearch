@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
 
 import java.nio.ByteBuffer;
@@ -46,12 +47,7 @@ public final class VectorEncoderDecoder {
      * Calculates vector magnitude
      */
     private static float calculateMagnitude(float[] decodedVector) {
-        double magnitude = 0.0f;
-        for (int i = 0; i < decodedVector.length; i++) {
-            magnitude += decodedVector[i] * decodedVector[i];
-        }
-        magnitude = Math.sqrt(magnitude);
-        return (float) magnitude;
+        return (float) Math.sqrt(VectorUtil.dotProduct(decodedVector, decodedVector));
     }
 
     public static float getMagnitude(IndexVersion indexVersion, BytesRef vectorBR, float[] decodedVector) {

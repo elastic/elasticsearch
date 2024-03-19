@@ -8,22 +8,6 @@
 
 package org.elasticsearch.test.cluster.local;
 
-import org.elasticsearch.test.cluster.local.distribution.DistributionResolver;
+import org.elasticsearch.test.cluster.ClusterFactory;
 
-import java.nio.file.Path;
-
-public class LocalClusterFactory extends AbstractLocalClusterFactory<LocalClusterSpec, LocalClusterHandle> {
-    private final DistributionResolver distributionResolver;
-
-    public LocalClusterFactory(DistributionResolver distributionResolver) {
-        super(distributionResolver);
-        this.distributionResolver = distributionResolver;
-    }
-
-    protected LocalClusterHandle createHandle(Path baseWorkingDir, LocalClusterSpec spec) {
-        return new LocalClusterHandle(
-            spec.getName(),
-            spec.getNodes().stream().map(s -> new Node(baseWorkingDir, distributionResolver, s)).toList()
-        );
-    }
-}
+public interface LocalClusterFactory<S extends LocalClusterSpec, H extends LocalClusterHandle> extends ClusterFactory<S, H> {}

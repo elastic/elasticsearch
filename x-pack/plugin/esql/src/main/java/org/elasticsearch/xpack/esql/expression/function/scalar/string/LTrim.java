@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -20,16 +21,16 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
  * Removes leading whitespaces from a string.
  */
-public class LTrim extends UnaryScalarFunction implements EvaluatorMapper {
-    public LTrim(Source source, Expression field) {
-        super(source, field);
+public class LTrim extends UnaryScalarFunction {
+    @FunctionInfo(returnType = { "keyword", "text" }, description = "Removes leading whitespaces from a string.")
+    public LTrim(Source source, @Param(name = "str", type = { "keyword", "text" }) Expression str) {
+        super(source, str);
     }
 
     @Override
@@ -42,16 +43,8 @@ public class LTrim extends UnaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
-        return () -> new LTrimEvaluator(field.get());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        return new LTrimEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

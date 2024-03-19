@@ -775,8 +775,9 @@ final class HexRing {
                 current = H3Index.h3RotatePent60ccw(current);
             }
         } else {
-            for (int i = 0; i < newRotations; i++)
+            for (int i = 0; i < newRotations; i++) {
                 current = H3Index.h3Rotate60ccw(current);
+            }
         }
         return current;
     }

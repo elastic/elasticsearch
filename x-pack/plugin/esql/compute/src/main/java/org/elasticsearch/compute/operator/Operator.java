@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
@@ -39,7 +39,7 @@ public interface Operator extends Releasable {
      * non-trivial overhead and it's just not worth building even
      * smaller blocks without under normal circumstances.
      */
-    int MIN_TARGET_PAGE_SIZE = 10;
+    int MIN_TARGET_PAGE_SIZE = 32;
 
     /**
      * whether the given operator can accept more input pages
@@ -88,17 +88,11 @@ public interface Operator extends Releasable {
      * If the operator is not blocked, this method returns {@link #NOT_BLOCKED} which is an already
      * completed future.
      */
-    default ListenableActionFuture<Void> isBlocked() {
+    default SubscribableListener<Void> isBlocked() {
         return NOT_BLOCKED;
     }
 
-    ListenableActionFuture<Void> NOT_BLOCKED = newCompletedFuture();
-
-    static ListenableActionFuture<Void> newCompletedFuture() {
-        ListenableActionFuture<Void> fut = new ListenableActionFuture<>();
-        fut.onResponse(null);
-        return fut;
-    }
+    SubscribableListener<Void> NOT_BLOCKED = SubscribableListener.newSucceeded(null);
 
     /**
      * A factory for creating intermediate operators.
@@ -111,5 +105,5 @@ public interface Operator extends Releasable {
     /**
      * Status of an {@link Operator} to be returned by the tasks API.
      */
-    interface Status extends ToXContentObject, NamedWriteable {}
+    interface Status extends ToXContentObject, VersionedNamedWriteable {}
 }

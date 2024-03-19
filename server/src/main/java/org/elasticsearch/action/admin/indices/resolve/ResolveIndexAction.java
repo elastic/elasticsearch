@@ -15,10 +15,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -65,9 +65,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
     public static final ResolveIndexAction INSTANCE = new ResolveIndexAction();
     public static final String NAME = "indices:admin/resolve/index";
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private ResolveIndexAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
@@ -454,7 +455,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
@@ -493,13 +494,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                     String clusterAlias = remoteIndices.getKey();
                     OriginalIndices originalIndices = remoteIndices.getValue();
-                    Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                        threadPool,
+                    var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                         clusterAlias,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
-                    remoteClusterClient.admin().indices().resolveIndex(remoteRequest, ActionListener.wrap(response -> {
+                    remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
                         terminalHandler.run();
                     }, failure -> terminalHandler.run()));
@@ -544,7 +545,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
          * @param aliases        List containing any matching aliases
          * @param dataStreams    List containing any matching data streams
          */
-        // visible for testing
         static void resolveIndices(
             String[] names,
             IndicesOptions indicesOptions,
@@ -655,6 +655,5 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             SYSTEM,
             FROZEN
         }
-
     }
 }

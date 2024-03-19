@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -29,10 +29,12 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
@@ -41,12 +43,14 @@ import static org.mockito.Mockito.when;
 
 public class TransportWatcherStatsActionTests extends ESTestCase {
 
+    private ThreadPool threadPool;
     private TransportWatcherStatsAction action;
 
     @Before
     public void setupTransportAction() {
-        ThreadPool threadPool = mock(ThreadPool.class);
-        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        threadPool = new TestThreadPool("TransportWatcherStatsActionTests");
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
 
         ClusterService clusterService = mock(ClusterService.class);
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("nodeId");
@@ -89,6 +93,12 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
             executionService,
             triggerService
         );
+    }
+
+    @After
+    public void cleanup() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
     public void testWatcherStats() throws Exception {

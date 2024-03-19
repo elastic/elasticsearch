@@ -10,16 +10,14 @@ package org.elasticsearch.xpack.eql;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
-public class EqlTestCluster {
+public abstract class EqlTestCluster {
 
-    public static ElasticsearchCluster getCluster() {
-        return ElasticsearchCluster.local()
-            .nodes(1)
-            .distribution(DistributionType.DEFAULT)
-            .setting("xpack.license.self_generated.type", "basic")
-            .setting("xpack.monitoring.collection.enabled", "true")
-            .setting("xpack.security.enabled", "false")
-            .build();
-    }
+    public static final ElasticsearchCluster CLUSTER = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.license.self_generated.type", "basic")
+        .setting("xpack.monitoring.collection.enabled", "true")
+        .setting("xpack.security.enabled", "false")
+        .shared(true)
+        .build();
 
 }

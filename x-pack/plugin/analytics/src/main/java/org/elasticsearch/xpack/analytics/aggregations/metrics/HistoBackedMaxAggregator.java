@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSou
 import java.io.IOException;
 import java.util.Map;
 
-public class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleValue {
+public final class HistoBackedMaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final HistogramValuesSource.Histogram valuesSource;
     final DocValueFormat formatter;

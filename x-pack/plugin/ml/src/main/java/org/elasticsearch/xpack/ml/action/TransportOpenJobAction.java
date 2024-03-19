@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -101,7 +102,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             OpenJobAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -165,6 +166,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     MlTasks.jobTaskId(jobParams.getJobId()),
                     MlTasks.JOB_TASK_NAME,
                     jobParams,
+                    null,
                     waitForJobToStart
                 ),
                 listener::onFailure
@@ -323,7 +325,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), null, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in cancelling the persistent task, but the

@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -20,6 +21,7 @@ artifacts {
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
+  maxParallelForks = 1
 }
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()

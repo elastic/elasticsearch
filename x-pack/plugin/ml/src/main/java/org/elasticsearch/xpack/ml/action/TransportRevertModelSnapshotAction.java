@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -83,7 +84,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             RevertModelSnapshotAction.Request::new,
             indexNameExpressionResolver,
             RevertModelSnapshotAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.jobManager = jobManager;
@@ -258,7 +259,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         }, listener::onFailure);
     }
 
-    private void getModelSnapshot(
+    private static void getModelSnapshot(
         RevertModelSnapshotAction.Request request,
         JobResultsProvider provider,
         Consumer<ModelSnapshot> handler,
@@ -271,7 +272,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             return;
         }
 
-        provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
+        provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), true, modelSnapshot -> {
             if (modelSnapshot == null) {
                 throw missingSnapshotException(request);
             }

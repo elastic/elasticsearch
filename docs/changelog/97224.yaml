@@ -1,5 +1,0 @@
-pr: 97224
-summary: Remove exception wrapping in `BatchedRerouteService`
-area: Allocation
-type: bug
-issues: []

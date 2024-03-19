@@ -23,10 +23,10 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -93,6 +93,7 @@ public class ReadOnlyEngine extends Engine {
      * @param requireCompleteHistory indicates whether this engine permits an incomplete history (i.e. LCP &lt; MSN)
      * @param lazilyLoadSoftDeletes indicates whether this engine should load the soft-delete based liveDocs eagerly, or on first access
      */
+    @SuppressWarnings("this-escape")
     public ReadOnlyEngine(
         EngineConfig config,
         SeqNoStats seqNoStats,
@@ -175,7 +176,7 @@ public class ReadOnlyEngine extends Engine {
         // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
         // that guarantee that all operations have been flushed to Lucene.
         IndexVersion indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-        if (indexVersionCreated.onOrAfter(IndexVersion.V_7_2_0)
+        if (indexVersionCreated.onOrAfter(IndexVersions.V_7_2_0)
             || (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
             assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
             if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
@@ -448,7 +449,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
         listener.onResponse(new FlushResult(true, lastCommittedSegmentInfos.getGeneration()));
     }
 
@@ -524,14 +525,11 @@ public class ReadOnlyEngine extends Engine {
         final long recoverUpToSeqNo,
         ActionListener<Void> listener
     ) {
-        ActionListener.run(listener, l -> {
-            try (ReleasableLock lock = readLock.acquire()) {
-                ensureOpen();
-                try {
-                    translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
-                } catch (final Exception e) {
-                    throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
-                }
+        ActionListener.runWithResource(listener, this::acquireEnsureOpenRef, (l, ignoredRef) -> {
+            try {
+                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
+            } catch (final Exception e) {
+                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
             }
             l.onResponse(null);
         });

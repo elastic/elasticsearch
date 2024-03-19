@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.util.Objects;
 
@@ -23,7 +24,7 @@ public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersi
 
     public static final VersionInformation CURRENT = new VersionInformation(
         Version.CURRENT,
-        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
 
@@ -32,7 +33,7 @@ public record VersionInformation(Version nodeVersion, IndexVersion minIndexVersi
             return null;
         } else if (nodeVersion.equals(Version.CURRENT)) {
             return CURRENT;
-        } else if (nodeVersion.onOrBefore(Version.V_8_10_0)) {
+        } else if (nodeVersion.before(Version.V_8_11_0)) {
             return new VersionInformation(
                 nodeVersion,
                 IndexVersion.getMinimumCompatibleIndexVersion(nodeVersion.id),

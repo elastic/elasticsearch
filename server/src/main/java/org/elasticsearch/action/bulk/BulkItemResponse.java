@@ -15,43 +15,34 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message in case it failed).
  */
-public class BulkItemResponse implements Writeable, StatusToXContentObject {
+public class BulkItemResponse implements Writeable, ToXContentObject {
 
     private static final String _INDEX = "_index";
     private static final String _ID = "_id";
-    private static final String STATUS = "status";
-    private static final String ERROR = "error";
+    static final String STATUS = "status";
+    static final String ERROR = "error";
 
-    @Override
     public RestStatus status() {
         return failure == null ? response.status() : failure.getStatus();
     }
@@ -81,80 +72,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
     }
 
     /**
-     * Reads a {@link BulkItemResponse} from a {@link XContentParser}.
-     *
-     * @param parser the {@link XContentParser}
-     * @param id the id to assign to the parsed {@link BulkItemResponse}. It is usually the index of
-     *           the item in the {@link BulkResponse#getItems} array.
-     */
-    public static BulkItemResponse fromXContent(XContentParser parser, int id) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-
-        String currentFieldName = parser.currentName();
-        token = parser.nextToken();
-
-        final OpType opType = OpType.fromString(currentFieldName);
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-
-        DocWriteResponse.Builder builder = null;
-        CheckedConsumer<XContentParser, IOException> itemParser = null;
-
-        if (opType == OpType.INDEX || opType == OpType.CREATE) {
-            final IndexResponse.Builder indexResponseBuilder = new IndexResponse.Builder();
-            builder = indexResponseBuilder;
-            itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, indexResponseBuilder);
-
-        } else if (opType == OpType.UPDATE) {
-            final UpdateResponse.Builder updateResponseBuilder = new UpdateResponse.Builder();
-            builder = updateResponseBuilder;
-            itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, updateResponseBuilder);
-
-        } else if (opType == OpType.DELETE) {
-            final DeleteResponse.Builder deleteResponseBuilder = new DeleteResponse.Builder();
-            builder = deleteResponseBuilder;
-            itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
-        } else {
-            throwUnknownField(currentFieldName, parser);
-        }
-
-        RestStatus status = null;
-        ElasticsearchException exception = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            }
-
-            if (ERROR.equals(currentFieldName)) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    exception = ElasticsearchException.fromXContent(parser);
-                }
-            } else if (STATUS.equals(currentFieldName)) {
-                if (token == XContentParser.Token.VALUE_NUMBER) {
-                    status = RestStatus.fromCode(parser.intValue());
-                }
-            } else {
-                itemParser.accept(parser);
-            }
-        }
-
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
-        token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, token, parser);
-
-        BulkItemResponse bulkItemResponse;
-        if (exception != null) {
-            Failure failure = new Failure(builder.getShardId().getIndexName(), builder.getId(), exception, status);
-            bulkItemResponse = BulkItemResponse.failure(id, opType, failure);
-        } else {
-            bulkItemResponse = BulkItemResponse.success(id, opType, builder.build());
-        }
-        return bulkItemResponse;
-    }
-
-    /**
      * Represents a failure.
      */
     public static class Failure implements Writeable, ToXContentFragment {
@@ -170,18 +87,6 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         private final long seqNo;
         private final long term;
         private final boolean aborted;
-
-        public static final ConstructingObjectParser<Failure, Void> PARSER = new ConstructingObjectParser<>(
-            "bulk_failures",
-            true,
-            a -> new Failure((String) a[0], (String) a[1], (Exception) a[2], RestStatus.fromCode((int) a[3]))
-        );
-        static {
-            PARSER.declareString(constructorArg(), new ParseField(INDEX_FIELD));
-            PARSER.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
-            PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(CAUSE_FIELD));
-            PARSER.declareInt(constructorArg(), new ParseField(STATUS_FIELD));
-        }
 
         /**
          * For write failures before operation was assigned a sequence number.
@@ -506,7 +411,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
     }
 
     private void writeResponseType(StreamOutput out) throws IOException {
-        if (response instanceof IndexResponse) {
+        if (response instanceof SimulateIndexResponse) {
+            out.writeByte((byte) 4);
+        } else if (response instanceof IndexResponse) {
             out.writeByte((byte) 0);
         } else if (response instanceof DeleteResponse) {
             out.writeByte((byte) 1);
@@ -524,6 +431,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             case 1 -> new DeleteResponse(shardId, in);
             case 2 -> null;
             case 3 -> new UpdateResponse(shardId, in);
+            case 4 -> new SimulateIndexResponse(in);
             default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
         };
     }
@@ -535,6 +443,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             case 1 -> new DeleteResponse(in);
             case 2 -> null;
             case 3 -> new UpdateResponse(in);
+            case 4 -> new SimulateIndexResponse(in);
             default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
         };
     }

@@ -9,7 +9,10 @@
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,6 +20,14 @@ import java.io.OutputStream;
 public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);
+
+    /**
+     * Same as {@link #threadLocalInputStream(InputStream)} but wraps the returned stream as a {@link StreamInput}.
+     */
+    default StreamInput threadLocalStreamInput(InputStream in) throws IOException {
+        // wrap stream in buffer since InputStreamStreamInput doesn't do any buffering itself but does a lot of small reads
+        return new InputStreamStreamInput(new BufferedInputStream(threadLocalInputStream(in), DeflateCompressor.BUFFER_SIZE));
+    }
 
     /**
      * Creates a new input stream that decompresses the contents read from the provided input stream.

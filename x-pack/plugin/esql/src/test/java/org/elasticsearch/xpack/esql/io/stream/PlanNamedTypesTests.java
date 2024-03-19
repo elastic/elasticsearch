@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Less
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -45,6 +47,12 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -73,10 +81,18 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -99,12 +115,13 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class PlanNamedTypesTests extends ESTestCase {
 
-    // List of known serializable plan nodes - this should be kept up to date or retrieved
+    // List of known serializable physical plan nodes - this should be kept up to date or retrieved
     // programmatically. Excludes LocalSourceExec
-    static final List<Class<? extends PhysicalPlan>> PHYSICAL_PLAN_NODE_CLS = List.of(
+    public static final List<Class<? extends PhysicalPlan>> PHYSICAL_PLAN_NODE_CLS = List.of(
         AggregateExec.class,
         DissectExec.class,
         EsQueryExec.class,
@@ -136,6 +153,49 @@ public class PlanNamedTypesTests extends ESTestCase {
             .map(PlanNameRegistry.Entry::name)
             .toList();
         assertThat(actual, equalTo(expected));
+    }
+
+    // List of known serializable logical plan nodes - this should be kept up to date or retrieved
+    // programmatically.
+    public static final List<Class<? extends LogicalPlan>> LOGICAL_PLAN_NODE_CLS = List.of(
+        Aggregate.class,
+        Dissect.class,
+        Enrich.class,
+        EsRelation.class,
+        EsqlProject.class,
+        Eval.class,
+        Filter.class,
+        Grok.class,
+        Limit.class,
+        MvExpand.class,
+        OrderBy.class,
+        Project.class,
+        TopN.class
+    );
+
+    // Tests that all logical plan nodes have a suitably named serialization entry.
+    public void testLogicalPlanEntries() {
+        var expected = LOGICAL_PLAN_NODE_CLS.stream().map(Class::getSimpleName).toList();
+        var actual = PlanNamedTypes.namedTypeEntries()
+            .stream()
+            .filter(e -> e.categoryClass().isAssignableFrom(LogicalPlan.class))
+            .map(PlanNameRegistry.Entry::name)
+            .sorted()
+            .toList();
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testFunctionEntries() {
+        var serializableFunctions = PlanNamedTypes.namedTypeEntries()
+            .stream()
+            .filter(e -> Function.class.isAssignableFrom(e.concreteClass()))
+            .map(PlanNameRegistry.Entry::name)
+            .sorted()
+            .toList();
+
+        for (var function : (new EsqlFunctionRegistry()).listFunctions()) {
+            assertThat(serializableFunctions, hasItem(equalTo(PlanNamedTypes.name(function.clazz()))));
+        }
     }
 
     // Tests that all names are unique - there should be a good reason if this is not the case.
@@ -405,6 +465,38 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
+    public void testEsRelation() throws IOException {
+        var orig = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writeEsRelation(out, orig);
+        var deser = PlanNamedTypes.readEsRelation(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
+    public void testEsqlProject() throws IOException {
+        var orig = new EsqlProject(
+            Source.EMPTY,
+            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean()),
+            List.of(randomFieldAttribute())
+        );
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writeEsqlProject(out, orig);
+        var deser = PlanNamedTypes.readEsqlProject(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
+    public void testMvExpand() throws IOException {
+        var esRelation = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
+        var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute(), randomFieldAttribute());
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writeMvExpand(out, orig);
+        var deser = PlanNamedTypes.readMvExpand(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
     private static void assertNamedExpression(NamedExpression origObj) {
         var deserObj = serializeDeserialize(origObj, PlanStreamOutput::writeExpression, PlanStreamInput::readNamedExpression);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
@@ -418,6 +510,14 @@ public class PlanNamedTypesTests extends ESTestCase {
     private static void assertNamedEsField(EsField origObj) {
         var deserObj = serializeDeserialize(origObj, (o, v) -> o.writeNamed(EsField.class, v), PlanStreamInput::readEsFieldNamed);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
+    }
+
+    static EsIndex randomEsIndex() {
+        return new EsIndex(
+            randomAlphaOfLength(randomIntBetween(1, 25)),
+            Map.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomKeywordEsField()),
+            Set.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomAlphaOfLength(randomIntBetween(1, 25)))
+        );
     }
 
     static UnsupportedAttribute randomUnsupportedAttribute() {
@@ -505,6 +605,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             case 6 -> new MedianAbsoluteDeviation(Source.EMPTY, field);
             case 7 -> new CountDistinct(Source.EMPTY, field, right);
             case 8 -> new Percentile(Source.EMPTY, field, right);
+            case 9 -> new SpatialCentroid(Source.EMPTY, field);
             default -> throw new AssertionError(v);
         };
     }
@@ -572,12 +673,13 @@ public class PlanNamedTypesTests extends ESTestCase {
         if (depth > 2) {
             return Map.of(); // prevent infinite recursion (between EsField and properties)
         }
+        depth += 1;
         int size = randomIntBetween(0, 5);
         Map<String, EsField> map = new HashMap<>();
         for (int i = 0; i < size; i++) {
             map.put(
                 randomAlphaOfLength(randomIntBetween(1, 10)), // name
-                randomEsField(depth++)
+                randomEsField(depth)
             );
         }
         return Map.copyOf(map);

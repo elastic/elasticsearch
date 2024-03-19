@@ -25,13 +25,13 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
      */
-    private final Integer estimatedRowSize;
+    private final int estimatedRowSize;
 
     public FragmentExec(LogicalPlan fragment) {
-        this(fragment.source(), fragment, null, null);
+        this(fragment.source(), fragment, null, 0);
     }
 
-    public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, Integer estimatedRowSize) {
+    public FragmentExec(Source source, LogicalPlan fragment, QueryBuilder esFilter, int estimatedRowSize) {
         super(source);
         this.fragment = fragment;
         this.esFilter = esFilter;

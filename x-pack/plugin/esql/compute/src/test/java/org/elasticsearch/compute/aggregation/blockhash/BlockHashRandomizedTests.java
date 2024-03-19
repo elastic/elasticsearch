@@ -10,14 +10,23 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.MockBlockFactory;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 
@@ -31,7 +40,10 @@ import java.util.TreeSet;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
 public class BlockHashRandomizedTests extends ESTestCase {
@@ -87,13 +99,32 @@ public class BlockHashRandomizedTests extends ESTestCase {
     }
 
     public void test() {
+        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
+        test(new MockBlockFactory(breaker, bigArrays));
+    }
+
+    public void testWithCranky() {
+        CircuitBreakerService service = new CrankyCircuitBreakerService();
+        CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, service);
+        try {
+            test(new MockBlockFactory(breaker, bigArrays));
+            logger.info("cranky let us finish!");
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void test(MockBlockFactory blockFactory) {
         List<ElementType> types = randomList(groups, groups, () -> randomFrom(allowedTypes));
         BasicBlockTests.RandomBlock[] randomBlocks = new BasicBlockTests.RandomBlock[types.size()];
         Block[] blocks = new Block[types.size()];
         int pageCount = between(1, 10);
         int positionCount = 100;
         int emitBatchSize = 100;
-        try (BlockHash blockHash = newBlockHash(emitBatchSize, types)) {
+        try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, types)) {
             /*
              * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
              */
@@ -109,7 +140,7 @@ public class BlockHashRandomizedTests extends ESTestCase {
                     randomBlocks[g] = BasicBlockTests.randomBlock(
                         types.get(g),
                         positionCount,
-                        randomBoolean(),
+                        types.get(g) == ElementType.NULL ? true : randomBoolean(),
                         1,
                         maxValuesPerPosition,
                         0,
@@ -133,42 +164,48 @@ public class BlockHashRandomizedTests extends ESTestCase {
             }
 
             Block[] keyBlocks = blockHash.getKeys();
-            Set<List<Object>> keys = new TreeSet<>(new KeyComparator());
-            for (int p = 0; p < keyBlocks[0].getPositionCount(); p++) {
-                List<Object> key = new ArrayList<>(keyBlocks.length);
-                for (Block keyBlock : keyBlocks) {
-                    if (keyBlock.isNull(p)) {
-                        key.add(null);
-                    } else {
-                        key.add(BasicBlockTests.valuesAtPositions(keyBlock, p, p + 1).get(0).get(0));
-                        assertThat(keyBlock.getValueCount(p), equalTo(1));
+            try {
+                Set<List<Object>> keys = new TreeSet<>(new KeyComparator());
+                for (int p = 0; p < keyBlocks[0].getPositionCount(); p++) {
+                    List<Object> key = new ArrayList<>(keyBlocks.length);
+                    for (Block keyBlock : keyBlocks) {
+                        if (keyBlock.isNull(p)) {
+                            key.add(null);
+                        } else {
+                            key.add(BasicBlockTests.valuesAtPositions(keyBlock, p, p + 1).get(0).get(0));
+                            assertThat(keyBlock.getValueCount(p), equalTo(1));
+                        }
                     }
+                    boolean contained = keys.add(key);
+                    assertTrue(contained);
                 }
-                boolean contained = keys.add(key);
-                assertTrue(contained);
-            }
 
-            if (false == keys.equals(oracle.keys)) {
-                List<List<Object>> keyList = new ArrayList<>();
-                keyList.addAll(keys);
-                ListMatcher keyMatcher = matchesList();
-                for (List<Object> k : oracle.keys) {
-                    keyMatcher = keyMatcher.item(k);
+                if (false == keys.equals(oracle.keys)) {
+                    List<List<Object>> keyList = new ArrayList<>();
+                    keyList.addAll(keys);
+                    ListMatcher keyMatcher = matchesList();
+                    for (List<Object> k : oracle.keys) {
+                        keyMatcher = keyMatcher.item(k);
+                    }
+                    assertMap(keyList, keyMatcher);
                 }
-                assertMap(keyList, keyMatcher);
+            } finally {
+                Releasables.closeExpectNoException(keyBlocks);
+                blockFactory.ensureAllBlocksAreReleased();
             }
         }
+        assertThat(blockFactory.breaker().getUsed(), is(0L));
     }
 
-    private BlockHash newBlockHash(int emitBatchSize, List<ElementType> types) {
+    private BlockHash newBlockHash(BlockFactory blockFactory, int emitBatchSize, List<ElementType> types) {
         List<HashAggregationOperator.GroupSpec> specs = new ArrayList<>(types.size());
         for (int c = 0; c < types.size(); c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
         }
-        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService());
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
         return forcePackedHash
-            ? new PackedValuesBlockHash(specs, bigArrays, emitBatchSize)
-            : BlockHash.build(specs, bigArrays, emitBatchSize);
+            ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
+            : BlockHash.build(specs, driverContext, emitBatchSize, true);
     }
 
     private static class KeyComparator implements Comparator<List<?>> {
@@ -233,5 +270,12 @@ public class BlockHashRandomizedTests extends ESTestCase {
                 add(randomBlocks, p, newKey);
             }
         }
+    }
+
+    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
+    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
+        return breakerService;
     }
 }

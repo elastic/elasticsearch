@@ -84,3 +84,12 @@ each node, but for these accounts to have different numeric user or group IDs.
 If your shared file system uses NFS then ensure that every node is running with
 the same numeric UID and GID, or else update your NFS configuration to account
 for the variance in numeric IDs across nodes.
+
+[[repository-fs-linearizable-registers]]
+==== Linearizable register implementation
+
+The linearizable register implementation for shared filesystem repositories is
+based around file locking. To perform a compare-and-exchange operation on a
+register, {es} first locks he underlying file and then writes the updated
+contents under the same lock. This ensures that the file has not changed in the
+meantime.

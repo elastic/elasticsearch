@@ -11,11 +11,10 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -25,11 +24,11 @@ import java.util.Map;
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
- * A specialized {@link PriorityQueue} implementation for composite buckets.
+ * A specialized {@link ObjectArrayPriorityQueue} implementation for composite buckets.
  */
-final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> implements Releasable {
+final class CompositeValuesCollectorQueue extends ObjectArrayPriorityQueue<Integer> {
     private class Slot {
-        int value;
+        final int value;
 
         Slot(int initial) {
             this.value = initial;
@@ -74,25 +73,33 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * @param indexReader
      */
     CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size, IndexReader indexReader) {
-        super(size);
+        super(size, bigArrays);
         this.bigArrays = bigArrays;
         this.maxSize = size;
         this.arrays = sources;
 
-        // If the leading source is a GlobalOrdinalValuesSource we can apply an optimization which requires
-        // tracking the highest competitive value.
-        if (arrays[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
-            if (shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(sources, size, indexReader)) {
-                competitiveBoundsChangedListener = topSlot -> globalOrdinalValuesSource.updateHighestCompetitiveValue(topSlot);
+        boolean success = false;
+        try {
+            // If the leading source is a GlobalOrdinalValuesSource we can apply an optimization which requires
+            // tracking the highest competitive value.
+            if (arrays[0] instanceof GlobalOrdinalValuesSource globalOrdinalValuesSource) {
+                if (shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(sources, size, indexReader)) {
+                    competitiveBoundsChangedListener = globalOrdinalValuesSource::updateHighestCompetitiveValue;
+                } else {
+                    competitiveBoundsChangedListener = null;
+                }
             } else {
                 competitiveBoundsChangedListener = null;
             }
-        } else {
-            competitiveBoundsChangedListener = null;
-        }
 
-        this.map = Maps.newMapWithExpectedSize(size);
-        this.docCounts = bigArrays.newLongArray(1, false);
+            this.map = Maps.newMapWithExpectedSize(size);
+            this.docCounts = bigArrays.newLongArray(1, false);
+            success = true;
+        } finally {
+            if (success == false) {
+                super.close();
+            }
+        }
     }
 
     private static boolean shouldApplyGlobalOrdinalDynamicPruningForLeadingSource(
@@ -207,8 +214,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * Copies the current value in <code>slot</code>.
      */
     private void copyCurrent(int slot, long value) {
-        for (int i = 0; i < arrays.length; i++) {
-            arrays[i].copyCurrent(slot);
+        for (SingleDimensionValuesSource<?> array : arrays) {
+            array.copyCurrent(slot);
         }
         docCounts = bigArrays.grow(docCounts, slot + 1);
         docCounts.set(slot, value);
@@ -238,12 +245,12 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      */
     boolean equals(int slot1, int slot2) {
         assert slot2 != CANDIDATE_SLOT;
-        for (int i = 0; i < arrays.length; i++) {
+        for (SingleDimensionValuesSource<?> array : arrays) {
             final int cmp;
             if (slot1 == CANDIDATE_SLOT) {
-                cmp = arrays[i].compareCurrent(slot2);
+                cmp = array.compareCurrent(slot2);
             } else {
-                cmp = arrays[i].compare(slot1, slot2);
+                cmp = array.compare(slot1, slot2);
             }
             if (cmp != 0) {
                 return false;
@@ -257,8 +264,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      */
     int hashCode(int slot) {
         int result = 1;
-        for (int i = 0; i < arrays.length; i++) {
-            result = 31 * result + (slot == CANDIDATE_SLOT ? arrays[i].hashCodeCurrent() : arrays[i].hashCode(slot));
+        for (SingleDimensionValuesSource<?> array : arrays) {
+            result = 31 * result + (slot == CANDIDATE_SLOT ? array.hashCodeCurrent() : array.hashCode(slot));
         }
         return result;
     }
@@ -385,7 +392,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
             // and we recycle the deleted slot
             newSlot = slot;
         } else {
-            newSlot = size();
+            newSlot = (int) size();
         }
         // move the candidate key to its new slot
         copyCurrent(newSlot, inc);
@@ -399,7 +406,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     }
 
     @Override
-    public void close() {
+    protected void doClose() {
         Releasables.close(docCounts);
     }
 }

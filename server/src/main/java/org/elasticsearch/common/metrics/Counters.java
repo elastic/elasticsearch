@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentMap;
  * that will not have conflicts, which means that there no counter will have a label which is a substring of the label of another counter.
  * For example, the counters `foo: 1` and `foo.bar: 3` cannot co-exist in a nested map.
  */
-public class Counters implements Writeable {
+public final class Counters implements Writeable {
 
     private final ConcurrentMap<String, CounterMetric> counters = new ConcurrentHashMap<>();
 

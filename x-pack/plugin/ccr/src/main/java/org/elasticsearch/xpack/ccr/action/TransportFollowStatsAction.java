@@ -61,7 +61,7 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             FollowStatsAction.StatsRequest::new,
             FollowStatsAction.StatsResponses::new,
             FollowStatsAction.StatsResponse::new,
-            Ccr.CCR_THREAD_POOL_NAME
+            transportService.getThreadPool().executor(Ccr.CCR_THREAD_POOL_NAME)
         );
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }

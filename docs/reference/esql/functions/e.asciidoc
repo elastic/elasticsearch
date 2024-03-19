@@ -1,9 +1,17 @@
+[discrete]
 [[esql-e]]
 === `E`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/e.svg[Embedded,opts=inline]
 
-{wikipedia}/E_(mathematical_constant)[Euler's number].
+*Description*
+
+Returns {wikipedia}/E_(mathematical_constant)[Euler's number].
+
+*Example*
 
 [source.merge.styled,esql]
 ----

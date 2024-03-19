@@ -46,6 +46,11 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
+        return doGetFields(docId, valueFetcher, source, fetchContext, fieldType);
+    }
+
+    static Field[] doGetFields(int docId, ValueFetcher valueFetcher, Source source, FetchContext fetchContext, MappedFieldType fieldType)
+        throws IOException {
         List<Object> values = valueFetcher.fetchValues(source, docId, new ArrayList<>());
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
@@ -63,5 +68,4 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         }
         return fields;
     }
-
 }

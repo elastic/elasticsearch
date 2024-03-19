@@ -176,9 +176,7 @@ PUT _component_template/my-weather-sensor-mappings
 Optionally, the index settings component template for a TSDS can include:
 
 * Your lifecycle policy in the `index.lifecycle.name` index setting.
-* The <<tsds-look-ahead-time,`index.look_ahead_time`>> index setting.
-* The <<tsds-look-back-time,`index.look_back_time`>> index setting.
-* Other index settings, such as <<index-codec,`index.codec`>>, for your TSDS's
+* Other index settings, such as <<dynamic-index-number-of-replicas,`index.number_of_replicas`>>, for your TSDS's
 backing indices.
 
 IMPORTANT: Don't specify the `index.routing_path` index setting in a component
@@ -191,9 +189,7 @@ PUT _component_template/my-weather-sensor-settings
 {
   "template": {
     "settings": {
-      "index.lifecycle.name": "my-lifecycle-policy",
-      "index.look_ahead_time": "3h",
-      "index.codec": "best_compression"
+      "index.lifecycle.name": "my-lifecycle-policy"
     }
   },
   "_meta": {

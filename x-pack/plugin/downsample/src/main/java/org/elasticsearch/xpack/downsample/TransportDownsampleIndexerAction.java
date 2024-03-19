@@ -69,7 +69,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             indexNameExpressionResolver,
             DownsampleIndexerAction.Request::new,
             DownsampleIndexerAction.ShardDownsampleRequest::new,
-            Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME
+            transportService.getThreadPool().executor(Downsample.DOWNSAMPLE_TASK_THREAD_POOL_NAME)
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;
@@ -144,6 +144,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             request.getRollupConfig(),
             request.getMetricFields(),
             request.getLabelFields(),
+            request.getDimensionFields(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
         return indexer.execute();

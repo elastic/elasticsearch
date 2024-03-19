@@ -9,6 +9,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -42,6 +43,7 @@ import java.util.OptionalLong;
 
 public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAction<DesiredBalanceRequest, DesiredBalanceResponse> {
 
+    public static final ActionType<DesiredBalanceResponse> TYPE = new ActionType<>("cluster:admin/desired_balance/get");
     @Nullable
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator;
     private final ClusterInfoService clusterInfoService;
@@ -59,7 +61,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         WriteLoadForecaster writeLoadForecaster
     ) {
         super(
-            GetDesiredBalanceAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -67,7 +69,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             DesiredBalanceRequest::new,
             indexNameExpressionResolver,
             DesiredBalanceResponse::from,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.desiredBalanceShardsAllocator = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator ? allocator : null;
         this.clusterInfoService = clusterInfoService;
@@ -95,7 +97,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
         listener.onResponse(
             new DesiredBalanceResponse(
                 desiredBalanceShardsAllocator.getStats(),
-                ClusterBalanceStats.createFrom(state, clusterInfo, writeLoadForecaster),
+                ClusterBalanceStats.createFrom(state, latestDesiredBalance, clusterInfo, writeLoadForecaster),
                 createRoutingTable(state, latestDesiredBalance),
                 clusterInfo
             )

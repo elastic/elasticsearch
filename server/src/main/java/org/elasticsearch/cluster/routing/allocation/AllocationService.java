@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -53,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -78,6 +78,7 @@ public class AllocationService {
     private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
+    @SuppressWarnings("this-escape")
     public AllocationService(
         AllocationDeciders allocationDeciders,
         GatewayAllocator gatewayAllocator,
@@ -381,8 +382,7 @@ public class AllocationService {
      * state. Should be called after every change to the cluster that affects the routing table and/or the balance of shards.
      * <p>
      * This method is expensive in larger clusters. Wherever possible you should invoke this method asynchronously using
-     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly. The node's reroute service is
-     * typically obtained from {@link ClusterService#getRerouteService}.
+     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly.
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
@@ -399,8 +399,7 @@ public class AllocationService {
      * state. Should be called after every change to the cluster that affects the routing table and/or the balance of shards.
      * <p>
      * This method is expensive in larger clusters. Wherever possible you should invoke this method asynchronously using
-     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly. The node's reroute service is
-     * typically obtained from {@link ClusterService#getRerouteService}.
+     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly.
      *
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
@@ -545,7 +544,10 @@ public class AllocationService {
         }
 
         for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
-            existingShardsAllocator.afterPrimariesBeforeReplicas(allocation);
+            existingShardsAllocator.afterPrimariesBeforeReplicas(
+                allocation,
+                shardRouting -> getAllocatorForShard(shardRouting, allocation) == existingShardsAllocator
+            );
         }
 
         final RoutingNodes.UnassignedShards.UnassignedIterator replicaIterator = allocation.routingNodes().unassigned().iterator();
@@ -697,7 +699,7 @@ public class AllocationService {
         public void beforeAllocation(RoutingAllocation allocation) {}
 
         @Override
-        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
         @Override
         public void allocateUnassigned(

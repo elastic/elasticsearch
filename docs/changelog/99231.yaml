@@ -1,5 +1,0 @@
-pr: 99231
-summary: Add manage permission for fleet managed threat intel indices
-area: Authorization
-type: enhancement
-issues: []

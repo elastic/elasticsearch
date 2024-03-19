@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Iterator;
@@ -1000,7 +1001,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     void setJobState(JobTask jobTask, JobState state, String reason) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
         jobTask.updatePersistentTaskState(
             jobTaskState,
             ActionListener.wrap(
@@ -1010,7 +1011,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         );
     }
 
-    private void logSetJobStateFailure(JobState state, String jobId, Exception e) {
+    private static void logSetJobStateFailure(JobState state, String jobId, Exception e) {
         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
             logger.debug("Could not set job state to [{}] for job [{}] as it has been closed", state, jobId);
         } else {
@@ -1019,7 +1020,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     }
 
     void setJobState(JobTask jobTask, JobState state, String reason, CheckedConsumer<Exception, IOException> handler) {
-        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason);
+        JobTaskState jobTaskState = new JobTaskState(state, jobTask.getAllocationId(), reason, Instant.now());
         jobTask.updatePersistentTaskState(jobTaskState, ActionListener.wrap(persistentTask -> {
             try {
                 handler.accept(null);
@@ -1061,4 +1062,24 @@ public class AutodetectProcessManager implements ClusterStateListener {
         resetInProgress = MlMetadata.getMlMetadata(event.state()).isResetMode();
     }
 
+    /**
+     * Finds the memory used by open autodetect processes on the current node.
+     * @return Memory used by open autodetect processes on the current node.
+     */
+    public ByteSizeValue getOpenProcessMemoryUsage() {
+        long memoryUsedBytes = 0;
+        for (ProcessContext processContext : processByAllocation.values()) {
+            if (processContext.getState() == ProcessContext.ProcessStateName.RUNNING) {
+                ModelSizeStats modelSizeStats = processContext.getAutodetectCommunicator().getModelSizeStats();
+                ModelSizeStats.AssignmentMemoryBasis basis = modelSizeStats.getAssignmentMemoryBasis();
+                memoryUsedBytes += switch (basis != null ? basis : ModelSizeStats.AssignmentMemoryBasis.MODEL_MEMORY_LIMIT) {
+                    case MODEL_MEMORY_LIMIT -> Optional.ofNullable(modelSizeStats.getModelBytesMemoryLimit()).orElse(0L);
+                    case CURRENT_MODEL_BYTES -> modelSizeStats.getModelBytes();
+                    case PEAK_MODEL_BYTES -> Optional.ofNullable(modelSizeStats.getPeakModelBytes()).orElse(modelSizeStats.getModelBytes());
+                };
+                memoryUsedBytes += Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+            }
+        }
+        return ByteSizeValue.ofBytes(memoryUsedBytes);
+    }
 }

@@ -224,7 +224,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         }
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private static final Set<String> VALID_FIELDS = Set.of("order", "mappings", "settings", "index_patterns", "aliases", "version");
 

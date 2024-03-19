@@ -42,7 +42,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     private static final Logger logger = LogManager.getLogger(TransportShardRefreshAction.class);
 
     public static final String NAME = RefreshAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
     public static final String SOURCE_API = "api";
 
     private final Executor refreshExecutor;
@@ -68,7 +68,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             actionFilters,
             BasicReplicationRequest::new,
             ShardRefreshReplicaRequest::new,
-            ThreadPool.Names.REFRESH
+            threadPool.executor(ThreadPool.Names.REFRESH)
         );
         // registers the unpromotable version of shard refresh action
         new TransportUnpromotableShardRefreshAction(clusterService, transportService, shardStateAction, actionFilters, indicesService);
@@ -126,6 +126,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             } else {
                 UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
                     indexShardRoutingTable,
+                    replicaRequest.primaryRefreshResult.primaryTerm(),
                     replicaRequest.primaryRefreshResult.generation(),
                     false
                 );

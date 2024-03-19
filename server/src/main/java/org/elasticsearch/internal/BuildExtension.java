@@ -9,8 +9,7 @@
 package org.elasticsearch.internal;
 
 import org.elasticsearch.Build;
-
-import java.util.ServiceLoader;
+import org.elasticsearch.env.BuildVersion;
 
 /**
  * Allows plugging in current build info.
@@ -23,16 +22,19 @@ public interface BuildExtension {
     Build getCurrentBuild();
 
     /**
-     * Loads a single BuildExtension, or returns {@code null} if none are found.
+     * {@code true} if this build uses release versions.
      */
-    static BuildExtension load() {
-        var loader = ServiceLoader.load(BuildExtension.class);
-        var extensions = loader.stream().toList();
-        if (extensions.size() > 1) {
-            throw new IllegalStateException("More than one build extension found");
-        } else if (extensions.size() == 0) {
-            return null;
-        }
-        return extensions.get(0).get();
+    default boolean hasReleaseVersioning() {
+        return true;
     }
+
+    /**
+     * Returns the {@link BuildVersion} for the running Elasticsearch code.
+     */
+    BuildVersion currentBuildVersion();
+
+    /**
+     * Returns the {@link BuildVersion} for a given version identifier.
+     */
+    BuildVersion fromVersionId(int versionId);
 }

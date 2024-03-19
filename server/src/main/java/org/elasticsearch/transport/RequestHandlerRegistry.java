@@ -15,7 +15,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.concurrent.Executor;
@@ -63,7 +63,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
-        final Task task = taskManager.register(channel.getChannelType(), action, request);
+        final Task task = taskManager.register("transport", action, request);
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
             if (channel instanceof TcpTransportChannel tcpTransportChannel && task instanceof CancellableTask cancellableTask) {

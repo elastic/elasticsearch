@@ -1,3 +1,10 @@
+---
+setup:
+  - skip:
+      version: "8.7.00 - 8.9.99"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+
+---
 enable:
   - skip:
       version: " - 8.0.99"
@@ -225,7 +232,7 @@ empty start end times:
       reason: introduced in 8.1.0
 
   - do:
-      catch: /cannot parse empty date/
+      catch: /cannot parse empty date(time)?/
       indices.create:
         index: test_index
         body:

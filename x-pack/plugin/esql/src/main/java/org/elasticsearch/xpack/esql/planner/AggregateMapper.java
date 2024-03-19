@@ -20,8 +20,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsolute
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -43,9 +46,13 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+
 public class AggregateMapper {
 
     static final List<String> NUMERIC = List.of("Int", "Long", "Double");
+    static final List<String> SPATIAL = List.of("GeoPoint", "CartesianPoint");
 
     /** List of all ESQL agg functions. */
     static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
@@ -56,11 +63,12 @@ public class AggregateMapper {
         MedianAbsoluteDeviation.class,
         Min.class,
         Percentile.class,
+        SpatialCentroid.class,
         Sum.class
     );
 
     /** Record of agg Class, type, and grouping (or non-grouping). */
-    record AggDef(Class<?> aggClazz, String type, boolean grouping) {}
+    record AggDef(Class<?> aggClazz, String type, String extra, boolean grouping) {}
 
     /** Map of AggDef types to intermediate named expressions. */
     private final Map<AggDef, List<IntermediateStateDesc>> mapper;
@@ -80,7 +88,7 @@ public class AggregateMapper {
     }
 
     public List<? extends NamedExpression> mapNonGrouping(List<? extends Expression> aggregates) {
-        return aggregates.stream().flatMap(agg -> map(agg, false)).toList();
+        return doMapping(aggregates, false);
     }
 
     public List<? extends NamedExpression> mapNonGrouping(Expression aggregate) {
@@ -88,7 +96,13 @@ public class AggregateMapper {
     }
 
     public List<? extends NamedExpression> mapGrouping(List<? extends Expression> aggregates) {
-        return aggregates.stream().flatMap(agg -> map(agg, true)).toList();
+        return doMapping(aggregates, true);
+    }
+
+    private List<? extends NamedExpression> doMapping(List<? extends Expression> aggregates, boolean grouping) {
+        AttributeMap<NamedExpression> attrToExpressions = new AttributeMap<>();
+        aggregates.stream().flatMap(agg -> map(agg, grouping)).forEach(ne -> attrToExpressions.put(ne.toAttribute(), ne));
+        return attrToExpressions.values().stream().toList();
     }
 
     public List<? extends NamedExpression> mapGrouping(Expression aggregate) {
@@ -96,7 +110,7 @@ public class AggregateMapper {
     }
 
     private Stream<? extends NamedExpression> map(Expression aggregate, boolean grouping) {
-        aggregate = unwrapAlias(aggregate);
+        aggregate = Alias.unwrap(aggregate);
         return cache.computeIfAbsent(aggregate, aggKey -> computeEntryForAgg(aggKey, grouping)).stream();
     }
 
@@ -124,28 +138,40 @@ public class AggregateMapper {
         return l;
     }
 
-    static Stream<Tuple<Class<?>, String>> typeAndNames(Class<?> clazz) {
+    private static Stream<Tuple<Class<?>, Tuple<String, String>>> typeAndNames(Class<?> clazz) {
         List<String> types;
+        List<String> extraConfigs = List.of("");
         if (NumericAggregate.class.isAssignableFrom(clazz)) {
             types = NUMERIC;
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
+        } else if (SpatialAggregateFunction.class.isAssignableFrom(clazz)) {
+            types = SPATIAL;
+            extraConfigs = List.of("SourceValues", "DocValues");
         } else {
             assert clazz == CountDistinct.class : "Expected CountDistinct, got: " + clazz;
             types = Stream.concat(NUMERIC.stream(), Stream.of("Boolean", "BytesRef")).toList();
         }
-        return types.stream().map(type -> new Tuple<>(clazz, type));
+        return combinations(types, extraConfigs).map(combo -> new Tuple<>(clazz, combo));
     }
 
-    static Stream<AggDef> groupingAndNonGrouping(Tuple<Class<?>, String> tuple) {
-        return Stream.of(new AggDef(tuple.v1(), tuple.v2(), true), new AggDef(tuple.v1(), tuple.v2(), false));
+    private static Stream<Tuple<String, String>> combinations(List<String> types, List<String> extraConfigs) {
+        return types.stream().flatMap(type -> extraConfigs.stream().map(config -> new Tuple<>(type, config)));
     }
 
-    static AggDef aggDefOrNull(Expression aggregate, boolean grouping) {
+    private static Stream<AggDef> groupingAndNonGrouping(Tuple<Class<?>, Tuple<String, String>> tuple) {
+        return Stream.of(
+            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),
+            new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false)
+        );
+    }
+
+    private static AggDef aggDefOrNull(Expression aggregate, boolean grouping) {
         if (aggregate instanceof AggregateFunction aggregateFunction) {
             return new AggDef(
                 aggregateFunction.getClass(),
                 dataTypeToString(aggregateFunction.field().dataType(), aggregateFunction.getClass()),
+                aggregate instanceof SpatialCentroid ? "SourceValues" : "",
                 grouping
             );
         }
@@ -153,9 +179,9 @@ public class AggregateMapper {
     }
 
     /** Retrieves the intermediate state description for a given class, type, and grouping. */
-    static List<IntermediateStateDesc> lookupIntermediateState(AggDef aggDef) {
+    private static List<IntermediateStateDesc> lookupIntermediateState(AggDef aggDef) {
         try {
-            return (List<IntermediateStateDesc>) lookup(aggDef.aggClazz(), aggDef.type(), aggDef.grouping()).invokeExact();
+            return (List<IntermediateStateDesc>) lookup(aggDef.aggClazz(), aggDef.type(), aggDef.extra(), aggDef.grouping()).invokeExact();
         } catch (Throwable t) {
             // invokeExact forces us to handle any Throwable thrown by lookup.
             throw new EsqlIllegalArgumentException(t);
@@ -163,11 +189,11 @@ public class AggregateMapper {
     }
 
     /** Looks up the intermediate state method for a given class, type, and grouping. */
-    static MethodHandle lookup(Class<?> clazz, String type, boolean grouping) {
+    private static MethodHandle lookup(Class<?> clazz, String type, String extra, boolean grouping) {
         try {
             return MethodHandles.lookup()
                 .findStatic(
-                    Class.forName(determineAggName(clazz, type, grouping)),
+                    Class.forName(determineAggName(clazz, type, extra, grouping)),
                     "intermediateStateDesc",
                     MethodType.methodType(List.class)
                 );
@@ -177,24 +203,34 @@ public class AggregateMapper {
     }
 
     /** Determines the engines agg class name, for the given class, type, and grouping. */
-    static String determineAggName(Class<?> clazz, String type, boolean grouping) {
+    private static String determineAggName(Class<?> clazz, String type, String extra, boolean grouping) {
         StringBuilder sb = new StringBuilder();
-        sb.append("org.elasticsearch.compute.aggregation.");
+        sb.append(determinePackageName(clazz)).append(".");
         sb.append(clazz.getSimpleName());
         sb.append(type);
+        sb.append(extra);
         sb.append(grouping ? "Grouping" : "");
         sb.append("AggregatorFunction");
         return sb.toString();
     }
 
+    /** Determines the engine agg package name, for the given class. */
+    private static String determinePackageName(Class<?> clazz) {
+        if (clazz.getSimpleName().startsWith("Spatial")) {
+            // All spatial aggs are in the spatial sub-package
+            return "org.elasticsearch.compute.aggregation.spatial";
+        }
+        return "org.elasticsearch.compute.aggregation";
+    }
+
     /** Maps intermediate state description to named expressions.  */
-    static Stream<NamedExpression> isToNE(List<IntermediateStateDesc> intermediateStateDescs) {
+    private static Stream<NamedExpression> isToNE(List<IntermediateStateDesc> intermediateStateDescs) {
         return intermediateStateDescs.stream().map(is -> new ReferenceAttribute(Source.EMPTY, is.name(), toDataType(is.type())));
     }
 
     /** Returns the data type for the engines element type. */
     // defaults to aggstate, but we'll eventually be able to remove this
-    static DataType toDataType(ElementType elementType) {
+    private static DataType toDataType(ElementType elementType) {
         return switch (elementType) {
             case BOOLEAN -> DataTypes.BOOLEAN;
             case BYTES_REF -> DataTypes.KEYWORD;
@@ -206,7 +242,7 @@ public class AggregateMapper {
     }
 
     /** Returns the string representation for the data type. This reflects the engine's aggs naming structure. */
-    static String dataTypeToString(DataType type, Class<?> aggClass) {
+    private static String dataTypeToString(DataType type, Class<?> aggClass) {
         if (aggClass == Count.class) {
             return "";  // no type distinction
         }
@@ -218,14 +254,21 @@ public class AggregateMapper {
             return "Long";
         } else if (type.equals(DataTypes.DOUBLE)) {
             return "Double";
-        } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP)) {
-            return "BytesRef";
-        } else {
-            throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
-        }
+        } else if (type.equals(DataTypes.KEYWORD)
+            || type.equals(DataTypes.IP)
+            || type.equals(DataTypes.VERSION)
+            || type.equals(DataTypes.TEXT)) {
+                return "BytesRef";
+            } else if (type.equals(GEO_POINT)) {
+                return "GeoPoint";
+            } else if (type.equals(CARTESIAN_POINT)) {
+                return "CartesianPoint";
+            } else {
+                throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
+            }
     }
 
-    static Expression unwrapAlias(Expression expression) {
+    private static Expression unwrapAlias(Expression expression) {
         if (expression instanceof Alias alias) return alias.child();
         return expression;
     }

@@ -36,7 +36,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
     public static final String NAME = "cluster:admin/synonyms/put";
 
     public PutSynonymsAction() {
-        super(NAME, SynonymUpdateResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

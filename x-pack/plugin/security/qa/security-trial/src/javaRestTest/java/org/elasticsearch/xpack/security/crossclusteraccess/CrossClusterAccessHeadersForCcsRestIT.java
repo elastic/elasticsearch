@@ -16,13 +16,13 @@ import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterName;
@@ -34,11 +34,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -1035,12 +1034,12 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
     ) throws IOException {
         final Set<String> expectedActions = new HashSet<>();
         if (minimizeRoundtrips) {
-            expectedActions.add(SearchAction.NAME);
+            expectedActions.add(TransportSearchAction.TYPE.name());
         } else {
-            expectedActions.add(SearchShardsAction.NAME);
+            expectedActions.add(TransportSearchShardsAction.TYPE.name());
         }
         if (false == useProxyMode) {
-            expectedActions.add(RemoteClusterNodesAction.NAME);
+            expectedActions.add(RemoteClusterNodesAction.TYPE.name());
         }
         assertThat(
             actualActionsWithHeaders.stream().map(CapturedActionWithHeaders::action).collect(Collectors.toUnmodifiableSet()),
@@ -1066,7 +1065,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     );
                     assertThat(actualCrossClusterAccessSubjectInfo, equalTo(expectedCrossClusterAccessSubjectInfo));
                 }
-                case SearchAction.NAME, SearchShardsAction.NAME -> {
+                case TransportSearchAction.NAME, TransportSearchShardsAction.NAME -> {
                     assertContainsHeadersExpectedForCrossClusterAccess(actual.headers());
                     assertContainsCrossClusterAccessCredentialsHeader(encodedCredential, actual);
                     final var actualCrossClusterAccessSubjectInfo = CrossClusterAccessSubjectInfo.decode(
@@ -1121,7 +1120,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 }
             );
             service.registerRequestHandler(
-                RemoteClusterNodesAction.NAME,
+                RemoteClusterNodesAction.TYPE.name(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 RemoteClusterNodesAction.Request::new,
                 (request, channel, task) -> {
@@ -1132,7 +1131,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 }
             );
             service.registerRequestHandler(
-                SearchShardsAction.NAME,
+                TransportSearchShardsAction.TYPE.name(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
@@ -1143,33 +1142,35 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                 }
             );
             service.registerRequestHandler(
-                SearchAction.NAME,
+                TransportSearchAction.TYPE.name(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchRequest::new,
                 (request, channel, task) -> {
                     capturedHeaders.add(
                         new CapturedActionWithHeaders(task.getAction(), Map.copyOf(threadPool.getThreadContext().getHeaders()))
                     );
-                    channel.sendResponse(
-                        new SearchResponse(
-                            new InternalSearchResponse(
-                                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+                    try (
+                        var searchResponseRef = ReleasableRef.of(
+                            new SearchResponse(
+                                SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                                 InternalAggregations.EMPTY,
-                                null,
                                 null,
                                 false,
                                 null,
-                                1
-                            ),
-                            null,
-                            1,
-                            1,
-                            0,
-                            100,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
+                                null,
+                                1,
+                                null,
+                                1,
+                                1,
+                                0,
+                                100,
+                                ShardSearchFailure.EMPTY_ARRAY,
+                                SearchResponse.Clusters.EMPTY
+                            )
                         )
-                    );
+                    ) {
+                        channel.sendResponse(searchResponseRef.get());
+                    }
                 }
             );
             service.start();

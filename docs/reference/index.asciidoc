@@ -17,6 +17,8 @@ include::intro.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
 
+include::getting-started.asciidoc[]
+
 include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
@@ -63,9 +65,9 @@ include::high-availability.asciidoc[]
 
 include::snapshot-restore/index.asciidoc[]
 
-include::{xes-repo-dir}/security/index.asciidoc[]
+include::security/index.asciidoc[]
 
-include::{xes-repo-dir}/watcher/index.asciidoc[]
+include::watcher/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 

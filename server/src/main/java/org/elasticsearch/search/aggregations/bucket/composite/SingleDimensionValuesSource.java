@@ -31,8 +31,6 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     protected final MappedFieldType fieldType;
     protected final boolean missingBucket;
     protected final MissingOrder missingOrder;
-
-    protected final int size;
     protected final int reverseMul;
 
     protected T afterValue;
@@ -45,7 +43,6 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * @param fieldType The field type or null if the source is a script.
      * @param missingBucket If true, an explicit `null bucket represents documents with missing values.
      * @param missingOrder How to order missing buckets if missingBucket is <code>true</code>.
-     * @param size The number of values to record.
      * @param reverseMul -1 if the natural order ({@link SortOrder#ASC} should be reversed.
      */
     SingleDimensionValuesSource(
@@ -54,7 +51,6 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
         @Nullable MappedFieldType fieldType,
         boolean missingBucket,
         MissingOrder missingOrder,
-        int size,
         int reverseMul
     ) {
         this.bigArrays = bigArrays;
@@ -62,7 +58,6 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
         this.fieldType = fieldType;
         this.missingBucket = missingBucket;
         this.missingOrder = missingOrder;
-        this.size = size;
         this.reverseMul = reverseMul;
         this.afterValue = null;
     }

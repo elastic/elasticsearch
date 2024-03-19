@@ -58,7 +58,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         return NAME;
     }
 
-    private Collection<PutRoleMappingRequest> prepare(List<ExpressionRoleMapping> roleMappings) {
+    private static Collection<PutRoleMappingRequest> prepare(List<ExpressionRoleMapping> roleMappings) {
         List<PutRoleMappingRequest> requests = roleMappings.stream().map(rm -> PutRoleMappingRequest.fromMapping(rm)).toList();
 
         var exceptions = new ArrayList<Exception>();

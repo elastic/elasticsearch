@@ -20,6 +20,7 @@ public class EngineException extends ElasticsearchException {
         this(shardId, msg, null, params);
     }
 
+    @SuppressWarnings("this-escape")
     public EngineException(ShardId shardId, String msg, Throwable cause, Object... params) {
         super(msg, cause, params);
         setShard(shardId);

@@ -12,8 +12,10 @@ import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.internal.VersionExtension;
+import org.elasticsearch.plugins.ExtensionLoader;
 
 import java.io.IOException;
+import java.util.ServiceLoader;
 
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
@@ -99,6 +101,14 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return TransportVersion.fromId(Integer.parseInt(str));
     }
 
+    /**
+     * Returns a string representing the Elasticsearch release version of this transport version,
+     * if applicable for this deployment, otherwise the raw version number.
+     */
+    public String toReleaseVersion() {
+        return TransportVersions.VERSION_LOOKUP.apply(id);
+    }
+
     @Override
     public String toString() {
         return Integer.toString(id);
@@ -107,13 +117,11 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     private static class CurrentHolder {
         private static final TransportVersion CURRENT = findCurrent();
 
-        // finds the pluggable current version, or uses the given fallback
+        // finds the pluggable current version
         private static TransportVersion findCurrent() {
-            var versionExtension = VersionExtension.load();
-            if (versionExtension == null) {
-                return TransportVersions.LATEST_DEFINED;
-            }
-            var version = versionExtension.getCurrentTransportVersion();
+            var version = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
+                .map(e -> e.getCurrentTransportVersion(TransportVersions.LATEST_DEFINED))
+                .orElse(TransportVersions.LATEST_DEFINED);
             assert version.onOrAfter(TransportVersions.LATEST_DEFINED);
             return version;
         }

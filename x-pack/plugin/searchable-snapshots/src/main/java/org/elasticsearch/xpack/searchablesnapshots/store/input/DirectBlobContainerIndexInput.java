@@ -14,6 +14,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
@@ -340,7 +341,7 @@ public final class DirectBlobContainerIndexInput extends BlobCacheBufferedIndexI
     private InputStream openBlobStream(int part, long pos, long length) throws IOException {
         assert MetadataCachingIndexInput.assertCurrentThreadMayAccessBlobStore();
         stats.addBlobStoreBytesRequested(length);
-        return blobContainer.readBlob(fileInfo.partName(part), pos, length);
+        return blobContainer.readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(part), pos, length);
     }
 
     private static class StreamForSequentialReads implements Closeable {

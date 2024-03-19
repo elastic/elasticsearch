@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,7 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(PrimaryElectionRoutingTests.class);
 
     public void testBackupElectionToPrimaryWhenPrimaryCanBeAllocatedToAnotherNode() {
         AllocationService strategy = createAllocationService(

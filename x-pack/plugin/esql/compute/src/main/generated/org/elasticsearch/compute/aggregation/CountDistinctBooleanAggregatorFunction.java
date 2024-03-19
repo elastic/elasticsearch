@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctBooleanAggregator}.
@@ -24,18 +25,22 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
       new IntermediateStateDesc("fbit", ElementType.BOOLEAN),
       new IntermediateStateDesc("tbit", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final CountDistinctBooleanAggregator.SingleState state;
 
   private final List<Integer> channels;
 
-  public CountDistinctBooleanAggregatorFunction(List<Integer> channels,
+  public CountDistinctBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
       CountDistinctBooleanAggregator.SingleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static CountDistinctBooleanAggregatorFunction create(List<Integer> channels) {
-    return new CountDistinctBooleanAggregatorFunction(channels, CountDistinctBooleanAggregator.initSingle());
+  public static CountDistinctBooleanAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new CountDistinctBooleanAggregatorFunction(driverContext, channels, CountDistinctBooleanAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -49,11 +54,7 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    BooleanBlock block = (BooleanBlock) uncastBlock;
+    BooleanBlock block = page.getBlock(channels.get(0));
     BooleanVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -85,21 +86,29 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    BooleanVector fbit = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-    BooleanVector tbit = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    Block fbitUncast = page.getBlock(channels.get(0));
+    if (fbitUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
     assert fbit.getPositionCount() == 1;
-    assert fbit.getPositionCount() == tbit.getPositionCount();
+    Block tbitUncast = page.getBlock(channels.get(1));
+    if (tbitUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();
+    assert tbit.getPositionCount() == 1;
     CountDistinctBooleanAggregator.combineIntermediate(state, fbit.getBoolean(0), tbit.getBoolean(0));
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = CountDistinctBooleanAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = CountDistinctBooleanAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

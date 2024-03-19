@@ -9,11 +9,13 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -43,9 +45,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
     static final String ERROR_MESSAGE_7X = "[sparse_vector] field type in old 7.x indices is allowed to "
         + "contain [sparse_vector] fields, but they cannot be indexed or searched.";
     static final String ERROR_MESSAGE_8X = "The [sparse_vector] field type is not supported from 8.0 to 8.10 versions.";
-    static final IndexVersion PREVIOUS_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.V_8_0_0;
+    static final IndexVersion PREVIOUS_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.V_8_0_0;
 
-    static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersion.V_8_500_001;
+    static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.NEW_SPARSE_VECTOR;
+    static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION = IndexVersions.SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT;
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -63,8 +66,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             return new SparseVectorFieldMapper(
-                name,
-                new SparseVectorFieldType(context.buildFullName(name), meta.getValue()),
+                name(),
+                new SparseVectorFieldType(context.buildFullName(name()), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo
             );
@@ -93,11 +96,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            throw new IllegalArgumentException("[sparse_vector] fields do not support [exists] queries");
-        }
-
-        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[sparse_vector] fields do not support sorting, scripting or aggregating");
         }
@@ -110,6 +108,18 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
+            if (context.getIndexSettings().getIndexVersionCreated().before(PREVIOUS_SPARSE_VECTOR_INDEX_VERSION)) {
+                deprecationLogger.warn(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
+                return new MatchNoDocsQuery();
+            } else if (context.getIndexSettings().getIndexVersionCreated().before(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
+                // No support for exists queries prior to this version on 8.x
+                throw new IllegalArgumentException("[sparse_vector] fields do not support [exists] queries");
+            }
+            return super.existsQuery(context);
         }
 
         private static String indexedValueForSearch(Object value) {
@@ -192,6 +202,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
                             + token
                     );
                 }
+            }
+            if (context.indexSettings().getIndexVersionCreated().onOrAfter(SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION)) {
+                context.addToFieldNames(fieldType().name());
             }
         } finally {
             context.path().setWithinLeafObject(false);

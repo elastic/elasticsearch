@@ -24,13 +24,13 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -96,13 +96,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         exporters = mock(Exporters.class);
         threadPool = mock(ThreadPool.class);
         clusterService = mock(ClusterService.class);
-        transportService = mock(TransportService.class);
+        transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         filters = mock(ActionFilters.class);
-
-        // TODO: temporary, remove in #97879
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-
         when(transportService.getTaskManager()).thenReturn(taskManager);
         when(taskManager.register(anyString(), eq(MonitoringBulkAction.NAME), any(TaskAwareRequest.class))).thenReturn(mock(Task.class));
         when(filters.filters()).thenReturn(new ActionFilter[0]);

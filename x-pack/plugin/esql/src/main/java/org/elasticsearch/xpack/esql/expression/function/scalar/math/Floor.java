@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
@@ -30,25 +29,21 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
  *     an integer ala {@link Math#floor}.
  * </p>
  */
-public class Floor extends UnaryScalarFunction implements EvaluatorMapper {
-    public Floor(Source source, @Named("n") Expression n) {
+public class Floor extends UnaryScalarFunction {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Round a number down to the nearest integer."
+    )
+    public Floor(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         if (dataType().isInteger()) {
             return toEvaluator.apply(field());
         }
-        Supplier<EvalOperator.ExpressionEvaluator> fieldEval = toEvaluator.apply(field());
-        return () -> new FloorDoubleEvaluator(fieldEval.get());
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
+        return new FloorDoubleEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportChannel;
@@ -51,14 +52,14 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         ShardStateAction shardStateAction,
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
-        String executor
+        Executor executor
     ) {
-        super(actionName, transportService, actionFilters, requestReader);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.shardStateAction = shardStateAction;
         this.transportService = transportService;
         this.transportUnpromotableAction = actionName + "[u]";
-        this.executor = transportService.getThreadPool().executor(executor);
+        this.executor = executor;
 
         transportService.registerRequestHandler(
             transportUnpromotableAction,

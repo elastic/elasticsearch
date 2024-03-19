@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -179,7 +180,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 + jobId
                 + "] on node ["
                 + JobNodeSelector.nodeNameAndVersion(node)
-                + "], because the job's model snapshot requires a node of version ["
+                + "], because the job's model snapshot requires a node with ML config version ["
                 + job.getModelSnapshotMinVersion()
                 + "] or higher";
         }
@@ -344,7 +345,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     private void failTask(JobTask jobTask, String reason) {
         String jobId = jobTask.getJobId();
         auditor.error(jobId, reason);
-        JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason);
+        JobTaskState failedState = new JobTaskState(JobState.FAILED, jobTask.getAllocationId(), reason, Instant.now());
         jobTask.updatePersistentTaskState(failedState, ActionListener.wrap(r -> {
             logger.debug("[{}] updated task state to failed", jobId);
             stopAssociatedDatafeedForFailedJob(jobId);
@@ -397,18 +398,18 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     private void getRunningDatafeed(String jobId, ActionListener<String> listener) {
-        ActionListener<Set<String>> datafeedListener = ActionListener.wrap(datafeeds -> {
+        ActionListener<Set<String>> datafeedListener = listener.delegateFailureAndWrap((delegate, datafeeds) -> {
             assert datafeeds.size() <= 1;
             if (datafeeds.isEmpty()) {
-                listener.onResponse(null);
+                delegate.onResponse(null);
                 return;
             }
 
             String datafeedId = datafeeds.iterator().next();
             PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
-            listener.onResponse(datafeedTask != null ? datafeedId : null);
-        }, listener::onFailure);
+            delegate.onResponse(datafeedTask != null ? datafeedId : null);
+        });
 
         datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singleton(jobId), datafeedListener);
     }

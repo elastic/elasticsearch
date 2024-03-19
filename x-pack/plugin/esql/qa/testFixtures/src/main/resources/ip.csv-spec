@@ -16,7 +16,11 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 equals
+required_feature: esql.mv_warn
+
 from hosts | sort host, card | where ip0 == ip1 | keep card, host, ip0, ip1;
+warning:Line 1:38: evaluation of [ip0 == ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |alpha          |127.0.0.1                |127.0.0.1
@@ -55,8 +59,12 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9                       
 eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]|[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
 ;
 
-lessThen
+lessThan
+required_feature: esql.mv_warn
+
 from hosts | sort host, card | where ip0 < ip1 | keep card, host, ip0, ip1;
+warning:Line 1:38: evaluation of [ip0 < ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
@@ -65,7 +73,11 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:f
 ;
 
 notEquals
+required_feature: esql.mv_warn
+
 from hosts | sort host, card, ip1 | where ip0 != ip1 | keep card, host, ip0, ip1;
+warning:Line 1:43: evaluation of [ip0 != ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:43: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth0           |beta           |127.0.0.1                |::1
@@ -113,8 +125,12 @@ null           |[127.0.0.1, 127.0.0.2, 127.0.0.3]
 ;
 
 conditional
+required_feature: esql.mv_warn
+
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1;
 ignoreOrder:true
+warning:Line 1:27: evaluation of [ip0==ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:27: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 eq:ip                                                 |ip0:ip                                                                           |ip1:ip
 127.0.0.1                                             |127.0.0.1                                                                        |127.0.0.1
@@ -130,8 +146,14 @@ fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb
 ;
 
 in
+required_feature: esql.mv_warn
+
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
+warning:Line 1:27: evaluation of [ip0==ip1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:27: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:55: evaluation of [eq in (ip0, ip1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:55: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip                   |eq:ip
 eth0           |alpha          |127.0.0.1                                                                        |127.0.0.1                |127.0.0.1
@@ -145,15 +167,23 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 ;
 
 cidrMatchSimple
+required_feature: esql.mv_warn
+
 from hosts | where cidr_match(ip1, "127.0.0.2/32") | keep card, host, ip0, ip1;
+warning:Line 1:20: evaluation of [cidr_match(ip1, \"127.0.0.2/32\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip         |ip1:ip
 eth1           |beta           |127.0.0.1      |127.0.0.2
 ;
 
 cidrMatchNullField
+required_feature: esql.mv_warn
+
 from hosts | where cidr_match(ip0, "127.0.0.2/32") is null | keep card, host, ip0, ip1;
 ignoreOrder:true
+warning:Line 1:20: evaluation of [cidr_match(ip0, \"127.0.0.2/32\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip
 eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]|fe80::cae2:65ff:fece:fec1
@@ -162,17 +192,32 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 cdirMatchMultipleArgs
-from hosts | where cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") | keep card, host, ip0, ip1;
-ignoreOrder:true
+required_feature: esql.mv_warn
 
+//tag::cdirMatchMultipleArgs[]
+FROM hosts 
+| WHERE CIDR_MATCH(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+| KEEP card, host, ip0, ip1
+//end::cdirMatchMultipleArgs[]
+;
+ignoreOrder:true
+warning:Line 2:9: evaluation of [CIDR_MATCH(ip1, \"127.0.0.2/32\", \"127.0.0.3/32\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+//tag::cdirMatchMultipleArgs-result[]
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
 eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
+//end::cdirMatchMultipleArgs-result[]
 ;
 
 cidrMatchFunctionArg
+required_feature: esql.mv_warn
+
 from hosts | where cidr_match(ip1, concat("127.0.0.2", "/32"), "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
+warning:Line 1:20: evaluation of [cidr_match(ip1, concat(\"127.0.0.2\", \"/32\"), \"127.0.0.3/32\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
@@ -180,8 +225,12 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFieldArg
+required_feature: esql.mv_warn
+
 from hosts | eval cidr="127.0.0.2" | where cidr_match(ip1, cidr, "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
+warning:Line 1:44: evaluation of [cidr_match(ip1, cidr, \"127.0.0.3/32\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:44: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
@@ -204,7 +253,7 @@ ROW str1 = "1.1.1.1", str2 = "foo"
 // end::to_ip[]
 ;
 warning:Line 2:33: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.IllegalArgumentException: 'foo' is not an IP string literal.
+warning:Line 2:33: java.lang.IllegalArgumentException: 'foo' is not an IP string literal.
 
 // tag::to_ip-result[]
 str1:keyword |str2:keyword |ip1:ip  |ip2:ip
@@ -215,6 +264,8 @@ str1:keyword |str2:keyword |ip1:ip  |ip2:ip
 pushDownIP
 from hosts | where ip1 == to_ip("::1") | keep card, host, ip0, ip1;
 ignoreOrder:true
+warning:#[Emulated:Line 1:20: evaluation of [ip1 == to_ip(\"::1\")] failed, treating result as null. Only first 20 failures recorded.]
+warning:#[Emulated:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 card:keyword   |host:keyword   |ip0:ip     |ip1:ip
 eth1           |alpha          |::1        |::1
@@ -222,8 +273,12 @@ eth0           |beta           |127.0.0.1  |::1
 ;
 
 pushDownIPWithIn
+required_feature: esql.mv_warn
+
 from hosts | where ip1 in (to_ip("::1"), to_ip("127.0.0.1")) | keep card, host, ip0, ip1;
 ignoreOrder:true
+warning:Line 1:20: evaluation of [ip1 in (to_ip(\"::1\"), to_ip(\"127.0.0.1\"))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip      |ip1:ip
 eth0           |alpha          |127.0.0.1   |127.0.0.1
@@ -232,8 +287,12 @@ eth0           |beta           |127.0.0.1   |::1
 ;
 
 pushDownIPWithComparision
+required_feature: esql.mv_warn
+
 from hosts | where ip1 > to_ip("127.0.0.1") | keep card, ip1;
 ignoreOrder:true
+warning:Line 1:20: evaluation of [ip1 > to_ip(\"127.0.0.1\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:20: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |ip1:ip
 eth1           |127.0.0.2
@@ -241,4 +300,64 @@ eth1           |128.0.0.1
 lo0            |fe81::cae2:65ff:fece:feb9
 eth0           |127.0.0.3
 eth0           |fe80::cae2:65ff:fece:fec1
+;
+
+mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+FROM hosts
+| eval sd = mv_sort(ip1, "DESC"), sa = mv_sort(ip1)
+| sort host desc, ip1
+| keep host, ip1, sa, sd
+| limit 5
+;
+
+host:keyword | ip1:ip                                                 | sa:ip                                                  | sd:ip
+gamma        | 127.0.0.3                                              | 127.0.0.3                                              | 127.0.0.3
+gamma        | fe81::cae2:65ff:fece:feb9                              | fe81::cae2:65ff:fece:feb9                              | fe81::cae2:65ff:fece:feb9
+epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3]                      | [127.0.0.1, 127.0.0.2, 127.0.0.3]                      | [127.0.0.3, 127.0.0.2, 127.0.0.1]
+epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::cae2:65ff:fece:fec1                              | fe80::cae2:65ff:fece:fec1
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9]
+;
+
+mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+from hosts
+| where host == "epsilon"
+| eval a1 = mv_slice(ip1, 0, 1)
+| keep host, ip1, a1
+| sort host, ip1
+| limit 5;
+
+host:keyword | ip1:ip                                                 | a1:ip
+epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3]                      | [127.0.0.1, 127.0.0.2]
+epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::cae2:65ff:fece:fec1
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+from hosts
+| where host == "epsilon"
+| eval a1 = mv_slice(ip1, 0, 1)
+| keep host, ip1, a1
+| sort host, ip1
+| limit 5;
+
+host:keyword | ip1:ip                                                 | a1:ip
+epsilon      | [127.0.0.1, 127.0.0.2, 127.0.0.3]                      | [127.0.0.1, 127.0.0.2]
+epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::cae2:65ff:fece:fec1
+epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
+;
+
+mvZip#[skip:-8.13.99, reason:newly added in 8.14]
+from hosts
+| eval zip = mv_zip(to_string(description), to_string(ip0), "@@")
+| keep host, description, ip0, zip
+| sort host desc, ip0
+| limit 5
+;
+
+host:keyword | description:text              | ip0:ip                                                                            | zip:keyword
+gamma        | gamma k8s server              | fe80::cae2:65ff:fece:feb9                                                         | gamma k8s server@@fe80::cae2:65ff:fece:feb9
+gamma        | gamma k8s server              | fe80::cae2:65ff:fece:feb9                                                         | gamma k8s server@@fe80::cae2:65ff:fece:feb9
+epsilon      | epsilon gw instance           | [fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1] | [epsilon gw instance@@fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece:fec0, fe80::cae2:65ff:fece:fec1]
+epsilon      | [epsilon host, epsilon2 host] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]                            | [epsilon host@@fe81::cae2:65ff:fece:feb9, epsilon2 host@@fe82::cae2:65ff:fece:fec0]
+epsilon      | null                          | null                                                                              | null
 ;

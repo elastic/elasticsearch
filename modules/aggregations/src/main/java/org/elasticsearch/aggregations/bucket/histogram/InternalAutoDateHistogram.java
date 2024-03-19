@@ -7,20 +7,21 @@
  */
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -109,7 +110,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -286,80 +287,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return new Bucket(prototype.key, prototype.docCount, prototype.format, aggregations);
     }
 
-    /**
-     * This method works almost exactly the same as
-     * InternalDateHistogram#reduceBuckets(List, ReduceContext), the different
-     * here is that we need to round all the keys we see using the highest level
-     * rounding returned across all the shards so the resolution of the buckets
-     * is the same and they can be reduced together.
-     */
-    private BucketReduceResult reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-
-        // First we need to find the highest level rounding used across all the
-        // shards
-        int reduceRoundingIdx = 0;
-        long min = Long.MAX_VALUE;
-        long max = Long.MIN_VALUE;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalAutoDateHistogram agg = ((InternalAutoDateHistogram) aggregation);
-            reduceRoundingIdx = Math.max(agg.bucketInfo.roundingIdx, reduceRoundingIdx);
-            if (false == agg.buckets.isEmpty()) {
-                min = Math.min(min, agg.buckets.get(0).key);
-                max = Math.max(max, agg.buckets.get(agg.buckets.size() - 1).key);
-            }
-        }
-        Rounding.Prepared reduceRounding = prepare(reduceRoundingIdx, min, max);
-
-        final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
-            @Override
-            protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
-                return a.current().key < b.current().key;
-            }
-        };
-        for (InternalAggregation aggregation : aggregations) {
-            InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) aggregation;
-            if (histogram.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
-            }
-        }
-
-        List<Bucket> reducedBuckets = new ArrayList<>();
-        if (pq.size() > 0) {
-            // list of buckets coming from different shards that have the same key
-            List<Bucket> currentBuckets = new ArrayList<>();
-            long key = reduceRounding.round(pq.top().current().key);
-
-            do {
-                final IteratorAndCurrent<Bucket> top = pq.top();
-
-                if (reduceRounding.round(top.current().key) != key) {
-                    // the key changes, reduce what we already buffered and reset the buffer for current buckets
-                    final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                    reducedBuckets.add(reduced);
-                    currentBuckets.clear();
-                    key = reduceRounding.round(top.current().key);
-                }
-
-                currentBuckets.add(top.current());
-
-                if (top.hasNext()) {
-                    top.next();
-                    assert top.current().key > key : "shards must return data sorted by key";
-                    pq.updateTop();
-                } else {
-                    pq.pop();
-                }
-            } while (pq.size() > 0);
-
-            if (currentBuckets.isEmpty() == false) {
-                final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                reducedBuckets.add(reduced);
-            }
-        }
-
-        return mergeBucketsIfNeeded(new BucketReduceResult(reducedBuckets, reduceRoundingIdx, 1, reduceRounding, min, max), reduceContext);
-    }
-
     private BucketReduceResult mergeBucketsIfNeeded(BucketReduceResult firstPassResult, AggregationReduceContext reduceContext) {
         int idx = firstPassResult.roundingIdx;
         RoundingInfo info = bucketInfo.roundingInfos[idx];
@@ -409,43 +336,25 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return reducedBuckets;
     }
 
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+        assert buckets.isEmpty() == false;
         long docCount = 0;
         for (Bucket bucket : buckets) {
             docCount += bucket.docCount;
-            aggregations.add((InternalAggregations) bucket.getAggregations());
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return new InternalAutoDateHistogram.Bucket(buckets.get(0).key, docCount, format, aggs);
     }
 
-    private static class BucketReduceResult {
-        final List<Bucket> buckets;
-        final int roundingIdx;
-        final long innerInterval;
-        final Rounding.Prepared preparedRounding;
-        final long min;
-        final long max;
-
-        BucketReduceResult(
-            List<Bucket> buckets,
-            int roundingIdx,
-            long innerInterval,
-            Rounding.Prepared preparedRounding,
-            long min,
-            long max
-        ) {
-            this.buckets = buckets;
-            this.roundingIdx = roundingIdx;
-            this.innerInterval = innerInterval;
-            this.preparedRounding = preparedRounding;
-            this.min = min;
-            this.max = max;
-        }
-    }
+    private record BucketReduceResult(
+        List<Bucket> buckets,
+        int roundingIdx,
+        long innerInterval,
+        Rounding.Prepared preparedRounding,
+        long min,
+        long max
+    ) {}
 
     private BucketReduceResult addEmptyBuckets(BucketReduceResult current, AggregationReduceContext reduceContext) {
         List<Bucket> list = current.buckets;
@@ -525,36 +434,122 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         return currentRoundingIdx - 1;
     }
 
+    /**
+     * This method works almost exactly the same as
+     * InternalDateHistogram#reduceBuckets(List, ReduceContext), the different
+     * here is that we need to round all the keys we see using the highest level
+     * rounding returned across all the shards so the resolution of the buckets
+     * is the same and they can be reduced together.
+     */
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        BucketReduceResult reducedBucketsResult = reduceBuckets(aggregations, reduceContext);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            private final LongObjectPagedHashMap<MultiBucketAggregatorsReducer> bucketsReducer = new LongObjectPagedHashMap<>(
+                getBuckets().size(),
+                reduceContext.bigArrays()
+            );
+            int reduceRoundingIdx = 0;
+            long min = Long.MAX_VALUE;
+            long max = Long.MIN_VALUE;
 
-        if (reduceContext.isFinalReduce()) {
-            // adding empty buckets if needed
-            reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, reduceContext);
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final InternalAutoDateHistogram histogram = (InternalAutoDateHistogram) aggregation;
+                reduceRoundingIdx = Math.max(histogram.bucketInfo.roundingIdx, reduceRoundingIdx);
+                if (false == histogram.buckets.isEmpty()) {
+                    min = Math.min(min, histogram.buckets.get(0).key);
+                    max = Math.max(max, histogram.buckets.get(histogram.buckets.size() - 1).key);
+                    for (Bucket bucket : histogram.buckets) {
+                        MultiBucketAggregatorsReducer reducer = bucketsReducer.get(bucket.key);
+                        if (reducer == null) {
+                            reducer = new MultiBucketAggregatorsReducer(reduceContext, size);
+                            bucketsReducer.put(bucket.key, reducer);
+                        }
+                        reducer.accept(bucket);
+                    }
+                }
+            }
 
-            // Adding empty buckets may have tipped us over the target so merge the buckets again if needed
-            reducedBucketsResult = mergeBucketsIfNeeded(reducedBucketsResult, reduceContext);
+            @Override
+            public InternalAggregation get() {
+                // First we need to find the highest level rounding used across all the
+                // shards
+                final Rounding.Prepared reduceRounding = prepare(reduceRoundingIdx, min, max);
 
-            // Now finally see if we need to merge consecutive buckets together to make a coarser interval at the same rounding
-            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext);
-        }
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBucketsResult.buckets.size());
-        BucketInfo bucketInfo = new BucketInfo(
-            this.bucketInfo.roundingInfos,
-            reducedBucketsResult.roundingIdx,
-            this.bucketInfo.emptySubAggregations
-        );
+                final long[] keys = new long[(int) bucketsReducer.size()];
+                {
+                    // fill the array and sort it
+                    final int[] index = new int[] { 0 };
+                    bucketsReducer.iterator().forEachRemaining(c -> keys[index[0]++] = c.key);
+                    Arrays.sort(keys);
+                }
 
-        return new InternalAutoDateHistogram(
-            getName(),
-            reducedBucketsResult.buckets,
-            targetBuckets,
-            bucketInfo,
-            format,
-            getMetadata(),
-            reducedBucketsResult.innerInterval
-        );
+                final List<Bucket> reducedBuckets = new ArrayList<>();
+                if (keys.length > 0) {
+                    // list of buckets coming from different shards that have the same key
+                    MultiBucketAggregatorsReducer currentReducer = null;
+                    long key = reduceRounding.round(keys[0]);
+                    for (long top : keys) {
+                        if (reduceRounding.round(top) != key) {
+                            assert currentReducer != null;
+                            // the key changes, reduce what we already buffered and reset the buffer for current buckets
+                            reducedBuckets.add(createBucket(key, currentReducer.getDocCount(), currentReducer.get()));
+                            currentReducer = null;
+                            key = reduceRounding.round(top);
+                        }
+
+                        final MultiBucketAggregatorsReducer nextReducer = bucketsReducer.get(top);
+                        if (currentReducer == null) {
+                            currentReducer = nextReducer;
+                        } else {
+                            currentReducer.accept(createBucket(key, nextReducer.getDocCount(), nextReducer.get()));
+                        }
+                    }
+
+                    if (currentReducer != null) {
+                        reducedBuckets.add(createBucket(key, currentReducer.getDocCount(), currentReducer.get()));
+                    }
+                }
+
+                BucketReduceResult reducedBucketsResult = mergeBucketsIfNeeded(
+                    new BucketReduceResult(reducedBuckets, reduceRoundingIdx, 1, reduceRounding, min, max),
+                    reduceContext
+                );
+
+                if (reduceContext.isFinalReduce()) {
+                    // adding empty buckets if needed
+                    reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, reduceContext);
+
+                    // Adding empty buckets may have tipped us over the target so merge the buckets again if needed
+                    reducedBucketsResult = mergeBucketsIfNeeded(reducedBucketsResult, reduceContext);
+
+                    // Now finally see if we need to merge consecutive buckets together to make a coarser interval at the same rounding
+                    reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext);
+                }
+                reduceContext.consumeBucketsAndMaybeBreak(reducedBucketsResult.buckets.size());
+                BucketInfo bucketInfo = new BucketInfo(
+                    getBucketInfo().roundingInfos,
+                    reducedBucketsResult.roundingIdx,
+                    getBucketInfo().emptySubAggregations
+                );
+
+                return new InternalAutoDateHistogram(
+                    getName(),
+                    reducedBucketsResult.buckets,
+                    targetBuckets,
+                    bucketInfo,
+                    format,
+                    getMetadata(),
+                    reducedBucketsResult.innerInterval
+                );
+            }
+
+            @Override
+            public void close() {
+                bucketsReducer.iterator().forEachRemaining(c -> Releasables.close(c.value));
+                Releasables.close(bucketsReducer);
+            }
+        };
     }
 
     @Override

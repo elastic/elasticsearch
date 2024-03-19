@@ -34,7 +34,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/stop";
 
     public StopTrainedModelDeploymentAction() {
-        super(NAME, StopTrainedModelDeploymentAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -79,7 +79,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             allowNoMatch = in.readBoolean();
             force = in.readBoolean();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_068)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 finishPendingWork = in.readBoolean();
             } else {
                 finishPendingWork = false;
@@ -132,7 +132,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(force);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_068)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 out.writeBoolean(finishPendingWork);
             }
         }

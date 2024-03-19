@@ -40,7 +40,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -91,11 +90,12 @@ public abstract class TransportBroadcastByNodeAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
-        String executor
+        Executor executor
     ) {
         this(actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true);
     }
 
+    @SuppressWarnings("this-escape")
     public TransportBroadcastByNodeAction(
         String actionName,
         ClusterService clusterService,
@@ -103,16 +103,16 @@ public abstract class TransportBroadcastByNodeAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Request> request,
-        String executor,
+        Executor executor,
         boolean canTripCircuitBreaker
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, ThreadPool.Names.SAME);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.executor = transportService.getThreadPool().executor(executor);
+        this.executor = executor;
         assert this.executor != EsExecutors.DIRECT_EXECUTOR_SERVICE : "O(#shards) work must always fork to an appropriate executor";
 
         transportNodeBroadcastAction = actionName + "[n]";
@@ -228,7 +228,7 @@ public abstract class TransportBroadcastByNodeAction<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        request.incRef();
+        request.mustIncRef();
         executor.execute(ActionRunnable.wrapReleasing(listener, request::decRef, l -> doExecuteForked(task, request, listener)));
     }
 
@@ -474,7 +474,7 @@ public abstract class TransportBroadcastByNodeAction<
         }
 
         NodeRequest(Request indicesLevelRequest, List<ShardRouting> shards, String nodeId) {
-            indicesLevelRequest.incRef();
+            indicesLevelRequest.mustIncRef();
             this.indicesLevelRequest = indicesLevelRequest;
             this.shards = shards;
             this.nodeId = nodeId;
@@ -542,7 +542,8 @@ public abstract class TransportBroadcastByNodeAction<
         }
     }
 
-    class NodeResponse extends TransportResponse {
+    // visible for testing
+    public class NodeResponse extends TransportResponse {
         protected String nodeId;
         protected int totalShards;
         protected List<BroadcastShardOperationFailedException> exceptions;
@@ -560,7 +561,8 @@ public abstract class TransportBroadcastByNodeAction<
             }
         }
 
-        NodeResponse(
+        // visible for testing
+        public NodeResponse(
             String nodeId,
             int totalShards,
             List<ShardOperationResult> results,

@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -58,14 +59,9 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
         return Arrays.asList(INDEX_INTERNAL_SETTING, INDEX_PRIVATE_SETTING);
     }
 
-    public static class UpdateInternalOrPrivateAction extends ActionType<UpdateInternalOrPrivateAction.Response> {
+    public static class UpdateInternalOrPrivateAction {
 
-        public static final UpdateInternalOrPrivateAction INSTANCE = new UpdateInternalOrPrivateAction();
-        private static final String NAME = "indices:admin/settings/update-internal-or-private-index";
-
-        public UpdateInternalOrPrivateAction() {
-            super(NAME, UpdateInternalOrPrivateAction.Response::new);
-        }
+        public static final ActionType<Response> INSTANCE = new ActionType<>("indices:admin/settings/update-internal-or-private-index");
 
         public static class Request extends MasterNodeRequest<Request> {
 
@@ -129,7 +125,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             final IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
-                UpdateInternalOrPrivateAction.NAME,
+                UpdateInternalOrPrivateAction.INSTANCE.name(),
                 transportService,
                 clusterService,
                 threadPool,
@@ -137,7 +133,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 UpdateInternalOrPrivateAction.Request::new,
                 indexNameExpressionResolver,
                 UpdateInternalOrPrivateAction.Response::new,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
 

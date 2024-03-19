@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -69,6 +72,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private IndicesService indicesService;
     private ThreadPool threadPool;
     private IndexNameExpressionResolver indexNameExpressionResolver;
+    private Client client;
     private MockTransport mockTransport;
     private Task transformTask;
     private final String indexNamePattern = "test_index-";
@@ -97,12 +101,15 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(GetCheckpointNodeAction.NAME)) {
-                    getCheckpointNodeAction.execute(null, (GetCheckpointNodeAction.Request) request, ActionListener.wrap(r -> {
-                        this.handleResponse(requestId, r);
-                    }, e -> {
-                        this.handleError(requestId, new TransportException(e.getMessage(), e));
-
-                    }));
+                    GetCheckpointNodeAction.Request getCheckpointNodeActionRequest = (GetCheckpointNodeAction.Request) request;
+                    Task task = getCheckpointNodeActionRequest.createTask(123, "type", "action", null, Map.of());
+                    getCheckpointNodeAction.execute(
+                        task,
+                        getCheckpointNodeActionRequest,
+                        ActionListener.wrap(r -> { this.handleResponse(requestId, r); }, e -> {
+                            this.handleError(requestId, new TransportException(e.getMessage(), e));
+                        })
+                    );
                 }
             }
         };
@@ -125,8 +132,10 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         testIndices = testIndicesList.toArray(new String[0]);
 
         clusterStateWithIndex = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards))
-            .putTransportVersion("node01", TransportVersions.V_8_5_0)
+            .putCompatibilityVersions("node01", TransportVersions.V_8_5_0, Map.of())
             .build();
+
+        client = mock(Client.class);
 
         transformTask = new Task(
             1L,
@@ -149,19 +158,27 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyCheckpoint() throws InterruptedException {
-        GetCheckpointAction.Request request = new GetCheckpointAction.Request(Strings.EMPTY_ARRAY, IndicesOptions.LENIENT_EXPAND_OPEN);
+        GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+            Strings.EMPTY_ARRAY,
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
+            TimeValue.timeValueSeconds(5)
+        );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
             Map<String, long[]> checkpoints = response.getCheckpoints();
             assertTrue(checkpoints.isEmpty());
-
         });
     }
 
     public void testSingleIndexRequest() throws InterruptedException {
         GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             new String[] { indexNamePattern + "0" },
-            IndicesOptions.LENIENT_EXPAND_OPEN
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
+            TimeValue.timeValueSeconds(5)
         );
 
         assertCheckpointAction(request, response -> {
@@ -173,12 +190,17 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
                 assertEquals(42 + i, checkpoints.get(indexNamePattern + "0")[i]);
             }
             assertEquals(numberOfNodes, getCheckpointNodeAction.getCalls());
-
         });
     }
 
     public void testMultiIndexRequest() throws InterruptedException {
-        GetCheckpointAction.Request request = new GetCheckpointAction.Request(testIndices, IndicesOptions.LENIENT_EXPAND_OPEN);
+        GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+            testIndices,
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
+            TimeValue.timeValueSeconds(5)
+        );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
             Map<String, long[]> checkpoints = response.getCheckpoints();
@@ -196,14 +218,13 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     class TestTransportGetCheckpointAction extends TransportGetCheckpointAction {
 
         TestTransportGetCheckpointAction() {
-            super(transportService, new ActionFilters(emptySet()), indicesService, clusterService, indexNameExpressionResolver);
+            super(transportService, new ActionFilters(emptySet()), indicesService, clusterService, indexNameExpressionResolver, client);
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             resolveIndicesAndGetCheckpoint(task, request, listener, clusterStateWithIndex);
         }
-
     }
 
     class TestTransportGetCheckpointNodeAction extends TransportGetCheckpointNodeAction {
@@ -239,7 +260,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             ActionListener<GetCheckpointNodeAction.Response> listener
         ) {
             ++calls;
-            getGlobalCheckpoints(mockIndicesService, request.getShards(), listener);
+            getGlobalCheckpoints(mockIndicesService, task, request.getShards(), request.getTimeout(), Clock.systemUTC(), listener);
         }
 
         public int getCalls() {

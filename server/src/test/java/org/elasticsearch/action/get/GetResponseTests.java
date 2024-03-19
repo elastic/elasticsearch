@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -69,7 +70,7 @@ public class GetResponseTests extends ESTestCase {
         }
         GetResponse parsedGetResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedGetResponse = GetResponse.fromXContent(parser);
+            parsedGetResponse = parseInstance(parser);
             assertNull(parser.nextToken());
         }
         assertEquals(expectedGetResponse.getSourceAsMap(), parsedGetResponse.getSourceAsMap());
@@ -172,7 +173,7 @@ public class GetResponseTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(getResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ParsingException exception = expectThrows(ParsingException.class, () -> GetResponse.fromXContent(parser));
+            ParsingException exception = expectThrows(ParsingException.class, () -> parseInstance(parser));
             assertEquals("Missing required fields [_index,_id]", exception.getMessage());
         }
     }
@@ -183,5 +184,20 @@ public class GetResponseTests extends ESTestCase {
 
     private static GetResponse mutateGetResponse(GetResponse getResponse) {
         return new GetResponse(mutateGetResult(getResponse.getResult));
+    }
+
+    private static GetResponse parseInstance(XContentParser parser) throws IOException {
+        GetResult getResult = GetResult.fromXContent(parser);
+
+        // At this stage we ensure that we parsed enough information to return
+        // a valid GetResponse instance. If it's not the case, we throw an
+        // exception so that callers know it and can handle it correctly.
+        if (getResult.getIndex() == null && getResult.getId() == null) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                String.format(Locale.ROOT, "Missing required fields [%s,%s]", GetResult._INDEX, GetResult._ID)
+            );
+        }
+        return new GetResponse(getResult);
     }
 }

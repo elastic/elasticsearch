@@ -17,9 +17,11 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -399,6 +401,16 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public BytesRefIterator iterator() {
+            return in.iterator();
+        }
+
+        @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
+
+        @Override
         public boolean hasArray() {
             return in.hasArray();
         }
@@ -464,6 +476,11 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
+
+        @Override
         public void set(long index, byte[] buf, int offset, int len) {
             in.set(index, buf, offset, len);
         }
@@ -526,6 +543,11 @@ public class MockBigArrays extends BigArrays {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             in.writeTo(out);
+        }
+
+        @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
         }
     }
 
@@ -614,6 +636,11 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
+        public void fillWith(StreamInput streamInput) throws IOException {
+            in.fillWith(streamInput);
+        }
+
+        @Override
         public void set(long index, byte[] buf, int offset, int len) {
             in.set(index, buf, offset, len);
         }
@@ -675,15 +702,38 @@ public class MockBigArrays extends BigArrays {
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            long total = used.addAndGet(bytes);
-            if (total > max.getBytes()) {
-                throw new CircuitBreakingException(ERROR_MESSAGE, bytes, max.getBytes(), Durability.TRANSIENT);
+            while (true) {
+                long old = used.get();
+                long total = old + bytes;
+                if (total < 0) {
+                    throw new AssertionError("total must be >= 0 but was [" + total + "]");
+                }
+                if (total > max.getBytes()) {
+                    throw new CircuitBreakingException(ERROR_MESSAGE, bytes, max.getBytes(), Durability.TRANSIENT);
+                }
+                if (used.compareAndSet(old, total)) {
+                    break;
+                }
             }
         }
 
         @Override
         public void addWithoutBreaking(long bytes) {
-            used.addAndGet(bytes);
+            long total = used.addAndGet(bytes);
+            if (total < 0) {
+                throw new AssertionError("total must be >= 0 but was [" + total + "]");
+            }
+        }
+
+        @Override
+        public long getUsed() {
+            return used.get();
+        }
+
+        @Override
+        public String toString() {
+            long u = used.get();
+            return "LimitedBreaker[" + u + "/" + max.getBytes() + "][" + ByteSizeValue.ofBytes(u) + "/" + max + "]";
         }
     }
 }

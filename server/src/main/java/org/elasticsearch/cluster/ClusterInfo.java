@@ -144,7 +144,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         return Iterators.concat(startObject("nodes"), Iterators.map(leastAvailableSpaceUsage.entrySet().iterator(), c -> (builder, p) -> {
             builder.startObject(c.getKey());
             { // node
-                builder.field("node_name", c.getValue().getNodeName());
+                builder.field("node_name", c.getValue().nodeName());
                 builder.startObject("least_available");
                 {
                     c.getValue().toShortXContent(builder);
@@ -163,8 +163,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
             return builder;
         }),
             singleChunk(
-                (builder, p) -> builder.endObject(), // end "nodes"
-                (builder, p) -> builder.startObject("shard_sizes")
+                (builder, p) -> builder.endObject() // end "nodes"
+                    .startObject("shard_sizes")
             ),
 
             Iterators.map(
@@ -172,8 +172,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 c -> (builder, p) -> builder.humanReadableField(c.getKey() + "_bytes", c.getKey(), ByteSizeValue.ofBytes(c.getValue()))
             ),
             singleChunk(
-                (builder, p) -> builder.endObject(), // end "shard_sizes"
-                (builder, p) -> builder.startObject("shard_data_set_sizes")
+                (builder, p) -> builder.endObject() // end "shard_sizes"
+                    .startObject("shard_data_set_sizes")
             ),
             Iterators.map(
                 shardDataSetSizes.entrySet().iterator(),
@@ -184,13 +184,13 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
                 )
             ),
             singleChunk(
-                (builder, p) -> builder.endObject(), // end "shard_data_set_sizes"
-                (builder, p) -> builder.startObject("shard_paths")
+                (builder, p) -> builder.endObject() // end "shard_data_set_sizes"
+                    .startObject("shard_paths")
             ),
             Iterators.map(dataPath.entrySet().iterator(), c -> (builder, p) -> builder.field(c.getKey().toString(), c.getValue())),
             singleChunk(
-                (builder, p) -> builder.endObject(), // end "shard_paths"
-                (builder, p) -> builder.startArray("reserved_sizes")
+                (builder, p) -> builder.endObject() // end "shard_paths"
+                    .startArray("reserved_sizes")
             ),
             Iterators.map(reservedSpace.entrySet().iterator(), c -> (builder, p) -> {
                 builder.startObject();
@@ -242,6 +242,14 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      */
     public long getShardSize(ShardRouting shardRouting, long defaultValue) {
         Long shardSize = getShardSize(shardRouting);
+        return shardSize == null ? defaultValue : shardSize;
+    }
+
+    /**
+     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
+     */
+    public long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
+        Long shardSize = getShardSize(shardId, primary);
         return shardSize == null ? defaultValue : shardSize;
     }
 
@@ -366,10 +374,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(total);
             out.writeCollection(shardIds);
-        }
-
-        public long getTotal() {
-            return total;
         }
 
         public boolean containsShardId(ShardId shardId) {

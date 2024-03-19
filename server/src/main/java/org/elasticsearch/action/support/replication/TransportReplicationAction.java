@@ -117,7 +117,7 @@ public abstract class TransportReplicationAction<
     protected final ShardStateAction shardStateAction;
     protected final IndicesService indicesService;
     protected final TransportRequestOptions transportOptions;
-    protected final String executor;
+    protected final Executor executor;
     protected final boolean forceExecutionOnPrimary;
 
     // package private for testing
@@ -139,7 +139,7 @@ public abstract class TransportReplicationAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor
+        Executor executor
     ) {
         this(
             settings,
@@ -158,6 +158,7 @@ public abstract class TransportReplicationAction<
         );
     }
 
+    @SuppressWarnings("this-escape")
     protected TransportReplicationAction(
         Settings settings,
         String actionName,
@@ -169,7 +170,7 @@ public abstract class TransportReplicationAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> requestReader,
         Writeable.Reader<ReplicaRequest> replicaRequestReader,
-        String executor,
+        Executor executor,
         boolean syncGlobalCheckpointAfterOperation,
         boolean forceExecutionOnPrimary
     ) {
@@ -197,7 +198,7 @@ public abstract class TransportReplicationAction<
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
-            threadPool.executor(executor),
+            executor,
             forceExecutionOnPrimary,
             true,
             in -> new ConcreteShardRequest<>(requestReader, in),
@@ -207,7 +208,7 @@ public abstract class TransportReplicationAction<
         // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(
             transportReplicaAction,
-            threadPool.executor(executor),
+            executor,
             true,
             true,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),
@@ -272,7 +273,7 @@ public abstract class TransportReplicationAction<
 
     /**
      * Execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, String)}.
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, long, ActionListener, Executor)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -604,7 +605,7 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
-    public static class RetryOnReplicaException extends ElasticsearchException {
+    public static final class RetryOnReplicaException extends ElasticsearchException {
 
         public RetryOnReplicaException(ShardId shardId, String msg) {
             super(msg);
@@ -847,7 +848,7 @@ public abstract class TransportReplicationAction<
                     : "request waitForActiveShards must be set in resolveRequest";
 
                 final ShardRouting primary = state.getRoutingTable().shardRoutingTable(request.shardId()).primaryShard();
-                if (primary == null || primary.active() == false) {
+                if (primary.active() == false) {
                     logger.trace(
                         "primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], "
                             + "cluster state version [{}]",
@@ -960,7 +961,7 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 

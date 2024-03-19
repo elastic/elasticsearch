@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -35,7 +36,7 @@ import java.io.IOException;
  */
 public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     ForceMergeRequest,
-    ForceMergeResponse,
+    BroadcastResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
@@ -56,7 +57,7 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
             actionFilters,
             indexNameExpressionResolver,
             ForceMergeRequest::new,
-            ThreadPool.Names.MANAGEMENT // just for coordination work
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT) // just for coordination work
         );
         this.indicesService = indicesService;
         this.threadPool = transportService.getThreadPool();
@@ -68,8 +69,8 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected ResponseFactory<ForceMergeResponse, EmptyResult> getResponseFactory(ForceMergeRequest request, ClusterState clusterState) {
-        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new ForceMergeResponse(
+    protected ResponseFactory<BroadcastResponse, EmptyResult> getResponseFactory(ForceMergeRequest request, ClusterState clusterState) {
+        return (totalShards, successfulShards, failedShards, responses, shardFailures) -> new BroadcastResponse(
             totalShards,
             successfulShards,
             failedShards,

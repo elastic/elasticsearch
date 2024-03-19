@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -32,11 +31,20 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
-public class Substring extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression str, start, length;
 
-    public Substring(Source source, Expression str, Expression start, Expression length) {
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Returns a substring of a string, specified by a start position and an optional length"
+    )
+    public Substring(
+        Source source,
+        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "start", type = { "integer" }) Expression start,
+        @Param(optional = true, name = "length", type = { "integer" }) Expression length
+    ) {
         super(source, length == null ? Arrays.asList(str, start) : Arrays.asList(str, start, length));
         this.str = str;
         this.start = start;
@@ -70,11 +78,6 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
     @Override
     public boolean foldable() {
         return str.foldable() && start.foldable() && (length == null || length.foldable());
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "NoLength")
@@ -127,20 +130,13 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> strSupplier = toEvaluator.apply(str);
-        Supplier<EvalOperator.ExpressionEvaluator> startSupplier = toEvaluator.apply(start);
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var strFactory = toEvaluator.apply(str);
+        var startFactory = toEvaluator.apply(start);
         if (length == null) {
-            return () -> new SubstringNoLengthEvaluator(strSupplier.get(), startSupplier.get());
+            return new SubstringNoLengthEvaluator.Factory(source(), strFactory, startFactory);
         }
-        Supplier<EvalOperator.ExpressionEvaluator> lengthSupplier = toEvaluator.apply(length);
-        return () -> new SubstringEvaluator(strSupplier.get(), startSupplier.get(), lengthSupplier.get());
+        var lengthFactory = toEvaluator.apply(length);
+        return new SubstringEvaluator.Factory(source(), strFactory, startFactory, lengthFactory);
     }
 }

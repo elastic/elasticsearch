@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.dangling.list;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
 import org.elasticsearch.action.support.ActionFilters;
@@ -35,6 +36,9 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
     ListDanglingIndicesResponse,
     NodeListDanglingIndicesRequest,
     NodeListDanglingIndicesResponse> {
+
+    public static final ActionType<ListDanglingIndicesResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/list");
+
     private final TransportService transportService;
     private final DanglingIndicesState danglingIndicesState;
 
@@ -47,14 +51,12 @@ public class TransportListDanglingIndicesAction extends TransportNodesAction<
         DanglingIndicesState danglingIndicesState
     ) {
         super(
-            ListDanglingIndicesAction.NAME,
-            threadPool,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            ListDanglingIndicesRequest::new,
             NodeListDanglingIndicesRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transportService = transportService;
         this.danglingIndicesState = danglingIndicesState;

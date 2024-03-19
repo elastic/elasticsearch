@@ -757,7 +757,7 @@ public final class Authentication implements ToXContentObject {
             }
             return metadata;
         } else {
-            return in.readMap();
+            return in.readGenericMap();
         }
     }
 
@@ -1130,10 +1130,6 @@ public final class Authentication implements ToXContentObject {
             return API_KEY_REALM_NAME.equals(name) && API_KEY_REALM_TYPE.equals(type);
         }
 
-        private boolean isServiceAccountRealm() {
-            return ServiceAccountSettings.REALM_NAME.equals(name) && ServiceAccountSettings.REALM_TYPE.equals(type);
-        }
-
         private boolean isCrossClusterAccessRealm() {
             return CROSS_CLUSTER_ACCESS_REALM_NAME.equals(name) && CROSS_CLUSTER_ACCESS_REALM_TYPE.equals(type);
         }
@@ -1471,7 +1467,7 @@ public final class Authentication implements ToXContentObject {
                 return InternalUsers.getUser(username);
             }
             String[] roles = input.readStringArray();
-            Map<String, Object> metadata = input.readMap();
+            Map<String, Object> metadata = input.readGenericMap();
             String fullName = input.readOptionalString();
             String email = input.readOptionalString();
             boolean enabled = input.readBoolean();

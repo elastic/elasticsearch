@@ -24,7 +24,6 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -207,12 +206,7 @@ public class SearchApplicationIndexService {
     }
 
     private String[] getAliasIndices(String searchApplicationName) {
-        return clusterService.state()
-            .metadata()
-            .aliasedIndices(searchApplicationName)
-            .stream()
-            .map(index -> index.getName())
-            .toArray(String[]::new);
+        return clusterService.state().metadata().aliasedIndices(searchApplicationName).stream().map(Index::getName).toArray(String[]::new);
     }
 
     private static String getSearchAliasName(SearchApplication app) {
@@ -226,7 +220,7 @@ public class SearchApplicationIndexService {
      * @param create If true, the search application must not already exist
      * @param listener The action listener to invoke on response/failure.
      */
-    public void putSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
+    public void putSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         createOrUpdateAlias(app, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -283,7 +277,7 @@ public class SearchApplicationIndexService {
         return aliasesRequestBuilder;
     }
 
-    private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<IndexResponse> listener) {
+    private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
@@ -336,16 +330,21 @@ public class SearchApplicationIndexService {
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
             IndicesAliasesRequest.AliasActions.remove().aliases(searchAliasName).indices("*")
         );
-        client.admin()
-            .indices()
-            .aliases(
-                aliasesRequest,
-                new DelegatingIndexNotFoundActionListener<>(
-                    searchAliasName,
-                    listener,
-                    (l, acknowledgedResponse) -> l.onResponse(AcknowledgedResponse.TRUE)
-                )
-            );
+        client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof ResourceNotFoundException) {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     /**

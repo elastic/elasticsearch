@@ -1,0 +1,5 @@
+pr: 103846
+summary: Support sampling in `counted_terms` aggregation
+area: Aggregations
+type: enhancement
+issues: []

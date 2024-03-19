@@ -1,4 +1,4 @@
-Contributing to elasticsearch
+Contributing to Elasticsearch
 =============================
 
 Elasticsearch is a free and open project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
@@ -54,7 +54,7 @@ The process for contributing to any of the [Elastic repositories](https://github
 ### Fork and clone the repository
 
 You will need to fork the main Elasticsearch code or documentation repository and clone it to your local machine. See
-[github help page](https://help.github.com/articles/fork-a-repo) for help.
+[GitHub help page](https://help.github.com/articles/fork-a-repo) for help.
 
 Further instructions for specific projects are given below.
 
@@ -69,7 +69,7 @@ cycle.
 * Lines that are not part of your change should not be edited (e.g. don't format
   unchanged lines, don't reorder existing imports)
 * Add the appropriate [license headers](#license-headers) to any new files
-* For contributions involving the elasticsearch build you can find details about the build setup in the
+* For contributions involving the Elasticsearch build you can find details about the build setup in the
   [BUILDING](BUILDING.md) file
 
 ### Submitting your changes
@@ -88,7 +88,6 @@ Once your changes and tests are ready to submit for review:
 3. Rebase your changes
 
     Update your local repository with the most recent code from the main Elasticsearch repository, and rebase your branch on top of the latest main branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
-
 
 4. Submit a pull request
 
@@ -121,8 +120,7 @@ using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
-We support development in IntelliJ versions IntelliJ 2020.1 and
-onwards.
+We support development in [IntelliJ IDEA] versions 2020.1 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -135,15 +133,25 @@ specifically these lines tell you that Elasticsearch is ready:
     [2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
     [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
 
-But to be honest its typically easier to wait until the console stops scrolling
+But to be honest it's typically easier to wait until the console stops scrolling
 and then run `curl` in another window like this:
 
     curl -u elastic:password localhost:9200
 
+To send requests to this Elasticsearch instance, either use the built-in `elastic`
+user and password as above or use the pre-configured `elastic-admin` user:
+
+    curl -u elastic-admin:elastic-password localhost:9200
+
+Security can also be disabled altogether:
+
+    ./gradlew :run -Dtests.es.xpack.security.enabled=false
+
+The definition of this Elasticsearch cluster can be found [here](build-tools-internal/src/main/groovy/elasticsearch.run.gradle).
 
 ### Importing the project into IntelliJ IDEA
 
-The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
+The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1.
 Elasticsearch builds using Java 17. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
 "17"** so that the project import will detect it automatically. For more details
@@ -173,7 +181,7 @@ action is required.
 
 #### Formatting
 
-Elasticsearch code is automatically formatted with [spotless], backed by the
+Elasticsearch code is automatically formatted with [Spotless], backed by the
 Eclipse formatter. You can do the same in IntelliJ with the
 [Eclipse Code Formatter] so that you can apply the correct formatting directly in
 your IDE.  The configuration for the plugin is held in
@@ -198,7 +206,7 @@ Alternative manual steps for IntelliJ.
    3. Navigate to the file `build-conventions/formatterConfig.xml`
    4. Click "OK"
 
-### REST Endpoint Conventions
+### REST endpoint conventions
 
 Elasticsearch typically uses singular nouns rather than plurals in URLs.
 For example:
@@ -214,7 +222,7 @@ but not:
 You may find counterexamples, but new endpoints should use the singular
 form.
 
-### Java Language Formatting Guidelines
+### Java language formatting guidelines
 
 Java files in the Elasticsearch codebase are automatically formatted using
 the [Spotless Gradle] plugin. All new projects are automatically formatted,
@@ -249,13 +257,13 @@ Please follow these formatting guidelines:
   only do this where the benefit clearly outweighs the decrease in formatting
   consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
-  but line comments i.e `// ...` are.
+  but line comments i.e. `// ...` are.
 * Negative boolean expressions must use the form `foo == false` instead of
   `!foo` for better readability of the code. This is enforced via
   Checkstyle. Conversely, you should not write e.g. `if (foo == true)`, but
   just `if (foo)`.
 
-#### Editor / IDE Support
+#### Editor / IDE support
 
 IntelliJ IDEs can
 [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
@@ -316,7 +324,7 @@ is to be helpful, not to turn writing code into a chore.
       this is critical to understanding the code e.g. documenting the
       subtleties of the implementation of a private method. The point here
       is that implementations will change over time, and the Javadoc is
-      less likely to become out-of-date if it only talks about the what is
+      less likely to become out-of-date if it only talks about
       the purpose of the code, not what it does.
    8. Examples in Javadoc can be very useful, so feel free to add some if
       you can reasonably do so i.e. if it takes a whole page of code to set
@@ -362,7 +370,7 @@ Finally, use your judgement! Base your decisions on what will help other
 developers - including yourself, when you come back to some code
 3 months in the future, having forgotten how it works.
 
-### License Headers
+### License headers
 
 We require license headers on all Java files. With the exception of the
 top-level `x-pack` directory, all contributed code should have the following
@@ -433,7 +441,7 @@ In rare situations you may want to configure your `Logger` slightly
 differently, perhaps specifying a different class or maybe using one of the
 methods on `org.elasticsearch.common.logging.Loggers` instead.
 
-If the log message includes values from your code then you must use use
+If the log message includes values from your code then you must use
 placeholders rather than constructing the string yourself using simple
 concatenation. Consider wrapping the values in `[...]` to help distinguish them
 from the static part of the message:
@@ -461,18 +469,18 @@ unit tests, especially if there is complex logic for computing what is logged
 and when to log it. You can use a `org.elasticsearch.test.MockLogAppender` to
 make assertions about the logs that are being emitted.
 
-Logging is a powerful diagnostic technique but it is not the only possibility.
+Logging is a powerful diagnostic technique, but it is not the only possibility.
 You should also consider exposing some information about your component via an
-API instead of in logs. For instance you can implement APIs to report its
+API instead of in logs. For instance, you can implement APIs to report its
 current status, various statistics, and maybe even details of recent failures.
 
 #### Log levels
 
-Each log message is written at a particular _level_. By default Elasticsearch
+Each log message is written at a particular _level_. By default, Elasticsearch
 will suppress messages at the two most verbose levels, `TRACE` and `DEBUG`, and
 will output messages at all other levels. Users can configure which levels of
 message are written by each logger at runtime, but you should expect everyone
-to run with the default configuration almost all of the time and choose your
+to run with the default configuration almost all the time and choose your
 levels accordingly.
 
 The guidance in this section is subjective in some areas. When in doubt,
@@ -570,7 +578,7 @@ an index template is created or updated:
 `INFO`-level logging is enabled by default so its target audience is the
 general population of users and administrators. You should use user-facing
 terminology and ensure that messages at this level are self-contained. In
-general you shouldn't log unusual events, particularly exceptions with stack
+general, you shouldn't log unusual events, particularly exceptions with stack
 traces, at `INFO` level. If the event is relatively benign then use `DEBUG`,
 whereas if the user should be notified then use `WARN`.
 
@@ -629,7 +637,7 @@ the logs.
 
 ##### `ERROR`
 
-This is the next least verbose level after `WARN`. In theory it is possible for
+This is the next least verbose level after `WARN`. In theory, it is possible for
 users to suppress messages at `WARN` and below, believing this to help them
 focus on the most important `ERROR` messages, but in practice in Elasticsearch
 this will hide so much useful information that the resulting logs will be
@@ -659,11 +667,11 @@ numbering scheme separate to release version. The main ones are
 `TransportVersion` and `IndexVersion`, representing the version of the
 inter-node binary protocol and index data + metadata respectively.
 
-Separated version numbers are comprised of a simple incrementing number,
-with no semantic versioning information. There is no direct mapping between
-separated version numbers and the release version. The versions used by any
-particular instance of Elasticsearch can be obtained by querying `/`
-on the node.
+Separated version numbers are comprised of an integer number. The semantic
+meaning of a version number are defined within each `*Version` class.  There
+is no direct mapping between separated version numbers and the release version.
+The versions used by any particular instance of Elasticsearch can be obtained
+by querying `/_nodes/info` on the node.
 
 #### Using separated version numbers
 
@@ -674,20 +682,30 @@ number, there are a few rules that need to be followed:
    and should not be modified once it is defined. Each version is immutable
    once merged into `main`.
 2. To create a new component version, add a new constant to the respective class
-   using the preceding version number +1, modify the version id string to a new
-   unique string (normally a UUID), and set that constant as the new current
-   version.
-
-The version ID string in the constant definition is not used in the executing
-code; it is there to ensure that if two concurrent pull requests add the same
-version constant, there will be a git conflict on those lines. This is to ensure
-two PRs don't accidentally use the same version constant.
+   with a descriptive name of the change being made. Increment the integer
+   number according to the particular `*Version` class.
 
 If your pull request has a conflict around your new version constant,
 you need to update your PR from `main` and change your PR to use the next
 available version number.
 
-### Creating A Distribution
+### Checking for cluster features
+
+As part of developing a new feature or change, you might need to determine
+if all nodes in a cluster have been upgraded to support your new feature.
+This can be done using `FeatureService`. To define and check for a new
+feature in a cluster:
+
+1. Define a new `NodeFeature` constant with a unique id for the feature
+   in a class related to the change you're doing.
+2. Return that constant from an instance of `FeatureSpecification.getFeatures`,
+   either an existing implementation or a new implementation. Make sure
+   the implementation is added as an SPI implementation in `module-info.java`
+   and `META-INF/services`.
+3. To check if all nodes in the cluster support the new feature, call
+`FeatureService.clusterHasFeature(ClusterState, NodeFeature)`
+
+### Creating a distribution
 
 Run all build commands from within the root directory:
 
@@ -717,7 +735,7 @@ The archive distributions (tar and zip) can be found under:
 
     ./distribution/archives/(darwin-tar|linux-tar|windows-zip|oss-darwin-tar|oss-linux-tar|oss-windows-zip)/build/distributions/
 
-### Running The Full Test Suite
+### Running the full test suite
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
@@ -742,14 +760,14 @@ a test that passes locally, may actually fail later due to random settings
 or data input. To make tests repeatable, a `REPRODUCE` line in CI will also include
 the `-Dtests.seed` parameter.
 
-When running locally, gradle does its best to take advantage of cached results.
+When running locally, Gradle does its best to take advantage of cached results.
 So, if the code is unchanged, running the same test with the same `-Dtests.seed`
 repeatedly may not actually run the test if it has passed with that seed
  in the previous execution. A way around this is to pass a separate parameter
-to adjust the command options seen by gradle.
+to adjust the command options seen by Gradle.
 A simple option may be to add the parameter `-Dtests.timestamp=$(date +%s)`
 which will give the current time stamp as a parameter, thus making the parameters
-sent to gradle unique and bypassing the cache.
+sent to Gradle unique and bypassing the cache.
 
 ### Project layout
 
@@ -766,9 +784,9 @@ Builds our tar and zip archives and our rpm and deb packages.
 Libraries used to build other parts of the project. These are meant to be
 internal rather than general purpose. We have no plans to
 [semver](https://semver.org/) their APIs or accept feature requests for them.
-We publish them to maven central because they are dependencies of our plugin
-test framework, high level rest client, and jdbc driver but they really aren't
-general purpose enough to *belong* in maven central. We're still working out
+We publish them to Maven Central because they are dependencies of our plugin
+test framework, high level rest client, and jdbc driver, but they really aren't
+general purpose enough to *belong* in Maven Central. We're still working out
 what to do here.
 
 #### `modules`
@@ -779,7 +797,7 @@ they depend on libraries that we don't believe *all* of Elasticsearch should
 depend on.
 
 For example, reindex requires the `connect` permission so it can perform
-reindex-from-remote but we don't believe that the *all* of Elasticsearch should
+reindex-from-remote, but we don't believe that the *all* of Elasticsearch should
 have the "connect". For another example, Painless is implemented using antlr4
 and asm and we don't believe that *all* of Elasticsearch should have access to
 them.
@@ -818,7 +836,7 @@ qa project, open a PR and be ready to discuss options.
 
 #### `server`
 The server component of Elasticsearch that contains all of the modules and
-plugins. Right now things like the high level rest client depend on the server
+plugins. Right now things like the high level rest client depend on the server,
 but we'd like to fix that in the future.
 
 #### `test`
@@ -838,7 +856,7 @@ the `qa` subdirectory functions just like the top level `qa` subdirectory. The
 `plugin` subdirectory contains the x-pack module which runs inside the
 Elasticsearch process.
 
-### Gradle Build
+### Gradle build
 
 We use Gradle to build Elasticsearch because it is flexible enough to not only
 build and package Elasticsearch, but also orchestrate all of the ways that we
@@ -855,16 +873,20 @@ common configurations in our build and how we use them:
 at compile and runtime but are not exposed as a compile dependency to other dependent projects.
 Dependencies added to the `implementation` configuration are considered an implementation detail
 that can be changed at a later date without affecting any dependent projects.</dd>
+
 <dt>`api`</dt><dd>Dependencies that are used as compile and runtime dependencies of a project
- and are considered part of the external api of the project.
+ and are considered part of the external api of the project.</dd>
+
 <dt>`runtimeOnly`</dt><dd>Dependencies that not on the classpath at compile time but
 are on the classpath at runtime. We mostly use this configuration to make sure that
 we do not accidentally compile against dependencies of our dependencies also
 known as "transitive" dependencies".</dd>
+
 <dt>`compileOnly`</dt><dd>Code that is on the classpath at compile time but that
 should not be shipped with the project because it is "provided" by the runtime
 somehow. Elasticsearch plugins use this configuration to include dependencies
 that are bundled with Elasticsearch's server.</dd>
+
 <dt>`testImplementation`</dt><dd>Code that is on the classpath for compiling tests
 that are part of this project but not production code. The canonical example
 of this is `junit`.</dd>
@@ -887,7 +909,7 @@ time is very limited. In some cases the time we would need to spend on reviews
 would outweigh the benefits of a change by preventing us from working on other
 more beneficial changes instead.
 
-Please discuss your change in a Github issue before spending much time on its
+Please discuss your change in a GitHub issue before spending much time on its
 implementation. We sometimes have to reject contributions that duplicate other
 efforts, take the wrong approach to solving a problem, or solve a problem which
 does not need solving. An up-front discussion often saves a good deal of wasted
@@ -970,8 +992,8 @@ Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
-[intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
+[IntelliJ IDEA]: https://www.jetbrains.com/idea/
 [Checkstyle]: https://plugins.jetbrains.com/plugin/1065-checkstyle-idea
-[spotless]: https://github.com/diffplug/spotless
+[Spotless]: https://github.com/diffplug/spotless
 [Eclipse Code Formatter]: https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter
 [Spotless Gradle]: https://github.com/diffplug/spotless/tree/main/plugin-gradle

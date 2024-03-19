@@ -6,6 +6,7 @@
  */
 
 module org.elasticsearch.compute {
+
     requires org.apache.lucene.core;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
@@ -15,6 +16,7 @@ module org.elasticsearch.compute {
     requires org.apache.logging.log4j;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.tdigest;
+    requires org.elasticsearch.geo;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;
@@ -23,4 +25,6 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.operator;
     exports org.elasticsearch.compute.operator.exchange;
     exports org.elasticsearch.compute.aggregation.blockhash;
+    exports org.elasticsearch.compute.aggregation.spatial;
+    exports org.elasticsearch.compute.operator.topn;
 }

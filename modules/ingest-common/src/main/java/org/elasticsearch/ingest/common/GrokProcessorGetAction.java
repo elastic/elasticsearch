@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -39,14 +40,11 @@ import java.util.TreeMap;
 import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
+public class GrokProcessorGetAction {
 
-    static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
-    static final String NAME = "cluster:admin/ingest/processor/grok/get";
+    static final ActionType<GrokProcessorGetAction.Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
 
-    private GrokProcessorGetAction() {
-        super(NAME, Response::new);
-    }
+    private GrokProcessorGetAction() {/* no instances */}
 
     public static class Request extends ActionRequest {
 
@@ -139,7 +137,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             PatternBank legacyGrokPatterns,
             PatternBank ecsV1GrokPatterns
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(INSTANCE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.legacyGrokPatterns = legacyGrokPatterns.bank();
             this.sortedLegacyGrokPatterns = new TreeMap<>(this.legacyGrokPatterns);
             this.ecsV1GrokPatterns = ecsV1GrokPatterns.bank();

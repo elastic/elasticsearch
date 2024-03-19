@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -38,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
@@ -62,7 +65,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             ClusterStateRequest::new,
             indexNameExpressionResolver,
             ClusterStateResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
@@ -87,7 +90,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         final CancellableTask cancellableTask = (CancellableTask) task;
 
         final Predicate<ClusterState> acceptableClusterStatePredicate = request.waitForMetadataVersion() == null
-            ? clusterState -> true
+            ? Predicates.always()
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
 
         final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()
@@ -111,7 +114,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         }
 
                         if (acceptableClusterStatePredicate.test(newState)) {
-                            ActionListener.completeWith(listener, () -> buildResponse(request, newState));
+                            executor.execute(ActionRunnable.supply(listener, () -> buildResponse(request, newState)));
                         } else {
                             listener.onFailure(
                                 new NotMasterException(
@@ -143,7 +146,14 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         return clusterState.compatibilityVersions();
     }
 
+    @SuppressForbidden(reason = "exposing ClusterState#clusterFeatures requires reading them")
+    private static Map<String, Set<String>> getClusterFeatures(ClusterState clusterState) {
+        return clusterState.clusterFeatures().nodeFeatures();
+    }
+
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
+        ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT); // too heavy to construct & serialize cluster state without forking
+
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
@@ -151,7 +161,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
-            builder.compatibilityVersions(getCompatibilityVersions(currentState));
+            builder.nodeIdsToCompatibilityVersions(getCompatibilityVersions(currentState));
+            builder.nodeFeatures(getClusterFeatures(currentState));
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {

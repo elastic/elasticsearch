@@ -60,11 +60,6 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
         return Collections.unmodifiableList(result);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public void testCapacityRestCancellationAndResponse() throws Exception {
         internalCluster().startMasterOnlyNode();
 
@@ -85,7 +80,8 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
             Cancellable cancellable = restClient.performRequestAsync(getCapacityRequest, wrapAsRestResponseListener(cancelledFuture));
             LocalStateAutoscaling.AutoscalingTestPlugin plugin = internalCluster().getAnyMasterNodeInstance(PluginsService.class)
                 .filterPlugins(LocalStateAutoscaling.class)
-                .get(0)
+                .findFirst()
+                .get()
                 .testPlugin();
             plugin.syncWithDeciderService(() -> {
                 putAutoscalingPolicy(Map.of(AutoscalingCountTestDeciderService.NAME, Settings.EMPTY));

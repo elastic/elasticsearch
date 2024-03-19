@@ -6,7 +6,20 @@
 
 This section summarizes the changes in each release.
 
+* <<release-notes-8.14.0>>
+* <<release-notes-8.13.0>>
+* <<release-notes-8.12.2>>
+* <<release-notes-8.12.1>>
+* <<release-notes-8.12.0>>
+* <<release-notes-8.11.4>>
+* <<release-notes-8.11.3>>
+* <<release-notes-8.11.2>>
+* <<release-notes-8.11.1>>
 * <<release-notes-8.11.0>>
+* <<release-notes-8.10.4>>
+* <<release-notes-8.10.3>>
+* <<release-notes-8.10.2>>
+* <<release-notes-8.10.1>>
 * <<release-notes-8.10.0>>
 * <<release-notes-8.9.2>>
 * <<release-notes-8.9.1>>
@@ -49,7 +62,20 @@ This section summarizes the changes in each release.
 
 --
 
+include::release-notes/8.14.0.asciidoc[]
+include::release-notes/8.13.0.asciidoc[]
+include::release-notes/8.12.2.asciidoc[]
+include::release-notes/8.12.1.asciidoc[]
+include::release-notes/8.12.0.asciidoc[]
+include::release-notes/8.11.4.asciidoc[]
+include::release-notes/8.11.3.asciidoc[]
+include::release-notes/8.11.2.asciidoc[]
+include::release-notes/8.11.1.asciidoc[]
 include::release-notes/8.11.0.asciidoc[]
+include::release-notes/8.10.4.asciidoc[]
+include::release-notes/8.10.3.asciidoc[]
+include::release-notes/8.10.2.asciidoc[]
+include::release-notes/8.10.1.asciidoc[]
 include::release-notes/8.10.0.asciidoc[]
 include::release-notes/8.9.2.asciidoc[]
 include::release-notes/8.9.1.asciidoc[]

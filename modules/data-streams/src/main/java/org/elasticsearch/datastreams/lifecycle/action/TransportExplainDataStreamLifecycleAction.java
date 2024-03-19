@@ -53,7 +53,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
         DataStreamLifecycleErrorStore dataLifecycleServiceErrorStore
     ) {
         super(
-            ExplainDataStreamLifecycleAction.NAME,
+            ExplainDataStreamLifecycleAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -61,7 +61,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             ExplainDataStreamLifecycleAction.Request::new,
             indexNameExpressionResolver,
             ExplainDataStreamLifecycleAction.Response::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.errorStore = dataLifecycleServiceErrorStore;
     }

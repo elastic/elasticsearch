@@ -54,6 +54,7 @@ public class Reconfigurator {
 
     private volatile boolean autoShrinkVotingConfiguration;
 
+    @SuppressWarnings("this-escape")
     public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
         autoShrinkVotingConfiguration = CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION, this::setAutoShrinkVotingConfiguration);

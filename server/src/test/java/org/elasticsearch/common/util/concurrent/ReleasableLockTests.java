@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -118,13 +117,13 @@ public class ReleasableLockTests extends ESTestCase {
         int timeout = randomFrom(0, 5, 10);
         List<Thread> threads = IntStream.range(0, numberOfThreads).mapToObj(i -> new Thread(() -> {
             try {
-                barrier.await(10, TimeUnit.SECONDS);
+                safeAwait(barrier);
                 try (ReleasableLock locked = lock.tryAcquire(TimeValue.timeValueMillis(timeout))) {
                     if (locked != null) {
                         lockedCounter.incrementAndGet();
                     }
                 }
-            } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+            } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
         })).toList();

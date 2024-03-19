@@ -7,12 +7,15 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -45,7 +48,7 @@ public class LimitOperator implements Operator {
     public record Factory(int limit) implements OperatorFactory {
 
         @Override
-        public Operator get(DriverContext driverContext) {
+        public LimitOperator get(DriverContext driverContext) {
             return new LimitOperator(limit);
         }
 
@@ -92,8 +95,19 @@ public class LimitOperator implements Operator {
                 filter[i] = i;
             }
             Block[] blocks = new Block[lastInput.getBlockCount()];
-            for (int b = 0; b < blocks.length; b++) {
-                blocks[b] = lastInput.getBlock(b).filter(filter);
+            boolean success = false;
+            try {
+                for (int b = 0; b < blocks.length; b++) {
+                    blocks[b] = lastInput.getBlock(b).filter(filter);
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(lastInput::releaseBlocks, Releasables.wrap(blocks));
+                } else {
+                    lastInput.releaseBlocks();
+                }
+                lastInput = null;
             }
             result = new Page(blocks);
             limitRemaining = 0;
@@ -114,7 +128,9 @@ public class LimitOperator implements Operator {
 
     @Override
     public void close() {
-
+        if (lastInput != null) {
+            lastInput.releaseBlocks();
+        }
     }
 
     @Override
@@ -214,6 +230,11 @@ public class LimitOperator implements Operator {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_11_X;
         }
     }
 }

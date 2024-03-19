@@ -99,9 +99,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                         @Override
                         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                             throws TransportException {
-                            final var executor = threadPool.executor(
-                                randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC, ThreadPool.Names.CLUSTER_COORDINATION)
-                            );
+                            final var executor = randomExecutor(threadPool, ThreadPool.Names.CLUSTER_COORDINATION);
                             executor.execute(new AbstractRunnable() {
                                 @Override
                                 public void onFailure(Exception e) {
@@ -186,11 +184,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 final var seed = randomLong();
                 threads[i] = new Thread(() -> {
                     final var random = new Random(seed);
-                    try {
-                        startBarrier.await(10, TimeUnit.SECONDS);
-                    } catch (Exception e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(startBarrier);
 
                     while (keepGoing.get()) {
                         Thread.yield();
@@ -401,7 +395,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
 
         assertThat(
-            expectThrows(CoordinationStateRejectedException.class, future::actionGet).getMessage(),
+            expectThrows(CoordinationStateRejectedException.class, future).getMessage(),
             allOf(
                 containsString("This node previously joined a cluster with UUID"),
                 containsString("and is now trying to join a different cluster"),
@@ -451,10 +445,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         );
         deterministicTaskQueue.runAllTasks();
 
-        assertThat(
-            expectThrows(IllegalStateException.class, future::actionGet).getMessage(),
-            allOf(containsString("simulated validation failure"))
-        );
+        assertThat(expectThrows(IllegalStateException.class, future).getMessage(), allOf(containsString("simulated validation failure")));
     }
 
     public void testJoinValidationFallsBackToPingIfNotMaster() {

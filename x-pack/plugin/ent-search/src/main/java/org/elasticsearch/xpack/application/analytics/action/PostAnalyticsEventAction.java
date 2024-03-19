@@ -16,10 +16,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -38,15 +36,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventAction.Response> {
-
-    public static final PostAnalyticsEventAction INSTANCE = new PostAnalyticsEventAction();
+public class PostAnalyticsEventAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/post_event";
+    public static final ActionType<PostAnalyticsEventAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    private PostAnalyticsEventAction() {
-        super(NAME, Response::readFromStreamInput);
-    }
+    private PostAnalyticsEventAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements AnalyticsEvent.Context, ToXContentObject {
 
@@ -315,7 +310,7 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
         public static Response ACCEPTED = new Response(true);
 
         public static Response readFromStreamInput(StreamInput in) throws IOException {
@@ -377,11 +372,6 @@ public class PostAnalyticsEventAction extends ActionType<PostAnalyticsEventActio
 
         protected void addFieldsToXContent(XContentBuilder builder, Params params) throws IOException {
 
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.ACCEPTED;
         }
 
         private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(

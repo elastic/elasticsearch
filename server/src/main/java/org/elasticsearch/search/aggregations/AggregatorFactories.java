@@ -41,7 +41,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -274,7 +276,7 @@ public class AggregatorFactories {
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
      */
-    public static class Builder implements Writeable, ToXContentObject {
+    public static final class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
         // Using LinkedHashSets to preserve the order of insertion, that makes the results
@@ -334,13 +336,53 @@ public class AggregatorFactories {
         }
 
         /**
+         * Return true if any of the builders is a terms aggregation with min_doc_count=0
+         */
+        public boolean hasZeroMinDocTermsAggregation() {
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
+                }
+                if (current instanceof TermsAggregationBuilder termsBuilder) {
+                    if (termsBuilder.minDocCount() == 0) {
+                        return true;
+                    }
+                }
+                queue.addAll(current.getSubAggregations());
+            }
+            return false;
+        }
+
+        /**
+         * Force all min_doc_count=0 terms aggregations to exclude deleted docs.
+         */
+        public void forceTermsAggsToExcludeDeletedDocs() {
+            assert hasZeroMinDocTermsAggregation();
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
+                }
+                if (current instanceof TermsAggregationBuilder termsBuilder) {
+                    if (termsBuilder.minDocCount() == 0) {
+                        termsBuilder.excludeDeletedDocs(true);
+                    }
+                }
+                queue.addAll(current.getSubAggregations());
+            }
+        }
+
+        /**
          * Return false if this aggregation or any of the child aggregations does not support parallel collection.
          * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query
          * phase.
          */
-        public boolean supportsParallelCollection() {
+        public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
             for (AggregationBuilder builder : aggregationBuilders) {
-                if (builder.supportsParallelCollection() == false) {
+                if (builder.supportsParallelCollection(fieldCardinalityResolver) == false) {
                     return false;
                 }
             }
@@ -366,7 +408,6 @@ public class AggregatorFactories {
         public ActionRequestValidationException validate(ActionRequestValidationException e) {
             PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
                 aggregationBuilders,
-                pipelineAggregatorBuilders,
                 e
             );
             validatePipelines(context);

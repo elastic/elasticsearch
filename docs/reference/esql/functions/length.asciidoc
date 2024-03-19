@@ -1,10 +1,30 @@
+[discrete]
 [[esql-length]]
 === `LENGTH`
-Returns the character length of a string.
+
+*Syntax*
 
 [source,esql]
 ----
-FROM employees
-| KEEP first_name, last_name, height
-| EVAL fn_length = LENGTH(first_name)
+LENGTH(str)
 ----
+
+*Parameters*
+
+`str`::
+String expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns the character length of a string.
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=length]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/eval.csv-spec[tag=length-result]
+|===

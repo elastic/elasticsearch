@@ -107,7 +107,7 @@ public class NlpClassificationInferenceResults extends NlpInferenceResults {
             );
         }
         if (predictionProbability != null) {
-            map.put(PREDICTION_PROBABILITY, predictionProbability);
+            map.put(ClassificationInferenceResults.PREDICTION_PROBABILITY, predictionProbability);
         }
     }
 
@@ -123,7 +123,7 @@ public class NlpClassificationInferenceResults extends NlpInferenceResults {
             builder.field(NlpConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD, topClasses);
         }
         if (predictionProbability != null) {
-            builder.field(PREDICTION_PROBABILITY, predictionProbability);
+            builder.field(ClassificationInferenceResults.PREDICTION_PROBABILITY, predictionProbability);
         }
     }
 }

@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
@@ -91,6 +92,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -944,7 +946,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             ActionListener<Releasable> argument = (ActionListener<Releasable>) invocation.getArguments()[0];
             argument.onResponse(count::decrementAndGet);
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), eq(forceExecute));
+        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class), eq(forceExecute));
         when(shard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         final IndexService indexService = mock(IndexService.class);
@@ -1466,7 +1468,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         TestResponse() {
-            setShardInfo(new ShardInfo());
+            setShardInfo(ReplicationResponse.ShardInfo.EMPTY);
         }
     }
 
@@ -1503,7 +1505,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 new ActionFilters(new HashSet<>()),
                 Request::new,
                 Request::new,
-                ThreadPool.Names.SAME,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 false,
                 forceExecute
             );
@@ -1580,7 +1582,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 callback.onFailure(new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED));
             }
             return null;
-        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), eq(forceExecute));
+        }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), any(Executor.class), eq(forceExecute));
         when(indexShard.isPrimaryMode()).thenAnswer(invocation -> isPrimaryMode.get());
         doAnswer(invocation -> {
             long term = (Long) invocation.getArguments()[0];
@@ -1594,7 +1596,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             count.incrementAndGet();
             callback.onResponse(count::decrementAndGet);
             return null;
-        }).when(indexShard).acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), any(ActionListener.class), anyString());
+        }).when(indexShard).acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), any(ActionListener.class), any(Executor.class));
         when(indexShard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {

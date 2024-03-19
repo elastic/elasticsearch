@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 
@@ -27,7 +28,8 @@ import static org.mockito.Mockito.mock;
 public class TransportDeletePipelineActionTests extends ESTestCase {
 
     public void testDeletePipelineWithMissingIndex() throws Exception {
-        try (Client client = getFailureClient(new IndexNotFoundException("missing .logstash"))) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getFailureClient(threadPool, new IndexNotFoundException("missing .logstash"));
             TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
             final TransportDeletePipelineAction action = new TransportDeletePipelineAction(
                 transportService,
@@ -41,8 +43,8 @@ public class TransportDeletePipelineActionTests extends ESTestCase {
         }
     }
 
-    private Client getFailureClient(Exception e) {
-        return new NoOpClient(getTestName()) {
+    private Client getFailureClient(ThreadPool threadPool, Exception e) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

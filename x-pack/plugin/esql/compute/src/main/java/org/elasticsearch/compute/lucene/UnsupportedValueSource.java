@@ -8,9 +8,9 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.DocValueBits;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -20,8 +20,7 @@ import java.util.function.Function;
 
 public class UnsupportedValueSource extends ValuesSource {
 
-    public static final String UNSUPPORTED_OUTPUT = "<unsupported>";
-    private static final BytesRef result = new BytesRef(UNSUPPORTED_OUTPUT);
+    public static final String UNSUPPORTED_OUTPUT = null;
     private final ValuesSource originalSource;
 
     public UnsupportedValueSource(ValuesSource originalSource) {
@@ -37,22 +36,7 @@ public class UnsupportedValueSource extends ValuesSource {
                 // ignore and fall back to UNSUPPORTED_OUTPUT
             }
         }
-        return new SortedBinaryDocValues() {
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                return true;
-            }
-
-            @Override
-            public int docValueCount() {
-                return 1;
-            }
-
-            @Override
-            public BytesRef nextValue() throws IOException {
-                return result;
-            }
-        };
+        return FieldData.emptySortedBinary();
     }
 
     @Override

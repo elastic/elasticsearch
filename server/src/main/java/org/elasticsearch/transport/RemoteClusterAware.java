@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -74,7 +75,10 @@ public abstract class RemoteClusterAware {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         Set<String> clustersToRemove = new HashSet<>();
         for (String index : requestIndices) {
-            int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
+            // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
+            // since datemath expression after evaluation should not contain ':' symbol
+            String probe = IndexNameExpressionResolver.resolveDateMathExpression(index);
+            int i = probe.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (i >= 0) {
                 if (isRemoteClusterClientEnabled == false) {
                     assert remoteClusterNames.isEmpty() : remoteClusterNames;

@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -104,7 +103,7 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     }
 
     WriteableIngestDocument(StreamInput in) throws IOException {
-        this(in.readMap(), in.readMap());
+        this(in.readGenericMap(), in.readGenericMap());
     }
 
     @Override
@@ -138,23 +137,6 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
 
     public static WriteableIngestDocument fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        WriteableIngestDocument that = (WriteableIngestDocument) o;
-        return Objects.equals(ingestDocument, that.ingestDocument);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(ingestDocument);
     }
 
     @Override

@@ -11,15 +11,15 @@ package org.elasticsearch.search.ccs;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchShardsAction;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -130,13 +131,14 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 .toList()
         );
 
-        final SearchResponse resp = localCluster.client(nodeWithRemoteClusterClientRole)
-            .prepareSearch("demo", "cluster_a:prod")
-            .setQuery(new MatchAllQueryBuilder())
-            .setAllowPartialSearchResults(false)
-            .setSize(1000)
-            .get();
-        assertHitCount(resp, demoDocs + prodDocs);
+        assertHitCount(
+            localCluster.client(nodeWithRemoteClusterClientRole)
+                .prepareSearch("demo", "cluster_a:prod")
+                .setQuery(new MatchAllQueryBuilder())
+                .setAllowPartialSearchResults(false)
+                .setSize(1000),
+            demoDocs + prodDocs
+        );
     }
 
     public void testProxyConnectionDisconnect() throws Exception {
@@ -238,7 +240,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         final TaskInfo rootTask = client().admin()
             .cluster()
             .prepareListTasks()
-            .setActions(SearchAction.INSTANCE.name())
+            .setActions(TransportSearchAction.TYPE.name())
             .get()
             .getTasks()
             .stream()
@@ -266,13 +268,13 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
 
         final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTask.taskId());
         cancelRequest.setWaitForCompletion(randomBoolean());
-        final ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
+        final ActionFuture<ListTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
         assertBusy(() -> {
             final Iterable<TransportService> transportServices = cluster("cluster_a").getInstances(TransportService.class);
             for (TransportService transportService : transportServices) {
                 Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                 for (CancellableTask cancellableTask : cancellableTasks) {
-                    if (cancellableTask.getAction().contains(SearchAction.INSTANCE.name())) {
+                    if (cancellableTask.getAction().contains(TransportSearchAction.TYPE.name())) {
                         assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
                     }
                 }
@@ -398,17 +400,21 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 .fetchField("to");
             SearchRequest request = new SearchRequest("cluster_a:remote_calls").source(searchSourceBuilder);
             request.setCcsMinimizeRoundtrips(randomBoolean());
-            SearchResponse searchResponse = client().search(request).actionGet();
-            ElasticsearchAssertions.assertHitCount(searchResponse, 2);
-            SearchHit hit0 = searchResponse.getHits().getHits()[0];
-            assertThat(hit0.getIndex(), equalTo("remote_calls"));
-            assertThat(hit0.field("from"), nullValue());
-            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+            assertResponse(client().search(request), response -> {
+                ElasticsearchAssertions.assertHitCount(response, 2);
+                SearchHit hit0 = response.getHits().getHits()[0];
+                assertThat(hit0.getIndex(), equalTo("remote_calls"));
+                assertThat(hit0.field("from"), nullValue());
+                assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
 
-            SearchHit hit1 = searchResponse.getHits().getHits()[1];
-            assertThat(hit1.getIndex(), equalTo("remote_calls"));
-            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B"))));
-            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+                SearchHit hit1 = response.getHits().getHits()[1];
+                assertThat(hit1.getIndex(), equalTo("remote_calls"));
+                assertThat(
+                    hit1.field("from").getValues(),
+                    contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B")))
+                );
+                assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+            });
         }
         // Search on both clusters
         {
@@ -419,22 +425,26 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 .fetchField("to");
             SearchRequest request = new SearchRequest("local_calls", "cluster_a:remote_calls").source(searchSourceBuilder);
             request.setCcsMinimizeRoundtrips(randomBoolean());
-            SearchResponse searchResponse = client().search(request).actionGet();
-            ElasticsearchAssertions.assertHitCount(searchResponse, 3);
-            SearchHit hit0 = searchResponse.getHits().getHits()[0];
-            assertThat(hit0.getIndex(), equalTo("remote_calls"));
-            assertThat(hit0.field("from"), nullValue());
-            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+            assertResponse(client().search(request), response -> {
+                assertHitCount(response, 3);
+                SearchHit hit0 = response.getHits().getHits()[0];
+                assertThat(hit0.getIndex(), equalTo("remote_calls"));
+                assertThat(hit0.field("from"), nullValue());
+                assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
 
-            SearchHit hit1 = searchResponse.getHits().getHits()[1];
-            assertThat(hit1.getIndex(), equalTo("remote_calls"));
-            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B"))));
-            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
+                SearchHit hit1 = response.getHits().getHits()[1];
+                assertThat(hit1.getIndex(), equalTo("remote_calls"));
+                assertThat(
+                    hit1.field("from").getValues(),
+                    contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B")))
+                );
+                assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
 
-            SearchHit hit2 = searchResponse.getHits().getHits()[2];
-            assertThat(hit2.getIndex(), equalTo("local_calls"));
-            assertThat(hit2.field("from").getValues(), contains(Map.of("name", List.of("Local A"))));
-            assertThat(hit2.field("to").getValues(), contains(Map.of("name", List.of("Local B")), Map.of("name", List.of("Local C"))));
+                SearchHit hit2 = response.getHits().getHits()[2];
+                assertThat(hit2.getIndex(), equalTo("local_calls"));
+                assertThat(hit2.field("from").getValues(), contains(Map.of("name", List.of("Local A"))));
+                assertThat(hit2.field("to").getValues(), contains(Map.of("name", List.of("Local B")), Map.of("name", List.of("Local C"))));
+            });
         }
     }
 
@@ -518,7 +528,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         {
             QueryBuilder query = new TermQueryBuilder("_index", "cluster_a:my_index");
             SearchShardsRequest request = new SearchShardsRequest(indices, indicesOptions, query, null, null, randomBoolean(), "cluster_a");
-            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(numShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertFalse(group.skipped());
@@ -535,7 +545,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 randomBoolean(),
                 randomFrom("cluster_b", null)
             );
-            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(numShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());
@@ -552,7 +562,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 randomBoolean(),
                 randomFrom("cluster_a", "cluster_b", null)
             );
-            SearchShardsResponse resp = remoteClient.execute(SearchShardsAction.INSTANCE, request).actionGet();
+            SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
             assertThat(resp.getGroups(), hasSize(numShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());

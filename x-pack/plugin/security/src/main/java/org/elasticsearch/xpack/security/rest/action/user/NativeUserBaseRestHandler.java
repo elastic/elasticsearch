@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 abstract class NativeUserBaseRestHandler extends SecurityBaseRestHandler {
 
-    private final Logger logger = LogManager.getLogger(NativeUserBaseRestHandler.class);
+    private static final Logger logger = LogManager.getLogger(NativeUserBaseRestHandler.class);
 
     NativeUserBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);

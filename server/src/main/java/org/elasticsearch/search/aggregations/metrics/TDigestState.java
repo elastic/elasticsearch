@@ -77,9 +77,6 @@ public class TDigestState {
         return switch (executionHint) {
             case HIGH_ACCURACY -> createOptimizedForAccuracy(compression);
             case DEFAULT -> create(compression);
-            default -> throw new IllegalArgumentException(
-                "Unexpected TDigestExecutionHint in TDigestState initialization: " + executionHint
-            );
         };
     }
 
@@ -99,7 +96,6 @@ public class TDigestState {
             case AVL_TREE -> TDigest.createAvlTreeDigest(compression);
             case SORTING -> TDigest.createSortingDigest();
             case MERGING -> TDigest.createMergingDigest(compression);
-            default -> throw new IllegalArgumentException("Unexpected TDigestState type: " + type);
         };
         this.type = type;
         this.compression = compression;
@@ -111,7 +107,7 @@ public class TDigestState {
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeString(state.type.toString());
             out.writeVLong(state.tdigest.size());
         }
@@ -127,7 +123,7 @@ public class TDigestState {
         double compression = in.readDouble();
         TDigestState state;
         long size = 0;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             state = new TDigestState(Type.valueOf(in.readString()), compression);
             size = in.readVLong();
         } else {
@@ -138,7 +134,7 @@ public class TDigestState {
             state.tdigest.reserve(size);
         }
         for (int i = 0; i < n; i++) {
-            state.add(in.readDouble(), in.readVInt());
+            state.add(in.readDouble(), in.readVLong());
         }
         return state;
     }
@@ -189,7 +185,7 @@ public class TDigestState {
         h = 31 * h + Integer.hashCode(centroidCount());
         for (Centroid centroid : centroids()) {
             h = 31 * h + Double.hashCode(centroid.mean());
-            h = 31 * h + centroid.count();
+            h = 31 * h + (int) centroid.count();
         }
         h = 31 * h + Double.hashCode(getMax());
         h = 31 * h + Double.hashCode(getMin());
@@ -205,7 +201,7 @@ public class TDigestState {
         tdigest.add(other.tdigest);
     }
 
-    public void add(double x, int w) {
+    public void add(double x, long w) {
         tdigest.add(x, w);
     }
 

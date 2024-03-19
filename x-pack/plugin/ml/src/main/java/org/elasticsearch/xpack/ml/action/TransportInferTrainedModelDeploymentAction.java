@@ -12,23 +12,24 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.NlpInferenceInput;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TransportInferTrainedModelDeploymentAction extends TransportTasksAction<
     TrainedModelDeploymentTask,
@@ -50,7 +51,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             InferTrainedModelDeploymentAction.Request::new,
             InferTrainedModelDeploymentAction.Response::new,
             InferTrainedModelDeploymentAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
@@ -96,13 +97,57 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         }
 
         // Multiple documents to infer on, wait for all results
-        ActionListener<Collection<InferenceResults>> collectingListener = ActionListener.wrap(pyTorchResults -> {
-            listener.onResponse(new InferTrainedModelDeploymentAction.Response(new ArrayList<>(pyTorchResults)));
-        }, listener::onFailure);
-
-        GroupedActionListener<InferenceResults> groupedListener = new GroupedActionListener<>(nlpInputs.size(), collectingListener);
+        // and return order the results to match the request order
+        AtomicInteger count = new AtomicInteger();
+        AtomicArray<InferenceResults> results = new AtomicArray<>(nlpInputs.size());
+        int slot = 0;
         for (var input : nlpInputs) {
-            task.infer(input, request.getUpdate(), request.isHighPriority(), request.getInferenceTimeout(), actionTask, groupedListener);
+            task.infer(
+                input,
+                request.getUpdate(),
+                request.isHighPriority(),
+                request.getInferenceTimeout(),
+                request.getPrefixType(),
+                actionTask,
+                request.isChunkResults(),
+                orderedListener(count, results, slot++, nlpInputs.size(), listener)
+            );
         }
+    }
+
+    /**
+     * Create a listener that groups the results in the correct order.
+     * Exceptions are converted to {@link ErrorInferenceResults},
+     * the listener will never call {@code finalListener::onFailure}
+     * instead failures are returned as inference results.
+     */
+    static ActionListener<InferenceResults> orderedListener(
+        AtomicInteger count,
+        AtomicArray<InferenceResults> results,
+        int slot,
+        int totalNumberOfResponses,
+        ActionListener<InferTrainedModelDeploymentAction.Response> finalListener
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(InferenceResults response) {
+                results.setOnce(slot, response);
+                if (count.incrementAndGet() == totalNumberOfResponses) {
+                    sendResponse();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                results.setOnce(slot, new ErrorInferenceResults(e));
+                if (count.incrementAndGet() == totalNumberOfResponses) {
+                    sendResponse();
+                }
+            }
+
+            private void sendResponse() {
+                finalListener.onResponse(new InferTrainedModelDeploymentAction.Response(results.asList()));
+            }
+        };
     }
 }

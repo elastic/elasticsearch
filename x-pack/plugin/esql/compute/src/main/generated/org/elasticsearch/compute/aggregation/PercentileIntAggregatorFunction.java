@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link PercentileIntAggregator}.
@@ -26,21 +27,25 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("quart", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final QuantileStates.SingleState state;
 
   private final List<Integer> channels;
 
   private final double percentile;
 
-  public PercentileIntAggregatorFunction(List<Integer> channels, QuantileStates.SingleState state,
-      double percentile) {
+  public PercentileIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      QuantileStates.SingleState state, double percentile) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
     this.percentile = percentile;
   }
 
-  public static PercentileIntAggregatorFunction create(List<Integer> channels, double percentile) {
-    return new PercentileIntAggregatorFunction(channels, PercentileIntAggregator.initSingle(percentile), percentile);
+  public static PercentileIntAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels, double percentile) {
+    return new PercentileIntAggregatorFunction(driverContext, channels, PercentileIntAggregator.initSingle(percentile), percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -54,11 +59,7 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    IntBlock block = (IntBlock) uncastBlock;
+    IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -90,20 +91,24 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    Block quartUncast = page.getBlock(channels.get(0));
+    if (quartUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     assert quart.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();
     PercentileIntAggregator.combineIntermediate(state, quart.getBytesRef(0, scratch));
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = PercentileIntAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = PercentileIntAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

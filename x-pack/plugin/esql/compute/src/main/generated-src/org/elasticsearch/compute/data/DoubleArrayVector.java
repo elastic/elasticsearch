@@ -8,22 +8,53 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
  * Vector implementation that stores an array of double values.
  * This class is generated. Do not edit it.
  */
-public final class DoubleArrayVector extends AbstractVector implements DoubleVector {
+final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
 
     private final double[] values;
 
-    public DoubleArrayVector(double[] values, int positionCount) {
-        super(positionCount);
+    DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static DoubleArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        final long preAdjustedBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) positions * Double.BYTES;
+        blockFactory.adjustBreaker(preAdjustedBytes);
+        boolean success = false;
+        try {
+            double[] values = new double[positions];
+            for (int i = 0; i < positions; i++) {
+                values[i] = in.readDouble();
+            }
+            final var block = new DoubleArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - preAdjustedBytes);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeDouble(values[i]);
+        }
     }
 
     @Override
@@ -48,7 +79,12 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
 
     @Override
     public DoubleVector filter(int... positions) {
-        return new FilterDoubleVector(this, positions);
+        try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendDouble(values[pos]);
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated(double[] values) {
@@ -77,4 +113,5 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
+
 }

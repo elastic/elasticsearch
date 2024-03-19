@@ -33,13 +33,13 @@ import java.util.Objects;
 /**
  * Action for explaining the data stream lifecycle status for one or more indices.
  */
-public class ExplainDataStreamLifecycleAction extends ActionType<ExplainDataStreamLifecycleAction.Response> {
-    public static final ExplainDataStreamLifecycleAction INSTANCE = new ExplainDataStreamLifecycleAction();
-    public static final String NAME = "indices:admin/data_stream/lifecycle/explain";
+public class ExplainDataStreamLifecycleAction {
 
-    public ExplainDataStreamLifecycleAction() {
-        super(NAME, Response::new);
-    }
+    public static final ActionType<ExplainDataStreamLifecycleAction.Response> INSTANCE = new ActionType<>(
+        "indices:admin/data_stream/lifecycle/explain"
+    );
+
+    private ExplainDataStreamLifecycleAction() {/* no instances */}
 
     /**
      * Request explaining the data stream lifecycle for one or more indices.

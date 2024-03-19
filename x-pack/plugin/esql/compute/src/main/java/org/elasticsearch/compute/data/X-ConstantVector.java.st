@@ -16,14 +16,19 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Vector implementation that stores a constant $type$ value.
  * This class is generated. Do not edit it.
  */
-public final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
+final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Constant$Type$Vector.class);
+$if(BytesRef)$
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
+        .shallowSizeOfInstance(BytesRef.class);
+$else$
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Constant$Type$Vector.class);
+$endif$
 
     private final $type$ value;
 
-    public Constant$Type$Vector($type$ value, int positionCount) {
-        super(positionCount);
+    Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -43,7 +48,7 @@ $endif$
 
     @Override
     public $Type$Vector filter(int... positions) {
-        return new Constant$Type$Vector(value, positions.length);
+        return blockFactory().newConstant$Type$Vector(value, positions.length);
     }
 
     @Override
@@ -56,11 +61,23 @@ $endif$
         return true;
     }
 
-    @Override
-    public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance($type$.class);
+$if(BytesRef)$
+    public static long ramBytesUsed(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
     }
 
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesUsed(value);
+    }
+
+$else$
+    @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED;
+    }
+
+$endif$
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Vector that) {

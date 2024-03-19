@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.Index;
@@ -25,6 +24,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -41,7 +41,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * A base class for the response of a write operation that involves a single doc
  */
-public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContentObject {
+public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, ToXContentObject {
 
     private static final String _SHARDS = "_shards";
     private static final String _INDEX = "_index";
@@ -131,7 +131,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.IndexAction} and BwC
+     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.TransportIndexAction} and BwC
      * deserialization path
      */
     protected DocWriteResponse(StreamInput in) throws IOException {
@@ -216,7 +216,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /** returns the rest status for this response (based on {@link ShardInfo#status()} */
-    @Override
     public RestStatus status() {
         return getShardInfo().status();
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
 import java.util.Collection;
@@ -220,8 +221,11 @@ public final class RemoteClusterLicenseChecker {
             final XPackInfoRequest request = new XPackInfoRequest();
             request.setCategories(EnumSet.of(XPackInfoRequest.Category.LICENSE));
             try {
-                client.getRemoteClusterClient(clusterAlias, remoteClientResponseExecutor)
-                    .execute(XPackInfoAction.INSTANCE, request, contextPreservingActionListener);
+                client.getRemoteClusterClient(
+                    clusterAlias,
+                    remoteClientResponseExecutor,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                ).execute(XPackInfoAction.REMOTE_TYPE, request, contextPreservingActionListener);
             } catch (final Exception e) {
                 contextPreservingActionListener.onFailure(e);
             }

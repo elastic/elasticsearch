@@ -32,12 +32,12 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
+import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper.ShapeFieldType;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
@@ -205,6 +205,7 @@ public class CircleProcessorTests extends ESTestCase {
             false,
             randomBoolean(),
             Orientation.RIGHT,
+            null,
             null,
             null,
             Collections.emptyMap()

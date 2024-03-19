@@ -73,4 +73,9 @@ public class NotEquals extends org.elasticsearch.xpack.ql.expression.predicate.o
     static boolean processBools(boolean lhs, boolean rhs) {
         return lhs != rhs;
     }
+
+    @Evaluator(extraName = "Geometries")
+    static boolean processGeometries(BytesRef lhs, BytesRef rhs) {
+        return false == lhs.equals(rhs);
+    }
 }

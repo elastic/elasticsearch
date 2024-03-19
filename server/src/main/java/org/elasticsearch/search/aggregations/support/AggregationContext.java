@@ -29,6 +29,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -149,11 +150,6 @@ public abstract class AggregationContext implements Releasable {
      * All field names in the returned set are guaranteed to resolve to a field
      */
     public abstract Set<String> getMatchingFieldNames(String pattern);
-
-    /**
-     * Returns true if the field identified by the provided name is mapped, false otherwise
-     */
-    public abstract boolean isFieldMapped(String field);
 
     /**
      * Compile a script.
@@ -311,6 +307,14 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean isInSortOrderExecutionRequired();
 
     public abstract Set<String> sourcePath(String fullName);
+
+    /**
+     * Returns the MappingLookup for the index, if one is initialized.
+     */
+    @Nullable
+    public MappingLookup getMappingLookup() {
+        return null;
+    }
 
     /**
      * Does this index have a {@code _doc_count} field in any segment?
@@ -475,11 +479,6 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public boolean isFieldMapped(String field) {
-            return context.isFieldMapped(field);
-        }
-
-        @Override
         public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> scriptContext) {
             return context.compile(script, scriptContext);
         }
@@ -552,7 +551,9 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public void removeReleasable(Aggregator aggregator) {
+        public synchronized void removeReleasable(Aggregator aggregator) {
+            // Removing an aggregator is done after calling Aggregator#buildTopLevel which happens on an executor thread.
+            // We need to synchronize the removal because he AggregatorContext it is shared between executor threads.
             assert releaseMe.contains(aggregator)
                 : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
             releaseMe.remove(aggregator);
@@ -617,6 +618,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public Set<String> sourcePath(String fullName) {
             return context.sourcePath(fullName);
+        }
+
+        @Override
+        public MappingLookup getMappingLookup() {
+            return context.getMappingLookup();
         }
 
         @Override

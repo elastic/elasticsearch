@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,7 +32,7 @@ import java.util.List;
  * For a task to be cancellable it has to return an instance of
  * {@link CancellableTask} from {@link TransportRequest#createTask}
  */
-public class TransportCancelTasksAction extends TransportTasksAction<CancellableTask, CancelTasksRequest, CancelTasksResponse, TaskInfo> {
+public class TransportCancelTasksAction extends TransportTasksAction<CancellableTask, CancelTasksRequest, ListTasksResponse, TaskInfo> {
 
     @Inject
     public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
@@ -41,22 +42,22 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             transportService,
             actionFilters,
             CancelTasksRequest::new,
-            CancelTasksResponse::new,
+            ListTasksResponse::new,
             TaskInfo::from,
             // Cancellation is usually lightweight, and runs on the transport thread if the task didn't even start yet, but some
             // implementations of CancellableTask#onCancelled() are nontrivial so we use GENERIC here. TODO could it be SAME?
-            ThreadPool.Names.GENERIC
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
         );
     }
 
     @Override
-    protected CancelTasksResponse newResponse(
+    protected ListTasksResponse newResponse(
         CancelTasksRequest request,
         List<TaskInfo> tasks,
         List<TaskOperationFailure> taskOperationFailures,
         List<FailedNodeException> failedNodeExceptions
     ) {
-        return new CancelTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
+        return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
     protected List<CancellableTask> processTasks(CancelTasksRequest request) {

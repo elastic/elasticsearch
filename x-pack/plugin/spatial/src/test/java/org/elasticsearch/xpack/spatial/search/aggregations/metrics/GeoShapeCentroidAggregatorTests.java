@@ -20,6 +20,8 @@ import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -31,8 +33,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
@@ -66,6 +66,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 Orientation.RIGHT,
                 null,
                 null,
+                null,
                 Map.of()
             );
             try (IndexReader reader = w.getReader()) {
@@ -92,6 +93,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     Orientation.RIGHT,
                     null,
                     null,
+                    null,
                     Map.of()
                 );
                 InternalGeoCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -103,6 +105,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     true,
                     randomBoolean(),
                     Orientation.RIGHT,
+                    null,
                     null,
                     null,
                     Map.of()
@@ -132,6 +135,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     true,
                     randomBoolean(),
                     Orientation.RIGHT,
+                    null,
                     null,
                     null,
                     Map.of()
@@ -207,6 +211,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             true,
             randomBoolean(),
             Orientation.RIGHT,
+            null,
             null,
             null,
             Map.of()

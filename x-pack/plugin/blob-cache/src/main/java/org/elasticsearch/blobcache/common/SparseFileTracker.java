@@ -319,7 +319,7 @@ public class SparseFileTracker {
         return true;
     }
 
-    private void subscribeToCompletionListeners(List<Range> requiredRanges, long rangeEnd, ActionListener<Void> listener) {
+    private static void subscribeToCompletionListeners(List<Range> requiredRanges, long rangeEnd, ActionListener<Void> listener) {
         // NB we work with ranges outside the mutex here, but only to interact with their completion listeners which are `final` so
         // there is no risk of concurrent modification.
         switch (requiredRanges.size()) {
@@ -525,7 +525,7 @@ public class SparseFileTracker {
 
     @Override
     public String toString() {
-        return "SparseFileTracker[" + description + ']';
+        return "SparseFileTracker{description=" + description + ", length=" + length + ", complete=" + complete + '}';
     }
 
     /**

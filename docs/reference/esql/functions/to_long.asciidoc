@@ -1,11 +1,33 @@
+[discrete]
 [[esql-to_long]]
 === `TO_LONG`
+
+*Syntax*
+
+[source,esql]
+----
+TO_LONG(v)
+----
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+
+*Description*
+
 Converts an input value to a long value.
 
-The input can be a single- or multi-valued field or an expression. The input
-type must be of a boolean, date, string or numeric type.
+If the input parameter is of a date type, its value will be interpreted as
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to long.
 
-Example:
+Boolean *true* will be converted to long *1*, *false* to *0*.
+
+*Supported types*
+
+The input type must be of a boolean, date, string or numeric type.
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -26,10 +48,3 @@ on the source of the failure:
 A following header will contain the failure reason and the offending value:
 
 `"java.lang.NumberFormatException: For input string: \"foo\""`
-
-
-If the input parameter is of a date type, its value will be interpreted as
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
-converted to long.
-
-Boolean *true* will be converted to long *1*, *false* to *0*.

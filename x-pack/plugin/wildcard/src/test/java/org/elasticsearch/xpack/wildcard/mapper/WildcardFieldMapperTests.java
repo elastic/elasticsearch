@@ -50,6 +50,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -82,6 +83,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -123,16 +125,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.current());
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(MapperBuilderContext.root(false));
+        wildcardFieldType = builder.build(MapperBuilderContext.root(false, false));
 
-        Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersion.V_7_9_0);
-        wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false));
+        Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, IndexVersions.V_7_9_0);
+        wildcardFieldType79 = builder79.build(MapperBuilderContext.root(false, false));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(
             KEYWORD_FIELD_NAME,
             IndexVersion.current()
         );
-        keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false));
+        keywordFieldType = kwBuilder.build(MapperBuilderContext.root(false, false));
 
         rewriteDir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
@@ -1214,6 +1216,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         return new WildcardSyntheticSourceSupport();
     }
 
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> ((BytesRef) v).utf8ToString();
+    }
+
     static class WildcardSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         private final boolean allIgnored = ignoreAbove != null && rarely();
@@ -1223,7 +1230,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
                 Tuple<String, String> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                Object loadBlock = v.v2();
+                if (ignoreAbove != null && v.v2().length() > ignoreAbove) {
+                    loadBlock = null;
+                }
+                return new SyntheticSourceExample(v.v1(), v.v2(), loadBlock, this::mapping);
             }
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
@@ -1238,9 +1249,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             });
             List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
             Collections.sort(outList);
+            List<String> outBlockList = List.copyOf(outList);
+            Object outBlockResult = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
             outList.addAll(outExtraValues);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
-            return new SyntheticSourceExample(in, out, this::mapping);
+            return new SyntheticSourceExample(in, out, outBlockResult, this::mapping);
         }
 
         private Tuple<String, String> generateValue() {

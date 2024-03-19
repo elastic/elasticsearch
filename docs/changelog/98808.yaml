@@ -1,6 +1,0 @@
-pr: 98808
-summary: Set default index mode for `TimeSeries` to `null`
-area: Aggregations
-type: enhancement
-issues:
- - 97429

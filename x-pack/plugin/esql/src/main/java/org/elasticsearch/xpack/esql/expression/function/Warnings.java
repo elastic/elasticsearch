@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
  * Utilities to collect warnings for running an executor.
@@ -17,26 +18,29 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 public class Warnings {
     static final int MAX_ADDED_WARNINGS = 20;
 
-    private final Source source;
+    private final String location;
+    private final String first;
 
     private int addedWarnings;
 
     public Warnings(Source source) {
-        this.source = source;
+        location = format("Line {}:{}: ", source.source().getLineNumber(), source.source().getColumnNumber());
+        first = format(
+            null,
+            "{}evaluation of [{}] failed, treating result as null. Only first {} failures recorded.",
+            location,
+            source.text(),
+            MAX_ADDED_WARNINGS
+        );
     }
 
     public void registerException(Exception exception) {
         if (addedWarnings < MAX_ADDED_WARNINGS) {
             if (addedWarnings == 0) {
-                addWarning(
-                    "Line {}:{}: evaluation of [{}] failed, treating result as null. Only first {} failures recorded.",
-                    source.source().getLineNumber(),
-                    source.source().getColumnNumber(),
-                    source.text(),
-                    MAX_ADDED_WARNINGS
-                );
+                addWarning(first);
             }
-            addWarning(exception.getClass().getName() + ": " + exception.getMessage());
+            // location needs to be added to the exception too, since the headers are deduplicated
+            addWarning(location + exception.getClass().getName() + ": " + exception.getMessage());
             addedWarnings++;
         }
     }

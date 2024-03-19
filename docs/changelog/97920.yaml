@@ -1,6 +1,0 @@
-pr: 97920
-summary: Avoid `transport_worker` thread in `TransportBroadcastByNodeAction`
-area: Distributed
-type: bug
-issues:
- - 97914

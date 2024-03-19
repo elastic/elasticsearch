@@ -49,10 +49,10 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
     public static final ParseField DEPLOYMENT_STATS = new ParseField("deployment_stats");
 
     private GetTrainedModelsStatsAction() {
-        super(NAME, GetTrainedModelsStatsAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 

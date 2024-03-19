@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SumIntAggregator}.
@@ -28,17 +29,22 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("sum", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final LongState state;
 
   private final List<Integer> channels;
 
-  public SumIntAggregatorFunction(List<Integer> channels, LongState state) {
+  public SumIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      LongState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SumIntAggregatorFunction create(List<Integer> channels) {
-    return new SumIntAggregatorFunction(channels, new LongState(SumIntAggregator.init()));
+  public static SumIntAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SumIntAggregatorFunction(driverContext, channels, new LongState(SumIntAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -52,11 +58,7 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    IntBlock block = (IntBlock) uncastBlock;
+    IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -90,10 +92,18 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    LongVector sum = page.<LongBlock>getBlock(channels.get(0)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    Block sumUncast = page.getBlock(channels.get(0));
+    if (sumUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector sum = ((LongBlock) sumUncast).asVector();
     assert sum.getPositionCount() == 1;
-    assert sum.getPositionCount() == seen.getPositionCount();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert seen.getPositionCount() == 1;
     if (seen.getBoolean(0)) {
       state.longValue(SumIntAggregator.combine(state.longValue(), sum.getLong(0)));
       state.seen(true);
@@ -101,17 +111,17 @@ public final class SumIntAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1);
+      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }
-    blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1);
   }
 
   @Override

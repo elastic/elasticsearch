@@ -235,8 +235,8 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 // Exclude metric types which was introduced in 8.0
                 assertThat(outCap.keySet(), equalTo(inCap.keySet()));
                 for (String field : outCap.keySet()) {
-                    assertThat(outCap.get(field).getName(), equalTo(inCap.get(field).getName()));
-                    assertThat(outCap.get(field).getType(), equalTo(inCap.get(field).getType()));
+                    assertThat(outCap.get(field).name(), equalTo(inCap.get(field).name()));
+                    assertThat(outCap.get(field).type(), equalTo(inCap.get(field).type()));
                     assertThat(outCap.get(field).isSearchable(), equalTo(inCap.get(field).isSearchable()));
                     assertThat(outCap.get(field).isAggregatable(), equalTo(inCap.get(field).isAggregatable()));
                     assertThat(outCap.get(field).meta(), equalTo(inCap.get(field).meta()));

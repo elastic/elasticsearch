@@ -10,7 +10,10 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -42,6 +45,11 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class MultivalueDedupeBenchmark {
+    private static final BlockFactory blockFactory = BlockFactory.getInstance(
+        new NoopCircuitBreaker("noop"),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
+
     @Param({ "BOOLEAN", "BYTES_REF", "DOUBLE", "INT", "LONG" })
     private ElementType elementType;
 
@@ -57,7 +65,7 @@ public class MultivalueDedupeBenchmark {
     public void setup() {
         this.block = switch (elementType) {
             case BOOLEAN -> {
-                BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
+                BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
                 for (int p = 0; p < AggregatorBenchmark.BLOCK_LENGTH; p++) {
                     List<Boolean> values = new ArrayList<>();
                     for (int i = 0; i < size; i++) {
@@ -76,7 +84,7 @@ public class MultivalueDedupeBenchmark {
                 yield builder.build();
             }
             case BYTES_REF -> {
-                BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
+                BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
                 for (int p = 0; p < AggregatorBenchmark.BLOCK_LENGTH; p++) {
                     List<BytesRef> values = new ArrayList<>();
                     for (int i = 0; i < size; i++) {
@@ -95,7 +103,7 @@ public class MultivalueDedupeBenchmark {
                 yield builder.build();
             }
             case DOUBLE -> {
-                DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
+                DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
                 for (int p = 0; p < AggregatorBenchmark.BLOCK_LENGTH; p++) {
                     List<Double> values = new ArrayList<>();
                     for (int i = 0; i < size; i++) {
@@ -114,7 +122,7 @@ public class MultivalueDedupeBenchmark {
                 yield builder.build();
             }
             case INT -> {
-                IntBlock.Builder builder = IntBlock.newBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
+                IntBlock.Builder builder = blockFactory.newIntBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
                 for (int p = 0; p < AggregatorBenchmark.BLOCK_LENGTH; p++) {
                     List<Integer> values = new ArrayList<>();
                     for (int i = 0; i < size; i++) {
@@ -133,7 +141,7 @@ public class MultivalueDedupeBenchmark {
                 yield builder.build();
             }
             case LONG -> {
-                LongBlock.Builder builder = LongBlock.newBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
+                LongBlock.Builder builder = blockFactory.newLongBlockBuilder(AggregatorBenchmark.BLOCK_LENGTH * (size + repeats));
                 for (int p = 0; p < AggregatorBenchmark.BLOCK_LENGTH; p++) {
                     List<Long> values = new ArrayList<>();
                     for (long i = 0; i < size; i++) {
@@ -157,19 +165,19 @@ public class MultivalueDedupeBenchmark {
 
     @Benchmark
     @OperationsPerInvocation(AggregatorBenchmark.BLOCK_LENGTH)
-    public Block adaptive() {
-        return MultivalueDedupe.dedupeToBlockAdaptive(block);
+    public void adaptive() {
+        MultivalueDedupe.dedupeToBlockAdaptive(block, blockFactory).close();
     }
 
     @Benchmark
     @OperationsPerInvocation(AggregatorBenchmark.BLOCK_LENGTH)
-    public Block copyAndSort() {
-        return MultivalueDedupe.dedupeToBlockUsingCopyAndSort(block);
+    public void copyAndSort() {
+        MultivalueDedupe.dedupeToBlockUsingCopyAndSort(block, blockFactory).close();
     }
 
     @Benchmark
     @OperationsPerInvocation(AggregatorBenchmark.BLOCK_LENGTH)
-    public Block copyMissing() {
-        return MultivalueDedupe.dedupeToBlockUsingCopyMissing(block);
+    public void copyMissing() {
+        MultivalueDedupe.dedupeToBlockUsingCopyMissing(block, blockFactory).close();
     }
 }

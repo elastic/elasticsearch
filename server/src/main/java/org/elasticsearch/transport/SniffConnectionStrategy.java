@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -311,7 +312,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 final AbstractSniffResponseHandler<?> sniffResponseHandler;
                 // Use different action to collect nodes information depending on the connection model
                 if (REMOTE_CLUSTER_PROFILE.equals(connectionManager.getConnectionProfile().getTransportProfile())) {
-                    action = RemoteClusterNodesAction.NAME;
+                    action = RemoteClusterNodesAction.TYPE.name();
                     request = RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES;
                     sniffResponseHandler = new RemoteClusterNodesSniffResponseHandler(connection, listener, seedNodesSuppliers);
                 } else {
@@ -356,7 +357,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 : "transport profile must be consistent between the connection manager and the actual profile";
             transportService.connectionValidator(node)
                 .validate(
-                    RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(connection, clusterAlias, profile.getTransportProfile()),
+                    RemoteConnectionManager.wrapConnectionWithRemoteClusterInfo(
+                        connection,
+                        clusterAlias,
+                        connectionManager.getCredentialsManager()
+                    ),
                     profile,
                     listener
                 );
@@ -473,7 +478,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         }
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return managementExecutor;
         }
     }
@@ -497,7 +502,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private static DiscoveryNode resolveSeedNode(String clusterAlias, String address, String proxyAddress) {
         var seedVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion(),
-            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
         if (proxyAddress == null || proxyAddress.isEmpty()) {

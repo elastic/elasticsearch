@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -21,14 +22,14 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
-public class Length extends UnaryScalarFunction implements EvaluatorMapper {
+public class Length extends UnaryScalarFunction {
 
-    public Length(Source source, Expression field) {
+    @FunctionInfo(returnType = "integer", description = "Returns the character length of a string.")
+    public Length(Source source, @Param(name = "str", type = { "keyword", "text" }) Expression field) {
         super(source, field);
     }
 
@@ -44,16 +45,6 @@ public class Length extends UnaryScalarFunction implements EvaluatorMapper {
         }
 
         return isString(field(), sourceText(), DEFAULT);
-    }
-
-    @Override
-    public boolean foldable() {
-        return field().foldable();
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator
@@ -72,10 +63,7 @@ public class Length extends UnaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> field = toEvaluator.apply(field());
-        return () -> new LengthEvaluator(field.get());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        return new LengthEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 }

@@ -39,10 +39,16 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 
+import org.apache.http.HttpHost;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -68,10 +74,11 @@ import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
@@ -614,7 +621,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     channel.sendResponse(
                         RestResponse.chunked(OK, ChunkedRestResponseBody.fromXContent(ignored -> Iterators.single((builder, params) -> {
                             throw new AssertionError("should not be called for HEAD REQUEST");
-                        }), ToXContent.EMPTY_PARAMS, channel))
+                        }), ToXContent.EMPTY_PARAMS, channel), null)
                     );
                 } catch (IOException e) {
                     throw new AssertionError(e);
@@ -883,7 +890,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
     public void testMultipleValidationsOnTheSameChannel() throws InterruptedException {
         // ensure that there is a single channel active
-        final Settings settings = createBuilderWithPort().put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), 1).build();
+        final Settings settings = createBuilderWithPort().put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 1).build();
         final Set<String> okURIs = ConcurrentHashMap.newKeySet();
         final Set<String> nokURIs = ConcurrentHashMap.newKeySet();
         final SetOnce<Channel> channelSetOnce = new SetOnce<>();
@@ -952,6 +959,58 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 // assert all validations have been dispatched (or not) correctly
                 assertThat(okURIs.size(), is(0));
                 assertThat(nokURIs.size(), is(0));
+            }
+        }
+    }
+
+    public void testRespondAfterClose() throws Exception {
+        final String url = "/thing";
+        final CountDownLatch responseReleasedLatch = new CountDownLatch(1);
+        final SubscribableListener<Void> transportClosedFuture = new SubscribableListener<>();
+        final CountDownLatch handlingRequestLatch = new CountDownLatch(1);
+
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                assertEquals(request.uri(), url);
+                final var response = RestResponse.chunked(
+                    OK,
+                    ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
+                    responseReleasedLatch::countDown
+                );
+                transportClosedFuture.addListener(ActionListener.running(() -> channel.sendResponse(response)));
+                handlingRequestLatch.countDown();
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                fail(cause, "--> Unexpected bad request [%s]", FakeRestRequest.requestToString(channel.request()));
+            }
+        };
+
+        try (
+            Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                clusterSettings,
+                new SharedGroupFactory(Settings.EMPTY),
+                Tracer.NOOP,
+                TLSConfig.noTLS(),
+                null,
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
+            )
+        ) {
+            transport.start();
+            final var address = randomFrom(transport.boundAddress().boundAddresses()).address();
+            try (var client = RestClient.builder(new HttpHost(address.getAddress(), address.getPort())).build()) {
+                client.performRequestAsync(new Request("GET", url), ActionTestUtils.wrapAsRestResponseListener(ActionListener.noop()));
+                safeAwait(handlingRequestLatch);
+                transport.close();
+                transportClosedFuture.onResponse(null);
+                safeAwait(responseReleasedLatch);
             }
         }
     }

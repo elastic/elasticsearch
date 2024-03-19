@@ -1,10 +1,11 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -15,6 +16,7 @@ base {
 dependencies {
   testImplementation project(xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
   testImplementation project(':test:yaml-rest-runner')
 }
 
@@ -33,32 +35,6 @@ artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-// location for keys and certificates
-File extraResourceDir = file("$buildDir/extra_resource")
-File nodeKey = file("$extraResourceDir/testnode.pem")
-File nodeCert = file("$extraResourceDir/testnode.crt")
-// location for service tokens
-File serviceTokens = file("$extraResourceDir/service_tokens")
-
-// Add key and certs to test classpath: it expects them there
-// User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
-// it can run in a FIPS 140 JVM
-// TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
-// https://github.com/elastic/elasticsearch/pull/32201
-tasks.register("copyExtraResources", Copy) {
-  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
-    include 'testnode.crt', 'testnode.pem'
-  }
-  from(project(':x-pack:plugin:security:qa:service-account').file('src/javaRestTest/resources/')) {
-    include 'service_tokens'
-  }
-  into extraResourceDir
-}
-// Add keystores to test classpath: it expects it there
-sourceSets.yamlRestTest.resources.srcDir(extraResourceDir)
-tasks.named("processYamlRestTestResources").configure {
-  dependsOn("copyExtraResources")
-}
 def restTestBlacklist = []
 // TODO: fix this rest test to not depend on a hardcoded port!
 restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
@@ -75,9 +51,12 @@ if (BuildParams.isSnapshotBuild() == false) {
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
 }
 
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  usesDefaultDistribution()
+}
+
 tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
-  dependsOn "copyExtraResources"
 }
 
 tasks.named("yamlRestTestV7CompatTest").configure {
@@ -130,6 +109,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   )
   task.skipTest("ml/jobs_crud/Test update job", "Behaviour change #89824 - added limit filter to categorization analyzer")
   task.skipTest("ml/jobs_crud/Test create job with delimited format", "removing undocumented functionality")
+  task.skipTest("ml/jobs_crud/Test cannot create job with model snapshot id set", "Exception type has changed.")
+  task.skipTest("ml/validate/Test job config is invalid because model snapshot id set", "Exception type has changed.")
   task.skipTest("ml/datafeeds_crud/Test update datafeed to point to missing job", "behaviour change #44752 - not allowing to update datafeed job_id")
   task.skipTest(
     "ml/datafeeds_crud/Test update datafeed to point to different job",
@@ -197,48 +178,19 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   )
 }
 
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
-  setting 'xpack.ml.enabled', 'true'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  // Integration tests are supposed to enable/disable exporters before/after each test
-  setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.api_key.enabled', 'true'
-  setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.key', nodeKey.name
-  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
-  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-  setting 'xpack.security.audit.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
-  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
-
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
-  extraConfigFile nodeKey.name, nodeKey
-  extraConfigFile nodeCert.name, nodeCert
-  extraConfigFile serviceTokens.name, serviceTokens
-
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-  requiresFeature 'es.inference_rescorer_feature_flag_enabled', Version.fromString("8.10.0")
-}
-
 tasks.register('enforceApiSpecsConvention').configure {
+  def mainApiSpecs = fileTree('src/test/resources/rest-api-spec/api')
   doLast {
-    if (fileTree('src/test/resources/rest-api-spec/api').files) {
+    if (mainApiSpecs.files) {
       throw new GradleException("There are REST specs in src/test source set. These should be moved to the :rest-api-spec project.")
     }
   }
 }
 
 tasks.register('enforceYamlTestConvention').configure {
+  def mainYamlFiles = fileTree('src/test/resources/rest-api-spec/test')
   doLast {
-    if (fileTree('src/test/resources/rest-api-spec/test').files) {
+    if (mainYamlFiles.files) {
       throw new GradleException("There are YAML tests in src/test source set. These should be moved to src/yamlRestTest.")
     }
   }

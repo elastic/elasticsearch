@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -20,11 +18,12 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arith
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
@@ -71,7 +70,10 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         }
     }
 
-    interface ArithmeticEvaluator extends TriFunction<Source, ExpressionEvaluator, ExpressionEvaluator, ExpressionEvaluator> {};
+    /** Arithmetic (quad) function. */
+    interface ArithmeticEvaluator {
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs);
+    }
 
     private final ArithmeticEvaluator ints;
     private final ArithmeticEvaluator longs;
@@ -98,7 +100,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     @Override
-    public final Object fold() {
+    public Object fold() {
         return EvaluatorMapper.super.fold();
     }
 
@@ -110,13 +112,45 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     @Override
-    public Supplier<ExpressionEvaluator> toEvaluator(Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator) {
+    protected TypeResolution resolveType() {
+        TypeResolution typeResolution = super.resolveType();
+        if (typeResolution.unresolved()) {
+            return typeResolution;
+        }
+
+        return checkCompatibility();
+    }
+
+    /**
+     * Check if the two input types are compatible for this operation
+     *
+     * @return TypeResolution.TYPE_RESOLVED iff the types are compatible.  Otherwise, an appropriate type resolution error.
+     */
+    protected TypeResolution checkCompatibility() {
+        // This checks that unsigned longs should only be compatible with other unsigned longs
+        DataType leftType = left().dataType();
+        DataType rightType = right().dataType();
+        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
+            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
+            return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+        }
+
+        // at this point, left should be null, and right should be null or numeric.
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
+        return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var commonType = dataType();
         var leftType = left().dataType();
         if (leftType.isNumeric()) {
 
-            Supplier<EvalOperator.ExpressionEvaluator> l = Cast.cast(left().dataType(), commonType, toEvaluator.apply(left()));
-            Supplier<EvalOperator.ExpressionEvaluator> r = Cast.cast(right().dataType(), commonType, toEvaluator.apply(right()));
+            var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
+            var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
 
             ArithmeticEvaluator eval;
             if (commonType == INTEGER) {
@@ -130,7 +164,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             } else {
                 throw new EsqlIllegalArgumentException("Unsupported type " + commonType);
             }
-            return () -> eval.apply(source(), l.get(), r.get());
+            return eval.apply(source(), lhs, rhs);
         }
         throw new EsqlIllegalArgumentException("Unsupported type " + leftType);
     }

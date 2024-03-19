@@ -8,9 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 
@@ -25,11 +24,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StringExtractOperatorTests extends OperatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
-        return new BytesRefBlockSourceOperator(input);
+        return new BytesRefBlockSourceOperator(blockFactory, input);
     }
 
     record FirstWord(String fieldName) implements Function<String, Map<String, String>> {
@@ -40,9 +39,23 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple() {
         Supplier<Function<String, Map<String, String>>> expEval = () -> new FirstWord("test");
-        return new StringExtractOperator.StringExtractOperatorFactory(new String[] { "test" }, () -> page -> page.getBlock(0), expEval);
+        return new StringExtractOperator.StringExtractOperatorFactory(
+            new String[] { "test" },
+            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    Block block = page.getBlock(0);
+                    block.incRef();
+                    return block;
+                }
+
+                @Override
+                public void close() {}
+            },
+            expEval
+        );
     }
 
     @Override
@@ -69,45 +82,50 @@ public class StringExtractOperatorTests extends OperatorTestCase {
         }
     }
 
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
-    }
-
     public void testMultivalueDissectInput() {
 
-        StringExtractOperator operator = new StringExtractOperator(
-            new String[] { "test" },
-            (page) -> page.getBlock(0),
-            new FirstWord("test")
-        );
+        StringExtractOperator operator = new StringExtractOperator(new String[] { "test" }, new EvalOperator.ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                Block block = page.getBlock(0);
+                block.incRef();
+                return block;
+            }
 
-        BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1);
-        builder.beginPositionEntry();
-        builder.appendBytesRef(new BytesRef("foo1 bar1"));
-        builder.appendBytesRef(new BytesRef("foo2 bar2"));
-        builder.endPositionEntry();
-        builder.beginPositionEntry();
-        builder.appendBytesRef(new BytesRef("foo3 bar3"));
-        builder.appendBytesRef(new BytesRef("foo4 bar4"));
-        builder.appendBytesRef(new BytesRef("foo5 bar5"));
-        builder.endPositionEntry();
-        Page page = new Page(builder.build());
+            @Override
+            public void close() {}
+        }, new FirstWord("test"), driverContext());
 
-        Page result = operator.process(page);
-        Block resultBlock = result.getBlock(1);
-        assertThat(resultBlock.getPositionCount(), equalTo(2));
-        assertThat(resultBlock.getValueCount(0), equalTo(2));
-        assertThat(resultBlock.getValueCount(1), equalTo(3));
-        BytesRefBlock brb = (BytesRefBlock) resultBlock;
-        BytesRef spare = new BytesRef("");
-        int idx = brb.getFirstValueIndex(0);
-        assertThat(brb.getBytesRef(idx, spare).utf8ToString(), equalTo("foo1"));
-        assertThat(brb.getBytesRef(idx + 1, spare).utf8ToString(), equalTo("foo2"));
-        idx = brb.getFirstValueIndex(1);
-        assertThat(brb.getBytesRef(idx, spare).utf8ToString(), equalTo("foo3"));
-        assertThat(brb.getBytesRef(idx + 1, spare).utf8ToString(), equalTo("foo4"));
-        assertThat(brb.getBytesRef(idx + 2, spare).utf8ToString(), equalTo("foo5"));
+        BlockFactory blockFactory = blockFactory();
+        final Page result;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("foo1 bar1"));
+            builder.appendBytesRef(new BytesRef("foo2 bar2"));
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("foo3 bar3"));
+            builder.appendBytesRef(new BytesRef("foo4 bar4"));
+            builder.appendBytesRef(new BytesRef("foo5 bar5"));
+            builder.endPositionEntry();
+            result = operator.process(new Page(builder.build()));
+        }
+        try {
+            Block resultBlock = result.getBlock(1);
+            assertThat(resultBlock.getPositionCount(), equalTo(2));
+            assertThat(resultBlock.getValueCount(0), equalTo(2));
+            assertThat(resultBlock.getValueCount(1), equalTo(3));
+            BytesRefBlock brb = (BytesRefBlock) resultBlock;
+            BytesRef spare = new BytesRef("");
+            int idx = brb.getFirstValueIndex(0);
+            assertThat(brb.getBytesRef(idx, spare).utf8ToString(), equalTo("foo1"));
+            assertThat(brb.getBytesRef(idx + 1, spare).utf8ToString(), equalTo("foo2"));
+            idx = brb.getFirstValueIndex(1);
+            assertThat(brb.getBytesRef(idx, spare).utf8ToString(), equalTo("foo3"));
+            assertThat(brb.getBytesRef(idx + 1, spare).utf8ToString(), equalTo("foo4"));
+            assertThat(brb.getBytesRef(idx + 2, spare).utf8ToString(), equalTo("foo5"));
+        } finally {
+            result.releaseBlocks();
+        }
     }
 }

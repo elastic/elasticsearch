@@ -279,21 +279,17 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     .put(foo2, false)
                     .put(
                         "template",
-                        new ComposableIndexTemplate(
-                            List.of(dataStreamName + "*"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        )
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(dataStreamName + "*"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build()
                     )
             )
             .build();
 
         ClusterState newState = MetadataMigrateToDataStreamService.migrateToDataStream(
             cs,
+            randomBoolean(),
             this::getMapperService,
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
                 dataStreamName,
@@ -301,6 +297,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 TimeValue.ZERO
             ),
             getMetadataCreateIndexService(),
+            Settings.EMPTY,
             ActionListener.noop()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -341,21 +338,17 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     .put(foo2, false)
                     .put(
                         "template",
-                        new ComposableIndexTemplate(
-                            List.of(dataStreamName + "*"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        )
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(dataStreamName + "*"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build()
                     )
             )
             .build();
 
         ClusterState newState = MetadataMigrateToDataStreamService.migrateToDataStream(
             cs,
+            randomBoolean(),
             this::getMapperService,
             new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
                 dataStreamName,
@@ -363,6 +356,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                 TimeValue.ZERO
             ),
             getMetadataCreateIndexService(),
+            Settings.EMPTY,
             ActionListener.noop()
         );
         IndexAbstraction ds = newState.metadata().getIndicesLookup().get(dataStreamName);
@@ -403,15 +397,10 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     .put(foo2, false)
                     .put(
                         "template",
-                        new ComposableIndexTemplate(
-                            List.of(dataStreamName + "*"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        )
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(dataStreamName + "*"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build()
                     )
             )
             .build();
@@ -420,6 +409,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             IllegalArgumentException.class,
             () -> MetadataMigrateToDataStreamService.migrateToDataStream(
                 cs,
+                randomBoolean(),
                 this::getMapperService,
                 new MetadataMigrateToDataStreamService.MigrateToDataStreamClusterStateUpdateRequest(
                     dataStreamName,
@@ -427,6 +417,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     TimeValue.ZERO
                 ),
                 getMetadataCreateIndexService(),
+                Settings.EMPTY,
                 ActionListener.noop()
             )
         );

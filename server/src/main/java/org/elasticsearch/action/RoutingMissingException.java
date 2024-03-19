@@ -18,7 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RoutingMissingException extends ElasticsearchException {
+public final class RoutingMissingException extends ElasticsearchException {
 
     private final String id;
 

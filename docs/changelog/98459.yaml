@@ -1,5 +1,0 @@
-pr: 98459
-summary: Unwrap IOException in `ContextIndexSearcher` concurrent code-path
-area: Search
-type: enhancement
-issues: []

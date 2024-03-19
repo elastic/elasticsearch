@@ -167,7 +167,7 @@ teardown:
   - match: {count: 3}
 
   - do:
-      catch: /cannot delete snapshot from a readonly repository/
+      catch: /repository is readonly/
       snapshot.delete:
         repository: repository-url
         snapshot: snapshot-two
@@ -229,7 +229,7 @@ teardown:
   - match: {count: 3}
 
   - do:
-      catch: /cannot delete snapshot from a readonly repository/
+      catch: /repository is readonly/
       snapshot.delete:
         repository: repository-file
         snapshot: snapshot-one

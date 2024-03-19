@@ -107,8 +107,8 @@ setup:
 ---
 "Add data stream lifecycle":
   - skip:
-      version: " - 8.9.99"
-      reason: "Data stream lifecycle in index templates was updated after 8.9"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
   - do:
@@ -142,8 +142,8 @@ setup:
 ---
 "Get data stream lifecycle with default rollover":
   - skip:
-      version: " - 8.9.99"
-      reason: "Data stream lifecycle in index templates was updated after 8.9"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
   - do:
@@ -171,8 +171,8 @@ setup:
 ---
 "Reject data stream lifecycle without data stream configuration":
   - skip:
-      version: " - 8.9.99"
-      reason: "Data stream lifecycle in index templates was updated after 8.9"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
   - do:
       catch:  bad_request
       indices.put_index_template:
@@ -188,3 +188,16 @@ setup:
                   type: keyword
             lifecycle:
               data_retention: "30d"
+
+---
+"Get index template always shows composed_of":
+  - skip:
+      version: " - 8.12.99"
+      reason: "A bug was fixed in 8.13.0 to make `composed_of` always returned"
+
+  - do:
+      indices.get_index_template:
+        name: test
+
+  - match: {index_templates.0.name: test}
+  - match: {index_templates.0.index_template.composed_of: []}

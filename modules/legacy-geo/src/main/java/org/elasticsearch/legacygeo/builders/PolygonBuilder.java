@@ -166,7 +166,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
     /**
      * Validates only 1 vertex is tangential (shared) between the interior and exterior of a polygon
      */
-    protected void validateHole(LineStringBuilder shell, LineStringBuilder hole) {
+    protected static void validateHole(LineStringBuilder shell, LineStringBuilder hole) {
         HashSet<Coordinate> exterior = Sets.newHashSet(shell.coordinates);
         HashSet<Coordinate> interior = Sets.newHashSet(hole.coordinates);
         exterior.retainAll(interior);

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
@@ -26,6 +27,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
@@ -33,7 +35,11 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder());
+        action = new RestSubmitAsyncSearchAction(
+            new UsageService().getSearchUsageHolder(),
+            mock(NamedWriteableRegistry.class),
+            nf -> false
+        );
         controller().registerHandler(action);
     }
 

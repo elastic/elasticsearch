@@ -1,5 +1,0 @@
-pr: 98970
-summary: Fix `BlobCacheBufferedIndexInput` large read after clone
-area: Snapshot/Restore
-type: bug
-issues: []

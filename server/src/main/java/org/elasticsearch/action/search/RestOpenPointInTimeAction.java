@@ -17,10 +17,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -51,6 +54,20 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
             );
             openRequest.maxConcurrentShardRequests(maxConcurrentShardRequests);
         }
-        return channel -> client.execute(OpenPointInTimeAction.INSTANCE, openRequest, new RestToXContentListener<>(channel));
+
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            if (parser != null) {
+                PARSER.parse(parser, openRequest, null);
+            }
+        });
+
+        return channel -> client.execute(TransportOpenPointInTimeAction.TYPE, openRequest, new RestToXContentListener<>(channel));
+    }
+
+    private static final ObjectParser<OpenPointInTimeRequest, Void> PARSER = new ObjectParser<>("open_point_in_time_request");
+    private static final ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
+
+    static {
+        PARSER.declareObject(OpenPointInTimeRequest::indexFilter, (p, c) -> parseTopLevelQuery(p), INDEX_FILTER_FIELD);
     }
 }

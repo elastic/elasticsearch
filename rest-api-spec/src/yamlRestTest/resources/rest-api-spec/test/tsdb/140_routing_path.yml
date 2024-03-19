@@ -1,8 +1,9 @@
+---
 missing routing path field:
   - skip:
       features: close_to
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -70,25 +71,21 @@ missing routing path field:
   - match: { hits.total.value: 8 }
   - length: { aggregations.tsids.buckets: 4 }
 
-  - match: { aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match: { aggregations.tsids.buckets.0.key.tag: null }
+  - match: { aggregations.tsids.buckets.0.key: "JNy0BQX41tKNa3KEdjReXM85ihHDIG1DaFBdVI_fYOQvJgKOvg" }
   - match: { aggregations.tsids.buckets.0.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.15, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 6.69, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match: { aggregations.tsids.buckets.1.key.tag: null }
+  - match: { aggregations.tsids.buckets.1.key: "JNy0BQX41tKNa3KEdjReXM912oDh9NI69d0Kk5TQ6CAdewYP5A" }
   - match: { aggregations.tsids.buckets.1.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.69, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 7.15, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.2.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match: { aggregations.tsids.buckets.2.key.tag: "first" }
+  - match: { aggregations.tsids.buckets.2.key: "KDODRmbj7vu4rLWvjrJbpUuaET_vOYoRw6ImzKEcF4sEaGKnXSaKfM0" }
   - match: { aggregations.tsids.buckets.2.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.30, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 6.70, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.3.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match: { aggregations.tsids.buckets.3.key.tag: "second" }
+  - match: { aggregations.tsids.buckets.3.key: "KDODRmbj7vu4rLWvjrJbpUvcUWJEddqA4Seo8jbBBBFxwC0lrefCb6A" }
   - match: { aggregations.tsids.buckets.3.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.70, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 7.30, error: 0.01 }}
 
 ---
 missing dimension on routing path field:
@@ -125,8 +122,8 @@ missing dimension on routing path field:
 multi-value routing path field:
   - skip:
       features: close_to
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -201,12 +198,10 @@ multi-value routing path field:
   - match: {hits.total.value: 4}
   - length: {aggregations.tsids.buckets: 2}
 
-  - match: {aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match: {aggregations.tsids.buckets.0.key.tag: "first" }
+  - match: {aggregations.tsids.buckets.0.key: "KDODRmbj7vu4rLWvjrJbpUuaET_vOYoRw6ImzKEcF4sEaGKnXSaKfM0" }
   - match: {aggregations.tsids.buckets.0.doc_count: 2 }
-  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 7.30, error: 0.01 }}
+  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 6.70, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match: { aggregations.tsids.buckets.1.key.tag: "second" }
+  - match: { aggregations.tsids.buckets.1.key: "KDODRmbj7vu4rLWvjrJbpUvcUWJEddqA4Seo8jbBBBFxwC0lrefCb6A" }
   - match: {aggregations.tsids.buckets.1.doc_count: 2 }
-  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 6.70, error: 0.01 }}
+  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 7.30, error: 0.01 }}

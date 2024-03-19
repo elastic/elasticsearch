@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends MapperServiceTestCase {
 
-    private XContentBuilder dynamicMapping(String dynamicValue, CheckedConsumer<XContentBuilder, IOException> buildFields)
+    private static XContentBuilder dynamicMapping(String dynamicValue, CheckedConsumer<XContentBuilder, IOException> buildFields)
         throws IOException {
         return topMapping(b -> {
             b.field("dynamic", dynamicValue);
@@ -990,5 +991,16 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertNotNull(update);
         ObjectMapper parent = (ObjectMapper) update.getRoot().getMapper("parent_object");
         assertThat(((FieldMapper) parent.getMapper("mapsToDenseVector")).fieldType().typeName(), equalTo("dense_vector"));
+    }
+
+    public void testStringArraysAreText() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("numeric_detection", true)));
+        BytesReference source = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject().field("mapsToString", Stream.generate(() -> "foo").limit(129).toArray()).endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
+        Mapping update = parsedDocument.dynamicMappingsUpdate();
+        assertNotNull(update);
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToString")).fieldType().typeName(), equalTo("text"));
     }
 }

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,10 +38,6 @@ public class ExchangeSinkOperator extends SinkOperator {
         implements
             SinkOperatorFactory {
 
-        public ExchangeSinkOperatorFactory(Supplier<ExchangeSink> exchangeSinks) {
-            this(exchangeSinks, Function.identity());
-        }
-
         @Override
         public SinkOperator get(DriverContext driverContext) {
             return new ExchangeSinkOperator(exchangeSinks.get(), transformer);
@@ -67,7 +65,7 @@ public class ExchangeSinkOperator extends SinkOperator {
     }
 
     @Override
-    public ListenableActionFuture<Void> isBlocked() {
+    public SubscribableListener<Void> isBlocked() {
         return sink.waitForWriting();
     }
 
@@ -77,10 +75,9 @@ public class ExchangeSinkOperator extends SinkOperator {
     }
 
     @Override
-    public void addInput(Page page) {
+    protected void doAddInput(Page page) {
         pagesAccepted++;
-        var newPage = transformer.apply(page);
-        sink.addPage(newPage);
+        sink.addPage(transformer.apply(page));
     }
 
     @Override
@@ -152,6 +149,11 @@ public class ExchangeSinkOperator extends SinkOperator {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_11_X;
         }
     }
 }

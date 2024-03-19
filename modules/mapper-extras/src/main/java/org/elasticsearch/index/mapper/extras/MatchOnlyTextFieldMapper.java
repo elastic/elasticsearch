@@ -39,6 +39,9 @@ import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFiel
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
+import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -124,7 +127,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             TextSearchInfo tsi = new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchQuoteAnalyzer);
             MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 tsi,
                 indexAnalyzer,
                 context.isSourceSynthetic(),
@@ -137,7 +140,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             MatchOnlyTextFieldType tft = buildFieldType(context);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MatchOnlyTextFieldMapper(name, Defaults.FIELD_TYPE, tft, multiFields, copyTo, context.isSourceSynthetic(), this);
+            return new MatchOnlyTextFieldMapper(name(), Defaults.FIELD_TYPE, tft, multiFields, copyTo, context.isSourceSynthetic(), this);
         }
     }
 
@@ -204,9 +207,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     };
                 };
             }
-            ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
-            SourceProvider sourceProvider = searchExecutionContext.lookup();
             return context -> {
+                ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
+                SourceProvider sourceProvider = searchExecutionContext.lookup();
                 valueFetcher.setNextReader(context);
                 return docID -> {
                     try {
@@ -316,6 +319,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             throws IOException {
             final Query query = textFieldType.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext);
             return toQuery(query, queryShardContext);
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (textFieldType.isSyntheticSource()) {
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(storedFieldNameForSyntheticSource());
+            }
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            // MatchOnlyText never has norms, so we have to use the field names field
+            BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup);
         }
 
         @Override

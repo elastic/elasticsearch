@@ -1,7 +1,36 @@
+[discrete]
 [[esql-substring]]
 === `SUBSTRING`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/substring.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`str`::
+String expression. If `null`, the function returns `null`.
+
+`start`::
+Start position.
+
+`length`::
+Length of the substring from the start position. Optional; if omitted, all
+positions after `start` are returned.
+
+*Description*
+
 Returns a substring of a string, specified by a start position and an optional
-length. This example returns the first three characters of every last name:
+length.
+
+*Supported types*
+
+include::types/substring.asciidoc[]
+
+*Examples*
+
+This example returns the first three characters of every last name:
 
 [source.merge.styled,esql]
 ----

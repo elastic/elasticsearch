@@ -9,17 +9,12 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -63,14 +58,11 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
         req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
         req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
-        return channel -> client.admin()
-            .cluster()
-            .allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
-                @Override
-                public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws IOException {
-                    response.getExplanation().toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    return new RestResponse(RestStatus.OK, builder);
-                }
-            });
+        return channel -> client.admin().cluster().allocationExplain(req, new RestRefCountedChunkedToXContentListener<>(channel));
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

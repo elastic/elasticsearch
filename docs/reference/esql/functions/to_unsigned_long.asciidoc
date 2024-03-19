@@ -1,11 +1,40 @@
+[discrete]
 [[esql-to_unsigned_long]]
 === `TO_UNSIGNED_LONG`
+
+experimental::[]
+
+*Aliases*
+
+`TO_ULONG`, `TO_UL`
+
+*Syntax*
+
+[source,esql]
+----
+TO_UNSIGNED_LONG(v)
+----
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+
+*Description*
+
 Converts an input value to an unsigned long value.
 
-The input can be a single- or multi-valued field or an expression. The input
-type must be of a boolean, date, string or numeric type.
+*Supported types*
 
-Example:
+The input type must be of a boolean, date, string or numeric type.
+
+If the input parameter is of a date type, its value will be interpreted as
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned
+long.
+
+Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -26,12 +55,3 @@ on the source of the failure:
 A following header will contain the failure reason and the offending value:
 
 `"java.lang.NumberFormatException: Character f is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark."`
-
-
-If the input parameter is of a date type, its value will be interpreted as
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
-converted to unsigned long.
-
-Boolean *true* will be converted to unsigned long *1*, *false* to *0*.
-
-Alias: TO_ULONG, TO_UL

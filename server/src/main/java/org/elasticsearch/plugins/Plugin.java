@@ -12,6 +12,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -21,14 +22,16 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -63,44 +66,107 @@ import java.util.function.UnaryOperator;
 public abstract class Plugin implements Closeable {
 
     /**
+     * Provides access to various Elasticsearch services.
+     */
+    public interface PluginServices {
+        /**
+         * A client to make requests to the system
+         */
+        Client client();
+
+        /**
+         * A service to allow watching and updating cluster state
+         */
+        ClusterService clusterService();
+
+        /**
+         * A service to reroute shards to other nodes
+         */
+        RerouteService rerouteService();
+
+        /**
+         * A service to allow retrieving an executor to run an async action
+         */
+        ThreadPool threadPool();
+
+        /**
+         * A service to watch for changes to node local files
+         */
+        ResourceWatcherService resourceWatcherService();
+
+        /**
+         * A service to allow running scripts on the local node
+         */
+        ScriptService scriptService();
+
+        /**
+         * The registry for extensible xContent parsing
+         */
+        NamedXContentRegistry xContentRegistry();
+
+        /**
+         * The environment for path and setting configurations
+         */
+        Environment environment();
+
+        /**
+         * The node environment used coordinate access to the data paths
+         */
+        NodeEnvironment nodeEnvironment();
+
+        /**
+         * The registry for {@link NamedWriteable} object parsing
+         */
+        NamedWriteableRegistry namedWriteableRegistry();
+
+        /**
+         * A service that resolves expression to index and alias names
+         */
+        IndexNameExpressionResolver indexNameExpressionResolver();
+
+        /**
+         * A supplier for the service that manages snapshot repositories.
+         * This will return null when {@link #createComponents(PluginServices)} is called,
+         * but will return the repositories service once the node is initialized.
+         */
+        Supplier<RepositoriesService> repositoriesServiceSupplier();
+
+        /**
+         * An interface for distributed tracing
+         */
+        TelemetryProvider telemetryProvider();
+
+        /**
+         * A service to manage shard allocation in the cluster
+         */
+        AllocationService allocationService();
+
+        /**
+         * A service to manage indices in the cluster
+         */
+        IndicesService indicesService();
+
+        /**
+         * A service to access features supported by nodes in the cluster
+         */
+        FeatureService featureService();
+
+        /**
+         * The system indices for the cluster
+         */
+        SystemIndices systemIndices();
+    }
+
+    /**
      * Returns components added by this plugin.
      * <p>
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
      * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
      * to themselves.
      *
-     * @param client                      A client to make requests to the system
-     * @param clusterService              A service to allow watching and updating cluster state
-     * @param threadPool                  A service to allow retrieving an executor to run an async action
-     * @param resourceWatcherService      A service to watch for changes to node local files
-     * @param scriptService               A service to allow running scripts on the local node
-     * @param xContentRegistry            the registry for extensible xContent parsing
-     * @param environment                 the environment for path and setting configurations
-     * @param nodeEnvironment             the node environment used coordinate access to the data paths
-     * @param namedWriteableRegistry      the registry for {@link NamedWriteable} object parsing
-     * @param indexNameExpressionResolver A service that resolves expression to index and alias names
-     * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
-     *                                    is called, but will return the repositories service once the node is initialized.
-     * @param tracer                      An interface for distributed tracing
-     * @param allocationService           A service to manage shard allocation in the cluster
-     * @param indicesService              A service to manage indices in the cluster
+     * @param services      Provides access to various Elasticsearch services
      */
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         return Collections.emptyList();
     }
 

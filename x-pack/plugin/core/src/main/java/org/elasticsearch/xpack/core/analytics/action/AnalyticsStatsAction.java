@@ -33,7 +33,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
     public static final String NAME = "cluster:monitor/xpack/analytics/stats";
 
     private AnalyticsStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     /**
@@ -55,10 +55,6 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
 
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -91,9 +87,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
             super(in);
         }
 
-        public NodeRequest(Request request) {
-
-        }
+        public NodeRequest() {}
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {

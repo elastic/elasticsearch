@@ -48,7 +48,7 @@ final class TransportKeepAlive implements Closeable {
         }
     }
 
-    private final Logger logger = LogManager.getLogger(TransportKeepAlive.class);
+    private static final Logger logger = LogManager.getLogger(TransportKeepAlive.class);
     private final CounterMetric successfulPings = new CounterMetric();
     private final CounterMetric failedPings = new CounterMetric();
     private final ConcurrentMap<TimeValue, ScheduledPing> pingIntervals = ConcurrentCollections.newConcurrentMap();

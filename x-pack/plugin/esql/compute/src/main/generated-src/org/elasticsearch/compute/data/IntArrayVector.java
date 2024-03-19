@@ -8,22 +8,53 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
  * Vector implementation that stores an array of int values.
  * This class is generated. Do not edit it.
  */
-public final class IntArrayVector extends AbstractVector implements IntVector {
+final class IntArrayVector extends AbstractVector implements IntVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance(IntVectorBlock.class);
 
     private final int[] values;
 
-    public IntArrayVector(int[] values, int positionCount) {
-        super(positionCount);
+    IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static IntArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        final long preAdjustedBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) positions * Integer.BYTES;
+        blockFactory.adjustBreaker(preAdjustedBytes);
+        boolean success = false;
+        try {
+            int[] values = new int[positions];
+            for (int i = 0; i < positions; i++) {
+                values[i] = in.readInt();
+            }
+            final var block = new IntArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - preAdjustedBytes);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeInt(values[i]);
+        }
     }
 
     @Override
@@ -48,7 +79,12 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
 
     @Override
     public IntVector filter(int... positions) {
-        return new FilterIntVector(this, positions);
+        try (IntVector.Builder builder = blockFactory().newIntVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendInt(values[pos]);
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated(int[] values) {
@@ -77,4 +113,5 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
+
 }

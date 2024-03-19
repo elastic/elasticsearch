@@ -17,17 +17,25 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -47,10 +55,9 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         dataFrameAnalyticsAuditor = mock(DataFrameAnalyticsAuditor.class);
         clusterService = mock(ClusterService.class);
         threadPool = mock(ThreadPool.class);
-        threadPool = mock(ThreadPool.class);
 
         ExecutorService executorService = mock(ExecutorService.class);
-        org.mockito.Mockito.doAnswer(invocation -> {
+        doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));
@@ -232,5 +239,82 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             // need to account for includeNodeInfo being called here, in the test, and also in anomalyDetectionAuditor
             verify(anomalyDetectionAuditor, times(2)).includeNodeInfo();
         }
+    }
+
+    public void testFindLongTimeUnassignedTasks() {
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(
+            anomalyDetectionAuditor,
+            dataFrameAnalyticsAuditor,
+            threadPool,
+            clusterService
+        );
+
+        Instant now = Instant.now();
+        Instant eightHoursAgo = now.minus(Duration.ofHours(8));
+        Instant sevenHoursAgo = eightHoursAgo.plus(Duration.ofHours(1));
+        Instant twoHoursAgo = sevenHoursAgo.plus(Duration.ofHours(5));
+        Instant tomorrow = now.plus(Duration.ofHours(24));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask("job1", "node1", JobState.OPENED, tasksBuilder);
+        addJobTask("job2", "node1", JobState.OPENED, tasksBuilder);
+        addJobTask("job3", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job4", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job5", null, JobState.OPENED, tasksBuilder);
+        List<String> itemsToReport = notifier.findLongTimeUnassignedTasks(eightHoursAgo, tasksBuilder.build());
+        // Nothing reported because unassigned jobs only just detected
+        assertThat(itemsToReport, empty());
+
+        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask("job1", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job2", "node1", JobState.OPENED, tasksBuilder);
+        addJobTask("job3", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job4", "node2", JobState.OPENED, tasksBuilder);
+        addJobTask("job5", null, JobState.OPENED, tasksBuilder);
+        itemsToReport = notifier.findLongTimeUnassignedTasks(sevenHoursAgo, tasksBuilder.build());
+        // Jobs 3 and 5 still unassigned so should get reported, job 4 now assigned, job 1 only just detected unassigned
+        assertThat(
+            itemsToReport,
+            containsInAnyOrder("[xpack/ml/job]/[job3] unassigned for [3600] seconds", "[xpack/ml/job]/[job5] unassigned for [3600] seconds")
+        );
+
+        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask("job1", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job2", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job3", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job4", "node2", JobState.OPENED, tasksBuilder);
+        addJobTask("job5", null, JobState.OPENED, tasksBuilder);
+        itemsToReport = notifier.findLongTimeUnassignedTasks(twoHoursAgo, tasksBuilder.build());
+        // Jobs 3 and 5 still unassigned but reported less than 6 hours ago, job 1 still unassigned so gets reported now,
+        // job 2 only just detected unassigned
+        assertThat(itemsToReport, contains("[xpack/ml/job]/[job1] unassigned for [18000] seconds"));
+
+        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask("job1", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job2", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job3", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job4", null, JobState.OPENED, tasksBuilder);
+        addJobTask("job5", "node1", JobState.OPENED, tasksBuilder);
+        itemsToReport = notifier.findLongTimeUnassignedTasks(now, tasksBuilder.build());
+        // Job 3 still unassigned and reported more than 6 hours ago, job 1 still unassigned but reported less than 6 hours ago,
+        // job 2 still unassigned so gets reported now, job 4 only just detected unassigned, job 5 now assigned
+        assertThat(
+            itemsToReport,
+            containsInAnyOrder(
+                "[xpack/ml/job]/[job2] unassigned for [7200] seconds",
+                "[xpack/ml/job]/[job3] unassigned for [28800] seconds"
+            )
+        );
+
+        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask("job1", null, JobState.FAILED, tasksBuilder);
+        addJobTask("job2", null, JobState.FAILED, tasksBuilder);
+        addJobTask("job3", null, JobState.FAILED, tasksBuilder);
+        addJobTask("job4", null, JobState.FAILED, tasksBuilder);
+        addJobTask("job5", "node1", JobState.FAILED, tasksBuilder);
+        itemsToReport = notifier.findLongTimeUnassignedTasks(tomorrow, tasksBuilder.build());
+        // We still have unassigned jobs, but now all the jobs are failed, so none should be reported as unassigned
+        // as it doesn't make any difference whether they're assigned or not and autoscaling will ignore them
+        assertThat(itemsToReport, empty());
     }
 }

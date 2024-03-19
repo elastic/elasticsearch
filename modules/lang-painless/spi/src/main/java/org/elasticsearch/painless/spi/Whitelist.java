@@ -8,7 +8,6 @@
 
 package org.elasticsearch.painless.spi;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -47,11 +46,10 @@ public final class Whitelist {
         List<WhitelistClassBinding> whitelistClassBindings,
         List<WhitelistInstanceBinding> whitelistInstanceBindings
     ) {
-
         this.classLoader = Objects.requireNonNull(classLoader);
-        this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));
-        this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistImportedMethods));
-        this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistClassBindings));
-        this.whitelistInstanceBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistInstanceBindings));
+        this.whitelistClasses = List.copyOf(whitelistClasses);
+        this.whitelistImportedMethods = List.copyOf(whitelistImportedMethods);
+        this.whitelistClassBindings = List.copyOf(whitelistClassBindings);
+        this.whitelistInstanceBindings = List.copyOf(whitelistInstanceBindings);
     }
 }

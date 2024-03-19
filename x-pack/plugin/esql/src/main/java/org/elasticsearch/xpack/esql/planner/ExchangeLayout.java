@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.planner;
 import org.elasticsearch.xpack.ql.expression.NameId;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Decorating layout that creates the NameId -> Value lazily based on the calls made to its content.
@@ -19,7 +19,7 @@ import java.util.Set;
  */
 class ExchangeLayout implements Layout {
     private final Layout delegate;
-    private final Map<Integer, Set<NameId>> inverse;
+    private final List<ChannelSet> inverse;
     private final Map<NameId, NameId> mappingToOldLayout;
     private int counter;
 
@@ -33,7 +33,7 @@ class ExchangeLayout implements Layout {
     public ChannelAndType get(NameId id) {
         var oldId = mappingToOldLayout.get(id);
         if (oldId == null && counter < inverse.size()) {
-            var names = inverse.get(counter++);
+            var names = inverse.get(counter++).nameIds();
             for (var name : names) {
                 oldId = name;
                 mappingToOldLayout.put(id, oldId);
@@ -58,7 +58,7 @@ class ExchangeLayout implements Layout {
     }
 
     @Override
-    public Map<Integer, Set<NameId>> inverse() {
+    public List<ChannelSet> inverse() {
         throw new UnsupportedOperationException();
     }
 }

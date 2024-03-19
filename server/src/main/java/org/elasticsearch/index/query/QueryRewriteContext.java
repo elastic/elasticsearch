@@ -9,6 +9,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -20,7 +21,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -50,7 +51,7 @@ public class QueryRewriteContext {
     protected final NamedWriteableRegistry writeableRegistry;
     protected final ValuesSourceRegistry valuesSourceRegistry;
     protected final BooleanSupplier allowExpensiveQueries;
-    protected final ScriptService scriptService;
+    protected final ScriptCompiler scriptService;
     private final XContentParserConfiguration parserConfiguration;
     protected final Client client;
     protected final LongSupplier nowInMillis;
@@ -73,7 +74,7 @@ public class QueryRewriteContext {
         final NamedWriteableRegistry namedWriteableRegistry,
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
-        final ScriptService scriptService
+        final ScriptCompiler scriptService
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -158,6 +159,10 @@ public class QueryRewriteContext {
         return null;
     }
 
+    public InnerHitsRewriteContext convertToInnerHitsRewriteContext() {
+        return null;
+    }
+
     /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
@@ -192,7 +197,7 @@ public class QueryRewriteContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
-            return builder.build(MapperBuilderContext.root(false)).fieldType();
+            return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
@@ -285,6 +290,13 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Returns the MappingLookup for the queried index.
+     */
+    public MappingLookup getMappingLookup() {
+        return mappingLookup;
+    }
+
+    /**
      *  Given an index pattern, checks whether it matches against the current shard. The pattern
      *  may represent a fully qualified index name if the search targets remote shards.
      */
@@ -321,5 +333,16 @@ public class QueryRewriteContext {
             }
         }
         return matches;
+    }
+
+    /**
+     * @return An {@link Iterable} with key the field name and value the MappedFieldType
+     */
+    public Iterable<Map.Entry<String, MappedFieldType>> getAllFields() {
+        var allFromMapping = mappingLookup.getFullNameToFieldType();
+        // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
+        return runtimeMappings.isEmpty()
+            ? allFromMapping.entrySet()
+            : () -> Iterators.concat(allFromMapping.entrySet().iterator(), runtimeMappings.entrySet().iterator());
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,10 +40,10 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
     private UpdateTransformAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
 
         private final TransformConfigUpdate update;
         private final String id;
@@ -185,6 +186,15 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 && Objects.equals(config, other.config)
                 && Objects.equals(authState, other.authState)
                 && getTimeout().equals(other.getTimeout());
+        }
+
+        @Override
+        public boolean match(Task task) {
+            if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
+                String taskId = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
+                return taskId.equals(this.id);
+            }
+            return false;
         }
     }
 

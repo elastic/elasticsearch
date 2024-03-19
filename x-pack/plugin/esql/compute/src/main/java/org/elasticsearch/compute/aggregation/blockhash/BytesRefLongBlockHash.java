@@ -18,11 +18,11 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -36,7 +36,8 @@ final class BytesRefLongBlockHash extends BlockHash {
     private final BytesRefHash bytesHash;
     private final LongLongHash finalHash;
 
-    BytesRefLongBlockHash(BigArrays bigArrays, int channel1, int channel2, boolean reverseOutput, int emitBatchSize) {
+    BytesRefLongBlockHash(DriverContext driverContext, int channel1, int channel2, boolean reverseOutput, int emitBatchSize) {
+        super(driverContext);
         this.channel1 = channel1;
         this.channel2 = channel2;
         this.reverseOutput = reverseOutput;
@@ -70,9 +71,13 @@ final class BytesRefLongBlockHash extends BlockHash {
         BytesRefVector vector1 = block1.asVector();
         LongVector vector2 = block2.asVector();
         if (vector1 != null && vector2 != null) {
-            addInput.add(0, add(vector1, vector2));
+            try (IntVector ords = add(vector1, vector2)) {
+                addInput.add(0, ords);
+            }
         } else {
-            new AddBlock(block1, block2, addInput).add();
+            try (AddWork work = new AddWork(block1, block2, addInput)) {
+                work.add();
+            }
         }
     }
 
@@ -84,17 +89,17 @@ final class BytesRefLongBlockHash extends BlockHash {
             long hash1 = hashOrdToGroup(bytesHash.add(vector1.getBytesRef(i, scratch)));
             ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(hash1, vector2.getLong(i))));
         }
-        return new IntArrayVector(ords, positions);
+        return blockFactory.newIntArrayVector(ords, positions);
     }
 
     private static final long[] EMPTY = new long[0];
 
-    private class AddBlock extends LongLongBlockHash.AbstractAddBlock {
+    private class AddWork extends LongLongBlockHash.AbstractAddBlock {
         private final BytesRefBlock block1;
         private final LongBlock block2;
 
-        AddBlock(BytesRefBlock block1, LongBlock block2, GroupingAggregatorFunction.AddInput addInput) {
-            super(emitBatchSize, addInput);
+        AddWork(BytesRefBlock block1, LongBlock block2, GroupingAggregatorFunction.AddInput addInput) {
+            super(blockFactory, emitBatchSize, addInput);
             this.block1 = block1;
             this.block2 = block2;
         }
@@ -163,18 +168,29 @@ final class BytesRefLongBlockHash extends BlockHash {
     @Override
     public Block[] getKeys() {
         int positions = (int) finalHash.size();
-        BytesRefVector.Builder keys1 = BytesRefVector.newVectorBuilder(positions);
-        LongVector.Builder keys2 = LongVector.newVectorBuilder(positions);
-        BytesRef scratch = new BytesRef();
-        for (long i = 0; i < positions; i++) {
-            keys2.appendLong(finalHash.getKey2(i));
-            long h1 = finalHash.getKey1(i);
-            keys1.appendBytesRef(bytesHash.get(h1, scratch));
+        BytesRefVector k1 = null;
+        LongVector k2 = null;
+        try (
+            BytesRefVector.Builder keys1 = blockFactory.newBytesRefVectorBuilder(positions);
+            LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions)
+        ) {
+            BytesRef scratch = new BytesRef();
+            for (long i = 0; i < positions; i++) {
+                keys2.appendLong(finalHash.getKey2(i));
+                long h1 = finalHash.getKey1(i);
+                keys1.appendBytesRef(bytesHash.get(h1, scratch));
+            }
+            k1 = keys1.build();
+            k2 = keys2.build();
+        } finally {
+            if (k2 == null) {
+                Releasables.closeExpectNoException(k1);
+            }
         }
         if (reverseOutput) {
-            return new Block[] { keys2.build().asBlock(), keys1.build().asBlock() };
+            return new Block[] { k2.asBlock(), k1.asBlock() };
         } else {
-            return new Block[] { keys1.build().asBlock(), keys2.build().asBlock() };
+            return new Block[] { k1.asBlock(), k2.asBlock() };
         }
     }
 
@@ -185,7 +201,7 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(finalHash.size()));
+        return IntVector.range(0, Math.toIntExact(finalHash.size()), blockFactory);
     }
 
     @Override

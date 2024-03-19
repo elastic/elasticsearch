@@ -500,6 +500,7 @@ public class HttpClientTests extends ESTestCase {
             .setBody("foo")
             .addHeader("foo", "bar")
             .addHeader("foo", "baz")
+            .addHeader("Foo", "bam")
             .addHeader("Content-Length", "3");
         webServer.enqueue(mockResponse);
 
@@ -509,7 +510,7 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests(), hasSize(1));
 
         assertThat(httpResponse.headers(), hasKey("foo"));
-        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz"));
+        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz", "bam"));
     }
 
     // finally fixing https://github.com/elastic/x-plugins/issues/1141 - yay! Fixed due to switching to apache http client internally!

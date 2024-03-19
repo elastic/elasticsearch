@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -26,6 +25,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.Scheduler;
@@ -47,9 +49,12 @@ import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
  * due to the master node not understanding cluster state with transport versions added in 8.8.0.
  * Any nodes with the inferred placeholder cluster state is then refreshed with their actual transport version
  */
+@UpdateForV9    // this can be removed in v9
 public class TransportVersionsFixupListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TransportVersionsFixupListener.class);
+
+    static final NodeFeature FIX_TRANSPORT_VERSION = new NodeFeature("transport.fix_transport_version");
 
     private static final TimeValue RETRY_TIME = TimeValue.timeValueSeconds(30);
 
@@ -58,13 +63,20 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     private final Scheduler scheduler;
     private final Executor executor;
     private final Set<String> pendingNodes = Collections.synchronizedSet(new HashSet<>());
+    private final FeatureService featureService;
 
-    public TransportVersionsFixupListener(ClusterService service, ClusterAdminClient client, ThreadPool threadPool) {
+    public TransportVersionsFixupListener(
+        ClusterService service,
+        ClusterAdminClient client,
+        FeatureService featureService,
+        ThreadPool threadPool
+    ) {
         // there tends to be a lot of state operations on an upgrade - this one is not time-critical,
         // so use LOW priority. It just needs to be run at some point after upgrade.
         this(
             service.createTaskQueue("fixup-transport-versions", Priority.LOW, new TransportVersionUpdater()),
             client,
+            featureService,
             threadPool,
             threadPool.executor(ThreadPool.Names.CLUSTER_COORDINATION)
         );
@@ -73,11 +85,13 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
     TransportVersionsFixupListener(
         MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue,
         ClusterAdminClient client,
+        FeatureService featureService,
         Scheduler scheduler,
         Executor executor
     ) {
         this.taskQueue = taskQueue;
         this.client = client;
+        this.featureService = featureService;
         this.scheduler = scheduler;
         this.executor = executor;
     }
@@ -117,7 +131,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
                     assert (recordedTv != null) || (context.initialState().nodes().nodeExists(e.getKey()) == false)
                         : "Node " + e.getKey() + " is in the cluster but does not have an associated transport version recorded";
                     if (Objects.equals(recordedTv, INFERRED_TRANSPORT_VERSION)) {
-                        builder.putTransportVersion(e.getKey(), e.getValue());
+                        builder.putCompatibilityVersions(e.getKey(), e.getValue(), Map.of()); // unknown mappings versions
                         modified = true;
                     }
                 }
@@ -139,7 +153,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         // if the min node version > 8.8.0, and the cluster state has some transport versions == 8.8.0,
         // then refresh all inferred transport versions to their real versions
         // now that everything should understand cluster state with transport versions
-        if (event.state().nodes().getMinNodeVersion().after(Version.V_8_8_0)
+        if (featureService.clusterHasFeature(event.state(), FIX_TRANSPORT_VERSION)
             && event.state().getMinTransportVersion().equals(INFERRED_TRANSPORT_VERSION)) {
 
             // find all the relevant nodes

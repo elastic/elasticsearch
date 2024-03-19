@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HEALTH_FAIL
  *
  * SLM must be running to fix warning reported by this indicator.
  */
-public class SlmHealthIndicatorService implements HealthIndicatorService {
+public final class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "slm";
 

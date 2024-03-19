@@ -71,6 +71,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
             metadata.put(indexMetadata);
             addToRoutingTable(concreteIndex, routingTable);
@@ -91,6 +92,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
             metadata.put(indexMetadata);
             addToRoutingTable(concreteIndex, routingTable);
@@ -111,6 +113,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
             metadata.put(indexMetadata);
             addToRoutingTable(concreteIndex, routingTable);
@@ -174,6 +177,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
             Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
 
@@ -201,6 +205,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
 
             // now set the upgrade mode
@@ -232,6 +237,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
 
             Metadata.Builder metadata = Metadata.builder()
@@ -288,6 +294,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
 
             // now set the upgrade mode
@@ -319,6 +326,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
 
             Metadata.Builder metadata = Metadata.builder()

@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class ClassificationInferenceResults extends SingleValueInferenceResults {
+    public static String PREDICTION_PROBABILITY = "prediction_probability";
 
     public static final String NAME = "classification";
 
@@ -219,6 +220,19 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
+        addSupportingFieldsToMap(map);
+        return map;
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(outputField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
+        addSupportingFieldsToMap(map);
+        return map;
+    }
+
+    private void addSupportingFieldsToMap(Map<String, Object> map) {
         if (topClasses.isEmpty() == false) {
             map.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
@@ -234,7 +248,6 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
                 featureImportance.stream().map(ClassificationFeatureImportance::toMap).collect(Collectors.toList())
             );
         }
-        return map;
     }
 
     @Override

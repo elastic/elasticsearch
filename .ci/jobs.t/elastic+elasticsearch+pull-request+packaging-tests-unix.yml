@@ -15,7 +15,8 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/packaging-tests-unix.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/packaging-tests-unix.*'
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-unix
           cancel-builds-on-update: true
@@ -24,10 +25,6 @@
           excluded-regions:
             - ^docs/.*
             - ^x-pack/docs/.*
-          white-list-labels:
-            - ':Delivery/Packaging'
-          black-list-labels:
-            - '>test-mute'
     axes:
       - axis:
           type: label-expression
@@ -53,14 +50,14 @@
           type: user-defined
           name: PACKAGING_TASK
           values:
-            - 'destructiveDistroTest.docker'
-            - 'destructiveDistroTest.packages'
-            - 'destructiveDistroTest.archives'
+            - "destructiveDistroTest.docker"
+            - "destructiveDistroTest.packages"
+            - "destructiveDistroTest.archives"
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $PACKAGING_TASK
+          ./.ci/scripts/packaging-test.sh $PACKAGING_TASK

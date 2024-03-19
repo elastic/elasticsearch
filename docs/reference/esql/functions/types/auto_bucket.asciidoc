@@ -1,0 +1,5 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+field | buckets | from | to | result
+
+|===

@@ -23,11 +23,12 @@ import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -65,13 +67,15 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private Directory directory = newDirectory();
     private IndexReader reader;
 
+    private final ArrayList<Releasable> releasables = new ArrayList<>();
+
     public LocalExecutionPlannerTests(@Name("estimatedRowSizeIsHuge") boolean estimatedRowSizeIsHuge) {
         this.estimatedRowSizeIsHuge = estimatedRowSizeIsHuge;
     }
 
     @After
     public void closeIndex() throws IOException {
-        IOUtils.close(reader, directory);
+        IOUtils.close(reader, directory, () -> Releasables.close(releasables), releasables::clear);
     }
 
     public void testLuceneSourceOperatorHugeRowSize() throws IOException {
@@ -116,8 +120,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private LocalExecutionPlanner planner() throws IOException {
         return new LocalExecutionPlanner(
             "test",
+            "",
             null,
             BigArrays.NON_RECYCLING_INSTANCE,
+            TestBlockFactory.getNonBreakingInstance(),
+            Settings.EMPTY,
             config(),
             null,
             null,
@@ -133,13 +140,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             "test_user",
             "test_cluser",
             pragmas,
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null)
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
+            StringUtils.EMPTY,
+            false
         );
     }
 
     private EsPhysicalOperationProviders esPhysicalOperationProviders() throws IOException {
         int numShards = randomIntBetween(1, 1000);
-        List<SearchContext> searchContexts = new ArrayList<>(numShards);
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts = new ArrayList<>(numShards);
         var searcher = new ContextIndexSearcher(
             reader(),
             IndexSearcher.getDefaultSimilarity(),
@@ -148,11 +158,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             true
         );
         for (int i = 0; i < numShards; i++) {
-            searchContexts.add(
-                new TestSearchContext(createSearchExecutionContext(createMapperService(mapping(b -> {})), searcher), null, searcher)
+            shardContexts.add(
+                new EsPhysicalOperationProviders.DefaultShardContext(
+                    i,
+                    createSearchExecutionContext(createMapperService(mapping(b -> {})), searcher),
+                    null
+                )
             );
         }
-        return new EsPhysicalOperationProviders(searchContexts);
+        releasables.add(searcher);
+        return new EsPhysicalOperationProviders(shardContexts);
     }
 
     private IndexReader reader() {

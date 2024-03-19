@@ -110,7 +110,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 
         AckWatchRequest ackWatchRequest = new AckWatchRequest(watchId);
-        PlainActionFuture<AckWatchResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AckWatchResponse> listener = new PlainActionFuture<>();
         action.doExecute(ackWatchRequest, listener);
 
         ExecutionException exception = expectThrows(ExecutionException.class, listener::get);
@@ -140,7 +140,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 
         AckWatchRequest ackWatchRequest = new AckWatchRequest(watchId);
-        PlainActionFuture<AckWatchResponse> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AckWatchResponse> listener = new PlainActionFuture<>();
         action.doExecute(ackWatchRequest, listener);
 
         ExecutionException exception = expectThrows(ExecutionException.class, listener::get);

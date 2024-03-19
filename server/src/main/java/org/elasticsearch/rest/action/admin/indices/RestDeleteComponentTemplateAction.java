@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -38,9 +38,9 @@ public class RestDeleteComponentTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] names = Strings.splitStringByCommaToArray(request.param("name"));
-        DeleteComponentTemplateAction.Request deleteReq = new DeleteComponentTemplateAction.Request(names);
+        TransportDeleteComponentTemplateAction.Request deleteReq = new TransportDeleteComponentTemplateAction.Request(names);
         deleteReq.masterNodeTimeout(request.paramAsTime("master_timeout", deleteReq.masterNodeTimeout()));
 
-        return channel -> client.execute(DeleteComponentTemplateAction.INSTANCE, deleteReq, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TransportDeleteComponentTemplateAction.TYPE, deleteReq, new RestToXContentListener<>(channel));
     }
 }

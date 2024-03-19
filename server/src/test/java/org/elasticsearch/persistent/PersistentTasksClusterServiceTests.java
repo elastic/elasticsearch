@@ -515,7 +515,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         // Now simulate the node ceasing to be the master
         builder = ClusterState.builder(clusterState);
         nodes = DiscoveryNodes.builder(clusterState.nodes());
-        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "a_new_master_node"));
+        nodes.add(DiscoveryNodeUtils.create("a_new_master_node"));
         nodes.masterNodeId("a_new_master_node");
         ClusterState nonMasterClusterState = builder.nodes(nodes).build();
         event = new ClusterChangedEvent("test", nonMasterClusterState, clusterState);
@@ -1037,7 +1037,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
 
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
+        nodes.add(DiscoveryNodeUtils.create("this_node"));
         nodes.localNodeId("this_node");
         nodes.masterNodeId("this_node");
 

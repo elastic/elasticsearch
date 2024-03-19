@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -81,21 +80,8 @@ public final class EnrichStore {
             );
         }
 
-        final EnrichPolicy finalPolicy;
-        if (policy.getElasticsearchVersion() == null) {
-            finalPolicy = new EnrichPolicy(
-                policy.getType(),
-                policy.getQuery(),
-                policy.getIndices(),
-                policy.getMatchField(),
-                policy.getEnrichFields(),
-                Version.CURRENT
-            );
-        } else {
-            finalPolicy = policy;
-        }
         updateClusterState(clusterService, handler, current -> {
-            for (String indexExpression : finalPolicy.getIndices()) {
+            for (String indexExpression : policy.getIndices()) {
                 // indices field in policy can contain wildcards, aliases etc.
                 String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
                     current,
@@ -110,12 +96,12 @@ public final class EnrichStore {
                         throw new IllegalArgumentException("source index [" + concreteIndex + "] has no mapping");
                     }
                     Map<String, Object> mappingSource = mapping.getSourceAsMap();
-                    EnrichPolicyRunner.validateMappings(name, finalPolicy, concreteIndex, mappingSource);
+                    EnrichPolicyRunner.validateMappings(name, policy, concreteIndex, mappingSource);
                 }
             }
 
             final Map<String, EnrichPolicy> policies = getPolicies(current);
-            EnrichPolicy existing = policies.putIfAbsent(name, finalPolicy);
+            EnrichPolicy existing = policies.putIfAbsent(name, policy);
             if (existing != null) {
                 throw new ResourceAlreadyExistsException("policy [{}] already exists", name);
             }

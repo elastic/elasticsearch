@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
@@ -61,6 +62,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     }
 
+    @SuppressWarnings("this-escape")
     protected AbstractQueryBuilder(StreamInput in) throws IOException {
         boost = in.readFloat();
         checkNegativeBoost(boost);
@@ -120,6 +122,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 }
             }
             if (queryName != null) {
+                if (context.rewriteToNamedQuery()) {
+                    query = NamedMatches.wrapQuery(queryName, query);
+                }
                 context.addNamedQuery(queryName, query);
             }
         }
@@ -211,9 +216,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      */
     static Object maybeConvertToBytesRef(Object obj) {
         if (obj instanceof String) {
-            return BytesRefs.toBytesRef(obj);
+            return BytesRefs.checkIndexableLength(BytesRefs.toBytesRef(obj));
         } else if (obj instanceof CharBuffer) {
-            return new BytesRef((CharBuffer) obj);
+            return BytesRefs.checkIndexableLength(new BytesRef((CharBuffer) obj));
         } else if (obj instanceof BigInteger) {
             return BytesRefs.toBytesRef(obj);
         }
@@ -291,6 +296,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (queryRewriteContext == null) {
             return this;
         }
+        final InnerHitsRewriteContext ihrc = queryRewriteContext.convertToInnerHitsRewriteContext();
+        if (ihrc != null) {
+            return doInnerHitsRewrite(ihrc);
+        }
         final CoordinatorRewriteContext crc = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (crc != null) {
             return doCoordinatorRewrite(crc);
@@ -334,6 +343,16 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return A {@link QueryBuilder} representing the rewritten query, that could be used to determine whether this query yields result.
      */
     protected QueryBuilder doIndexMetadataRewrite(final QueryRewriteContext context) throws IOException {
+        return this;
+    }
+
+    /**
+     * Optional rewrite logic that allows for optimization for extracting inner hits
+     * @param context an {@link InnerHitsRewriteContext} instance
+     * @return A {@link QueryBuilder} representing the rewritten query optimized for inner hit extraction
+     * @throws IOException if an error occurs while rewriting the query
+     */
+    protected QueryBuilder doInnerHitsRewrite(final InnerHitsRewriteContext context) throws IOException {
         return this;
     }
 

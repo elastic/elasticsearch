@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -38,14 +37,11 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIE
 /**
  * Sets the data stream lifecycle that was provided in the request to the requested data streams.
  */
-public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedResponse> {
+public class PutDataStreamLifecycleAction {
 
-    public static final PutDataStreamLifecycleAction INSTANCE = new PutDataStreamLifecycleAction();
-    public static final String NAME = "indices:admin/data_stream/lifecycle/put";
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/data_stream/lifecycle/put");
 
-    private PutDataStreamLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private PutDataStreamLifecycleAction() {/* no instances */}
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
 
@@ -130,11 +126,6 @@ public class PutDataStreamLifecycleAction extends ActionType<AcknowledgedRespons
             builder.field("lifecycle", lifecycle);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

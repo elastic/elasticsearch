@@ -13,14 +13,14 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Vector implementation that stores a constant boolean value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
+final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 
     private final boolean value;
 
-    public ConstantBooleanVector(boolean value, int positionCount) {
-        super(positionCount);
+    ConstantBooleanVector(boolean value, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.value = value;
     }
 
@@ -36,7 +36,7 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     @Override
     public BooleanVector filter(int... positions) {
-        return new ConstantBooleanVector(value, positions.length);
+        return blockFactory().newConstantBooleanVector(value, positions.length);
     }
 
     @Override
@@ -51,7 +51,7 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(boolean.class);
+        return RAM_BYTES_USED;
     }
 
     @Override

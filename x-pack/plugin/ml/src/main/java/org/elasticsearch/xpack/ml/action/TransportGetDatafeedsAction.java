@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +49,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
             GetDatafeedsAction.Request::new,
             indexNameExpressionResolver,
             GetDatafeedsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         this.datafeedManager = datafeedManager;
@@ -67,7 +68,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         datafeedManager.getDatafeeds(
             request,
             parentTaskId,
-            ActionListener.wrap(datafeeds -> listener.onResponse(new GetDatafeedsAction.Response(datafeeds)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, datafeeds) -> l.onResponse(new GetDatafeedsAction.Response(datafeeds)))
         );
     }
 

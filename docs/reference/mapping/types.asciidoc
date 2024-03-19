@@ -83,6 +83,7 @@ as-you-type completion.
 ==== Document ranking types
 
 <<dense-vector,`dense_vector`>>::   Records dense vectors of float values.
+<<sparse-vector,`sparse_vector`>>:: Records sparse vectors of float values.
 <<rank-feature,`rank_feature`>>::   Records a numeric feature to boost hits at
                                     query time.
 <<rank-features,`rank_features`>>:: Records numeric features to boost hits at
@@ -178,6 +179,8 @@ include::types/rank-features.asciidoc[]
 include::types/search-as-you-type.asciidoc[]
 
 include::types/shape.asciidoc[]
+
+include::types/sparse-vector.asciidoc[]
 
 include::types/text.asciidoc[]
 

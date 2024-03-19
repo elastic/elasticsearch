@@ -50,7 +50,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     private final Condition condition;
     private final Consumer<T> cleaner;
     private final AtomicReference<Subscription> subscription = new AtomicReference<>();
-    private final Logger logger = LogManager.getLogger(CancellableRateLimitedFluxIterator.class);
+    private static final Logger logger = LogManager.getLogger(CancellableRateLimitedFluxIterator.class);
     private volatile Throwable error;
     private volatile boolean done;
     private int emittedElements;
@@ -165,9 +165,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     public void cancel() {
+        done = true;
         cancelSubscription();
         clearQueue();
-        done = true;
         // cancel should be called from the consumer
         // thread, but to avoid potential deadlocks
         // we just try to release a possibly blocked
@@ -177,9 +177,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
     @Override
     public void onError(Throwable t) {
+        done = true;
         clearQueue();
         error = t;
-        done = true;
         signalConsumer();
     }
 

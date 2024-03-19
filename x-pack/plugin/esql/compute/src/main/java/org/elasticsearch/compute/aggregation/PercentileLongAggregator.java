@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 @Aggregator({ @IntermediateState(name = "quart", type = "BYTES_REF") })
 @GroupingAggregator
@@ -27,16 +28,12 @@ class PercentileLongAggregator {
         current.add(v);
     }
 
-    public static void combineStates(QuantileStates.SingleState current, QuantileStates.SingleState state) {
-        current.add(state);
-    }
-
     public static void combineIntermediate(QuantileStates.SingleState state, BytesRef inValue) {
         state.add(inValue);
     }
 
-    public static Block evaluateFinal(QuantileStates.SingleState state) {
-        return state.evaluatePercentile();
+    public static Block evaluateFinal(QuantileStates.SingleState state, DriverContext driverContext) {
+        return state.evaluatePercentile(driverContext);
     }
 
     public static QuantileStates.GroupingState initGrouping(BigArrays bigArrays, double percentile) {
@@ -57,10 +54,10 @@ class PercentileLongAggregator {
         QuantileStates.GroupingState state,
         int statePosition
     ) {
-        current.add(currentGroupId, state.get(statePosition));
+        current.add(currentGroupId, state.getOrNull(statePosition));
     }
 
-    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selectedGroups) {
-        return state.evaluatePercentile(selectedGroups);
+    public static Block evaluateFinal(QuantileStates.GroupingState state, IntVector selectedGroups, DriverContext driverContext) {
+        return state.evaluatePercentile(selectedGroups, driverContext);
     }
 }

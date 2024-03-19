@@ -10,11 +10,10 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -24,13 +23,14 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
-public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
+public class Neg extends UnaryScalarFunction {
 
     private final Warnings warnings;
 
@@ -40,25 +40,25 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<ExpressionEvaluator> toEvaluator(Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType type = dataType();
 
         if (type.isNumeric()) {
             var f = toEvaluator.apply(field());
-            Supplier<ExpressionEvaluator> supplier = null;
+            ExpressionEvaluator.Factory factory = null;
 
             if (type == DataTypes.INTEGER) {
-                supplier = () -> new NegIntsEvaluator(source(), f.get());
+                factory = new NegIntsEvaluator.Factory(source(), f);
             }
             // Unsigned longs are unsupported by choice; negating them would require implicitly converting to long.
             else if (type == DataTypes.LONG) {
-                supplier = () -> new NegLongsEvaluator(source(), f.get());
+                factory = new NegLongsEvaluator.Factory(source(), f);
             } else if (type == DataTypes.DOUBLE) {
-                supplier = () -> new NegDoublesEvaluator(f.get());
+                factory = new NegDoublesEvaluator.Factory(source(), f);
             }
 
-            if (supplier != null) {
-                return supplier;
+            if (factory != null) {
+                return factory;
             }
         } else if (isTemporalAmount(type)) {
             return toEvaluator.apply(field());
@@ -68,36 +68,37 @@ public class Neg extends UnaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public final Object fold() {
-        if (isTemporalAmount(field().dataType()) && field() instanceof Literal literal) {
-            return foldTemporalAmount(literal);
-        }
-        return EvaluatorMapper.super.fold();
-    }
-
-    private Object foldTemporalAmount(Literal literal) {
-        try {
-            Object value = literal.fold();
-            if (value instanceof Period period) {
-                return period.negated();
+        DataType dataType = field().dataType();
+        // For date periods and time durations, we need to treat folding differently. These types are unrepresentable, so there is no
+        // evaluator for them - but the default folding requires an evaluator.
+        if (dataType == DATE_PERIOD) {
+            Period fieldValue = (Period) field().fold();
+            try {
+                return fieldValue.negated();
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually and provide a user-friendly error message.
+                throw ExceptionUtils.math(source(), e);
             }
-            if (value instanceof Duration duration) {
-                return duration.negated();
-            }
-        } catch (ArithmeticException ae) {
-            warnings.registerException(ae);
-            return null;
         }
-
-        throw new EsqlIllegalArgumentException(
-            "unexpected non-temporal amount literal [" + literal.sourceText() + "] of type [" + literal.dataType() + "]"
-        );
+        if (dataType == TIME_DURATION) {
+            Duration fieldValue = (Duration) field().fold();
+            try {
+                return fieldValue.negated();
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually and provide a user-friendly error message.
+                throw ExceptionUtils.math(source(), e);
+            }
+        }
+        return super.fold();
     }
 
     @Override
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() || isTemporalAmount(dt),
+            dt -> dt != DataTypes.UNSIGNED_LONG && (dt.isNumeric() || isTemporalAmount(dt)),
             sourceText(),
             DEFAULT,
             "numeric",

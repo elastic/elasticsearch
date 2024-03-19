@@ -55,6 +55,51 @@ public class GreatestTests extends AbstractFunctionTestCase {
                 )
             )
         );
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataTypes.VERSION, DataTypes.VERSION),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("1"), DataTypes.VERSION, "a"),
+                        new TestCaseSupplier.TypedData(new BytesRef("2"), DataTypes.VERSION, "b")
+                    ),
+                    "GreatestBytesRefEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
+                    DataTypes.VERSION,
+                    equalTo(new BytesRef("2"))
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataTypes.IP, DataTypes.IP),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.1"), DataTypes.IP, "a"),
+                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.2"), DataTypes.IP, "b")
+                    ),
+                    "GreatestBytesRefEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
+                    DataTypes.IP,
+                    equalTo(new BytesRef("127.0.0.2"))
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataTypes.DOUBLE, DataTypes.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1d, DataTypes.DOUBLE, "a"),
+                        new TestCaseSupplier.TypedData(2d, DataTypes.DOUBLE, "b")
+                    ),
+                    "GreatestDoubleEvaluator[values=[MvMax[field=Attribute[channel=0]], MvMax[field=Attribute[channel=1]]]]",
+                    DataTypes.DOUBLE,
+                    equalTo(2d)
+                )
+            )
+        );
         return parameterSuppliersFromTypedData(anyNullIsNull(false, suppliers));
     }
 

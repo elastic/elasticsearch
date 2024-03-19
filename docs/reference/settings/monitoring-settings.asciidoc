@@ -49,7 +49,7 @@ and {ls} is ignored.
 [[xpack-monitoring-collection-interval]]
 // tag::monitoring-collection-interval-tag[]
 `xpack.monitoring.collection.interval` {ess-icon}::
-deprecated:[6.3.0,"Use `xpack.monitoring.collection.enabled` set to `false` instead."] 
+deprecated:[6.3.0,"Use `xpack.monitoring.collection.enabled` set to `false` instead."]
 (<<cluster-update-settings,Dynamic>>) Setting to `-1` to disable data collection
 is no longer supported beginning with 7.0.0.
 +
@@ -60,7 +60,7 @@ option in `kibana.yml` to the same value.
 
 `xpack.monitoring.elasticsearch.collection.enabled`::
 (<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0] Controls whether statistics about your
-{es} cluster should be collected. Defaults to `true`. This is different from 
+{es} cluster should be collected. Defaults to `true`. This is different from
 `xpack.monitoring.collection.enabled`, which allows you to enable or disable all
 monitoring collection. However, this setting simply disables the collection of
 {es} data while still allowing other data (e.g., {kib}, {ls}, Beats, or APM
@@ -285,18 +285,18 @@ For example: `["elasticsearch_version_mismatch","xpack_license_expiration"]`.
 You can configure the following TLS/SSL settings.
 
 +{ssl-prefix}.ssl.supported_protocols+::
-(<<static-cluster-setting,Static>>)  deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>)  deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
 
 ifdef::verifies[]
 +{ssl-prefix}.ssl.verification_mode+::
-(<<static-cluster-setting,Static>>)  deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>)  deprecated:[7.16.0]
 Controls the verification of certificates.
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
 endif::verifies[]
 
 +{ssl-prefix}.ssl.cipher_suites+::
-(<<static-cluster-setting,Static>>)  deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>)  deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 
 [#{ssl-context}-tls-ssl-key-trusted-certificate-settings]
@@ -318,19 +318,19 @@ When using PEM encoded files, use the following settings:
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
 
 +{ssl-prefix}.ssl.key_passphrase+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
 
 +{ssl-prefix}.ssl.secure_key_passphrase+::
-(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+(<<secure-settings,Secure>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
 
 +{ssl-prefix}.ssl.certificate+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
 
 +{ssl-prefix}.ssl.certificate_authorities+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
 
 ===== Java keystore files
@@ -339,35 +339,35 @@ When using Java keystore files (JKS), which contain the private key, certificate
 and certificates that should be trusted, use the following settings:
 
 +{ssl-prefix}.ssl.keystore.path+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 +{ssl-prefix}.ssl.keystore.password+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
 +{ssl-prefix}.ssl.keystore.secure_password+::
-(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+(<<secure-settings,Secure>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 +{ssl-prefix}.ssl.keystore.key_password+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
 +{ssl-prefix}.ssl.keystore.secure_key_password+::
-(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+(<<secure-settings,Secure>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 +{ssl-prefix}.ssl.truststore.path+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 +{ssl-prefix}.ssl.truststore.password+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
 +{ssl-prefix}.ssl.truststore.secure_password+::
-(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+(<<secure-settings,Secure>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 
 [#{ssl-context}-pkcs12-files]
@@ -379,43 +379,43 @@ that contain the private key, certificate and certificates that should be truste
 PKCS#12 files are configured in the same way as Java keystore files:
 
 +{ssl-prefix}.ssl.keystore.path+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
 
 +{ssl-prefix}.ssl.keystore.type+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
 
 +{ssl-prefix}.ssl.keystore.password+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
 
 +{ssl-prefix}.ssl.keystore.secure_password+::
-(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+(<<secure-settings,Secure>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
 
 +{ssl-prefix}.ssl.keystore.key_password+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>)
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
 
 +{ssl-prefix}.ssl.keystore.secure_key_password+::
-(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+(<<secure-settings,Secure>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
 
 +{ssl-prefix}.ssl.truststore.path+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
 
 +{ssl-prefix}.ssl.truststore.type+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
 //TBD:Should this use the ssl-truststore-type definition and default values?
 
 +{ssl-prefix}.ssl.truststore.password+::
-(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
 
 +{ssl-prefix}.ssl.truststore.secure_password+::
-(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+(<<secure-settings,Secure>>) deprecated:[7.16.0]
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
 

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -153,6 +154,19 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(""))
             );
         }));
+        suppliers.add(new TestCaseSupplier("ascii as text input", () -> {
+            String text = randomAlphaOfLengthBetween(1, 64);
+            int length = between(1, text.length());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "length")
+                ),
+                "LeftEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
+                DataTypes.KEYWORD,
+                equalTo(new BytesRef(unicodeLeftSubstring(text, length)))
+            );
+        }));
 
         return parameterSuppliersFromTypedData(suppliers);
     }
@@ -196,13 +210,17 @@ public class LeftTests extends AbstractScalarFunctionTestCase {
     }
 
     private String process(String str, int length) {
-        Block result = evaluator(
-            new Left(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
-        ).get().eval(row(List.of(new BytesRef(str))));
-        if (null == result) {
-            return null;
+        try (
+            EvalOperator.ExpressionEvaluator eval = evaluator(
+                new Left(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
+            ).get(driverContext());
+            Block block = eval.eval(row(List.of(new BytesRef(str))))
+        ) {
+            if (block.isNull(0)) {
+                return null;
+            }
+            BytesRef resultByteRef = ((BytesRef) toJavaObject(block, 0));
+            return resultByteRef == null ? null : resultByteRef.utf8ToString();
         }
-        BytesRef resultByteRef = ((BytesRef) toJavaObject(result, 0));
-        return resultByteRef == null ? null : resultByteRef.utf8ToString();
     }
 }

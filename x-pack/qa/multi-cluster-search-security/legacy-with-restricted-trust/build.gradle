@@ -1,5 +1,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -63,11 +64,11 @@ def queryingCluster = testClusters.register('querying-cluster') {
     setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
     setting 'cluster.remote.my_remote_cluster.proxy_address', {
       "\"${fulfillingCluster.get().getAllTransportPortURI().get(0)}\""
-    }
+    }, IGNORE_VALUE
   } else {
     setting 'cluster.remote.my_remote_cluster.seeds', {
       fulfillingCluster.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
-    }
+    }, IGNORE_VALUE
   }
 }
 

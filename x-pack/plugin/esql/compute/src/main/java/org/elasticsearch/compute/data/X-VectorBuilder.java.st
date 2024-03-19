@@ -11,13 +11,14 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 $else$
 import java.util.Arrays;
 $endif$
 
 /**
- * Block build of $Type$Blocks.
+ * Builder for {@link $Type$Vector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$Vector.Builder {
@@ -25,18 +26,22 @@ final class $Type$VectorBuilder extends AbstractVectorBuilder implements $Type$V
 $if(BytesRef)$
     private BytesRefArray values;
 
-    BytesRefVectorBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
     }
 
-    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefVectorBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
 $else$
     private $type$[] values;
 
-    $Type$VectorBuilder(int estimatedSize) {
+    $Type$VectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new $type$[Math.max(estimatedSize, 2)];
     }
 $endif$
@@ -51,6 +56,11 @@ $else$
 $endif$
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return $if(BytesRef)$-1$else$$BYTES$$endif$;
     }
 
     @Override
@@ -73,17 +83,53 @@ $endif$
 
     @Override
     public $Type$Vector build() {
-        if (valueCount == 1) {
+        finish();
+        $Type$Vector vector;
 $if(BytesRef)$
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1);
+        assert estimatedBytes == 0;
+        if (valueCount == 1) {
+            vector = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory);
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(vector.ramBytesUsed());
+            Releasables.closeExpectNoException(values);
+        } else {
+            vector = new $Type$ArrayVector(values, valueCount, blockFactory);
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - values.bigArraysRamBytesUsed());
         }
+        values = null;
 $else$
-            return new Constant$Type$Vector(values[0], 1);
-        }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
+        if (valueCount == 1) {
+            vector = blockFactory.newConstant$Type$BlockWith(values[0], 1, estimatedBytes).asVector();
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+            vector = blockFactory.new$Type$ArrayVector(values, valueCount, estimatedBytes);
         }
 $endif$
-        return new $Type$ArrayVector(values, valueCount);
+        built();
+        return vector;
     }
+$if(BytesRef)$
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
+    }
+$endif$
 }

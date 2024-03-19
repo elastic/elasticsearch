@@ -47,7 +47,7 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
             shardStateAction,
             actionFilters,
             UnpromotableShardRefreshRequest::new,
-            ThreadPool.Names.REFRESH
+            transportService.getThreadPool().executor(ThreadPool.Names.REFRESH)
         );
         this.indicesService = indicesService;
     }
@@ -60,7 +60,11 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
     ) {
         ActionListener.run(responseListener, listener -> {
             IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-            shard.waitForSegmentGeneration(request.getSegmentGeneration(), listener.map(l -> ActionResponse.Empty.INSTANCE));
+            shard.waitForPrimaryTermAndGeneration(
+                request.getPrimaryTerm(),
+                request.getSegmentGeneration(),
+                listener.map(l -> ActionResponse.Empty.INSTANCE)
+            );
         });
     }
 

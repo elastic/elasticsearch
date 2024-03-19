@@ -49,11 +49,8 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
     @Before
     public void init() {
         threadPool = new TestThreadPool(getTestName());
-
-        // TODO: temporary, remove in #97879
         transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
-
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
     }

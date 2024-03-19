@@ -11,6 +11,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -69,6 +70,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         }
     }
 
+    @SuppressWarnings("this-escape")
     protected AbstractFieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
         String typeName = in.readOptionalString();
@@ -131,7 +133,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         List<String> remainingPath = new ArrayList<>();
         // first, search for the "root" DocumentField under which the remaining path of nested document values is
         while ((field = hit.field(tempHitname)) == null) {
-            int indexOfDot = tempHitname.lastIndexOf(".");
+            int indexOfDot = tempHitname.lastIndexOf('.');
             if (indexOfDot < 0) {// there is no such field in the hit
                 return null;
             }
@@ -192,7 +194,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                         }
                         values = unwrappedValues;
                     } else {
-                        throw new QlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                        // missing `field_multi_value_leniency` setting
+                        throw new InvalidArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
                     }
                 }
             }
@@ -206,7 +209,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return values;
     }
 
-    private boolean isListOfNulls(Object unwrapped) {
+    private static boolean isListOfNulls(Object unwrapped) {
         if (unwrapped instanceof List<?> list) {
             if (list.size() == 0) {
                 return false;

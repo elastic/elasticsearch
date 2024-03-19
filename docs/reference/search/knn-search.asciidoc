@@ -102,26 +102,26 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 
 `knn`::
-(Required, object) 
+(Required, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn]
 +
 .Properties of `knn` object
 [%collapsible%open]
 ====
 `field`::
-(Required, string) 
+(Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 
 `k`::
-(Required, integer) 
+(Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
 
 `num_candidates`::
-(Required, integer) 
+(Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 
 `query_vector`::
-(Required, array of floats)
+(Required, array of floats or string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 ====
 

@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip.stats;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -29,23 +30,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsAction.Response> {
+public class GeoIpDownloaderStatsAction {
 
-    public static final GeoIpDownloaderStatsAction INSTANCE = new GeoIpDownloaderStatsAction();
-    public static final String NAME = "cluster:monitor/ingest/geoip/stats";
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/ingest/geoip/stats");
 
-    public GeoIpDownloaderStatsAction() {
-        super(NAME, Response::new);
-    }
+    private GeoIpDownloaderStatsAction() {/* no instances */}
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
 
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -58,7 +52,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         @Override
         public int hashCode() {
             // Nothing to hash atm, so just use the action name
-            return Objects.hashCode(NAME);
+            return Objects.hashCode(INSTANCE.name());
         }
 
         @Override
@@ -71,6 +65,11 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             }
             return true;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
+        }
     }
 
     public static class NodeRequest extends TransportRequest {
@@ -78,9 +77,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             super(in);
         }
 
-        public NodeRequest(Request request) {
-
-        }
+        public NodeRequest() {}
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {

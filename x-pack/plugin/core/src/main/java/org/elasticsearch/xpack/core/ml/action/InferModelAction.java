@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -22,7 +23,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -44,7 +45,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
     public static final InferModelAction EXTERNAL_INSTANCE = new InferModelAction(EXTERNAL_NAME);
 
     private InferModelAction(String name) {
-        super(name, Response::new);
+        super(name);
     }
 
     public static class Request extends ActionRequest {
@@ -82,12 +83,13 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         private final List<Map<String, Object>> objectsToInfer;
         private final InferenceConfigUpdate update;
         private final boolean previouslyLicensed;
-        private TimeValue inferenceTimeout;
+        private final TimeValue inferenceTimeout;
         // textInput added for uses that accept a query string
         // and do know which field the model expects to find its
         // input and so cannot construct a document.
         private final List<String> textInput;
         private boolean highPriority;
+        private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
 
         /**
          * Build a request from a list of documents as maps.
@@ -95,18 +97,32 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
          * the inference queue for) is set to a high value {@code #DEFAULT_TIMEOUT_FOR_INGEST}
          * to prefer slow ingest over dropping documents.
          */
+
+        /**
+         * Build a request from a list of documents as maps.
+         *
+         * @param id The model Id
+         * @param docs List of document maps
+         * @param update Inference config update
+         * @param previouslyLicensed License has been checked previously
+         *                           and can now be skipped
+         * @param inferenceTimeout The inference timeout (how long the
+         *                         request waits in the inference queue for)
+         * @return the new Request
+         */
         public static Request forIngestDocs(
             String id,
             List<Map<String, Object>> docs,
             InferenceConfigUpdate update,
-            boolean previouslyLicensed
+            boolean previouslyLicensed,
+            TimeValue inferenceTimeout
         ) {
             return new Request(
                 ExceptionsHelper.requireNonNull(id, InferModelAction.Request.ID),
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
-                DEFAULT_TIMEOUT_FOR_INGEST,
+                inferenceTimeout,
                 previouslyLicensed
             );
         }
@@ -114,17 +130,30 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         /**
          * Build a request from a list of strings, each string
          * is one evaluation of the model.
-         * The inference timeout (how long the request waits in
-         * the inference queue for) is set to {@code #DEFAULT_TIMEOUT_FOR_API}
+         *
+         * @param id The model Id
+         * @param update Inference config update
+         * @param textInput Inference input
+         * @param previouslyLicensed License has been checked previously
+         *                           and can now be skipped
+         * @param inferenceTimeout The inference timeout (how long the
+         *                         request waits in the inference queue for)
+         * @return the new Request
          */
-        public static Request forTextInput(String id, InferenceConfigUpdate update, List<String> textInput) {
+        public static Request forTextInput(
+            String id,
+            InferenceConfigUpdate update,
+            List<String> textInput,
+            boolean previouslyLicensed,
+            TimeValue inferenceTimeout
+        ) {
             return new Request(
                 id,
                 update,
                 List.of(),
                 ExceptionsHelper.requireNonNull(textInput, "inference text input"),
-                DEFAULT_TIMEOUT_FOR_API,
-                false
+                inferenceTimeout,
+                previouslyLicensed
             );
         }
 
@@ -147,7 +176,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.id = in.readString();
-            this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readMap);
+            this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
@@ -162,6 +191,11 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             }
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 highPriority = in.readBoolean();
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
+            } else {
+                prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
             }
         }
 
@@ -197,17 +231,20 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             return inferenceTimeout;
         }
 
-        public Request setInferenceTimeout(TimeValue inferenceTimeout) {
-            this.inferenceTimeout = inferenceTimeout;
-            return this;
-        }
-
         public boolean isHighPriority() {
             return highPriority;
         }
 
         public void setHighPriority(boolean highPriority) {
             this.highPriority = highPriority;
+        }
+
+        public void setPrefixType(TrainedModelPrefixStrings.PrefixType prefixType) {
+            this.prefixType = prefixType;
+        }
+
+        public TrainedModelPrefixStrings.PrefixType getPrefixType() {
+            return prefixType;
         }
 
         @Override
@@ -231,6 +268,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(highPriority);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+                out.writeEnum(prefixType);
+            }
         }
 
         @Override
@@ -244,7 +284,8 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
                 && Objects.equals(objectsToInfer, that.objectsToInfer)
                 && Objects.equals(textInput, that.textInput)
-                && (highPriority == that.highPriority);
+                && (highPriority == that.highPriority)
+                && (prefixType == that.prefixType);
         }
 
         @Override
@@ -254,7 +295,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput, highPriority);
+            return Objects.hash(id, objectsToInfer, update, previouslyLicensed, inferenceTimeout, textInput, highPriority, prefixType);
         }
 
         public static class Builder {

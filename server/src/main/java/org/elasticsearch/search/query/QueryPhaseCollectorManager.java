@@ -35,9 +35,9 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.MaxScoreCollector;
@@ -50,6 +50,7 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregatorCollector;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -76,14 +77,14 @@ import static org.elasticsearch.search.profile.query.CollectorResult.REASON_SEAR
 abstract class QueryPhaseCollectorManager implements CollectorManager<Collector, QueryPhaseResult> {
     private final Weight postFilterWeight;
     private final QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker;
-    private final CollectorManager<? extends Collector, Void> aggsCollectorManager;
+    private final CollectorManager<AggregatorCollector, Void> aggsCollectorManager;
     private final Float minScore;
     private final boolean profile;
 
     QueryPhaseCollectorManager(
         Weight postFilterWeight,
         QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-        CollectorManager<? extends Collector, Void> aggsCollectorManager,
+        CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
         Float minScore,
         boolean profile
     ) {
@@ -147,7 +148,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         boolean terminatedAfter = false;
         CollectorResult collectorResult = null;
         List<Collector> topDocsCollectors = new ArrayList<>();
-        List<Collector> aggsCollectors = new ArrayList<>();
+        List<AggregatorCollector> aggsCollectors = new ArrayList<>();
         if (profile) {
             List<CollectorResult> resultsPerProfiler = new ArrayList<>();
             List<CollectorResult> topDocsCollectorResults = new ArrayList<>();
@@ -165,7 +166,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 if (aggsCollectorManager != null) {
                     InternalProfileCollector profileAggsCollector = (InternalProfileCollector) queryPhaseCollector.getAggsCollector();
                     aggsCollectorResults.add(profileAggsCollector.getCollectorTree());
-                    aggsCollectors.add(profileAggsCollector.getWrappedCollector());
+                    aggsCollectors.add((AggregatorCollector) profileAggsCollector.getWrappedCollector());
                 }
             }
             List<CollectorResult> childrenResults = new ArrayList<>();
@@ -178,16 +179,14 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
             for (Collector collector : collectors) {
                 QueryPhaseCollector queryPhaseCollector = (QueryPhaseCollector) collector;
                 topDocsCollectors.add(queryPhaseCollector.getTopDocsCollector());
-                aggsCollectors.add(queryPhaseCollector.getAggsCollector());
+                aggsCollectors.add((AggregatorCollector) queryPhaseCollector.getAggsCollector());
                 if (queryPhaseCollector.isTerminatedAfter()) {
                     terminatedAfter = true;
                 }
             }
         }
         if (aggsCollectorManager != null) {
-            @SuppressWarnings("unchecked")
-            CollectorManager<Collector, Void> aggsManager = (CollectorManager<Collector, Void>) aggsCollectorManager;
-            aggsManager.reduce(aggsCollectors);
+            aggsCollectorManager.reduce(aggsCollectors);
         }
         TopDocsAndMaxScore topDocsAndMaxScore = reduceTopDocsCollectors(topDocsCollectors);
         return new QueryPhaseResult(topDocsAndMaxScore, getSortValueFormats(), terminatedAfter, collectorResult);
@@ -212,7 +211,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
      */
     static CollectorManager<Collector, QueryPhaseResult> createQueryPhaseCollectorManager(
         Weight postFilterWeight,
-        CollectorManager<? extends Collector, Void> aggsCollectorManager,
+        CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
         SearchContext searchContext,
         boolean hasFilterCollector
     ) throws IOException {
@@ -310,7 +309,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         EmptyHits(
             Weight postFilterWeight,
             QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-            CollectorManager<? extends Collector, Void> aggsCollectorManager,
+            CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
             Float minScore,
             boolean profile,
             @Nullable SortAndFormats sortAndFormats,
@@ -375,7 +374,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
         WithHits(
             Weight postFilterWeight,
             QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-            CollectorManager<? extends Collector, Void> aggsCollectorManager,
+            CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
             Float minScore,
             boolean profile,
             IndexReader reader,
@@ -414,14 +413,9 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
                 }
             }
             if (sortAndFormats == null) {
-                this.topDocsManager = TopScoreDocCollector.createSharedManager(numHits, searchAfter, hitCountThreshold);
+                this.topDocsManager = new TopScoreDocCollectorManager(numHits, searchAfter, hitCountThreshold);
             } else {
-                this.topDocsManager = TopFieldCollector.createSharedManager(
-                    sortAndFormats.sort,
-                    numHits,
-                    (FieldDoc) searchAfter,
-                    hitCountThreshold
-                );
+                this.topDocsManager = new TopFieldCollectorManager(sortAndFormats.sort, numHits, (FieldDoc) searchAfter, hitCountThreshold);
             }
         }
 
@@ -480,7 +474,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
     private static WithHits forScroll(
         Weight postFilterWeight,
         QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-        CollectorManager<? extends Collector, Void> aggsCollectorManager,
+        CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
         Float minScore,
         boolean profile,
         IndexReader reader,
@@ -540,7 +534,7 @@ abstract class QueryPhaseCollectorManager implements CollectorManager<Collector,
     private static QueryPhaseCollectorManager forCollapsing(
         Weight postFilterWeight,
         QueryPhaseCollector.TerminateAfterChecker terminateAfterChecker,
-        CollectorManager<? extends Collector, Void> aggsCollectorManager,
+        CollectorManager<AggregatorCollector, Void> aggsCollectorManager,
         Float minScore,
         boolean profile,
         CollapseContext collapseContext,

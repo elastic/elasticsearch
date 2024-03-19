@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -44,6 +45,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
     private static final ParseField METADATA = new ParseField("_meta");
+    private static final ParseField DEPRECATED = new ParseField("deprecated");
 
     private static final StepKey NEW_STEP_KEY = new StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
 
@@ -54,7 +56,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         (a, name) -> {
             List<Phase> phases = (List<Phase>) a[0];
             Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
-            return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phaseMap, (Map<String, Object>) a[1]);
+            return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phaseMap, (Map<String, Object>) a[1], (Boolean) a[2]);
         }
     );
     static {
@@ -62,6 +64,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
             throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
         }, PHASES_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
     }
 
     private final String name;
@@ -69,6 +72,8 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     private final Map<String, Phase> phases;
     @Nullable
     private final Map<String, Object> metadata;
+    @Nullable
+    private final Boolean deprecated;
 
     /**
      * @param name
@@ -79,30 +84,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
      *
      */
     public LifecyclePolicy(String name, Map<String, Phase> phases) {
-        this(TimeseriesLifecycleType.INSTANCE, name, phases, null);
-    }
-
-    /**
-     * @param name
-     *            the name of this {@link LifecyclePolicy}
-     * @param phases
-     *            a {@link Map} of {@link Phase}s which make up this
-     *            {@link LifecyclePolicy}.
-     * @param metadata
-     *            the custom metadata of this {@link LifecyclePolicy}
-     */
-    public LifecyclePolicy(String name, Map<String, Phase> phases, @Nullable Map<String, Object> metadata) {
-        this(TimeseriesLifecycleType.INSTANCE, name, phases, metadata);
-    }
-
-    /**
-     * For Serialization
-     */
-    public LifecyclePolicy(StreamInput in) throws IOException {
-        type = in.readNamedWriteable(LifecycleType.class);
-        name = in.readString();
-        phases = in.readImmutableMap(Phase::new);
-        this.metadata = in.readMap();
+        this(TimeseriesLifecycleType.INSTANCE, name, phases, null, null);
     }
 
     /**
@@ -117,10 +99,47 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
      *            the custom metadata of this {@link LifecyclePolicy}
      */
     public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases, @Nullable Map<String, Object> metadata) {
+        this(type, name, phases, metadata, null);
+    }
+
+    /**
+     * For Serialization
+     */
+    public LifecyclePolicy(StreamInput in) throws IOException {
+        type = in.readNamedWriteable(LifecycleType.class);
+        name = in.readString();
+        phases = in.readImmutableMap(Phase::new);
+        this.metadata = in.readGenericMap();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            this.deprecated = in.readOptionalBoolean();
+        } else {
+            this.deprecated = null;
+        }
+    }
+
+    /**
+     * @param type
+     *            the {@link LifecycleType} of the policy
+     * @param name
+     *            the name of this {@link LifecyclePolicy}
+     * @param phases
+     *            a {@link Map} of {@link Phase}s which make up this
+     *            {@link LifecyclePolicy}.
+     * @param metadata
+     *            the custom metadata of this {@link LifecyclePolicy}
+     */
+    public LifecyclePolicy(
+        LifecycleType type,
+        String name,
+        Map<String, Phase> phases,
+        @Nullable Map<String, Object> metadata,
+        @Nullable Boolean deprecated
+    ) {
         this.name = name;
         this.phases = phases;
         this.type = type;
         this.metadata = metadata;
+        this.deprecated = deprecated;
     }
 
     public void validate() {
@@ -137,6 +156,9 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         out.writeString(name);
         out.writeMap(phases, StreamOutput::writeWriteable);
         out.writeGenericMap(this.metadata);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeOptionalBoolean(deprecated);
+        }
     }
 
     /**
@@ -168,6 +190,14 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         return metadata;
     }
 
+    public Boolean getDeprecated() {
+        return deprecated;
+    }
+
+    public boolean isDeprecated() {
+        return Boolean.TRUE.equals(deprecated);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -178,6 +208,9 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         builder.endObject();
         if (this.metadata != null) {
             builder.field(METADATA.getPreferredName(), this.metadata);
+        }
+        if (this.deprecated != null) {
+            builder.field(DEPRECATED.getPreferredName(), this.deprecated);
         }
         builder.endObject();
         return builder;
@@ -310,7 +343,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, phases, metadata);
+        return Objects.hash(name, phases, metadata, deprecated);
     }
 
     @Override
@@ -322,7 +355,10 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
             return false;
         }
         LifecyclePolicy other = (LifecyclePolicy) obj;
-        return Objects.equals(name, other.name) && Objects.equals(phases, other.phases) && Objects.equals(metadata, other.metadata);
+        return Objects.equals(name, other.name)
+            && Objects.equals(phases, other.phases)
+            && Objects.equals(metadata, other.metadata)
+            && Objects.equals(deprecated, other.deprecated);
     }
 
     @Override

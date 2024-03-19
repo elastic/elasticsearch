@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -79,12 +80,15 @@ public interface SourceLoader {
      * Load {@code _source} from doc values.
      */
     class Synthetic implements SourceLoader {
-        private final SyntheticFieldLoader loader;
-        private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
+        private final Supplier<SyntheticFieldLoader> syntheticFieldLoaderLeafSupplier;
+        private final Set<String> requiredStoredFields;
 
         public Synthetic(Mapping mapping) {
-            loader = mapping.syntheticFieldLoader();
-            storedFieldLoaders = Map.copyOf(loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            this.syntheticFieldLoaderLeafSupplier = mapping::syntheticFieldLoader;
+            this.requiredStoredFields = syntheticFieldLoaderLeafSupplier.get()
+                .storedFieldLoaders()
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
         }
 
         @Override
@@ -94,19 +98,26 @@ public interface SourceLoader {
 
         @Override
         public Set<String> requiredStoredFields() {
-            return storedFieldLoaders.keySet();
+            return requiredStoredFields;
         }
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            return new SyntheticLeaf(loader.docValuesLoader(reader, docIdsInLeaf));
+            SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
+            return new SyntheticLeaf(loader, loader.docValuesLoader(reader, docIdsInLeaf));
         }
 
-        private class SyntheticLeaf implements Leaf {
+        private static class SyntheticLeaf implements Leaf {
+            private final SyntheticFieldLoader loader;
             private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
+            private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
 
-            private SyntheticLeaf(SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+            private SyntheticLeaf(SyntheticFieldLoader loader, SyntheticFieldLoader.DocValuesLoader docValuesLoader) {
+                this.loader = loader;
                 this.docValuesLoader = docValuesLoader;
+                this.storedFieldLoaders = Map.copyOf(
+                    loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                );
             }
 
             @Override
@@ -198,6 +209,8 @@ public interface SourceLoader {
          * Build something to load doc values for this field or return
          * {@code null} if there are no doc values for this field to
          * load.
+         *
+         * @param docIdsInLeaf can be null.
          */
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
 

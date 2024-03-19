@@ -59,6 +59,7 @@ The <<search-template,search template>> associated with this search application.
 (Required, object)
 The associated mustache template.
 
+[[put-search-application-dictionary-param]]
 `dictionary`::
 (Optional, object)
 The dictionary used to validate the parameters used with the <<search-application-search, search application search>> API. The dictionary must be a valid JSON schema.

@@ -11,13 +11,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ModelPackageConfigTests;
 
+import java.net.InetAddress;
 import java.util.Map;
 
 import static org.mockito.Mockito.mock;
@@ -31,12 +34,14 @@ public class TrainedModelValidatorTests extends ESTestCase {
                 .setMinimumVersion("9999.0.0")
                 .build();
 
-            DiscoveryNode node = mock(DiscoveryNode.class);
             final Map<String, String> attributes = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.CURRENT.toString());
-            when(node.getAttributes()).thenReturn(attributes);
-            when(node.getVersion()).thenReturn(Version.CURRENT);
-            when(node.getMinIndexVersion()).thenReturn(IndexVersion.current());
-            when(node.getId()).thenReturn("node1");
+            DiscoveryNode node = DiscoveryNodeUtils.create(
+                "node1name",
+                "node1",
+                new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                attributes,
+                DiscoveryNodeRole.roles()
+            );
 
             DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).build();
 
@@ -52,7 +57,7 @@ public class TrainedModelValidatorTests extends ESTestCase {
             assertEquals(
                 "Validation Failed: 1: The model ["
                     + packageConfig.getPackagedModelId()
-                    + "] requires that all nodes are at least version [9999.0.0];",
+                    + "] requires that all nodes have ML config version [9999.0.0] or higher;",
                 e.getMessage()
             );
         }
@@ -63,12 +68,11 @@ public class TrainedModelValidatorTests extends ESTestCase {
                 ModelPackageConfigTests.randomModulePackageConfig()
             ).setMinimumVersion(MlConfigVersion.CURRENT.toString()).build();
 
-            DiscoveryNode node = mock(DiscoveryNode.class);
-            final Map<String, String> attributes = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_8_7_0.toString());
-            when(node.getAttributes()).thenReturn(attributes);
-            when(node.getVersion()).thenReturn(Version.V_8_7_0);
-            when(node.getMinIndexVersion()).thenReturn(IndexVersion.current());
-            when(node.getId()).thenReturn("node1");
+            DiscoveryNode node = DiscoveryNodeUtils.create(
+                "node1",
+                new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                Version.V_8_7_0
+            );
 
             DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).build();
 
@@ -82,9 +86,9 @@ public class TrainedModelValidatorTests extends ESTestCase {
             assertEquals(
                 "Validation Failed: 1: The model ["
                     + packageConfigCurrent.getPackagedModelId()
-                    + "] requires that all nodes are at least version ["
+                    + "] requires that all nodes have ML config version ["
                     + MlConfigVersion.CURRENT
-                    + "];",
+                    + "] or higher;",
                 e.getMessage()
             );
         }
@@ -95,12 +99,11 @@ public class TrainedModelValidatorTests extends ESTestCase {
                 ModelPackageConfigTests.randomModulePackageConfig()
             ).setMinimumVersion("_broken_version_").build();
 
-            DiscoveryNode node = mock(DiscoveryNode.class);
-            final Map<String, String> attributes = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_8_7_0.toString());
-            when(node.getAttributes()).thenReturn(attributes);
-            when(node.getVersion()).thenReturn(Version.V_8_7_0);
-            when(node.getMinIndexVersion()).thenReturn(IndexVersion.current());
-            when(node.getId()).thenReturn("node1");
+            DiscoveryNode node = DiscoveryNodeUtils.create(
+                "node1",
+                new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                Version.V_8_7_0
+            );
 
             DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).build();
 

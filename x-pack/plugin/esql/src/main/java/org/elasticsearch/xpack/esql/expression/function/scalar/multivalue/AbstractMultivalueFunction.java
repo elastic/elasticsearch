@@ -9,19 +9,18 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-import java.util.function.Supplier;
-
 /**
  * Base class for functions that reduce multivalued fields into single valued fields.
  */
-public abstract class AbstractMultivalueFunction extends UnaryScalarFunction implements EvaluatorMapper {
+public abstract class AbstractMultivalueFunction extends UnaryScalarFunction {
     protected AbstractMultivalueFunction(Source source, Expression field) {
         super(source, field);
     }
@@ -29,7 +28,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
     /**
      * Build the evaluator given the evaluator a multivalued field.
      */
-    protected abstract Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval);
+    protected abstract ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval);
 
     @Override
     protected final TypeResolution resolveType() {
@@ -42,14 +41,7 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
     protected abstract TypeResolution resolveFieldType();
 
     @Override
-    public final Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
-    public final Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        java.util.function.Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
+    public final ExpressionEvaluator.Factory toEvaluator(java.util.function.Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return evaluator(toEvaluator.apply(field()));
     }
 
@@ -57,8 +49,8 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
      * Base evaluator that can handle both nulls- and no-nulls-containing blocks.
      */
     public abstract static class AbstractEvaluator extends AbstractNullableEvaluator {
-        protected AbstractEvaluator(EvalOperator.ExpressionEvaluator field) {
-            super(field);
+        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+            super(driverContext, field);
         }
 
         /**
@@ -67,30 +59,37 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
          * that it's producing an "array vector" because it only ever emits single
          * valued fields and no null values. Building an array vector directly is
          * generally faster than building it via a {@link Block.Builder}.
+         *
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected abstract Vector evalNotNullable(Block fieldVal);
+        protected abstract Block evalNotNullable(Block fieldVal);
 
         /**
-         * Called to evaluate single valued fields when the target block does not
-         * have null values.
+         * Called to evaluate single valued fields when the target block does not have null values.
+         *
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected Vector evalSingleValuedNotNullable(Block fieldVal) {
-            return fieldVal.asVector();
+        protected Block evalSingleValuedNotNullable(Block fieldRef) {
+            fieldRef.incRef();
+            return fieldRef;
         }
 
         @Override
         public final Block eval(Page page) {
-            Block fieldVal = field.eval(page);
-            if (fieldVal.mayHaveMultivaluedFields() == false) {
-                if (fieldVal.mayHaveNulls()) {
-                    return evalSingleValuedNullable(fieldVal);
+            try (Block block = field.eval(page)) {
+                if (block.mayHaveMultivaluedFields()) {
+                    if (block.mayHaveNulls()) {
+                        return evalNullable(block);
+                    } else {
+                        return evalNotNullable(block);
+                    }
                 }
-                return evalSingleValuedNotNullable(fieldVal).asBlock();
+                if (block.mayHaveNulls()) {
+                    return evalSingleValuedNullable(block);
+                } else {
+                    return evalSingleValuedNotNullable(block);
+                }
             }
-            if (fieldVal.mayHaveNulls()) {
-                return evalNullable(fieldVal);
-            }
-            return evalNotNullable(fieldVal).asBlock();
         }
     }
 
@@ -98,9 +97,11 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
      * Base evaluator that can handle evaluator-checked exceptions; i.e. for expressions that can be evaluated to null.
      */
     public abstract static class AbstractNullableEvaluator implements EvalOperator.ExpressionEvaluator {
+        protected final DriverContext driverContext;
         protected final EvalOperator.ExpressionEvaluator field;
 
-        protected AbstractNullableEvaluator(EvalOperator.ExpressionEvaluator field) {
+        protected AbstractNullableEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) {
+            this.driverContext = driverContext;
             this.field = field;
         }
 
@@ -108,26 +109,38 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
 
         /**
          * Called when evaluating a {@link Block} that contains null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         protected abstract Block evalNullable(Block fieldVal);
 
         /**
-         * Called to evaluate single valued fields when the target block has null
-         * values.
+         * Called to evaluate single valued fields when the target block has null values.
+         * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
-        protected Block evalSingleValuedNullable(Block fieldVal) {
-            return fieldVal;
+        protected Block evalSingleValuedNullable(Block fieldRef) {
+            fieldRef.incRef();
+            return fieldRef;
         }
 
         @Override
         public Block eval(Page page) {
-            Block fieldVal = field.eval(page);
-            return fieldVal.mayHaveMultivaluedFields() ? evalNullable(fieldVal) : evalSingleValuedNullable(fieldVal);
+            try (Block block = field.eval(page)) {
+                if (block.mayHaveMultivaluedFields()) {
+                    return evalNullable(block);
+                } else {
+                    return evalSingleValuedNullable(block);
+                }
+            }
         }
 
         @Override
         public final String toString() {
             return name() + "[field=" + field + "]";
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(field);
         }
     }
 }

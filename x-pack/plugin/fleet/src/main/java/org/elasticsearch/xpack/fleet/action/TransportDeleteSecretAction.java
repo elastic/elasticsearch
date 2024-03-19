@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -27,18 +28,18 @@ public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSe
 
     @Inject
     public TransportDeleteSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(DeleteSecretAction.NAME, transportService, actionFilters, DeleteSecretRequest::new);
+        super(DeleteSecretAction.NAME, transportService, actionFilters, DeleteSecretRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = new OriginSettingClient(client, FLEET_ORIGIN);
     }
 
     @Override
     protected void doExecute(Task task, DeleteSecretRequest request, ActionListener<DeleteSecretResponse> listener) {
-        client.prepareDelete(FLEET_SECRETS_INDEX_NAME, request.id()).execute(ActionListener.wrap(deleteResponse -> {
+        client.prepareDelete(FLEET_SECRETS_INDEX_NAME, request.id()).execute(listener.delegateFailureAndWrap((delegate, deleteResponse) -> {
             if (deleteResponse.getResult() == Result.NOT_FOUND) {
-                listener.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
+                delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
                 return;
             }
-            listener.onResponse(new DeleteSecretResponse(deleteResponse.getResult() == Result.DELETED));
-        }, listener::onFailure));
+            delegate.onResponse(new DeleteSecretResponse(deleteResponse.getResult() == Result.DELETED));
+        }));
     }
 }

@@ -14,42 +14,34 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindStructureResponse;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinderManager;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverrides;
 
 import java.io.InputStream;
 
-import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
-
-public class TransportFindStructureAction extends HandledTransportAction<FindStructureAction.Request, FindStructureAction.Response> {
+public class TransportFindStructureAction extends HandledTransportAction<FindStructureAction.Request, FindStructureResponse> {
 
     private final ThreadPool threadPool;
 
     @Inject
     public TransportFindStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
-        super(FindStructureAction.NAME, transportService, actionFilters, FindStructureAction.Request::new);
+        super(FindStructureAction.NAME, transportService, actionFilters, FindStructureAction.Request::new, threadPool.generic());
         this.threadPool = threadPool;
     }
 
     @Override
-    protected void doExecute(Task task, FindStructureAction.Request request, ActionListener<FindStructureAction.Response> listener) {
-
-        // As determining the text structure might take a while, we run
-        // in a different thread to avoid blocking the network thread.
-        threadPool.executor(GENERIC).execute(() -> {
-            try {
-                listener.onResponse(buildTextStructureResponse(request));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+    protected void doExecute(Task task, FindStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
+        try {
+            listener.onResponse(buildTextStructureResponse(request));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
-    private FindStructureAction.Response buildTextStructureResponse(FindStructureAction.Request request) throws Exception {
-
+    private FindStructureResponse buildTextStructureResponse(FindStructureAction.Request request) throws Exception {
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
-
         try (InputStream sampleStream = request.getSample().streamInput()) {
             TextStructureFinder textStructureFinder = structureFinderManager.findTextStructure(
                 request.getLinesToSample(),
@@ -58,8 +50,7 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
                 new TextStructureOverrides(request),
                 request.getTimeout()
             );
-
-            return new FindStructureAction.Response(textStructureFinder.getStructure());
+            return new FindStructureResponse(textStructureFinder.getStructure());
         }
     }
 }

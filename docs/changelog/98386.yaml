@@ -1,5 +1,0 @@
-pr: 98386
-summary: Make `TransportAddVotingConfigExclusionsAction` retryable
-area: Cluster Coordination
-type: bug
-issues: []

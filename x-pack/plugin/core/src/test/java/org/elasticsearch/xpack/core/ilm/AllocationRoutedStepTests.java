@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.buildUnassignedInfo;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.allShardsActiveAllocationInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
 
@@ -162,18 +164,16 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNode.createLocal(
-                            nodeSettingsBuilder.build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                            "node1"
-                        )
+                        DiscoveryNodeUtils.builder("node1")
+                            .applySettings(nodeSettingsBuilder.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(
-                            nodeSettingsBuilder.build(),
-                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                            "node2"
-                        )
+                        DiscoveryNodeUtils.builder("node2")
+                            .applySettings(nodeSettingsBuilder.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
             )
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
@@ -416,14 +416,9 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
             .addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(index, 1),
-                    null,
-                    null,
-                    true,
-                    ShardRoutingState.UNASSIGNED,
-                    TestShardRouting.randomUnassignedInfo("the shard is intentionally unassigned")
-                )
+                shardRoutingBuilder(new ShardId(index, 1), null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+                    buildUnassignedInfo("the shard is intentionally unassigned")
+                ).build()
             );
 
         logger.info(
@@ -474,14 +469,9 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
             .addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(index, 0),
-                    null,
-                    null,
-                    false,
-                    ShardRoutingState.UNASSIGNED,
+                shardRoutingBuilder(new ShardId(index, 0), null, false, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                     new UnassignedInfo(Reason.REPLICA_ADDED, "no attempt")
-                )
+                ).build()
             );
 
         AllocationRoutedStep step = createRandomInstance();
@@ -532,10 +522,16 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        DiscoveryNode.createLocal(node1Settings.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node1")
+                        DiscoveryNodeUtils.builder("node1")
+                            .applySettings(node1Settings.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+                            .build()
                     )
                     .add(
-                        DiscoveryNode.createLocal(node2Settings.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9201), "node2")
+                        DiscoveryNodeUtils.builder("node2")
+                            .applySettings(node2Settings.build())
+                            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9201))
+                            .build()
                     )
             )
             .routingTable(RoutingTable.builder().add(indexRoutingTable).build())

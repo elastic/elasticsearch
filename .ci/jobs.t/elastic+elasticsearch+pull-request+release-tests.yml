@@ -16,21 +16,20 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/release-tests.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/release-tests.*'
           github-hooks: true
           status-context: elasticsearch-ci/release-tests
           cancel-builds-on-update: true
           excluded-regions:
             - ^docs/.*
             - ^x-pack/docs/.*
-          white-list-labels:
-            - 'test-release'
           black-list-target-branches:
             - 7.15
             - 6.8
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             JAVA8_HOME=$HOME/.java/java8

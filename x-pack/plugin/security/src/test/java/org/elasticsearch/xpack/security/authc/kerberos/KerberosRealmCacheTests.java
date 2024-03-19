@@ -165,7 +165,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final KerberosAuthenticationToken kerberosAuthenticationToken,
         String outToken
     ) {
-        final PlainActionFuture<AuthenticationResult<User>> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
         final AuthenticationResult<User> result = future.actionGet();
         assertSuccessAuthenticationResult(expectedUser, outToken, result);

@@ -18,7 +18,7 @@ addLongOverflow
 row max = 9223372036854775807 | eval sum = max + 1 | keep sum;
 
 warning:Line 1:44: evaluation of [max + 1] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:44: java.lang.ArithmeticException: long overflow
 
 sum:long
 null
@@ -28,7 +28,7 @@ subLongUnderflow
 row l = -9223372036854775807 | eval sub = l - 2 | keep sub;
 
 warning:Line 1:43: evaluation of [l - 2] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:43: java.lang.ArithmeticException: long overflow
 
 sub:long
 null
@@ -38,7 +38,7 @@ mulLongOverflow
 row max = 9223372036854775807 | eval mul = max * 2 | keep mul;
 
 warning:Line 1:44: evaluation of [max * 2] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:44: java.lang.ArithmeticException: long overflow
 
 mul:long
 null
@@ -48,7 +48,7 @@ divLongByZero
 row max = 9223372036854775807 | eval div = max / 0 | keep div;
 
 warning:Line 1:44: evaluation of [max / 0] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: / by zero
+warning:Line 1:44: java.lang.ArithmeticException: / by zero
 
 div:long
 null
@@ -59,7 +59,7 @@ row max = 9223372036854775807 | eval mod = max % 0 | keep mod;
 
 // ascii(%) == %25
 warning:Line 1:44: evaluation of [max %25 0] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: / by zero
+warning:Line 1:44: java.lang.ArithmeticException: / by zero
 
 mod:long
 null
@@ -140,7 +140,7 @@ negateIntOverflow
 // Negating Integer.MIN_VALUE overflows.
 row x=-2147483648 | eval a = -x;
 warning:Line 1:30: evaluation of [-x] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: integer overflow
+warning:Line 1:30: java.lang.ArithmeticException: integer overflow
 
 x:integer   | a:integer
 -2147483648 | null
@@ -150,7 +150,7 @@ negateLongOverflow
 // Negating Long.MIN_VALUE overflows.
 row x=-9223372036854775808 | eval a = -x;
 warning:Line 1:39: evaluation of [-x] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:39: java.lang.ArithmeticException: long overflow
 
 x:long               | a:long
 -9223372036854775808 | null
@@ -201,55 +201,316 @@ height:double | s:double
 ;
 
 powSalarySquared
+required_feature: esql.pow_double
+
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
-salary:integer | s:long
+salary:integer | s:double
 74999          | 10001
 74970          | 10900
 74572          | 193184
 73851          | 1330201
 ;
 
-isFiniteFalse
-row d = 1.0 | eval s = is_finite(d/0);
-
-d:double | s:boolean
-1.0      | false
+log#[skip:-8.12.99,reason:new scalar function added in 8.13]
+// tag::log[]
+ROW base = 2.0, value = 8.0
+| EVAL s = LOG(base, value)
+// end::log[]
 ;
 
-isFiniteTrue
-row d = 1.0 | eval s = is_finite(d);
-
-d:double | s:boolean
-1.0      | true
+// tag::log-result[]
+base: double | value: double | s:double
+2.0          | 8.0           |3.0
+// end::log-result[]
 ;
 
-isInfiniteFalse
-row d = 1.0 | eval s = is_infinite(d);
+logofNegativeValue#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 2.0, value = -2
+| EVAL s = LOG(base, value);
 
-d:double | s:boolean
-1.0      | false
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base: double | value: integer | s:double
+2.0          | -2             | null
 ;
 
-isInfiniteTrue
-row d = 1.0/0 | eval s = is_infinite(d);
+logofNegativeBase#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = -2, value = 2.0
+| EVAL s = LOG(base, value);
 
-d:double | s:boolean
-Infinity | true
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base: integer | value: double | s:double
+-2            | 2.0           | null
 ;
 
-isNaN
-row d = 1.0 | eval s = is_nan(d);
+logofBaseOne#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 1, value = 2
+| EVAL s = LOG(base, value);
 
-d:double | s:boolean
-1.0      | false
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of base 1
+
+base: integer | value: integer | s:double
+1             | 2              | null
 ;
 
-isNaNTrue
-row d = 0.0/0.0 | eval s = is_nan(d);
+logofZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 2.0, value = 0.0
+| EVAL s = LOG(base, value);
 
-d:double | s:boolean
-NaN      | true
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base:double | value:double | s:double
+2.0         | 0.0          |null
+;
+
+logofNegativeZero#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 2.0, value = -0.0
+| EVAL s = LOG(base, value);
+
+warning:Line 2:12: evaluation of [LOG(base, value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+base:double | value:double | s:double
+2.0         | -0.0         |null
+;
+
+logofIntLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 10, value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:integer | value:long      | s:double
+10           | 1000000000000   | 12
+;
+
+logofLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_long(1000000000000), value = 10
+| EVAL s = LOG(base, value);
+
+base:long             | value:integer | s:double
+1000000000000         | 10            | 0.08333333333333333
+;
+
+logofLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_long(1000000000000), value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:long      | value:long     | s:double
+1000000000000  | 1000000000000  |1.0
+;
+
+logofLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_long(1000000000000), value = 10.0
+| EVAL s = LOG(base, value);
+
+base:long             | value:double | s:double
+1000000000000         | 10.0         | 0.08333333333333333
+;
+
+logofDoubleLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 10.0, value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:double | value:long     | s:double
+10.0        | 1000000000000  | 12
+;
+
+logofLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_long(1000000000000), value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:long     | value:UNSIGNED_LONG | s:double
+1000000000000 | 1000000000000000000 | 1.5
+;
+
+logofUnsignedLongLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_ul(1000000000000000000), value = to_long(1000000000000)
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:long     | s:double
+1000000000000000000 | 1000000000000  | 0.6666666666666666
+;
+
+logofIntUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 10, value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:integer | value:UNSIGNED_LONG | s:double
+10           | 1000000000000000000 | 18.0
+;
+
+logofUnsignedLongInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_ul(1000000000000000000), value = 10
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:integer | s:double
+1000000000000000000 | 10            | 0.05555555555555555
+;
+
+logofUnsignedLongUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_ul(1000000000000000000), value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:UNSIGNED_LONG | s:double
+1000000000000000000 | 1000000000000000000 | 1.0
+;
+
+logofUnsignedLongDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = to_ul(1000000000000000000), value = 1000000000.0
+| EVAL s = LOG(base, value);
+
+base:UNSIGNED_LONG  | value:double | s:double
+1000000000000000000 | 1.0E9        | 0.5
+;
+
+logofDoubleUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row base = 10.0, value = to_ul(1000000000000000000)
+| EVAL s = LOG(base, value);
+
+base:double | value:UNSIGNED_LONG | s:double
+10.0        | 1000000000000000000 | 18.0
+;
+
+logofInt#[skip:-8.12.99,reason:new scalar function added in 8.13]
+// tag::logUnary[]
+row value = 100
+| EVAL s = LOG(value);
+// end::logUnary[]
+
+// tag::logUnary-result[]
+value: integer | s:double
+100            | 4.605170185988092
+// end::logUnary-result[]
+;
+
+logofLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row value = to_long(1000000000000)
+| EVAL s = LOG(value);
+
+value: long   | s:double
+1000000000000 | 27.631021115928547
+;
+
+logofUnsignedLong#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row value = to_ul(1000000000000000000)
+| EVAL s = LOG(value);
+
+value: unsigned_long   | s:double
+1000000000000000000    | 41.44653167389282
+;
+
+logofDouble#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row value = 1000000000000.0
+| EVAL s = LOG(value);
+
+value: double   | s:double
+1000000000000.0 | 27.631021115928547
+;
+
+logofNegativeUnary#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row value = -1
+| EVAL s = LOG(value);
+
+warning:Line 2:12: evaluation of [LOG(value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+value: integer | s:double
+-1             | null
+;
+
+logofZeroUnary#[skip:-8.12.99,reason:new scalar function added in 8.13]
+row value = 0
+| EVAL s = LOG(value);
+
+warning:Line 2:12: evaluation of [LOG(value)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.ArithmeticException: Log of non-positive number
+
+value: integer | s:double
+0              | null
+;
+
+logofRefs#[skip:-8.12.99,reason:new scalar function added in 8.13]
+from employees
+| EVAL l1 = LOG(languages, salary)
+| EVAL l2 = LOG(avg_worked_seconds)
+| EVAL l3 = l1 + l2
+| sort emp_no
+| keep emp_no, languages, salary, avg_worked_seconds, l1, l2, l3
+| limit 5;
+
+warning:Line 2:13: evaluation of [LOG(languages, salary)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:13: java.lang.ArithmeticException: Log of base 1
+
+emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l1:double          | l2:double          | l3:double
+10001          | 2                 | 57305          | 268728049               | 15.806373402659007 | 19.409210455930772 | 35.21558385858978
+10002          | 5                 | 56371          | 328922887               | 6.797224072039991  | 19.61133389523871  | 26.408557967278703
+10003          | 4                 | 61805          | 200296405               | 7.957717967928651  | 19.115308852397096 | 27.073026820325747
+10004          | 5                 | 36174          | 311267831               | 6.5215910639530374 | 19.55616429245569  | 26.07775535640873
+10005          | 1                 | 63528          | 244294991               | null               | 19.313887032538442 | null
+;
+
+logofRefExps#[skip:-8.12.99,reason:new scalar function added in 8.13]
+from employees
+| EVAL base = languages * 2
+| EVAL l1 = LOG(base, salary * 2)
+| EVAL l2 = LOG(avg_worked_seconds + 10000) / 2
+| EVAL l3 = l1 + l2
+| sort emp_no
+| keep emp_no, languages, salary, avg_worked_seconds, l1, l2, l3
+| limit 5;
+
+emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l1:double          | l2:double         | l3:double
+10001          | 2                 | 57305          | 268728049               | 8.403186701329505  | 9.704623833790084 | 18.10781053511959
+10002          | 5                 | 56371          | 328922887               | 5.052085734770665  | 9.805682148519608 | 14.857767883290272
+10003          | 4                 | 61805          | 200296405               | 5.638478645285767  | 9.55767938857962  | 15.196158033865387
+10004          | 5                 | 36174          | 311267831               | 4.8594265299129775 | 9.778098209306606 | 14.637524739219582
+10005          | 1                 | 63528          | 244294991               | 16.955104980216557 | 9.656963982909355 | 26.612068963125914
+;
+
+logofSort#[skip:-8.12.99,reason:new scalar function added in 8.13]
+from employees
+| EVAL l1 = LOG(languages, salary)
+| EVAL l2 = LOG(avg_worked_seconds)
+| EVAL l3 = l1 + l2
+| sort l1 ASC nulls last, l2 DESC nulls last
+| keep l1, l2, emp_no, languages, salary, avg_worked_seconds, l3
+| limit 5;
+
+warning:Line 2:13: evaluation of [LOG(languages, salary)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:13: java.lang.ArithmeticException: Log of base 1
+
+l1:double         | l2:double          | emp_no:integer | languages:integer | salary:integer | avg_worked_seconds:long | l3:double
+6.300030441266983 | 19.782340222815456 | 10015          | 5                 | 25324          | 390266432               | 26.08237066408244
+6.315083118944484 | 19.132836869278762 | 10035          | 5                 | 25945          | 203838153               | 25.447919988223248
+6.428086413501791 | 19.294546217598917 | 10011          | 5                 | 31120          | 239615525               | 25.72263263110071
+6.443409317219002 | 19.704129344210816 | 10066          | 5                 | 31897          | 360906451               | 26.14753866142982
+6.450671492193451 | 19.538385836155943 | 10087          | 5                 | 32272          | 305782871               | 25.989057328349393
+;
+
+logofRenameSort#[skip:-8.12.99,reason:new scalar function added in 8.13]
+from employees
+| RENAME languages as base1
+| EVAL l1 = LOG(base1, salary)
+| EVAL l2 = LOG(avg_worked_seconds)
+| EVAL l3 = l1 + l2
+| sort l1 ASC nulls first, l2 DESC nulls first
+| keep l1, l2, emp_no, base1, salary, avg_worked_seconds, l3
+| limit 5;
+
+warning:Line 3:13: evaluation of [LOG(base1, salary)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.ArithmeticException: Log of base 1
+
+l1:double | l2:double          | emp_no:integer | base1:integer | salary:integer | avg_worked_seconds:long | l3:double
+null      | 19.774989878141827 | 10044          | 1             | 39728          | 387408356               | null
+null      | 19.739867371666865 | 10027          | null          | 73851          | 374037782               | null
+null      | 19.73791867352969  | 10020          | null          | 40031          | 373309605               | null
+null      | 19.732442265367403 | 10025          | null          | 47411          | 371270797               | null
+null      | 19.72282600331636  | 10024          | null          | 64675          | 367717671               | null
 ;
 
 log10
@@ -266,38 +527,30 @@ d: double | s:double
 ;
 
 log10ofNegative
-row d = -1.0 | eval s = is_nan(log10(d));
+row d = -1.0 | eval s = log10(d);
+warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:25: java.lang.ArithmeticException: Log of non-positive number
 
-d:double | s:boolean
--1.0     | true
-;
-
-log10ofNan
-row d = 0.0/0.0 | eval s = is_nan(log10(d));
-
-d:double | s:boolean
-NaN      | true
+d:double | s:double
+-1.0     | null
 ;
 
 log10ofZero
-row d = 0.0 |eval s = is_infinite(log10(d));
+row d = 0.0 | eval s = log10(d);
+warning:Line 1:24: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.ArithmeticException: Log of non-positive number
 
-d:double | s:boolean
-0.0     | true
+d:double | s:double
+0.0      | null
 ;
 
 log10ofNegativeZero
-row d = -0.0 |eval s = is_infinite(log10(d));
+row d = -0.0 | eval s = log10(d);
+warning:Line 1:25: evaluation of [log10(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:25: java.lang.ArithmeticException: Log of non-positive number
 
-d:double | s:boolean
--0.0     | true
-;
-
-log10ofInfinite
-row d = 1/0.0 | eval s = is_infinite(log10(d));
-
-d:double | s:boolean
-Infinity | true
+d:double | s:double
+-0.0     | null
 ;
 
 log10ofLong
@@ -336,14 +589,14 @@ base:integer | exponent:double | s:double
 // end::powID-sqrt-result[]
 ;
 
-powSqrtNeg
+powSqrtNeg#[skip:-8.12.99,reason:warning message changed in 8.13]
 // tag::powNeg-sqrt[]
 ROW base = -4, exponent = 0.5
 | EVAL s = POW(base, exponent)
 // end::powNeg-sqrt[]
 ;
 warning:Line 2:12: evaluation of [POW(base, exponent)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: invalid result: pow(-4.0, 0.5)
+warning:Line 2:12: java.lang.ArithmeticException: not a finite double number: NaN
 
 // tag::powNeg-sqrt-result[]
 base:integer | exponent:double | s:double
@@ -365,22 +618,22 @@ base:double | exponent:integer | result:double
 ;
 
 powIntInt
-// tag::powII[]
+required_feature: esql.pow_double
+
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
-// end::powII[]
 ;
 
-// tag::powII-result[]
-base:integer | exponent:integer | s:integer
-2            | 2                | 4
-// end::powII-result[]
+base:integer | exponent:integer | s:double
+2            | 2                | 4.0
 ;
 
 powIntIntPlusInt
+required_feature: esql.pow_double
+
 row s = 1 + pow(2, 2);
 
-s:integer
+s:double
 5
 ;
 
@@ -392,23 +645,29 @@ s:double
 ;
 
 powIntUL
+required_feature: esql.pow_double
+
 row x = pow(1, 9223372036854775808);
 
-x:long
+x:double
 1
 ;
 
 powLongUL
+required_feature: esql.pow_double
+
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
-x:long
+x:double
 1
 ;
 
 powUnsignedLongUL
+required_feature: esql.pow_double
+
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
-x:long
+x:double
 1
 ;
 
@@ -419,36 +678,32 @@ x:double
 1.0
 ;
 
-powIntULOverrun
+powIntULOverrun#[skip:-8.12.99,reason:warning message changed in 8.13]
 row x = pow(2, 9223372036854775808);
 warning:Line 1:9: evaluation of [pow(2, 9223372036854775808)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 1:9: java.lang.ArithmeticException: not a finite double number: Infinity
 
-x:long
+x:double
 null
 ;
 
 powULInt
+required_feature: esql.pow_double
+
 row x = pow(to_unsigned_long(9223372036854775807), 1);
 
-x:long
+x:double
 9223372036854775807
 ;
 
 powULIntOverrun
-// tag::powULOverrun[]
-ROW x = POW(9223372036854775808, 2)
-// end::powULOverrun[]
-;
-// tag::powULOverrun-warning[]
-warning:Line 1:9: evaluation of [POW(9223372036854775808, 2)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
-// end::powULOverrun-warning[]
+required_feature: esql.pow_double
 
-// tag::powULOverrun-result[]
-x:long
-null
-// end::powULOverrun-result[]
+ROW x = POW(9223372036854775808, 2)
+;
+
+x:double
+8.507059173023462E37
 ;
 
 powULInt_2d
@@ -464,19 +719,21 @@ x:double
 ;
 
 powULLong
+required_feature: esql.pow_double
+
 row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
-x:long
+x:double
 10000000000
 ;
 
 powULLongOverrun
-row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
-warning:Line 1:33: evaluation of [pow(to_unsigned_long(10), x)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+required_feature: esql.pow_double
 
-x:long
-null
+row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
+
+x:double
+1.0E100
 ;
 
 powULDouble
@@ -707,7 +964,7 @@ ROW ints = [0, 1, 2147483647]
 | KEEP mvsum;
 
 warning:Line 2:16: evaluation of [mv_sum(ints)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: integer overflow
+warning:Line 2:16: java.lang.ArithmeticException: integer overflow
 
 mvsum:integer
 null
@@ -719,7 +976,7 @@ ROW longs = [0, 1, 9223372036854775807]
 | KEEP mvsum;
 
 warning:Line 2:16: evaluation of [mv_sum(longs)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: long overflow
+warning:Line 2:16: java.lang.ArithmeticException: long overflow
 
 mvsum:long
 null
@@ -731,7 +988,7 @@ ROW ulongs = [0, 1, 18446744073709551615]
 | KEEP mvsum;
 
 warning:Line 2:16: evaluation of [mv_sum(ulongs)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 2:16: java.lang.ArithmeticException: unsigned_long overflow
 
 mvsum:unsigned_long
 null
@@ -785,7 +1042,7 @@ ulAdditionOverflow
 row x = 18446744073709551615, y = to_ul(1) | eval x = x + y | keep x;
 
 warning:Line 1:55: evaluation of [x + y] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 1:55: java.lang.ArithmeticException: unsigned_long overflow
 
 x:ul
 null
@@ -816,7 +1073,7 @@ ulSubtractionUnderflow
 row x = to_ul(0), y = to_ul(1) | eval x = x - y | keep x;
 
 warning:Line 1:43: evaluation of [x - y] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 1:43: java.lang.ArithmeticException: unsigned_long overflow
 
 x:ul
 null
@@ -833,7 +1090,7 @@ ulMultiplicationOverflow
 row x = 9223372036854775808, two = to_ul(2) | eval times2 = x * two | keep times2;
 
 warning:Line 1:61: evaluation of [x * two] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 1:61: java.lang.ArithmeticException: unsigned_long overflow
 
 times2:ul
 null
@@ -843,7 +1100,7 @@ ulMultiplicationOverflow2
 row x = 9223372036854775808, y = 9223372036854775809 | eval x = x * y | keep x;
 
 warning:Line 1:65: evaluation of [x * y] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: unsigned_long overflow
+warning:Line 1:65: java.lang.ArithmeticException: unsigned_long overflow
 
 x:ul
 null
@@ -860,7 +1117,7 @@ ulDivisionByZero
 row halfplus = 9223372036854775808, zero = to_ul(0) | eval div = halfplus / zero | keep div;
 
 warning:Line 1:66: evaluation of [halfplus / zero] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: / by zero
+warning:Line 1:66: java.lang.ArithmeticException: / by zero
 
 div:ul
 null
@@ -878,7 +1135,7 @@ row halfplus = 9223372036854775808, zero = to_ul(0) | eval mod = halfplus % zero
 
 // ascii(%) == %25
 warning:Line 1:66: evaluation of [halfplus %25 zero] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: / by zero
+warning:Line 1:66: java.lang.ArithmeticException: / by zero
 
 mod:ul
 null
@@ -1027,17 +1284,12 @@ l:ul                  | s:double
 ;
 
 sqrtOfNegative
-row d = -1.0 | eval s = is_nan(sqrt(d));
+row d = -1.0 | eval s = sqrt(d);
+warning:Line 1:25: evaluation of [sqrt(d)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:25: java.lang.ArithmeticException: Square root of negative
 
-d:double | s:boolean
--1.0     | true
-;
-
-sqrtOfNan
-row d = 0.0/0.0 | eval s = is_nan(sqrt(d));
-
-d:double | s:boolean
-NaN      | true
+d:double | s:double
+-1.0     | null
 ;
 
 sqrtOfZero
@@ -1052,13 +1304,6 @@ row d = -0.0 |eval s = sqrt(d);
 
 d:double | s:double
 -0.0     | -0.0
-;
-
-sqrtOfInfinite
-row d = 1/0.0 | eval s = is_infinite(sqrt(d));
-
-d:double | s:boolean
-Infinity | true
 ;
 
 least
@@ -1137,4 +1382,35 @@ emp_no:integer | min_plus_max:integer | are_equal:boolean
          10003 |                    6 | false
          10004 |                    7 | false
          10005 |                    3 | false
+;
+
+docsAbs
+//tag::docsAbs[]
+ROW number = -1.0 
+| EVAL abs_number = ABS(number)
+//end::docsAbs[]
+;
+
+//tag::docsAbs-result[]
+number:double  |  abs_number:double
+-1.0           |1.0    
+//end::docsAbs-result[]
+;
+
+docsAbsEmployees
+//tag::docsAbsEmployees[]
+FROM employees
+| KEEP first_name, last_name, height
+| EVAL abs_height = ABS(0.0 - height)
+//end::docsAbsEmployees[]
+| SORT first_name
+| LIMIT 3
+;
+
+//tag::docsAbsEmployees-result[]
+first_name:keyword   |   last_name:keyword | height:double  |  abs_height:double
+Alejandro      |McAlpine       |1.48           |1.48           
+Amabile        |Gomatam        |2.09           |2.09           
+Anneke         |Preusig        |1.56           |1.56     
+//end::docsAbsEmployees-result[]
 ;

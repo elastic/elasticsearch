@@ -77,8 +77,8 @@ public class GeoBoundsGenericWriteableTests extends AbstractWireTestCase<Generic
     }
 
     public void testSerializationFailsWithOlderVersion() {
-        TransportVersion older = TransportVersions.V_8_500_069;
-        assert older.before(TransportVersions.V_8_500_070);
+        TransportVersion older = TransportVersions.V_8_10_X;
+        assert older.before(TransportVersions.V_8_11_X);
         final var testInstance = createTestInstance().geoBoundingBox();
         try (var output = new BytesStreamOutput()) {
             output.setTransportVersion(older);

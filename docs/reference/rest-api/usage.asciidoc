@@ -38,7 +38,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ------------------------------------------------------------
 GET /_xpack/usage
 ------------------------------------------------------------
-// TEST[s/usage/usage?filter_path=-watcher.execution.actions.logging*/]
+// TEST[s/usage/usage?filter_path=-watcher.execution.actions.index*\,-watcher.execution.actions.logging*,-watcher.execution.actions.email*/]
 // This response filter removes watcher logging results if they are included
 // to avoid errors in the CI builds.
 
@@ -47,7 +47,8 @@ GET /_xpack/usage
 {
   "security" : {
     "available" : true,
-    "enabled" : false
+    "enabled" : true,
+    ...
   },
   "monitoring" : {
     "available" : true,
@@ -182,6 +183,7 @@ GET /_xpack/usage
           "avg": 0.0,
           "max": 0.0
         },
+        "stats_by_model": [],
         "model_sizes_bytes": {
           "total": 0.0,
           "min": 0.0,
@@ -194,6 +196,11 @@ GET /_xpack/usage
       }
     },
     "node_count" : 1
+  },
+  "inference": {
+    "available" : true,
+    "enabled" : true,
+    "models" : []
   },
   "logstash" : {
     "available" : true,
@@ -213,7 +220,15 @@ GET /_xpack/usage
       "grok" : 0,
       "limit" : 0,
       "where" : 0,
-      "sort" : 0
+      "sort" : 0,
+      "drop" : 0,
+      "show" : 0,
+      "rename" : 0,
+      "mv_expand" : 0,
+      "keep" : 0,
+      "enrich" : 0,
+      "from" : 0,
+      "row" : 0
     },
     "queries" : {
       "rest" : {
@@ -472,9 +487,14 @@ GET /_xpack/usage
       "min_rule_count": 0,
       "max_rule_count": 0
     }
+  },
+  "universal_profiling" : {
+    "available" : true,
+    "enabled" : true
   }
 }
 ------------------------------------------------------------
+// TESTRESPONSE[s/"security" : \{[^\}]*\},/"security" : $body.$_path,/]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]

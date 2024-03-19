@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -68,6 +69,7 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                         clusterFormationState.lastCommittedConfiguration(),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
+                        clusterFormationState.mastersOfPeers(),
                         clusterFormationState.currentTerm(),
                         clusterFormationState.hasDiscoveredQuorum(),
                         clusterFormationState.statusInfo(),
@@ -87,6 +89,7 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                         clusterFormationState.lastCommittedConfiguration(),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
+                        clusterFormationState.mastersOfPeers(),
                         clusterFormationState.currentTerm(),
                         clusterFormationState.hasDiscoveredQuorum(),
                         clusterFormationState.statusInfo(),
@@ -106,6 +109,7 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
                         clusterFormationState.lastCommittedConfiguration(),
                         clusterFormationState.resolvedAddresses(),
                         clusterFormationState.foundPeers(),
+                        clusterFormationState.mastersOfPeers(),
                         clusterFormationState.currentTerm(),
                         clusterFormationState.hasDiscoveredQuorum() == false,
                         clusterFormationState.statusInfo(),
@@ -147,6 +151,7 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
             new CoordinationMetadata.VotingConfiguration(Collections.emptySet()),
             Collections.emptyList(),
             Collections.emptyList(),
+            Collections.emptySet(),
             randomLong(),
             randomBoolean(),
             new StatusInfo(randomFrom(StatusInfo.Status.HEALTHY, StatusInfo.Status.UNHEALTHY), randomAlphaOfLength(20)),
@@ -155,17 +160,15 @@ public class ClusterFormationInfoActionTests extends ESTestCase {
     }
 
     public void testTransportDoExecute() {
-        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         ActionFilters actionFilters = mock(ActionFilters.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         Coordinator coordinator = mock(Coordinator.class);
         ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = getClusterFormationState();
         when(coordinator.getClusterFormationState()).thenReturn(clusterFormationState);
-
-        // TODO: temporary, remove in #97879
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         ClusterFormationInfoAction.TransportAction action = new ClusterFormationInfoAction.TransportAction(

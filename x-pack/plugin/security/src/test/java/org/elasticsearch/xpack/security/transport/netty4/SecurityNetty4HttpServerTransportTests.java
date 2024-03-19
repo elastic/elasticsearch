@@ -36,7 +36,7 @@ import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.http.netty4.Netty4HttpResponse;
+import org.elasticsearch.http.netty4.Netty4FullHttpResponse;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.http.netty4.internal.HttpHeadersAuthenticatorUtils;
 import org.elasticsearch.http.netty4.internal.HttpHeadersWithAuthenticationContext;
@@ -44,10 +44,10 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -398,7 +398,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             });
             writeFuture.get();
             ch.flushOutbound();
-            Netty4HttpResponse response = ch.readOutbound();
+            Netty4FullHttpResponse response = ch.readOutbound();
             assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
             String responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
             assertThat(
@@ -501,7 +501,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 ch.flushInbound();
             }).get();
             ch.flushOutbound();
-            Netty4HttpResponse response = ch.readOutbound();
+            Netty4FullHttpResponse response = ch.readOutbound();
             assertThat(response.status(), is(HttpResponseStatus.INTERNAL_SERVER_ERROR));
             var responseContentString = new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8);
             assertThat(

@@ -114,10 +114,6 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
         return this;
     }
 
-    public int getNumBuckets() {
-        return numBuckets;
-    }
-
     public int getShardSize() {
         if (shardSize == -1) {
             return numBuckets * 50;
@@ -135,11 +131,6 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
-    }
-
-    @Override
-    public boolean supportsParallelCollection() {
-        return false;
     }
 
     @Override
@@ -239,11 +230,6 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

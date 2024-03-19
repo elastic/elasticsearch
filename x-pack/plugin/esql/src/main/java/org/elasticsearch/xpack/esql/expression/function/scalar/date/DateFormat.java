@@ -11,24 +11,22 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -36,15 +34,21 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 
-public class DateFormat extends ConfigurationFunction implements OptionalArgument, EvaluatorMapper {
+public class DateFormat extends EsqlConfigurationFunction implements OptionalArgument {
 
     private final Expression field;
     private final Expression format;
 
-    public DateFormat(Source source, Expression field, Expression format, Configuration configuration) {
-        super(source, format != null ? Arrays.asList(field, format) : Arrays.asList(field), configuration);
-        this.field = field;
-        this.format = format;
+    @FunctionInfo(returnType = "keyword", description = "Returns a string representation of a date, in the provided format.")
+    public DateFormat(
+        Source source,
+        @Param(optional = true, name = "format", type = { "keyword" }, description = "A valid date pattern") Expression format,
+        @Param(name = "date", type = { "date" }, description = "Date expression") Expression date,
+        Configuration configuration
+    ) {
+        super(source, date != null ? List.of(format, date) : List.of(format), configuration);
+        this.field = date != null ? date : format;
+        this.format = date != null ? format : null;
     }
 
     @Override
@@ -58,12 +62,12 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isDate(field, sourceText(), FIRST);
+        TypeResolution resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
         if (format != null) {
-            resolution = isStringAndExact(format, sourceText(), SECOND);
+            resolution = isStringAndExact(format, sourceText(), FIRST);
             if (resolution.unresolved()) {
                 return resolution;
             }
@@ -77,11 +81,6 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
         return field.foldable() && (format == null || format.foldable());
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     @Evaluator(extraName = "Constant")
     static BytesRef process(long val, @Fixed DateFormatter formatter) {
         return new BytesRef(formatter.formatMillis(val));
@@ -93,22 +92,26 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> fieldEvaluator = toEvaluator.apply(field);
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return () -> new DateFormatConstantEvaluator(fieldEvaluator.get(), UTC_DATE_TIME_FORMATTER);
+            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), UTC_DATE_TIME_FORMATTER, dvrCtx);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {
             DateFormatter formatter = toFormatter(format.fold(), ((EsqlConfiguration) configuration()).locale());
-            return () -> new DateFormatConstantEvaluator(fieldEvaluator.get(), formatter);
+            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), formatter, dvrCtx);
         }
-        Supplier<EvalOperator.ExpressionEvaluator> formatEvaluator = toEvaluator.apply(format);
-        return () -> new DateFormatEvaluator(fieldEvaluator.get(), formatEvaluator.get(), ((EsqlConfiguration) configuration()).locale());
+        var formatEvaluator = toEvaluator.apply(format);
+        return dvrCtx -> new DateFormatEvaluator(
+            source(),
+            fieldEvaluator.get(dvrCtx),
+            formatEvaluator.get(dvrCtx),
+            ((EsqlConfiguration) configuration()).locale(),
+            dvrCtx
+        );
     }
 
     private static DateFormatter toFormatter(Object format, Locale locale) {
@@ -123,11 +126,8 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateFormat::new, field, format, configuration());
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
+        Expression first = format != null ? format : field;
+        Expression second = format != null ? field : null;
+        return NodeInfo.create(this, DateFormat::new, first, second, configuration());
     }
 }

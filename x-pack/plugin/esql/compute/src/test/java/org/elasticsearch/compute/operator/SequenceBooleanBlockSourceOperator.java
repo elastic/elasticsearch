@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 
@@ -22,12 +23,12 @@ public class SequenceBooleanBlockSourceOperator extends AbstractBlockSourceOpera
 
     private final boolean[] values;
 
-    public SequenceBooleanBlockSourceOperator(List<Boolean> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public SequenceBooleanBlockSourceOperator(BlockFactory blockFactory, List<Boolean> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public SequenceBooleanBlockSourceOperator(List<Boolean> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public SequenceBooleanBlockSourceOperator(BlockFactory blockFactory, List<Boolean> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = new boolean[values.size()];
         for (int i = 0; i < values.size(); i++) {
             this.values[i] = values.get(i);
@@ -36,12 +37,13 @@ public class SequenceBooleanBlockSourceOperator extends AbstractBlockSourceOpera
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        BooleanVector.Builder builder = BooleanVector.newVectorBuilder(length);
-        for (int i = 0; i < length; i++) {
-            builder.appendBoolean(values[positionOffset + i]);
+        try (BooleanVector.Builder builder = blockFactory.newBooleanVectorFixedBuilder(length)) {
+            for (int i = 0; i < length; i++) {
+                builder.appendBoolean(values[positionOffset + i]);
+            }
+            currentPosition += length;
+            return new Page(builder.build().asBlock());
         }
-        currentPosition += length;
-        return new Page(builder.build().asBlock());
     }
 
     protected int remaining() {

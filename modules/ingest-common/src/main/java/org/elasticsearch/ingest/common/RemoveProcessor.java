@@ -64,7 +64,7 @@ public final class RemoveProcessor extends AbstractProcessor {
             }
         } else {
             for (TemplateScript.Factory field : fieldsToRemove) {
-                document.removeField(field);
+                document.removeField(document.renderTemplate(field));
             }
         }
     }

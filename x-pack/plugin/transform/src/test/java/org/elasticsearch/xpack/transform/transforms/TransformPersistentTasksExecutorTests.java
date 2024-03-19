@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -165,7 +166,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
                     + "current-data-node-with-0-tasks-transform-remote-disabled:"
-                    + "transform requires a remote connection but remote is disabled"
+                    + "transform requires a remote connection but the node does not have the remote_cluster_client role"
                     + "]"
             )
         );
@@ -194,7 +195,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
                     + "current-data-node-with-0-tasks-transform-remote-disabled:"
-                    + "transform requires a remote connection but remote is disabled"
+                    + "transform requires a remote connection but the node does not have the remote_cluster_client role"
                     + "|"
                     + "current-data-node-with-transform-disabled:not a transform node"
                     + "]"
@@ -267,7 +268,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-            indexMetadata.settings(indexSettings(IndexVersion.current(), 1, 0));
+            indexMetadata.settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "_uuid"));
             metadata.put(indexMetadata);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
@@ -323,7 +324,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                             DiscoveryNodeRole.TRANSFORM_ROLE
                         )
                     )
-                    .version(Version.V_7_7_0)
                     .attributes(
                         Map.of(TransformConfigVersion.TRANSFORM_CONFIG_VERSION_NODE_ATTR, TransformConfigVersion.V_7_7_0.toString())
                     )
@@ -446,7 +446,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             transformsConfigManager,
             transformCheckpointService,
             mockAuditor,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO)
         );
 
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
@@ -459,7 +459,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             threadPool,
             clusterService,
             Settings.EMPTY,
-            Settings.EMPTY,
+            new DefaultTransformExtension(),
             TestIndexNameExpressionResolver.newInstance()
         );
     }

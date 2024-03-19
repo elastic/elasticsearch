@@ -56,7 +56,7 @@ import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
-    private boolean skipDuplicates;
+    private final boolean skipDuplicates;
 
     /**
      * Creates a completion suggestion given its name, size and whether it should skip duplicates
@@ -272,7 +272,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    this.hit = new SearchHit(in);
+                    this.hit = SearchHit.readFrom(in, false);
                 }
                 int contextSize = in.readInt();
                 this.contexts = Maps.newLinkedHashMapWithExpectedSize(contextSize);
@@ -311,7 +311,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
 
             public void setHit(SearchHit hit) {
-                this.hit = hit;
+                this.hit = hit == null ? null : hit.asUnpooled();
             }
 
             @Override

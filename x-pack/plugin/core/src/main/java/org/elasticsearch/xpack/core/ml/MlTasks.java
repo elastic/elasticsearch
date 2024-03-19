@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.MemoryTrackedTaskState;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
@@ -194,6 +196,17 @@ public final class MlTasks {
         return jobState;
     }
 
+    public static Instant getLastJobTaskStateChangeTime(String jobId, @Nullable PersistentTasksCustomMetadata tasks) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getJobTask(jobId, tasks);
+        if (task != null) {
+            JobTaskState jobTaskState = (JobTaskState) task.getState();
+            if (jobTaskState != null) {
+                return jobTaskState.getLastStateChangeTime();
+            }
+        }
+        return null;
+    }
+
     public static SnapshotUpgradeState getSnapshotUpgradeState(
         String jobId,
         String snapshotId,
@@ -217,9 +230,13 @@ public final class MlTasks {
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetadata tasks) {
         PersistentTasksCustomMetadata.PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
+        return getDatafeedState(task);
+    }
+
+    public static DatafeedState getDatafeedState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         if (task == null) {
             // If we haven't started a datafeed then there will be no persistent task,
-            // which is the same as if the datafeed was't started
+            // which is the same as if the datafeed wasn't started
             return DatafeedState.STOPPED;
         }
         DatafeedState taskState = (DatafeedState) task.getState();
@@ -260,6 +277,17 @@ public final class MlTasks {
         return state;
     }
 
+    public static Instant getLastDataFrameAnalyticsTaskStateChangeTime(String analyticsId, @Nullable PersistentTasksCustomMetadata tasks) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getDataFrameAnalyticsTask(analyticsId, tasks);
+        if (task != null) {
+            DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) task.getState();
+            if (taskState != null) {
+                return taskState.getLastStateChangeTime();
+            }
+        }
+        return null;
+    }
+
     /**
      * The job Ids of anomaly detector job tasks.
      * All anomaly detector jobs are returned regardless of the status of the
@@ -281,7 +309,7 @@ public final class MlTasks {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(JOB_TASK_NAME, task -> true);
+        return tasks.findTasks(JOB_TASK_NAME, Predicates.always());
     }
 
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> datafeedTasksOnNode(
@@ -333,7 +361,7 @@ public final class MlTasks {
             return Collections.emptyList();
         }
 
-        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> true);
+        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, Predicates.always());
     }
 
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasksOnNode(
@@ -412,7 +440,7 @@ public final class MlTasks {
             return Collections.emptySet();
         }
 
-        return tasks.findTasks(DATAFEED_TASK_NAME, task -> true)
+        return tasks.findTasks(DATAFEED_TASK_NAME, Predicates.always())
             .stream()
             .map(t -> t.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
             .collect(Collectors.toSet());

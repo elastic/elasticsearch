@@ -403,7 +403,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return join;
         }
 
-        private List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
+        private static List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
             List<Constraint> constraints = new ArrayList<>();
             List<? extends NamedExpression> keys = filter.keys();
 
@@ -430,7 +430,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         // adapt constraint to the given filter by replacing the keys accordingly in the expressions
-        private KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
+        private static KeyedFilter addConstraint(KeyedFilter k, List<Constraint> constraints) {
             Expression constraint = Predicates.combineAnd(
                 constraints.stream().map(c -> c.constraintFor(k)).filter(Objects::nonNull).collect(toList())
             );

@@ -8,30 +8,27 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SumLongAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class SumLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
   private final List<Integer> channels;
 
-  public SumLongAggregatorFunctionSupplier(BigArrays bigArrays, List<Integer> channels) {
-    this.bigArrays = bigArrays;
+  public SumLongAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
   }
 
   @Override
-  public SumLongAggregatorFunction aggregator() {
-    return SumLongAggregatorFunction.create(channels);
+  public SumLongAggregatorFunction aggregator(DriverContext driverContext) {
+    return SumLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SumLongGroupingAggregatorFunction groupingAggregator() {
-    return SumLongGroupingAggregatorFunction.create(channels, bigArrays);
+  public SumLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+    return SumLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

@@ -1,0 +1,5 @@
+pr: 96235
+summary: Add `index.mapping.total_fields.ignore_dynamic_beyond_limit` setting to ignore dynamic fields when field limit is reached
+area: Mapping
+type: enhancement
+issues: []

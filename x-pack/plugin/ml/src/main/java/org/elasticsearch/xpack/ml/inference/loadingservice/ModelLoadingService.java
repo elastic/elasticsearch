@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -36,9 +37,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -298,7 +298,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId  the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
-    public void getModelForLearnToRank(String modelId, ActionListener<LocalModel> modelActionListener) {
+    public void getModelForLearningToRank(String modelId, ActionListener<LocalModel> modelActionListener) {
         getModel(modelId, Consumer.SEARCH_RESCORER, null, modelActionListener);
     }
 
@@ -491,7 +491,12 @@ public class ModelLoadingService implements ClusterStateListener {
                 handleLoadFailure(modelId, failure);
             }));
         }, failure -> {
-            logger.warn(() -> "[" + modelId + "] failed to load model configuration", failure);
+            if (consumer != Consumer.PIPELINE) {
+                // The model loading was triggered by an ingest pipeline change
+                // referencing a model that cannot be found. This is not an error
+                // as the model may be put later
+                logger.warn(() -> "[" + modelId + "] failed to load model configuration ", failure);
+            }
             handleLoadFailure(modelId, failure);
         }));
     }
@@ -642,7 +647,7 @@ public class ModelLoadingService implements ClusterStateListener {
             // Also, if the consumer is a search consumer, we should always cache it
             if (referencedModels.contains(modelId)
                 || Sets.haveNonEmptyIntersection(modelIdToModelAliases.getOrDefault(modelId, new HashSet<>()), referencedModels)
-                || consumer.equals(Consumer.SEARCH_AGGS)) {
+                || consumer.isAnyOf(Consumer.SEARCH_AGGS, Consumer.SEARCH_RESCORER)) {
                 try {
                     // The local model may already be in cache. If it is, we don't bother adding it to cache.
                     // If it isn't, we flip an `isLoaded` flag, and increment the model counter to make sure if it is evicted
@@ -805,7 +810,8 @@ public class ModelLoadingService implements ClusterStateListener {
                 );
                 if (oldModelAliasesNotReferenced && newModelAliasesNotReferenced && modelIsNotReferenced) {
                     ModelAndConsumer modelAndConsumer = localModelCache.get(modelId);
-                    if (modelAndConsumer != null && modelAndConsumer.consumers.contains(Consumer.SEARCH_AGGS) == false) {
+                    if (modelAndConsumer != null
+                        && modelAndConsumer.consumers.stream().noneMatch(c -> c.isAnyOf(Consumer.SEARCH_AGGS, Consumer.SEARCH_RESCORER))) {
                         logger.trace("[{} ({})] invalidated from cache", modelId, modelAliasOrId);
                         localModelCache.invalidate(modelId);
                     }

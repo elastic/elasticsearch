@@ -10,14 +10,17 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of DoubleBlocks.
+ * Builder for {@link DoubleVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleVector.Builder {
 
     private double[] values;
 
-    DoubleVectorBuilder(int estimatedSize) {
+    DoubleVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        super(blockFactory);
+        int initialSize = Math.max(estimatedSize, 2);
+        adjustBreaker(initialSize);
         values = new double[Math.max(estimatedSize, 2)];
     }
 
@@ -27,6 +30,11 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
         values[valueCount] = value;
         valueCount++;
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return Double.BYTES;
     }
 
     @Override
@@ -41,12 +49,17 @@ final class DoubleVectorBuilder extends AbstractVectorBuilder implements DoubleV
 
     @Override
     public DoubleVector build() {
+        finish();
+        DoubleVector vector;
         if (valueCount == 1) {
-            return new ConstantDoubleVector(values[0], 1);
+            vector = blockFactory.newConstantDoubleBlockWith(values[0], 1, estimatedBytes).asVector();
+        } else {
+            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                values = Arrays.copyOf(values, valueCount);
+            }
+            vector = blockFactory.newDoubleArrayVector(values, valueCount, estimatedBytes);
         }
-        if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-            values = Arrays.copyOf(values, valueCount);
-        }
-        return new DoubleArrayVector(values, valueCount);
+        built();
+        return vector;
     }
 }

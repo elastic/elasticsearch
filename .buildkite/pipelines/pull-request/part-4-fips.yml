@@ -1,0 +1,11 @@
+config:
+  allow-labels: "Team:Security"
+steps:
+  - label: part-4-fips
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart4
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

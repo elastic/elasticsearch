@@ -72,8 +72,8 @@ public class EsqlParser {
 
             ParserRuleContext tree = parseFunction.apply(parser);
 
-            if (log.isDebugEnabled()) {
-                log.debug("Parse tree: {}", tree.toStringTree());
+            if (log.isTraceEnabled()) {
+                log.trace("Parse tree: {}", tree.toStringTree());
             }
 
             return result.apply(new AstBuilder(paramTokens), tree);

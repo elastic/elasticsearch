@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -90,7 +91,10 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
 
-            IOException e = expectThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(blobs.iterator()));
+            IOException e = expectThrows(
+                IOException.class,
+                () -> container.deleteBlobsIgnoringIfNotExists(randomPurpose(), blobs.iterator())
+            );
             assertThat(e.getCause(), instanceOf(StorageException.class));
         }
     }

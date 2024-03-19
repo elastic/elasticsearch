@@ -2,7 +2,8 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+intake+multijob+update-last-good-commit
     display-name: "elastic / elasticsearch # %BRANCH% - update last good commit"
-    description: Elasticsearch %BRANCH% branch update last good commit in build-stats.
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     node: light
     properties: []
     builders:

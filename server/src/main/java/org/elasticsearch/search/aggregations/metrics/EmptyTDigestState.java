@@ -15,7 +15,7 @@ public final class EmptyTDigestState extends TDigestState {
     }
 
     @Override
-    public void add(double x, int w) {
+    public void add(double x, long w) {
         throw new UnsupportedOperationException("Immutable Empty TDigest");
     }
 

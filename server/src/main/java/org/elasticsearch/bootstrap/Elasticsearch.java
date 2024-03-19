@@ -15,8 +15,9 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
@@ -37,6 +38,7 @@ import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
@@ -174,7 +176,7 @@ class Elasticsearch {
         // initialize probes before the security manager is installed
         initializeProbes();
 
-        Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown));
+        Runtime.getRuntime().addShutdownHook(new Thread(Elasticsearch::shutdown, "elasticsearch-shutdown"));
 
         // look for jar hell
         final Logger logger = LogManager.getLogger(JarHell.class);
@@ -184,6 +186,8 @@ class Elasticsearch {
         IfConfig.logIfNecessary();
 
         ensureInitialized(
+            // ReleaseVersions does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
+            ReleaseVersions.class,
             // ReferenceDocs class does nontrivial static initialization which should always succeed but load it now (before SM) to be sure
             ReferenceDocs.class,
             // The following classes use MethodHandles.lookup during initialization, load them now (before SM) to be sure they succeed
@@ -278,7 +282,7 @@ class Elasticsearch {
         final Logger logger = LogManager.getLogger(Elasticsearch.class);
 
         // check if the user is running as root, and bail
-        if (Natives.definitelyRunningAsRoot()) {
+        if (NativeAccess.instance().definitelyRunningAsRoot()) {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
@@ -376,7 +380,7 @@ class Elasticsearch {
                     Bootstrap.exit(1);
                 }
             }
-        }).start();
+        }, "elasticsearch-cli-monitor-thread").start();
     }
 
     /**
@@ -451,7 +455,7 @@ class Elasticsearch {
             } catch (InterruptedException e) {
                 // bail out
             }
-        }, "elasticsearch[keepAlive/" + Version.CURRENT + "]");
+        }, "elasticsearch[keepAlive/" + Build.current().version() + "]");
     }
 
     private void start() throws NodeValidationException {
@@ -460,6 +464,8 @@ class Elasticsearch {
     }
 
     private static void shutdown() {
+        ElasticsearchProcess.markStopping();
+
         if (INSTANCE == null) {
             return; // never got far enough
         }

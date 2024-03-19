@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
  */
-public class PersistentTasksClusterService implements ClusterStateListener, Closeable {
+public final class PersistentTasksClusterService implements ClusterStateListener, Closeable {
 
     public static final Setting<TimeValue> CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.persistent_tasks.allocation.recheck_interval",

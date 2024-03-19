@@ -8,7 +8,6 @@
 package org.elasticsearch.search.geo;
 
 import org.apache.lucene.util.SloppyMath;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
@@ -22,6 +21,7 @@ import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,51 +55,43 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
               "shape": "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
             }""";
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
+        indexRandom(true, prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-179.75, 1))).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-179.75, 1))), 1L);
+        assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))), 0L);
+        assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-180, 1))), 1L);
+        assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(180, 1))), 1L);
 
-        searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
-
-        searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-180, 1))).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-
-        searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(180, 1))).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
     /** The testBulk method uses this only for Geo-specific tests */
     protected void doDistanceAndBoundingBoxTest(String key) {
-        SearchResponse world = client().prepareSearch()
-            .addStoredField("pin")
-            .setQuery(geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999))
-            .get();
+        assertHitCount(
+            prepareSearch().addStoredField("pin").setQuery(geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999)),
+            53
+        );
 
-        assertHitCount(world, 53);
+        assertResponse(
+            prepareSearch().addStoredField("pin").setQuery(geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)),
+            response -> {
+                assertHitCount(response, 5L);
+                GeoPoint point = new GeoPoint();
+                for (SearchHit hit : response.getHits()) {
+                    String name = hit.getId();
+                    point.resetFromString(hit.getFields().get("pin").getValue());
+                    double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
 
-        SearchResponse distance = client().prepareSearch()
-            .addStoredField("pin")
-            .setQuery(geoDistanceQuery("pin").distance("425km").point(51.11, 9.851))
-            .get();
-
-        assertHitCount(distance, 5);
-        GeoPoint point = new GeoPoint();
-        for (SearchHit hit : distance.getHits()) {
-            String name = hit.getId();
-            point.resetFromString(hit.getFields().get("pin").getValue());
-            double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
-
-            assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
-            assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
-            if (key.equals(name)) {
-                assertThat(dist, closeTo(0d, 0.1d));
+                    assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
+                    assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
+                    if (key.equals(name)) {
+                        assertThat(dist, closeTo(0d, 0.1d));
+                    }
+                }
             }
-        }
+        );
     }
 
-    private double distance(double lat1, double lon1, double lat2, double lon2) {
+    private static double distance(double lat1, double lon1, double lat2, double lon2) {
         return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
     }
 }

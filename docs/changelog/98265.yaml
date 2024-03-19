@@ -1,5 +1,0 @@
-pr: 98265
-summary: Do not assign ignored shards
-area: Allocation
-type: bug
-issues: []

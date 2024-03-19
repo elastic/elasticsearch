@@ -25,7 +25,6 @@
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             index:
               default_pipeline: "pipeline"
               final_pipeline: "pipeline"
@@ -94,12 +93,13 @@
 ---
 "Downsample datastream with tier preference":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/97150"
-#      version: " - 8.4.99"
-#      reason: "rollup renamed to downsample in 8.5.0"
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
+      features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [downsampling-template] has index patterns [test-datastream-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [downsampling-template] will take precedence during new index creation"
       indices.put_index_template:
         name: downsampling-template
         body:

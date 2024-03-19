@@ -1,3 +1,10 @@
+---
+setup:
+  - skip:
+      version: "8.7.00 - 8.9.99"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+
+---
 add time series mappings:
   - skip:
       version: " - 7.15.99"

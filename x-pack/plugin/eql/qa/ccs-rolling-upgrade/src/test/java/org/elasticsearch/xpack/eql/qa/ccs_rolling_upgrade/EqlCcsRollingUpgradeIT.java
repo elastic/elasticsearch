@@ -12,13 +12,11 @@ import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -39,7 +37,6 @@ import static org.hamcrest.Matchers.not;
  * This test ensures that EQL can process CCS requests correctly when the local and remote clusters
  * have different but compatible versions.
  */
-@SuppressWarnings("removal")
 public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(EqlCcsRollingUpgradeIT.class);
@@ -84,7 +81,7 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
     public static void configureRemoteClusters(List<Node> remoteNodes) throws Exception {
         assertThat(remoteNodes, hasSize(3));
         final String remoteClusterSettingPrefix = "cluster.remote." + CLUSTER_ALIAS + ".";
-        try (RestClient localClient = newLocalClient().getLowLevelClient()) {
+        try (RestClient localClient = newLocalClient()) {
             final Settings remoteConnectionSettings;
             if (randomBoolean()) {
                 final List<String> seeds = remoteNodes.stream()
@@ -118,28 +115,32 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
         }
     }
 
-    static RestHighLevelClient newLocalClient() {
+    static RestClient newLocalClient() {
         final List<HttpHost> hosts = parseHosts("tests.rest.cluster");
         final int index = random().nextInt(hosts.size());
         LOGGER.info("Using client node {}", index);
-        return new RestHighLevelClient(RestClient.builder(hosts.get(index)));
+        return RestClient.builder(hosts.get(index)).build();
     }
 
-    static RestHighLevelClient newRemoteClient() {
-        return new RestHighLevelClient(RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))));
+    static RestClient newRemoteClient() {
+        return RestClient.builder(randomFrom(parseHosts("tests.rest.remote_cluster"))).build();
     }
 
-    static int indexDocs(RestHighLevelClient client, String index, int numDocs) throws IOException {
+    static int indexDocs(RestClient client, String index, int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
-            client.index(new IndexRequest(index).id("id_" + i).source("f", i, "@timestamp", i), RequestOptions.DEFAULT);
+            Request createDoc = new Request("POST", "/" + index + "/_doc/id_" + i);
+            createDoc.setJsonEntity(Strings.format("""
+                { "f": %s, "@timestamp": %s }
+                """, i, i));
+            assertOK(client.performRequest(createDoc));
         }
 
-        refresh(client.getLowLevelClient(), index);
+        refresh(client, index);
         return numDocs;
     }
 
     void verify(String localIndex, int localNumDocs, String remoteIndex, int remoteNumDocs) {
-        try (RestClient localClient = newLocalClient().getLowLevelClient()) {
+        try (RestClient localClient = newLocalClient()) {
 
             Request request = new Request("POST", "/" + randomFrom(remoteIndex, localIndex + "," + remoteIndex) + "/_eql/search");
             int size = between(1, 100);
@@ -161,9 +162,9 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
     public void testSequences() throws Exception {
         String localIndex = "test_bwc_search_states_index";
         String remoteIndex = "test_bwc_search_states_remote_index";
-        try (RestHighLevelClient localClient = newLocalClient(); RestHighLevelClient remoteClient = newRemoteClient()) {
+        try (RestClient localClient = newLocalClient(); RestClient remoteClient = newRemoteClient()) {
             createIndex(
-                localClient.getLowLevelClient(),
+                localClient,
                 localIndex,
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build(),
                 "{\"properties\": {\"@timestamp\": {\"type\": \"date\"}}}",
@@ -171,7 +172,7 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
             );
             int localNumDocs = indexDocs(localClient, localIndex, between(10, 100));
             createIndex(
-                remoteClient.getLowLevelClient(),
+                remoteClient,
                 remoteIndex,
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build(),
                 "{\"properties\": {\"@timestamp\": {\"type\": \"date\"}}}",
@@ -179,13 +180,13 @@ public class EqlCcsRollingUpgradeIT extends ESRestTestCase {
             );
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
-            configureRemoteClusters(getNodes(remoteClient.getLowLevelClient()));
+            configureRemoteClusters(getNodes(remoteClient));
             int iterations = between(1, 20);
             for (int i = 0; i < iterations; i++) {
                 verify(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs);
             }
-            deleteIndex(localClient.getLowLevelClient(), localIndex);
-            deleteIndex(remoteClient.getLowLevelClient(), remoteIndex);
+            deleteIndex(localClient, localIndex);
+            deleteIndex(remoteClient, remoteIndex);
         }
     }
 }

@@ -15,8 +15,10 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -30,9 +32,9 @@ import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
-public class TransportRankEvalActionTests extends ESTestCase {
+public final class TransportRankEvalActionTests extends ESTestCase {
 
-    private Settings settings = Settings.builder()
+    private final Settings settings = Settings.builder()
         .put("path.home", createTempDir().toString())
         .put("node.name", "test-" + getTestName())
         .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -81,7 +83,9 @@ public class TransportRankEvalActionTests extends ESTestCase {
             client,
             transportService,
             mock(ScriptService.class),
-            NamedXContentRegistry.EMPTY
+            NamedXContentRegistry.EMPTY,
+            mock(ClusterService.class),
+            mock(FeatureService.class)
         );
         action.doExecute(null, rankEvalRequest, null);
     }

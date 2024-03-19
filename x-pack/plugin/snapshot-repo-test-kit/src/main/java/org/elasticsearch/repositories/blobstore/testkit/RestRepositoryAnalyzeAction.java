@@ -14,7 +14,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
@@ -40,6 +40,9 @@ public class RestRepositoryAnalyzeAction extends BaseRestHandler {
 
         analyzeRepositoryRequest.blobCount(request.paramAsInt("blob_count", analyzeRepositoryRequest.getBlobCount()));
         analyzeRepositoryRequest.concurrency(request.paramAsInt("concurrency", analyzeRepositoryRequest.getConcurrency()));
+        analyzeRepositoryRequest.registerOperationCount(
+            request.paramAsInt("register_operation_count", analyzeRepositoryRequest.getRegisterOperationCount())
+        );
         analyzeRepositoryRequest.readNodeCount(request.paramAsInt("read_node_count", analyzeRepositoryRequest.getReadNodeCount()));
         analyzeRepositoryRequest.earlyReadNodeCount(
             request.paramAsInt("early_read_node_count", analyzeRepositoryRequest.getEarlyReadNodeCount())
@@ -62,7 +65,7 @@ public class RestRepositoryAnalyzeAction extends BaseRestHandler {
         return channel -> cancelClient.execute(
             RepositoryAnalyzeAction.INSTANCE,
             analyzeRepositoryRequest,
-            new RestStatusToXContentListener<>(channel) {
+            new RestToXContentListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(RepositoryAnalyzeAction.Response response, XContentBuilder builder) throws Exception {
                     builder.humanReadable(request.paramAsBoolean("human", true));

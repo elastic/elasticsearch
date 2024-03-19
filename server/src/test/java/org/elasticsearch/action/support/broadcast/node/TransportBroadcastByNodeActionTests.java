@@ -173,7 +173,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 new ActionFilters(Set.of()),
                 new MyResolver(),
                 Request::new,
-                TEST_THREAD_POOL_NAME
+                transportService.getThreadPool().executor(TEST_THREAD_POOL_NAME)
             );
         }
 
@@ -429,7 +429,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final TransportBroadcastByNodeAction<Request, Response, ShardResult>.BroadcastByNodeTransportRequestHandler handler =
             action.new BroadcastByNodeTransportRequestHandler();
 
-        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
         TestTransportChannel channel = new TestTransportChannel(future);
 
         final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
@@ -490,7 +490,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         final TransportBroadcastByNodeAction<Request, Response, ShardResult>.BroadcastByNodeTransportRequestHandler handler =
             action.new BroadcastByNodeTransportRequestHandler();
 
-        final PlainActionFuture<TransportResponse> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
         TestTransportChannel channel = new TestTransportChannel(future);
 
         handler.messageReceived(action.new NodeRequest(new Request(), new ArrayList<>(shards), nodeId), channel, null);

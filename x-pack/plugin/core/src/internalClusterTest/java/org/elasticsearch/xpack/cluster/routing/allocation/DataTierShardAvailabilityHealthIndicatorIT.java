@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -25,6 +25,7 @@ import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.plugin.ShardsAvailabilityPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -41,7 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
 /**
- * Contains all integration tests for the {@link org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService}
+ * Contains all integration tests for the {@link ShardsAvailabilityHealthIndicatorService}
  * that require the data tiers allocation decider logic.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -49,7 +50,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, ShardsAvailabilityPlugin.class);
     }
 
     /**
@@ -170,7 +171,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName).setSource("field", "value");
+            builders[i] = prepareIndex(indexName).setSource("field", "value");
         }
         // we want to test both full divergent copies of the shard in terms of segments, and
         // a case where they are the same (using sync flush), index Random does all this goodness

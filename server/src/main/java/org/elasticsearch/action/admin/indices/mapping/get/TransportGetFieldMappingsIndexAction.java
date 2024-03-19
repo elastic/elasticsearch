@@ -50,7 +50,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     GetFieldMappingsResponse> {
 
     private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "[index]";
-    public static final ActionType<GetFieldMappingsResponse> TYPE = new ActionType<>(ACTION_NAME, GetFieldMappingsResponse::new);
+    public static final ActionType<GetFieldMappingsResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     protected final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -72,7 +72,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             actionFilters,
             indexNameExpressionResolver,
             GetFieldMappingsIndexRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;

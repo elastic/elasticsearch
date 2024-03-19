@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -33,14 +34,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfoUpdate;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -65,8 +67,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ASSIGNMENT_TASK_TYPE;
+import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODE_IS_SHUTTING_DOWN;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
-import static org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentUtils.NODE_IS_SHUTTING_DOWN;
 
 public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
@@ -217,8 +219,16 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     logger.debug(() -> "[" + deploymentId + "] Start deployment failed as model [" + modelId + "] was not found", ex);
                     handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(modelId, ex));
                 } else if (ExceptionsHelper.unwrapCause(ex) instanceof SearchPhaseExecutionException) {
+                    /*
+                     * This case will not catch the ElasticsearchException generated from the ChunkedTrainedModelRestorer in a scenario
+                     * where the maximum number of retries for a SearchPhaseExecutionException or CBE occur. This is intentional. If the
+                     * retry logic fails after retrying we should return the error and not retry here. The generated
+                     * ElasticsearchException will contain the SearchPhaseExecutionException or CBE but cannot be unwrapped.
+                     */
                     logger.debug(() -> "[" + deploymentId + "] Start deployment failed, will retry", ex);
                     // A search phase execution failure should be retried, push task back to the queue
+
+                    // This will cause the entire model to be reloaded (all the chunks)
                     loadingToRetry.add(loadingTask);
                 } else {
                     handleLoadFailure(loadingTask, ex);
@@ -281,10 +291,12 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
+        boolean chunkResponse,
         ActionListener<InferenceResults> listener
     ) {
-        deploymentManager.infer(task, config, input, skipQueue, timeout, parentActionTask, listener);
+        deploymentManager.infer(task, config, input, skipQueue, timeout, prefixType, parentActionTask, chunkResponse, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {
@@ -359,13 +371,21 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                     }
 
                     if (shouldLoadModel(routingInfo, trainedModelAssignment.getDeploymentId(), isResetMode)) {
-                        prepareModelToLoad(
-                            createStartTrainedModelDeploymentTaskParams(trainedModelAssignment, routingInfo.getCurrentAllocations())
+                        StartTrainedModelDeploymentAction.TaskParams params = createStartTrainedModelDeploymentTaskParams(
+                            trainedModelAssignment,
+                            routingInfo.getCurrentAllocations()
                         );
+                        // Loading the model is done by a separate task, so needs a new trace context
+                        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+                            prepareModelToLoad(params);
+                        }
                     }
                 }
 
-                if (isAssignmentOnShuttingDownNode(routingInfo, trainedModelAssignment.getDeploymentId(), shuttingDownNodes, currentNode)) {
+                /*
+                 * Check if this is a shutting down node and if we can gracefully shut down the native process after draining its queues
+                 */
+                if (shouldGracefullyShutdownDeployment(trainedModelAssignment, shuttingDownNodes, currentNode)) {
                     gracefullyStopDeployment(trainedModelAssignment.getDeploymentId(), currentNode);
                 }
             } else {
@@ -432,15 +452,48 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         );
     }
 
-    private boolean isAssignmentOnShuttingDownNode(
-        RoutingInfo routingInfo,
-        String deploymentId,
+    private boolean shouldGracefullyShutdownDeployment(
+        TrainedModelAssignment trainedModelAssignment,
         Set<String> shuttingDownNodes,
         String currentNode
     ) {
-        return deploymentIdToTask.containsKey(deploymentId)
-            && routingInfo.getState() == RoutingState.STOPPING
-            && shuttingDownNodes.contains(currentNode);
+        RoutingInfo routingInfo = trainedModelAssignment.getNodeRoutingTable().get(currentNode);
+
+        if (routingInfo == null) {
+            return true;
+        }
+
+        boolean isCurrentNodeShuttingDown = shuttingDownNodes.contains(currentNode);
+        boolean isRouteStopping = routingInfo.getState() == RoutingState.STOPPING;
+        boolean hasDeploymentTask = deploymentIdToTask.containsKey(trainedModelAssignment.getDeploymentId());
+        boolean hasStartedRoutes = trainedModelAssignment.hasStartedRoutes();
+        boolean assignmentIsRoutedToOneOrFewerNodes = trainedModelAssignment.getNodeRoutingTable().size() <= 1;
+
+        // To avoid spamming the logs we'll only print these if we meet the base criteria
+        if (isCurrentNodeShuttingDown && isRouteStopping && hasDeploymentTask) {
+            logger.debug(
+                () -> format(
+                    "[%s] Checking if deployment can be gracefully shutdown on node %s, "
+                        + "has other started routes: %s, "
+                        + "single or no routed nodes: %s",
+                    trainedModelAssignment.getDeploymentId(),
+                    currentNode,
+                    hasStartedRoutes,
+                    assignmentIsRoutedToOneOrFewerNodes
+                )
+            );
+        }
+
+        // the current node is shutting down
+        return isCurrentNodeShuttingDown
+            // the route is marked as ready to shut down during a rebalance
+            && isRouteStopping
+            // the deployment wasn't already being stopped by a stop deployment API call
+            && hasDeploymentTask
+            // the assignment has another allocation that can serve any additional requests or the shutting down node is the only node that
+            // serves this model (maybe the other available nodes are already full or no other ML nodes exist) in which case we can't wait
+            // for another node to become available so allow a graceful shutdown
+            && (hasStartedRoutes || assignmentIsRoutedToOneOrFewerNodes);
     }
 
     private void gracefullyStopDeployment(String deploymentId, String currentNode) {
@@ -595,7 +648,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         }
     }
 
-    private boolean hasStartingAssignments(TrainedModelAssignment assignment) {
+    private static boolean hasStartingAssignments(TrainedModelAssignment assignment) {
         return assignment.getNodeRoutingTable()
             .values()
             .stream()

@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -50,7 +50,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotsInProgressSerializationTests;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
@@ -63,6 +62,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
@@ -79,8 +79,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(discoveryNodes)
-            .putTransportVersion("master", TransportVersionUtils.randomVersion(random()))
-            .putTransportVersion("other", TransportVersionUtils.randomVersion(random()))
+            .putCompatibilityVersions("master", CompatibilityVersionsUtils.fakeSystemIndicesRandom())
+            .putCompatibilityVersions("other", CompatibilityVersionsUtils.fakeSystemIndicesRandom())
             .build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(
             ClusterState.Builder.toBytes(clusterState),
@@ -238,7 +238,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 versions.remove(nodeId);
                 if (randomBoolean()) {
                     nodes.add(randomNode(nodeId));
-                    versions.put(nodeId, new CompatibilityVersions(TransportVersionUtils.randomVersion(random())));
+                    versions.put(nodeId, CompatibilityVersionsUtils.fakeSystemIndicesRandom());
                 }
             }
         }
@@ -246,10 +246,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < additionalNodeCount; i++) {
             String id = "node-" + randomAlphaOfLength(10);
             nodes.add(randomNode(id));
-            versions.put(id, new CompatibilityVersions(TransportVersionUtils.randomVersion(random())));
+            versions.put(id, CompatibilityVersionsUtils.fakeSystemIndicesRandom());
         }
 
-        return ClusterState.builder(clusterState).nodes(nodes).compatibilityVersions(versions);
+        return ClusterState.builder(clusterState).nodes(nodes).nodeIdsToCompatibilityVersions(versions);
     }
 
     /**
@@ -304,7 +304,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 }
                 String nodeId = randomFrom(availableNodeIds);
                 availableNodeIds.remove(nodeId);
-                indexShard.addShard(TestShardRouting.newShardRouting(index, i, nodeId, null, j == 0, newState, unassignedInfo));
+                indexShard.addShard(shardRoutingBuilder(index, i, nodeId, j == 0, newState).withUnassignedInfo(unassignedInfo).build());
             }
             builder.addIndexShard(indexShard);
         }

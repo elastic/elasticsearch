@@ -394,6 +394,176 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(field.getValues().size(), equalTo(2));
     }
 
+    public void testGeopointArrayInObject() throws IOException {
+        MapperService mapperService = createMapperService();
+        {
+            String source = """
+                {
+                    "object" : [
+                        {
+                            "geo_point_in_obj" : [
+                                {"lat" : 42.0, "lon" : 27.1},
+                                [2.1, 41.0]
+                            ]
+                        }
+                    ]
+                }
+                """;
+
+            Map<String, DocumentField> fields = fetchFields(
+                mapperService,
+                source,
+                fieldAndFormatList("object.geo_point_in_obj", null, false)
+            );
+            assertThat(fields.size(), equalTo(1));
+
+            DocumentField field = fields.get("object.geo_point_in_obj");
+            assertNotNull(field);
+            List<Object> values = field.getValues();
+            assertThat(values.size(), equalTo(2));
+            assertPoint((Map<?, ?>) values.get(0), 42.0, 27.1);
+            assertPoint((Map<?, ?>) values.get(1), 41.0, 2.1);
+        }
+        {
+            // check the same without the root field as array
+            String source = """
+                {
+                    "object" : {
+                        "geo_point_in_obj" : [
+                            {"lat" : 42.0, "lon" : 27.1},
+                            [2.1, 41.0]
+                        ]
+                    }
+                }
+                """;
+
+            Map<String, DocumentField> fields = fetchFields(
+                mapperService,
+                source,
+                fieldAndFormatList("object.geo_point_in_obj", null, false)
+            );
+            assertThat(fields.size(), equalTo(1));
+
+            DocumentField field = fields.get("object.geo_point_in_obj");
+            assertNotNull(field);
+            List<Object> values = field.getValues();
+            assertThat(values.size(), equalTo(2));
+            assertPoint((Map<?, ?>) values.get(0), 42.0, 27.1);
+            assertPoint((Map<?, ?>) values.get(1), 41.0, 2.1);
+        }
+    }
+
+    private void assertPoint(Map<?, ?> pointMap, double lat, double lon) {
+        assertEquals("Point", pointMap.get("type"));
+        assertEquals(List.of(lon, lat), pointMap.get("coordinates"));
+    }
+
+    public void testDenseVectorInObject() throws IOException {
+        MapperService mapperService = createMapperService();
+        {
+            String source = """
+                {
+                    "object" : [
+                        {
+                            "dense_vector_in_obj" : [ 1, 2, 3]
+                        }
+                    ]
+                }
+                """;
+
+            Map<String, DocumentField> fields = fetchFields(
+                mapperService,
+                source,
+                fieldAndFormatList("object.dense_vector_in_obj", null, false)
+            );
+            assertThat(fields.size(), equalTo(1));
+
+            DocumentField field = fields.get("object.dense_vector_in_obj");
+            assertNotNull(field);
+            List<Object> values = field.getValues();
+            assertThat(field.getValues().size(), equalTo(3));
+        }
+        {
+            // check the same without the root field as array
+            String source = """
+                {
+                    "object" : {
+                        "dense_vector_in_obj" : [ 1, 2, 3]
+                    }
+                }
+                """;
+
+            Map<String, DocumentField> fields = fetchFields(
+                mapperService,
+                source,
+                fieldAndFormatList("object.dense_vector_in_obj", null, false)
+            );
+            assertThat(fields.size(), equalTo(1));
+
+            DocumentField field = fields.get("object.dense_vector_in_obj");
+            assertNotNull(field);
+            List<Object> values = field.getValues();
+            assertThat(values.size(), equalTo(3));
+        }
+    }
+
+    public void testKeywordArrayInObject() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        String source = """
+            {
+                "object" : [
+                    {
+                        "field" : [ "foo", "bar"]
+                    }
+                ]
+            }
+            """;
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("object.field", null, false));
+        assertThat(fields.size(), equalTo(1));
+
+        DocumentField field = fields.get("object.field");
+        assertNotNull(field);
+        assertThat(field.getValues().size(), equalTo(2));
+
+        source = """
+            {
+                "object" : {
+                    "field" : [ "foo", "bar", "baz"]
+                }
+            }
+            """;
+
+        fields = fetchFields(mapperService, source, fieldAndFormatList("object.field", null, false));
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("object.field");
+        assertNotNull(field);
+        assertThat(field.getValues().size(), equalTo(3));
+
+        // mixing array and singleton object on two separate paths
+        source = """
+            {
+                "object" : [
+                    {
+                        "field" : "foo"
+                    },
+                    {
+                        "field" : [ "bar", "baz"]
+                    }
+                ]
+            }
+            """;
+
+        fields = fetchFields(mapperService, source, fieldAndFormatList("object.field", null, false));
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("object.field");
+        assertNotNull(field);
+        assertThat(field.getValues(), containsInAnyOrder("foo", "bar", "baz"));
+    }
+
     public void testFieldNamesWithWildcard() throws IOException {
         MapperService mapperService = createMapperService();
         XContentBuilder source = XContentFactory.jsonBuilder()
@@ -999,7 +1169,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             """;
 
         var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        SearchHit searchHit = new SearchHit(0);
+        SearchHit searchHit = SearchHit.unpooled(0);
         searchHit.addDocumentFields(results, Map.of());
         assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
     }
@@ -1466,6 +1636,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .startObject("properties")
             .startObject("field")
             .field("type", "keyword")
+            .endObject()
+            .startObject("geo_point_in_obj")
+            .field("type", "geo_point")
+            .endObject()
+            .startObject("dense_vector_in_obj")
+            .field("type", "dense_vector")
+            .field("dims", 3)
             .endObject()
             .endObject()
             .endObject()

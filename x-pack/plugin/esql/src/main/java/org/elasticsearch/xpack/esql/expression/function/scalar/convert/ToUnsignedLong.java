@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -17,7 +19,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -26,6 +27,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
@@ -33,30 +35,27 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 
 public class ToUnsignedLong extends AbstractConvertFunction {
 
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(
-            UNSIGNED_LONG,
-            (fieldEval, source) -> fieldEval,
-            DATETIME,
-            ToUnsignedLongFromLongEvaluator::new,
-            BOOLEAN,
-            ToUnsignedLongFromBooleanEvaluator::new,
-            KEYWORD,
-            ToUnsignedLongFromStringEvaluator::new,
-            DOUBLE,
-            ToUnsignedLongFromDoubleEvaluator::new,
-            LONG,
-            ToUnsignedLongFromLongEvaluator::new,
-            INTEGER,
-            ToUnsignedLongFromIntEvaluator::new
-        );
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(UNSIGNED_LONG, (fieldEval, source) -> fieldEval),
+        Map.entry(DATETIME, ToUnsignedLongFromLongEvaluator.Factory::new),
+        Map.entry(BOOLEAN, ToUnsignedLongFromBooleanEvaluator.Factory::new),
+        Map.entry(KEYWORD, ToUnsignedLongFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToUnsignedLongFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToUnsignedLongFromDoubleEvaluator.Factory::new),
+        Map.entry(LONG, ToUnsignedLongFromLongEvaluator.Factory::new),
+        Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
+    );
 
-    public ToUnsignedLong(Source source, Expression field) {
+    @FunctionInfo(returnType = "unsigned_long", description = "Converts an input value to an unsigned long value.")
+    public ToUnsignedLong(
+        Source source,
+        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+    ) {
         super(source, field);
     }
 
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 
@@ -80,23 +79,23 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         return bool ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
     }
 
-    @ConvertEvaluator(extraName = "FromString")
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class, NumberFormatException.class })
     static long fromKeyword(BytesRef in) {
         String asString = in.utf8ToString();
         return asLongUnsigned(safeToUnsignedLong(asString));
     }
 
-    @ConvertEvaluator(extraName = "FromDouble")
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })
     static long fromDouble(double dbl) {
         return asLongUnsigned(safeToUnsignedLong(dbl));
     }
 
-    @ConvertEvaluator(extraName = "FromLong")
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { InvalidArgumentException.class })
     static long fromLong(long lng) {
         return asLongUnsigned(safeToUnsignedLong(lng));
     }
 
-    @ConvertEvaluator(extraName = "FromInt")
+    @ConvertEvaluator(extraName = "FromInt", warnExceptions = { InvalidArgumentException.class })
     static long fromInt(int i) {
         return fromLong(i);
     }

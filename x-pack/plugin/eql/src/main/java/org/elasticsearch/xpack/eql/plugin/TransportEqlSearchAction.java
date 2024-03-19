@@ -61,7 +61,7 @@ import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexNam
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 
-public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
+public final class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRequest, EqlSearchResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> {
 
@@ -85,7 +85,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         Client client,
         BigArrays bigArrays
     ) {
-        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
+        super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -210,7 +210,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
                         r -> listener.onResponse(qualifyHits(r, clusterAlias)),
                         e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
                     ),
-                    EqlSearchAction.INSTANCE.getResponseReader(),
+                    EqlSearchResponse::new,
                     TransportResponseHandler.TRANSPORT_WORKER
                 )
             );

@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -31,10 +32,12 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.Collections;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
@@ -57,9 +60,9 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             }
         };
 
-        @SuppressWarnings("unchecked")
         ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L) {
             @Override
+            @SuppressWarnings("unchecked")
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(context, AnalysisPredicateScript.CONTEXT);
                 assertEquals(new Script("my_script"), script);
@@ -67,8 +70,13 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             }
         };
         Client client = new MockClient(Settings.EMPTY, null);
+
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        plugin.createComponents(client, null, null, null, scriptService, null, null, null, null, null, null, Tracer.NOOP, null, null);
+        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
+        when(services.client()).thenReturn(client);
+        when(services.scriptService()).thenReturn(scriptService);
+        plugin.createComponents(services);
+
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(plugin),
@@ -84,13 +92,10 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
 
     }
 
-    private class MockClient extends AbstractClient {
+    private static class MockClient extends AbstractClient {
         MockClient(Settings settings, ThreadPool threadPool) {
             super(settings, threadPool);
         }
-
-        @Override
-        public void close() {}
 
         @Override
         protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

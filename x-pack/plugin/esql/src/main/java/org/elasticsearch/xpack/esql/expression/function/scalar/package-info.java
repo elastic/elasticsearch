@@ -40,7 +40,7 @@
  *     <li>
  *         Run the csv tests (see {@code x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/CsvTests.java})
  *         from within Intellij or, alternatively, via Gradle:
- *         {@code ./gradlew -p x-pack/plugin/esql test --tests "org.elasticsearch.xpack.esql.CsvTests"}
+ *         {@code ./gradlew :x-pack:plugin:esql:test --tests "org.elasticsearch.xpack.esql.CsvTests"}
  *         IntelliJ will take a few minutes to compile everything but the test itself should take only a few seconds.
  *         This is a fast path to running ESQL's integration tests.
  *     </li>
@@ -61,9 +61,11 @@
  *     <li>
  *         There are also methods annotated with {@link org.elasticsearch.compute.ann.Evaluator}
  *         that contain the actual inner implementation of the function. Modify those to look right
- *         and click {@code Build->Recompile 'FunctionName.java'} in IntelliJ. This should generate
- *         an {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator} implementation
- *         calling the method annotated with {@link org.elasticsearch.compute.ann.Evaluator}.
+ *         and click {@code Build->Recompile 'FunctionName.java'} in IntelliJ or run the
+ *         {@code CsvTests} again. This should generate an
+ *         {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator} implementation
+ *         calling the method annotated with {@link org.elasticsearch.compute.ann.Evaluator}. Please commit the
+ *         generated evaluator before submitting your PR.
  *     <li>
  *         Once your evaluator is generated you can implement
  *         {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper#toEvaluator},
@@ -98,7 +100,7 @@
  *         {@code ./gradlew -p x-pack/plugin/esql/ check}
  *     </li>
  *     <li>
- *         Now it's time to write some docs! Open {@code docs/reference/esql/esql-functions.asciidoc}
+ *         Now it's time to write some docs! Open {@code docs/reference/esql/esql-functions-operators.asciidoc}
  *         and add your function in alphabetical order to the list at the top and then add it to
  *         the includes below.
  *     </li>
@@ -129,13 +131,14 @@
  *         {@code docs/reference/esql/functions/signature/myfunction.svg }
  *         and here
  *         {@code docs/reference/esql/functions/types/myfunction.asciidoc}
- *         Make sure to commit them and reference them in your doc file.
+ *         Make sure to commit them and reference them in your doc file. There are plenty of examples on how
+ *         to reference those files e.g. {@code docs/reference/esql/functions/sin.asciidoc}.
  *     </li>
  *     <li>
  *          Build the docs by cloning the <a href="https://github.com/elastic/docs">docs repo</a>
  *          and running:
  *          <pre>{@code
- * ../docs/build_docs --doc docs/reference/index.asciidoc --resource x-pack/docs/ --open --chunk 1
+ * ../docs/build_docs --doc docs/reference/index.asciidoc --open --chunk 1
  *          }</pre>
  *          from the elasticsearch directory. The first time you run the docs build it does a bunch
  *          of things with docker to get itself ready. Hopefully you can sit back and watch the show.

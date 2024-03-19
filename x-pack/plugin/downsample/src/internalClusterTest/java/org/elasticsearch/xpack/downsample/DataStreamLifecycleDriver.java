@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -37,6 +37,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -62,10 +64,17 @@ public class DataStreamLifecycleDriver {
     public static final String FIELD_DIMENSION_2 = "dimension_long";
     public static final String FIELD_METRIC_COUNTER = "counter";
 
-    public static int setupDataStreamAndIngestDocs(Client client, String dataStreamName, DataStreamLifecycle lifecycle, int docCount)
-        throws IOException {
-        putTSDBIndexTemplate(client, dataStreamName + "*", lifecycle);
-        return indexDocuments(client, dataStreamName, docCount);
+    public static int setupTSDBDataStreamAndIngestDocs(
+        Client client,
+        String dataStreamName,
+        @Nullable String startTime,
+        @Nullable String endTime,
+        DataStreamLifecycle lifecycle,
+        int docCount,
+        String firstDocTimestamp
+    ) throws IOException {
+        putTSDBIndexTemplate(client, dataStreamName + "*", startTime, endTime, lifecycle);
+        return indexDocuments(client, dataStreamName, docCount, firstDocTimestamp);
     }
 
     public static List<String> getBackingIndices(Client client, String dataStreamName) {
@@ -76,9 +85,23 @@ public class DataStreamLifecycleDriver {
         return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
     }
 
-    private static void putTSDBIndexTemplate(Client client, String pattern, DataStreamLifecycle lifecycle) throws IOException {
+    public static void putTSDBIndexTemplate(
+        Client client,
+        String pattern,
+        @Nullable String startTime,
+        @Nullable String endTime,
+        DataStreamLifecycle lifecycle
+    ) throws IOException {
         Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
+
+        if (Strings.hasText(startTime)) {
+            settings.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime);
+        }
+
+        if (Strings.hasText(endTime)) {
+            settings.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime);
+        }
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
         mapping.startObject(FIELD_TIMESTAMP).field("type", "date").endObject();
@@ -113,25 +136,22 @@ public class DataStreamLifecycleDriver {
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate(
-                patterns,
-                new Template(settings, mappings == null ? null : mappings, null, lifecycle),
-                null,
-                null,
-                null,
-                metadata,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(new Template(settings, mappings == null ? null : mappings, null, lifecycle))
+                .metadata(metadata)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
-        client.execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client.execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
-    private static int indexDocuments(Client client, String dataStreamName, int docCount) {
+    private static int indexDocuments(Client client, String dataStreamName, int docCount, String firstDocTimestamp) {
         final Supplier<XContentBuilder> sourceSupplier = () -> {
-            final String ts = randomDateForInterval(new DateHistogramInterval("1s"), System.currentTimeMillis());
+            long startTime = LocalDateTime.parse(firstDocTimestamp).atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();
+            final String ts = randomDateForInterval(new DateHistogramInterval("1s"), startTime);
             double counterValue = DATE_FORMATTER.parseMillis(ts);
             final List<String> dimensionValues = new ArrayList<>(5);
             for (int j = 0; j < randomIntBetween(1, 5); j++) {

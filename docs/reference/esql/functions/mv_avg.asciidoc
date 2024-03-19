@@ -1,7 +1,29 @@
+[discrete]
 [[esql-mv_avg]]
 === `MV_AVG`
-Converts a multivalued field into a single valued field containing the average
-of all of the values. For example:
+
+*Syntax*
+
+[source,esql]
+----
+MV_AVG(expression)
+----
+
+*Parameters*
+
+`expression`::
+Multivalue expression.
+
+*Description*
+
+Converts a multivalued expression into a single valued column containing the
+average of all of the values.
+
+*Supported types*
+
+include::types/mv_avg.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -11,6 +33,3 @@ include::{esql-specs}/math.csv-spec[tag=mv_avg]
 |===
 include::{esql-specs}/math.csv-spec[tag=mv_avg-result]
 |===
-
-
-NOTE: The output type is always a `double` and the input type can be any number.

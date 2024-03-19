@@ -220,3 +220,29 @@ teardown:
         index: test_index
         id: 1
   - match: { _source:  { my_field: "upper" } }
+
+---
+"Test bulk request with list_executed_pipelines":
+
+  - do:
+      bulk:
+        list_executed_pipelines: true
+        body:
+          - index:
+              _index: test_index
+              _id:    test_id1
+              pipeline: pipeline1
+          - f1: v1
+          - index:
+              _index: test_index
+              _id:    test_id2
+          - f1: v2
+          - index:
+              _index: test_index
+              _id:    test_id2
+              pipeline: fake_pipeline
+          - f1: v2
+
+  - match: { items.0.index.executed_pipelines: ["pipeline1"] }
+  - match: { items.1.index.executed_pipelines: [] }
+  - match: { items.2.index.executed_pipelines: null }

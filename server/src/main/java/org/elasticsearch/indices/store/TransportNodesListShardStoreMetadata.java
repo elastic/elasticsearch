@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -63,7 +64,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     private static final Logger logger = LogManager.getLogger(TransportNodesListShardStoreMetadata.class);
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
-    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesStoreFilesMetadata::new);
+    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Settings settings;
     private final IndicesService indicesService;
@@ -81,13 +82,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     ) {
         super(
             ACTION_NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            Request::new,
             NodeRequest::new,
-            ThreadPool.Names.FETCH_SHARD_STORE
+            threadPool.executor(ThreadPool.Names.FETCH_SHARD_STORE)
         );
         this.settings = settings;
         this.indicesService = indicesService;
@@ -283,12 +282,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         @Nullable
         private final String customDataPath;
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            shardId = new ShardId(in);
-            customDataPath = in.readString();
-        }
-
         public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
             super(nodes);
             this.shardId = Objects.requireNonNull(shardId);
@@ -311,17 +304,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            shardId.writeTo(out);
-            out.writeString(customDataPath);
+            TransportAction.localOnly();
         }
     }
 
     public static class NodesStoreFilesMetadata extends BaseNodesResponse<NodeStoreFilesMetadata> {
-
-        public NodesStoreFilesMetadata(StreamInput in) throws IOException {
-            super(in);
-        }
 
         public NodesStoreFilesMetadata(ClusterName clusterName, List<NodeStoreFilesMetadata> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
@@ -329,12 +316,12 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         protected List<NodeStoreFilesMetadata> readNodesFrom(StreamInput in) throws IOException {
-            return in.readCollectionAsList(NodeStoreFilesMetadata::readListShardStoreNodeOperationResponse);
+            return TransportAction.localOnly();
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeStoreFilesMetadata> nodes) throws IOException {
-            out.writeCollection(nodes);
+            TransportAction.localOnly();
         }
     }
 

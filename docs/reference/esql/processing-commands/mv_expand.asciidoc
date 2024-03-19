@@ -1,7 +1,25 @@
+[discrete]
 [[esql-mv_expand]]
 === `MV_EXPAND`
 
-The `MV_EXPAND` processing command expands multivalued fields into one row per value, duplicating other fields:
+**Syntax**
+
+[source,esql]
+----
+MV_EXPAND column
+----
+
+*Parameters*
+
+`column`::
+The multivalued column to expand.
+
+*Description*
+
+The `MV_EXPAND` processing command expands multivalued columns into one row per
+value, duplicating other columns.
+
+*Example*
 
 [source.merge.styled,esql]
 ----

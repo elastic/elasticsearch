@@ -30,6 +30,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -1236,10 +1237,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             .get()
             .getExplanation();
         if (logger.isDebugEnabled()) {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.prettyPrint();
-            builder.humanReadable(true);
-            logger.debug("--> explain json output: \n{}", Strings.toString(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS)));
+            logger.debug("--> explain json output: \n{}", Strings.toString(explanation, true, true));
         }
         return explanation;
     }
@@ -1261,7 +1259,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("idx")
                 .setSettings(indexSettings(numPrimaries, numReplicas).put(settings))
                 .setWaitForActiveShards(activeShardCount)
-                .get()
         );
 
         if (activeShardCount != ActiveShardCount.NONE) {
@@ -1304,7 +1301,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
     private XContentParser getParser(ClusterAllocationExplanation explanation) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        return createParser(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS));
+        return createParser(ChunkedToXContent.wrapAsToXContent(explanation).toXContent(builder, ToXContent.EMPTY_PARAMS));
     }
 
     private void verifyShardInfo(XContentParser parser, boolean primary, boolean includeDiskInfo, ShardRoutingState state)

@@ -62,14 +62,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(240);
 
     /**
-     * The ELSER model turned out to use more memory then what we usually estimate.
-     * We overwrite the estimate with this static value for ELSER V1 for now. Soon to be
-     * replaced with a better estimate provided by the model.
+     * The ELSER model turned out to use more memory than what we usually estimate.
+     * We overwrite the estimate with this static value for ELSER v1 and v2 for now.
+     * Soon to be replaced with a better estimate provided by the model.
      */
-    private static final ByteSizeValue ELSER_1_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
+    private static final ByteSizeValue ELSER_1_OR_2_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
 
     public StartTrainedModelDeploymentAction() {
-        super(NAME, CreateTrainedModelAssignmentAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -374,8 +374,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         // TODO add support for other roles? If so, it may have to be an instance method...
         // NOTE, whatever determines assignment should not be dynamically set on the node
         // Otherwise assignment logic might fail
-        public static boolean mayAssignToNode(DiscoveryNode node) {
-            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && MlConfigVersion.fromNode(node).onOrAfter(VERSION_INTRODUCED);
+        public static boolean mayAssignToNode(@Nullable DiscoveryNode node) {
+            return node != null
+                && node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)
+                && MlConfigVersion.fromNode(node).onOrAfter(VERSION_INTRODUCED);
         }
 
         public static final MlConfigVersion VERSION_INTRODUCED = MlConfigVersion.V_8_0_0;
@@ -713,14 +715,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     ) {
         // While loading the model in the process we need twice the model size.
 
-        // 1. If ELSER v1 then 2004MB
+        // 1. If ELSER v1 or v2 then 2004MB
         // 2. If static memory and dynamic memory are not set then 240MB + 2 * model size
         // 3. Else static memory + dynamic memory * allocations + model size
 
         // The model size is still added in option 3 to account for the temporary requirement to hold the zip file in memory
-        // in `pytorch_inference`.
-        if (isElserV1Model(modelId)) {
-            return ELSER_1_MEMORY_USAGE.getBytes();
+        // in `pytorch_inference`.
+        if (isElserV1Or2Model(modelId)) {
+            return ELSER_1_OR_2_MEMORY_USAGE.getBytes();
         } else {
             long baseSize = MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
             if (perDeploymentMemoryBytes == 0 && perAllocationMemoryBytes == 0) {
@@ -734,7 +736,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
     }
 
-    private static boolean isElserV1Model(String modelId) {
-        return modelId.startsWith(".elser_model_1");
+    private static boolean isElserV1Or2Model(String modelId) {
+        return modelId.startsWith(".elser_model_1") || modelId.startsWith(".elser_model_2");
     }
 }

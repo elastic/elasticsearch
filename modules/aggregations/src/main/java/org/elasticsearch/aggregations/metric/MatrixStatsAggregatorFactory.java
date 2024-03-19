@@ -9,7 +9,7 @@ package org.elasticsearch.aggregations.metric;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -53,9 +53,7 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
         Map<String, ValuesSource.Numeric> typedValuesSources = Maps.newMapWithExpectedSize(valuesSources.size());
         for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {
             if (entry.getValue() instanceof ValuesSource.Numeric == false) {
-                throw new AggregationExecutionException(
-                    "ValuesSource type [" + entry.getValue().toString() + "] is not supported for aggregation [" + this.name() + "]"
-                );
+                throw AggregationErrors.unsupportedValuesSourceType(entry.getValue(), this.name());
             }
             // TODO: There must be a better option than this.
             typedValuesSources.put(entry.getKey(), (ValuesSource.Numeric) entry.getValue());

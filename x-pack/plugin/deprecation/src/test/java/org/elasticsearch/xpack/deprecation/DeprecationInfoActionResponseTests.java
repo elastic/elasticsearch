@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -97,11 +98,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             )
             .build();
 
-        DiscoveryNode discoveryNode = DiscoveryNode.createLocal(
-            Settings.EMPTY,
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            "test"
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("test", new TransportAddress(TransportAddress.META_ADDRESS, 9300));
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         boolean clusterIssueFound = randomBoolean();
@@ -176,28 +173,18 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             )
             .build();
 
-        DiscoveryNode node1 = new DiscoveryNode(
-            "node1",
-            "nodeId1",
-            "ephemeralId1",
-            "hostName1",
-            "hostAddress1",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            null
-        );
-        DiscoveryNode node2 = new DiscoveryNode(
-            "node2",
-            "nodeId2",
-            "ephemeralId2",
-            "hostName2",
-            "hostAddress2",
-            new TransportAddress(TransportAddress.META_ADDRESS, 9500),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            null
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("nodeId1")
+            .name("node1")
+            .ephemeralId("ephemeralId1")
+            .address("hostName1", "hostAddress1", new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .roles(Collections.emptySet())
+            .build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("nodeId2")
+            .name("node2")
+            .ephemeralId("ephemeralId2")
+            .address("hostName2", "hostAddress2", new TransportAddress(TransportAddress.META_ADDRESS, 9500))
+            .roles(Collections.emptySet())
+            .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         Map<String, Object> metaMap1 = DeprecationIssue.createMetaMapForRemovableSettings(

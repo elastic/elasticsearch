@@ -76,7 +76,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -209,7 +209,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
         client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {
             if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
-                // We haven't yet created the index for the task results so it can't be found.
+                // We haven't yet created the index for the task results, so it can't be found.
                 listener.onFailure(
                     new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e, request.getTaskId())
                 );

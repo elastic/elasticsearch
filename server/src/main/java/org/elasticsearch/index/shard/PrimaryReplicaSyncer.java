@@ -238,7 +238,6 @@ public class PrimaryReplicaSyncer {
     }
 
     static class SnapshotSender extends AbstractRunnable implements ActionListener<ResyncReplicationResponse> {
-        private final Logger logger;
         private final SyncAction syncAction;
         private final ResyncTask task; // to track progress
         private final String primaryAllocationId;
@@ -270,7 +269,6 @@ public class PrimaryReplicaSyncer {
             Executor executor,
             ActionListener<Void> listener
         ) {
-            this.logger = PrimaryReplicaSyncer.logger;
             this.syncAction = syncAction;
             this.task = task;
             this.shardId = shardId;
@@ -353,7 +351,7 @@ public class PrimaryReplicaSyncer {
                     maxSeenAutoIdTimestamp,
                     operations.toArray(EMPTY_ARRAY)
                 );
-                logger.trace(
+                PrimaryReplicaSyncer.logger.trace(
                     "{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])",
                     shardId,
                     operations.size(),
@@ -364,7 +362,12 @@ public class PrimaryReplicaSyncer {
                 firstMessage.set(false);
                 syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
             } else if (closed.compareAndSet(false, true)) {
-                logger.trace("{} resync completed (total sent: [{}], skipped: [{}])", shardId, totalSentOps.get(), totalSkippedOps.get());
+                PrimaryReplicaSyncer.logger.trace(
+                    "{} resync completed (total sent: [{}], skipped: [{}])",
+                    shardId,
+                    totalSentOps.get(),
+                    totalSkippedOps.get()
+                );
                 listener.onResponse(null);
             }
         }

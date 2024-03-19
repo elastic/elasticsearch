@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class PreAuthorizationUtilsTests extends ESTestCase {
 
     public void testMaybeSkipChildrenActionAuthorizationAddsParentAuthorizationHeader() {
-        String action = SearchAction.NAME;
+        String action = TransportSearchAction.TYPE.name();
 
         Role role = Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, "test-*").build();
 
@@ -64,7 +64,7 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testShouldRemoveParentAuthorizationFromThreadContext() {
-        final String parentAction = SearchAction.NAME;
+        final String parentAction = TransportSearchAction.TYPE.name();
         SecurityContext securityContextWithParentAuthorization = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
         securityContextWithParentAuthorization.setParentAuthorization(new ParentActionAuthorization(parentAction));
 
@@ -113,7 +113,7 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testShouldPreAuthorizeChildByParentAction() {
-        final String parentAction = SearchAction.NAME;
+        final String parentAction = TransportSearchAction.TYPE.name();
         final String childAction = randomWhitelistedChildAction(parentAction);
 
         ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(parentAction);
@@ -130,7 +130,7 @@ public class PreAuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testShouldPreAuthorizeChildByParentActionWhenParentAndChildAreSame() {
-        final String parentAction = SearchAction.NAME;
+        final String parentAction = TransportSearchAction.TYPE.name();
         final String childAction = parentAction;
 
         ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(parentAction);

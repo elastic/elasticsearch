@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -18,9 +17,11 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -35,7 +36,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
+import static java.util.Collections.emptyList;
+
+public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
     private final AggregateMapper aggregateMapper = new AggregateMapper();
 
@@ -67,7 +70,6 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 aggregates,
                 mode,
                 sourceLayout,
-                context.bigArrays(),
                 false, // non-grouping
                 s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
             );
@@ -123,8 +125,8 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
 
             if (mode == AggregateExec.Mode.FINAL) {
                 for (var agg : aggregates) {
-                    if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                        layout.append(alias);
+                    if (Alias.unwrap(agg) instanceof AggregateFunction) {
+                        layout.append(agg);
                     }
                 }
             } else {
@@ -136,7 +138,6 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 aggregates,
                 mode,
                 sourceLayout,
-                context.bigArrays(),
                 true, // grouping
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
             );
@@ -154,8 +155,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize()),
-                    context.bigArrays()
+                    context.pageSize(aggregateExec.estimatedRowSize())
                 );
             }
         }
@@ -221,7 +221,6 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         List<? extends NamedExpression> aggregates,
         AggregateExec.Mode mode,
         Layout layout,
-        BigArrays bigArrays,
         boolean grouping,
         Consumer<AggFunctionSupplierContext> consumer
     ) {
@@ -235,7 +234,30 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                     if (mode == AggregateExec.Mode.PARTIAL) {
                         aggMode = AggregatorMode.INITIAL;
                         // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
-                        sourceAttr = List.of(Expressions.attribute(aggregateFunction.field()));
+                        Expression field = aggregateFunction.field();
+                        // Only count can now support literals - all the other aggs should be optimized away
+                        if (field.foldable()) {
+                            if (aggregateFunction instanceof Count) {
+                                sourceAttr = emptyList();
+                            } else {
+                                throw new InvalidArgumentException(
+                                    "Does not support yet aggregations over constants - [{}]",
+                                    aggregateFunction.sourceText()
+                                );
+                            }
+                        } else {
+                            Attribute attr = Expressions.attribute(field);
+                            // cannot determine attribute
+                            if (attr == null) {
+                                throw new EsqlIllegalArgumentException(
+                                    "Cannot work with target field [{}] for agg [{}]",
+                                    field.sourceText(),
+                                    aggregateFunction.sourceText()
+                                );
+                            }
+                            sourceAttr = List.of(attr);
+                        }
+
                     } else if (mode == AggregateExec.Mode.FINAL) {
                         aggMode = AggregatorMode.FINAL;
                         if (grouping) {
@@ -253,9 +275,11 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                     }
 
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
-                    assert inputChannels != null && inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
+                    if (inputChannels.size() > 0) {
+                        assert inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
+                    }
                     if (aggregateFunction instanceof ToAggregator agg) {
-                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannels), aggMode));
+                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(inputChannels), aggMode));
                     } else {
                         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
                     }
@@ -273,7 +297,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         }
 
         ElementType elementType() {
-            return LocalExecutionPlanner.toElementType(attribute.dataType());
+            return PlannerUtils.toElementType(attribute.dataType());
         }
     }
 

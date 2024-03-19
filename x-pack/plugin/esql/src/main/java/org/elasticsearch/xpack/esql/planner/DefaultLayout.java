@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.xpack.ql.expression.NameId;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 class DefaultLayout implements Layout {
     private final Map<NameId, ChannelAndType> layout;
@@ -37,12 +37,22 @@ class DefaultLayout implements Layout {
     }
 
     @Override
-    public Map<Integer, Set<NameId>> inverse() {
-        Map<Integer, Set<NameId>> inverse = new HashMap<>();
+    public List<ChannelSet> inverse() {
+        List<ChannelSet> inverse = new ArrayList<>(numberOfChannels);
+        for (int i = 0; i < numberOfChannels; i++) {
+            inverse.add(null);
+        }
         for (Map.Entry<NameId, ChannelAndType> entry : layout.entrySet()) {
-            NameId key = entry.getKey();
-            Integer value = entry.getValue().channel();
-            inverse.computeIfAbsent(value, k -> new HashSet<>()).add(key);
+            ChannelSet set = inverse.get(entry.getValue().channel());
+            if (set == null) {
+                set = new ChannelSet(new HashSet<>(), entry.getValue().type());
+                inverse.set(entry.getValue().channel(), set);
+            } else {
+                if (set.type() != entry.getValue().type()) {
+                    throw new IllegalArgumentException();
+                }
+            }
+            set.nameIds().add(entry.getKey());
         }
         return inverse;
     }
@@ -52,11 +62,11 @@ class DefaultLayout implements Layout {
      */
     @Override
     public Layout.Builder builder() {
-        return new Builder(numberOfChannels, layout);
+        return new Builder(inverse());
     }
 
     @Override
     public String toString() {
-        return "Layout{" + "layout=" + layout + ", numberOfChannels=" + numberOfChannels + '}';
+        return "Layout{layout=" + layout + ", numberOfChannels=" + numberOfChannels + '}';
     }
 }

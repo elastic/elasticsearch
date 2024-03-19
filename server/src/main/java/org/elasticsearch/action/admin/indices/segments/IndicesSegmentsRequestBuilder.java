@@ -16,7 +16,7 @@ public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuil
     IndicesSegmentResponse,
     IndicesSegmentsRequestBuilder> {
 
-    public IndicesSegmentsRequestBuilder(ElasticsearchClient client, IndicesSegmentsAction action) {
-        super(client, action, new IndicesSegmentsRequest());
+    public IndicesSegmentsRequestBuilder(ElasticsearchClient client) {
+        super(client, IndicesSegmentsAction.INSTANCE, new IndicesSegmentsRequest());
     }
 }

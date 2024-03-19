@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ReferenceDocs;
@@ -237,12 +237,14 @@ public class LagDetector {
                             return;
                         }
 
+                        nodesHotThreadsResponse.mustIncRef();
                         loggingTaskRunner.enqueueTask(
                             new HotThreadsLoggingTask(
                                 discoveryNode,
                                 appliedVersion,
                                 expectedVersion,
-                                nodesHotThreadsResponse.getNodes().get(0).getHotThreads()
+                                nodesHotThreadsResponse.getNodes().get(0).getHotThreads(),
+                                Releasables.assertOnce(nodesHotThreadsResponse::decRef)
                             )
                         );
                     }
@@ -271,7 +273,7 @@ public class LagDetector {
                         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                             threadContext.markAsSystemContext();
                             client.execute(
-                                NodesHotThreadsAction.INSTANCE,
+                                TransportNodesHotThreadsAction.TYPE,
                                 new NodesHotThreadsRequest(discoveryNode).threads(500),
                                 ActionListener.runBefore(debugListener, () -> Releasables.close(releasable))
                             );
@@ -298,10 +300,18 @@ public class LagDetector {
     static class HotThreadsLoggingTask extends AbstractRunnable implements Comparable<HotThreadsLoggingTask> {
 
         private final String nodeHotThreads;
+        private final Releasable releasable;
         private final String prefix;
 
-        HotThreadsLoggingTask(DiscoveryNode discoveryNode, long appliedVersion, long expectedVersion, String nodeHotThreads) {
+        HotThreadsLoggingTask(
+            DiscoveryNode discoveryNode,
+            long appliedVersion,
+            long expectedVersion,
+            String nodeHotThreads,
+            Releasable releasable
+        ) {
             this.nodeHotThreads = nodeHotThreads;
+            this.releasable = releasable;
             this.prefix = Strings.format(
                 "hot threads from node [%s] lagging at version [%d] despite commit of cluster state version [%d]",
                 discoveryNode.descriptionWithoutAttributes(),
@@ -325,6 +335,11 @@ public class LagDetector {
             ) {
                 writer.write(nodeHotThreads);
             }
+        }
+
+        @Override
+        public void onAfter() {
+            Releasables.closeExpectNoException(releasable);
         }
 
         @Override

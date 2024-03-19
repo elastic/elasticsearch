@@ -7,23 +7,25 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.core.Releasables;
 
 import java.util.BitSet;
 import java.util.List;
-import java.util.stream.IntStream;
 
-public class DoubleBlockEqualityTests extends ESTestCase {
+public class DoubleBlockEqualityTests extends ComputeTestCase {
+
+    static final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
     public void testEmptyVector() {
         // all these "empty" vectors should be equivalent
         List<DoubleVector> vectors = List.of(
-            new DoubleArrayVector(new double[] {}, 0),
-            new DoubleArrayVector(new double[] { 0 }, 0),
-            DoubleBlock.newConstantBlockWith(0, 0).asVector(),
-            DoubleBlock.newConstantBlockWith(0, 0).filter().asVector(),
-            DoubleBlock.newBlockBuilder(0).build().asVector(),
-            DoubleBlock.newBlockBuilder(0).appendDouble(1).build().asVector().filter()
+            blockFactory.newDoubleArrayVector(new double[] {}, 0),
+            blockFactory.newDoubleArrayVector(new double[] { 0 }, 0),
+            blockFactory.newConstantDoubleVector(0, 0),
+            blockFactory.newConstantDoubleBlockWith(0, 0).filter().asVector(),
+            blockFactory.newDoubleBlockBuilder(0).build().asVector(),
+            blockFactory.newDoubleBlockBuilder(0).appendDouble(1).build().asVector().filter()
         );
         assertAllEquals(vectors);
     }
@@ -31,41 +33,42 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     public void testEmptyBlock() {
         // all these "empty" vectors should be equivalent
         List<DoubleBlock> blocks = List.of(
-            new DoubleArrayBlock(
+            blockFactory.newDoubleArrayBlock(
                 new double[] {},
                 0,
-                new int[] {},
+                new int[] { 0 },
                 BitSet.valueOf(new byte[] { 0b00 }),
                 randomFrom(Block.MvOrdering.values())
             ),
-            new DoubleArrayBlock(
+            blockFactory.newDoubleArrayBlock(
                 new double[] { 0 },
                 0,
-                new int[] {},
+                new int[] { 0 },
                 BitSet.valueOf(new byte[] { 0b00 }),
                 randomFrom(Block.MvOrdering.values())
             ),
-            DoubleBlock.newConstantBlockWith(0, 0),
-            DoubleBlock.newBlockBuilder(0).build(),
-            DoubleBlock.newBlockBuilder(0).appendDouble(1).build().filter(),
-            DoubleBlock.newBlockBuilder(0).appendNull().build().filter()
+            blockFactory.newConstantDoubleBlockWith(0, 0),
+            blockFactory.newDoubleBlockBuilder(0).build(),
+            blockFactory.newDoubleBlockBuilder(0).appendDouble(1).build().filter(),
+            blockFactory.newDoubleBlockBuilder(0).appendNull().build().filter()
         );
         assertAllEquals(blocks);
+        Releasables.close(blocks);
     }
 
     public void testVectorEquality() {
         // all these vectors should be equivalent
         List<DoubleVector> vectors = List.of(
-            new DoubleArrayVector(new double[] { 1, 2, 3 }, 3),
-            new DoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock().asVector(),
-            new DoubleArrayVector(new double[] { 1, 2, 3, 4 }, 3),
-            new DoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(0, 1, 2),
-            new DoubleArrayVector(new double[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2),
-            new DoubleArrayVector(new double[] { 0, 1, 2, 3 }, 4).filter(1, 2, 3),
-            new DoubleArrayVector(new double[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().asVector(),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().asVector().filter(0, 1, 2),
-            DoubleBlock.newBlockBuilder(3)
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock().asVector(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(0, 1, 2),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2),
+            blockFactory.newDoubleArrayVector(new double[] { 0, 1, 2, 3 }, 4).filter(1, 2, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 4, 2, 3 }, 4).filter(0, 2, 3),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().asVector(),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().asVector().filter(0, 1, 2),
+            blockFactory.newDoubleBlockBuilder(3)
                 .appendDouble(1)
                 .appendDouble(4)
                 .appendDouble(2)
@@ -73,7 +76,7 @@ public class DoubleBlockEqualityTests extends ESTestCase {
                 .build()
                 .filter(0, 2, 3)
                 .asVector(),
-            DoubleBlock.newBlockBuilder(3)
+            blockFactory.newDoubleBlockBuilder(3)
                 .appendDouble(1)
                 .appendDouble(4)
                 .appendDouble(2)
@@ -86,17 +89,17 @@ public class DoubleBlockEqualityTests extends ESTestCase {
 
         // all these constant-like vectors should be equivalent
         List<DoubleVector> moreVectors = List.of(
-            new DoubleArrayVector(new double[] { 1, 1, 1 }, 3),
-            new DoubleArrayVector(new double[] { 1, 1, 1 }, 3).asBlock().asVector(),
-            new DoubleArrayVector(new double[] { 1, 1, 1, 1 }, 3),
-            new DoubleArrayVector(new double[] { 1, 1, 1 }, 3).filter(0, 1, 2),
-            new DoubleArrayVector(new double[] { 1, 1, 1, 4 }, 4).filter(0, 1, 2),
-            new DoubleArrayVector(new double[] { 3, 1, 1, 1 }, 4).filter(1, 2, 3),
-            new DoubleArrayVector(new double[] { 1, 4, 1, 1 }, 4).filter(0, 2, 3),
-            DoubleBlock.newConstantBlockWith(1, 3).asVector(),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendDouble(1).appendDouble(1).build().asVector(),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendDouble(1).appendDouble(1).build().asVector().filter(0, 1, 2),
-            DoubleBlock.newBlockBuilder(3)
+            blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1 }, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1 }, 3).asBlock().asVector(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1, 1 }, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1 }, 3).filter(0, 1, 2),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 1, 1, 4 }, 4).filter(0, 1, 2),
+            blockFactory.newDoubleArrayVector(new double[] { 3, 1, 1, 1 }, 4).filter(1, 2, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 4, 1, 1 }, 4).filter(0, 2, 3),
+            blockFactory.newConstantDoubleBlockWith(1, 3).asVector(),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(1).appendDouble(1).build().asVector(),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(1).appendDouble(1).build().asVector().filter(0, 1, 2),
+            blockFactory.newDoubleBlockBuilder(3)
                 .appendDouble(1)
                 .appendDouble(4)
                 .appendDouble(1)
@@ -104,7 +107,7 @@ public class DoubleBlockEqualityTests extends ESTestCase {
                 .build()
                 .filter(0, 2, 3)
                 .asVector(),
-            DoubleBlock.newBlockBuilder(3)
+            blockFactory.newDoubleBlockBuilder(3)
                 .appendDouble(1)
                 .appendDouble(4)
                 .appendDouble(1)
@@ -119,58 +122,62 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     public void testBlockEquality() {
         // all these blocks should be equivalent
         List<DoubleBlock> blocks = List.of(
-            new DoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock(),
             new DoubleArrayBlock(
                 new double[] { 1, 2, 3 },
                 3,
                 new int[] { 0, 1, 2, 3 },
                 BitSet.valueOf(new byte[] { 0b000 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
             new DoubleArrayBlock(
                 new double[] { 1, 2, 3, 4 },
                 3,
                 new int[] { 0, 1, 2, 3 },
                 BitSet.valueOf(new byte[] { 0b1000 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
-            new DoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
-            new DoubleArrayVector(new double[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
-            new DoubleArrayVector(new double[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
-            new DoubleArrayVector(new double[] { 1, 2, 4, 3 }, 4).filter(0, 1, 3).asBlock(),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build(),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().filter(0, 1, 2),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendDouble(4).appendDouble(2).appendDouble(3).build().filter(0, 2, 3),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendNull().appendDouble(2).appendDouble(3).build().filter(0, 2, 3)
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).filter(0, 1, 2).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 3).filter(0, 1, 2).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3, 4 }, 4).filter(0, 1, 2).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 4, 3 }, 4).filter(0, 1, 3).asBlock(),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build(),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(3).build().filter(0, 1, 2),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(4).appendDouble(2).appendDouble(3).build().filter(0, 2, 3),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendNull().appendDouble(2).appendDouble(3).build().filter(0, 2, 3)
         );
         assertAllEquals(blocks);
 
         // all these constant-like blocks should be equivalent
         List<DoubleBlock> moreBlocks = List.of(
-            new DoubleArrayVector(new double[] { 9, 9 }, 2).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 9, 9 }, 2).asBlock(),
             new DoubleArrayBlock(
                 new double[] { 9, 9 },
                 2,
                 new int[] { 0, 1, 2 },
                 BitSet.valueOf(new byte[] { 0b000 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
             new DoubleArrayBlock(
                 new double[] { 9, 9, 4 },
                 2,
                 new int[] { 0, 1, 2 },
                 BitSet.valueOf(new byte[] { 0b100 }),
-                randomFrom(Block.MvOrdering.values())
+                randomFrom(Block.MvOrdering.values()),
+                blockFactory
             ),
-            new DoubleArrayVector(new double[] { 9, 9 }, 2).filter(0, 1).asBlock(),
-            new DoubleArrayVector(new double[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
-            new DoubleArrayVector(new double[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),
-            new DoubleArrayVector(new double[] { 9, 4, 9 }, 3).filter(0, 2).asBlock(),
-            DoubleBlock.newConstantBlockWith(9, 2),
-            DoubleBlock.newBlockBuilder(2).appendDouble(9).appendDouble(9).build(),
-            DoubleBlock.newBlockBuilder(2).appendDouble(9).appendDouble(9).build().filter(0, 1),
-            DoubleBlock.newBlockBuilder(2).appendDouble(9).appendDouble(4).appendDouble(9).build().filter(0, 2),
-            DoubleBlock.newBlockBuilder(2).appendDouble(9).appendNull().appendDouble(9).build().filter(0, 2)
+            blockFactory.newDoubleArrayVector(new double[] { 9, 9 }, 2).filter(0, 1).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 9, 9, 4 }, 2).filter(0, 1).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 9, 9, 4 }, 3).filter(0, 1).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 9, 4, 9 }, 3).filter(0, 2).asBlock(),
+            blockFactory.newConstantDoubleBlockWith(9, 2),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendDouble(9).build(),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendDouble(9).build().filter(0, 1),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendDouble(4).appendDouble(9).build().filter(0, 2),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(9).appendNull().appendDouble(9).build().filter(0, 2)
         );
         assertAllEquals(moreBlocks);
     }
@@ -178,15 +185,15 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     public void testVectorInequality() {
         // all these vectors should NOT be equivalent
         List<DoubleVector> notEqualVectors = List.of(
-            new DoubleArrayVector(new double[] { 1 }, 1),
-            new DoubleArrayVector(new double[] { 9 }, 1),
-            new DoubleArrayVector(new double[] { 1, 2 }, 2),
-            new DoubleArrayVector(new double[] { 1, 2, 3 }, 3),
-            new DoubleArrayVector(new double[] { 1, 2, 4 }, 3),
-            DoubleBlock.newConstantBlockWith(9, 2).asVector(),
-            DoubleBlock.newBlockBuilder(2).appendDouble(1).appendDouble(2).build().asVector().filter(1),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(5).build().asVector(),
-            DoubleBlock.newBlockBuilder(1).appendDouble(1).appendDouble(2).appendDouble(3).appendDouble(4).build().asVector()
+            blockFactory.newDoubleArrayVector(new double[] { 1 }, 1),
+            blockFactory.newDoubleArrayVector(new double[] { 9 }, 1),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2 }, 2),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 4 }, 3),
+            blockFactory.newConstantDoubleBlockWith(9, 2).asVector(),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(1).appendDouble(2).build().asVector().filter(1),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(5).build().asVector(),
+            blockFactory.newDoubleBlockBuilder(1).appendDouble(1).appendDouble(2).appendDouble(3).appendDouble(4).build().asVector()
         );
         assertAllNotEquals(notEqualVectors);
     }
@@ -194,27 +201,27 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     public void testBlockInequality() {
         // all these blocks should NOT be equivalent
         List<DoubleBlock> notEqualBlocks = List.of(
-            new DoubleArrayVector(new double[] { 1 }, 1).asBlock(),
-            new DoubleArrayVector(new double[] { 9 }, 1).asBlock(),
-            new DoubleArrayVector(new double[] { 1, 2 }, 2).asBlock(),
-            new DoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock(),
-            new DoubleArrayVector(new double[] { 1, 2, 4 }, 3).asBlock(),
-            DoubleBlock.newConstantBlockWith(9, 2),
-            DoubleBlock.newBlockBuilder(2).appendDouble(1).appendDouble(2).build().filter(1),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(5).build(),
-            DoubleBlock.newBlockBuilder(1).appendDouble(1).appendDouble(2).appendDouble(3).appendDouble(4).build(),
-            DoubleBlock.newBlockBuilder(1).appendDouble(1).appendNull().build(),
-            DoubleBlock.newBlockBuilder(1).appendDouble(1).appendNull().appendDouble(3).build(),
-            DoubleBlock.newBlockBuilder(1).appendDouble(1).appendDouble(3).build(),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1).beginPositionEntry().appendDouble(2).appendDouble(3).build()
+            blockFactory.newDoubleArrayVector(new double[] { 1 }, 1).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 9 }, 1).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2 }, 2).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 3 }, 3).asBlock(),
+            blockFactory.newDoubleArrayVector(new double[] { 1, 2, 4 }, 3).asBlock(),
+            blockFactory.newConstantDoubleBlockWith(9, 2),
+            blockFactory.newDoubleBlockBuilder(2).appendDouble(1).appendDouble(2).build().filter(1),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).appendDouble(2).appendDouble(5).build(),
+            blockFactory.newDoubleBlockBuilder(1).appendDouble(1).appendDouble(2).appendDouble(3).appendDouble(4).build(),
+            blockFactory.newDoubleBlockBuilder(1).appendDouble(1).appendNull().build(),
+            blockFactory.newDoubleBlockBuilder(1).appendDouble(1).appendNull().appendDouble(3).build(),
+            blockFactory.newDoubleBlockBuilder(1).appendDouble(1).appendDouble(3).build(),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1).beginPositionEntry().appendDouble(2).appendDouble(3).build()
         );
         assertAllNotEquals(notEqualBlocks);
     }
 
     public void testSimpleBlockWithSingleNull() {
         List<DoubleBlock> blocks = List.of(
-            DoubleBlock.newBlockBuilder(3).appendDouble(1.1).appendNull().appendDouble(3.1).build(),
-            DoubleBlock.newBlockBuilder(3).appendDouble(1.1).appendNull().appendDouble(3.1).build()
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1.1).appendNull().appendDouble(3.1).build(),
+            blockFactory.newDoubleBlockBuilder(3).appendDouble(1.1).appendNull().appendDouble(3.1).build()
         );
         assertEquals(3, blocks.get(0).getPositionCount());
         assertTrue(blocks.get(0).isNull(1));
@@ -224,10 +231,14 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     public void testSimpleBlockWithManyNulls() {
         int positions = randomIntBetween(1, 256);
         boolean grow = randomBoolean();
-        var builder = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
-        IntStream.range(0, positions).forEach(i -> builder.appendNull());
-        DoubleBlock block1 = builder.build();
-        DoubleBlock block2 = builder.build();
+        DoubleBlock.Builder builder1 = blockFactory.newDoubleBlockBuilder(grow ? 0 : positions);
+        DoubleBlock.Builder builder2 = blockFactory.newDoubleBlockBuilder(grow ? 0 : positions);
+        for (int p = 0; p < positions; p++) {
+            builder1.appendNull();
+            builder2.appendNull();
+        }
+        DoubleBlock block1 = builder1.build();
+        DoubleBlock block2 = builder2.build();
         assertEquals(positions, block1.getPositionCount());
         assertTrue(block1.mayHaveNulls());
         assertTrue(block1.isNull(0));
@@ -238,8 +249,8 @@ public class DoubleBlockEqualityTests extends ESTestCase {
 
     public void testSimpleBlockWithSingleMultiValue() {
         List<DoubleBlock> blocks = List.of(
-            DoubleBlock.newBlockBuilder(1).beginPositionEntry().appendDouble(1.1).appendDouble(2.2).build(),
-            DoubleBlock.newBlockBuilder(1).beginPositionEntry().appendDouble(1.1).appendDouble(2.2).build()
+            blockFactory.newDoubleBlockBuilder(1).beginPositionEntry().appendDouble(1.1).appendDouble(2.2).build(),
+            blockFactory.newDoubleBlockBuilder(1).beginPositionEntry().appendDouble(1.1).appendDouble(2.2).build()
         );
         assert blocks.get(0).getPositionCount() == 1 && blocks.get(0).getValueCount(0) == 2;
         assertAllEquals(blocks);
@@ -248,15 +259,27 @@ public class DoubleBlockEqualityTests extends ESTestCase {
     public void testSimpleBlockWithManyMultiValues() {
         int positions = randomIntBetween(1, 256);
         boolean grow = randomBoolean();
-        var builder = DoubleBlock.newBlockBuilder(grow ? 0 : positions);
+        DoubleBlock.Builder builder1 = blockFactory.newDoubleBlockBuilder(grow ? 0 : positions);
+        DoubleBlock.Builder builder2 = blockFactory.newDoubleBlockBuilder(grow ? 0 : positions);
+        DoubleBlock.Builder builder3 = blockFactory.newDoubleBlockBuilder(grow ? 0 : positions);
         for (int pos = 0; pos < positions; pos++) {
-            builder.beginPositionEntry();
+            builder1.beginPositionEntry();
+            builder2.beginPositionEntry();
+            builder3.beginPositionEntry();
             int values = randomIntBetween(1, 16);
-            IntStream.range(0, values).forEach(i -> builder.appendDouble(randomDouble()));
+            for (int i = 0; i < values; i++) {
+                double value = randomDouble();
+                builder1.appendDouble(value);
+                builder2.appendDouble(value);
+                builder3.appendDouble(value);
+            }
+            builder1.endPositionEntry();
+            builder2.endPositionEntry();
+            builder3.endPositionEntry();
         }
-        DoubleBlock block1 = builder.build();
-        DoubleBlock block2 = builder.build();
-        DoubleBlock block3 = builder.build();
+        DoubleBlock block1 = builder1.build();
+        DoubleBlock block2 = builder2.build();
+        DoubleBlock block3 = builder3.build();
 
         assertEquals(positions, block1.getPositionCount());
         assertAllEquals(List.of(block1, block2, block3));

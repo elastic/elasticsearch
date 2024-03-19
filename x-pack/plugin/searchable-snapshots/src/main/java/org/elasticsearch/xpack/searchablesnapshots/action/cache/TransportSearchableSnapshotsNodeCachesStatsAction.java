@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -50,7 +51,7 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/stats";
 
-    public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME, NodesCachesStatsResponse::new);
+    public static final ActionType<NodesCachesStatsResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Supplier<SharedBlobCacheService<CacheKey>> frozenCacheService;
     private final XPackLicenseState licenseState;
@@ -66,13 +67,11 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
     ) {
         super(
             ACTION_NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesRequest::new,
             NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.frozenCacheService = frozenCacheService;
         this.licenseState = licenseState;
@@ -155,13 +154,9 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             super(nodes);
         }
 
-        public NodesRequest(StreamInput in) throws IOException {
-            super(in);
-        }
-
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
         }
     }
 
@@ -279,22 +274,18 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
 
     public static class NodesCachesStatsResponse extends BaseNodesResponse<NodeCachesStatsResponse> implements ToXContentObject {
 
-        public NodesCachesStatsResponse(StreamInput in) throws IOException {
-            super(in);
-        }
-
         public NodesCachesStatsResponse(ClusterName clusterName, List<NodeCachesStatsResponse> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
         }
 
         @Override
-        protected List<NodeCachesStatsResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readCollectionAsList(NodeCachesStatsResponse::new);
+        protected List<NodeCachesStatsResponse> readNodesFrom(StreamInput in) {
+            return TransportAction.localOnly();
         }
 
         @Override
-        protected void writeNodesTo(StreamOutput out, List<NodeCachesStatsResponse> nodes) throws IOException {
-            out.writeCollection(nodes);
+        protected void writeNodesTo(StreamOutput out, List<NodeCachesStatsResponse> nodes) {
+            TransportAction.localOnly();
         }
 
         @Override

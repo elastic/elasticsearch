@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -45,6 +46,7 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -105,7 +107,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             actionFilters,
             ResumeFollowAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.threadPool = threadPool;
@@ -144,7 +146,11 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         }
         final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(leaderCluster, remoteClientResponseExecutor);
+        client.getRemoteClusterClient(
+            leaderCluster,
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
         final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             client,
@@ -201,7 +207,13 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
                 followIndexMetadata,
                 filteredHeaders
             );
-            persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask, handler.getActionListener(shardId));
+            persistentTasksService.sendStartRequest(
+                taskId,
+                ShardFollowTask.NAME,
+                shardFollowTask,
+                null,
+                handler.getActionListener(shardId)
+            );
         }
     }
 
@@ -498,12 +510,14 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
         SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
         IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING,
         MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING,
         MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,

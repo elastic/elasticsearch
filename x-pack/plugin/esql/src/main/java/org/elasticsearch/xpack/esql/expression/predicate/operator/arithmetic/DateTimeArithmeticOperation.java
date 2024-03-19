@@ -7,25 +7,34 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.time.Duration;
+import java.time.Period;
 import java.time.temporal.TemporalAmount;
+import java.util.Collection;
 import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
-
-    interface DatetimeArithmeticEvaluator extends TriFunction<Source, ExpressionEvaluator, TemporalAmount, ExpressionEvaluator> {};
+    /** Arithmetic (quad) function. */
+    interface DatetimeArithmeticEvaluator {
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);
+    }
 
     private final DatetimeArithmeticEvaluator datetimes;
 
@@ -45,33 +54,114 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        DataType leftType = left().dataType();
-        DataType rightType = right().dataType();
-        // date math is only possible if one argument is a DATETIME and the other a (foldable) TemporalValue
-        if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
-            if (argumentOfType(DataTypes::isDateTime) == null || argumentOfType(EsqlDataTypes::isTemporalAmount) == null) {
-                return new TypeResolution(
-                    format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), leftType, rightType)
-                );
-            }
-            return TypeResolution.TYPE_RESOLVED;
-        }
-        return super.resolveType();
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
+        return TypeResolutions.isType(
+            e,
+            t -> t.isNumeric() || EsqlDataTypes.isDateTimeOrTemporal(t) || DataTypes.isNull(t),
+            sourceText(),
+            paramOrdinal,
+            "datetime",
+            "numeric"
+        );
     }
 
     @Override
-    public Supplier<ExpressionEvaluator> toEvaluator(Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator) {
-        return dataType() == DataTypes.DATETIME
-            ? () -> datetimes.apply(
-                source(),
-                toEvaluator.apply(argumentOfType(DataTypes::isDateTime)).get(),
-                (TemporalAmount) argumentOfType(EsqlDataTypes::isTemporalAmount).fold()
-            )
-            : super.toEvaluator(toEvaluator);
+    protected TypeResolution checkCompatibility() {
+        DataType leftType = left().dataType();
+        DataType rightType = right().dataType();
+
+        // Date math is only possible if either
+        // - one argument is a DATETIME and the other a (foldable) TemporalValue, or
+        // - both arguments are TemporalValues (so we can fold them), or
+        // - one argument is NULL and the other one a DATETIME.
+        if (isDateTimeOrTemporal(leftType) || isDateTimeOrTemporal(rightType)) {
+            if (isNull(leftType) || isNull(rightType)) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
+            if ((isDateTime(leftType) && isTemporalAmount(rightType)) || (isTemporalAmount(leftType) && isDateTime(rightType))) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
+            if (isTemporalAmount(leftType) && isTemporalAmount(rightType) && leftType == rightType) {
+                return TypeResolution.TYPE_RESOLVED;
+            }
+
+            return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+        }
+        return super.checkCompatibility();
     }
 
-    private Expression argumentOfType(Predicate<DataType> filter) {
-        return filter.test(left().dataType()) ? left() : filter.test(right().dataType()) ? right() : null;
+    /**
+     * Override this to allow processing literals of type {@link EsqlDataTypes#DATE_PERIOD} when folding constants.
+     * Used in {@link DateTimeArithmeticOperation#fold()}.
+     * @param left the left period
+     * @param right the right period
+     * @return the result of the evaluation
+     */
+    abstract Period fold(Period left, Period right);
+
+    /**
+     * Override this to allow processing literals of type {@link EsqlDataTypes#TIME_DURATION} when folding constants.
+     * Used in {@link DateTimeArithmeticOperation#fold()}.
+     * @param left the left duration
+     * @param right the right duration
+     * @return the result of the evaluation
+     */
+    abstract Duration fold(Duration left, Duration right);
+
+    @Override
+    public final Object fold() {
+        DataType leftDataType = left().dataType();
+        DataType rightDataType = right().dataType();
+        if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
+            // Both left and right expressions are temporal amounts; we can assume they are both foldable.
+            var l = left().fold();
+            var r = right().fold();
+            if (l instanceof Collection<?> || r instanceof Collection<?>) {
+                return null;
+            }
+            try {
+                return fold((Period) l, (Period) r);
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually and provide a user-friendly error message.
+                throw ExceptionUtils.math(source(), e);
+            }
+        }
+        if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
+            // Both left and right expressions are temporal amounts; we can assume they are both foldable.
+            Duration l = (Duration) left().fold();
+            Duration r = (Duration) right().fold();
+            try {
+                return fold(l, r);
+            } catch (ArithmeticException e) {
+                // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
+                // manually and provide a user-friendly error message.
+                throw ExceptionUtils.math(source(), e);
+            }
+        }
+        if (isNull(leftDataType) || isNull(rightDataType)) {
+            return null;
+        }
+        return super.fold();
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        if (dataType() == DATETIME) {
+            // One of the arguments has to be a datetime and the other a temporal amount.
+            Expression datetimeArgument;
+            Expression temporalAmountArgument;
+            if (left().dataType() == DATETIME) {
+                datetimeArgument = left();
+                temporalAmountArgument = right();
+            } else {
+                datetimeArgument = right();
+                temporalAmountArgument = left();
+            }
+
+            return datetimes.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
+        } else {
+            return super.toEvaluator(toEvaluator);
+        }
     }
 }

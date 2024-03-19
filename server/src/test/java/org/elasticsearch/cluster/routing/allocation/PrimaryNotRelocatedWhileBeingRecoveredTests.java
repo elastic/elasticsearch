@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,8 +27,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(PrimaryNotRelocatedWhileBeingRecoveredTests.class);
-
     public void testPrimaryNotRelocatedWhileBeingRecoveredFrom() {
         AllocationService strategy = createAllocationService(
             Settings.builder()

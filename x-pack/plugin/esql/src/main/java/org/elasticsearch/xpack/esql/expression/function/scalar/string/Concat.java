@@ -8,15 +8,16 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.EsqlClientException;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -24,17 +25,25 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
  * Join strings.
  */
-public class Concat extends ScalarFunction implements EvaluatorMapper {
-    public Concat(Source source, Expression first, List<? extends Expression> rest) {
+public class Concat extends EsqlScalarFunction {
+
+    static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
+
+    @FunctionInfo(returnType = "keyword", description = "Concatenates two or more strings.")
+    public Concat(
+        Source source,
+        @Param(name = "first", type = { "keyword", "text" }) Expression first,
+        @Param(name = "rest", type = { "keyword", "text" }) List<? extends Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
@@ -67,28 +76,30 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        List<Supplier<EvalOperator.ExpressionEvaluator>> values = children().stream().map(toEvaluator).toList();
-        return () -> new ConcatEvaluator(
-            new BytesRefBuilder(),
-            values.stream().map(Supplier::get).toArray(EvalOperator.ExpressionEvaluator[]::new)
-        );
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var values = children().stream().map(toEvaluator).toArray(ExpressionEvaluator.Factory[]::new);
+        return new ConcatEvaluator.Factory(source(), context -> new BreakingBytesRefBuilder(context.breaker(), "concat"), values);
     }
 
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString = false) BytesRefBuilder scratch, BytesRef[] values) {
+    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, BytesRef[] values) {
+        scratch.grow(checkedTotalLength(values));
         scratch.clear();
         for (int i = 0; i < values.length; i++) {
             scratch.append(values[i]);
         }
-        return scratch.get();
+        return scratch.bytesRefView();
+    }
+
+    private static int checkedTotalLength(BytesRef[] values) {
+        int length = 0;
+        for (var v : values) {
+            length += v.length;
+        }
+        if (length > MAX_CONCAT_LENGTH) {
+            throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported");
+        }
+        return length;
     }
 
     @Override
@@ -99,10 +110,5 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Concat::new, children().get(0), children().subList(1, children().size()));
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 }

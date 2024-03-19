@@ -8,7 +8,8 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Queue;
@@ -35,22 +36,23 @@ public final class ExchangeSinkHandler {
     // listeners are notified by only one thread.
     private final Semaphore promised = new Semaphore(1);
 
-    private final ListenableActionFuture<Void> completionFuture;
+    private final SubscribableListener<Void> completionFuture;
     private final LongSupplier nowInMillis;
     private final AtomicLong lastUpdatedInMillis;
+    private final BlockFactory blockFactory;
 
-    public ExchangeSinkHandler(int maxBufferSize, LongSupplier nowInMillis) {
+    public ExchangeSinkHandler(BlockFactory blockFactory, int maxBufferSize, LongSupplier nowInMillis) {
+        this.blockFactory = blockFactory;
         this.buffer = new ExchangeBuffer(maxBufferSize);
-        this.completionFuture = new ListenableActionFuture<>();
-        this.buffer.addCompletionListener(completionFuture);
+        this.completionFuture = SubscribableListener.newForked(buffer::addCompletionListener);
         this.nowInMillis = nowInMillis;
         this.lastUpdatedInMillis = new AtomicLong(nowInMillis.getAsLong());
     }
 
-    private class LocalExchangeSink implements ExchangeSink {
+    private class ExchangeSinkImpl implements ExchangeSink {
         boolean finished;
 
-        LocalExchangeSink() {
+        ExchangeSinkImpl() {
             onChanged();
             outstandingSinks.incrementAndGet();
         }
@@ -79,7 +81,7 @@ public final class ExchangeSinkHandler {
         }
 
         @Override
-        public ListenableActionFuture<Void> waitForWriting() {
+        public SubscribableListener<Void> waitForWriting() {
             return buffer.waitForWriting();
         }
     }
@@ -109,7 +111,10 @@ public final class ExchangeSinkHandler {
         completionFuture.addListener(listener);
     }
 
-    boolean isFinished() {
+    /**
+     * Returns true if an exchange is finished
+     */
+    public boolean isFinished() {
         return completionFuture.isDone();
     }
 
@@ -135,12 +140,12 @@ public final class ExchangeSinkHandler {
                 if (listener == null) {
                     continue;
                 }
-                response = new ExchangeResponse(buffer.pollPage(), buffer.isFinished());
+                response = new ExchangeResponse(blockFactory, buffer.pollPage(), buffer.isFinished());
             } finally {
                 promised.release();
             }
             onChanged();
-            listener.onResponse(response);
+            ActionListener.respondAndRelease(listener, response);
         }
     }
 
@@ -150,7 +155,7 @@ public final class ExchangeSinkHandler {
      * @see ExchangeSinkOperator
      */
     public ExchangeSink createExchangeSink() {
-        return new LocalExchangeSink();
+        return new ExchangeSinkImpl();
     }
 
     /**
@@ -178,5 +183,13 @@ public final class ExchangeSinkHandler {
      */
     long lastUpdatedTimeInMillis() {
         return lastUpdatedInMillis.get();
+    }
+
+    /**
+     * Returns the number of pages available in the buffer.
+     * This method should be used for testing only.
+     */
+    public int bufferSize() {
+        return buffer.size();
     }
 }

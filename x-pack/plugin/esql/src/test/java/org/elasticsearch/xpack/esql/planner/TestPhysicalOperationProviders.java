@@ -7,14 +7,20 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -22,20 +28,29 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.util.List;
 import java.util.Random;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
 
@@ -53,7 +68,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         PhysicalOperation op = source;
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
-            op = op.with(new TestFieldExtractOperatorFactory(attr.name()), layout.build());
+            op = op.with(
+                new TestFieldExtractOperatorFactory(attr, PlannerUtils.extractPreference(fieldExtractExec.hasDocValuesAttribute(attr))),
+                layout.build()
+            );
         }
         return op;
     }
@@ -87,6 +105,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private class TestSourceOperator extends SourceOperator {
 
         boolean finished = false;
+        private final DriverContext driverContext;
+
+        TestSourceOperator(DriverContext driverContext) {
+            this.driverContext = driverContext;
+        }
 
         @Override
         public Page getOutput() {
@@ -94,16 +117,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 finish();
             }
 
-            Block[] fakeSourceAttributesBlocks = new Block[1];
-            // a block that contains the position of each document as int
-            // will be used to "filter" and extract the block's values later on. Basically, a replacement for _doc, _shard and _segment ids
-            IntBlock.Builder docIndexBlockBuilder = IntBlock.newBlockBuilder(testData.getPositionCount());
-            for (int i = 0; i < testData.getPositionCount(); i++) {
-                docIndexBlockBuilder.appendInt(i);
-            }
-            fakeSourceAttributesBlocks[0] = docIndexBlockBuilder.build(); // instead of _doc
-            Page newPageWithSourceAttributes = new Page(fakeSourceAttributesBlocks);
-            return newPageWithSourceAttributes;
+            BlockFactory blockFactory = driverContext.blockFactory();
+            DocVector docVector = new DocVector(
+                blockFactory.newConstantIntVector(0, testData.getPositionCount()),
+                blockFactory.newConstantIntVector(0, testData.getPositionCount()),
+                blockFactory.newIntArrayVector(IntStream.range(0, testData.getPositionCount()).toArray(), testData.getPositionCount()),
+                true
+            );
+            return new Page(docVector.asBlock());
         }
 
         @Override
@@ -124,11 +145,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private class TestSourceOperatorFactory implements SourceOperatorFactory {
 
-        SourceOperator op = new TestSourceOperator();
-
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return op;
+            return new TestSourceOperator(driverContext);
         }
 
         @Override
@@ -142,14 +161,18 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         private Page lastPage;
         boolean finished;
         String columnName;
+        private final DataType dataType;
+        private final MappedFieldType.FieldExtractPreference extractPreference;
 
-        TestFieldExtractOperator(String columnName) {
+        TestFieldExtractOperator(String columnName, DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
             this.columnName = columnName;
+            this.dataType = dataType;
+            this.extractPreference = extractPreference;
         }
 
         @Override
         public void addInput(Page page) {
-            Block block = extractBlockForColumn(page, columnName);
+            Block block = extractBlockForColumn(page, columnName, dataType, extractPreference);
             lastPage = page.appendBlock(block);
         }
 
@@ -182,13 +205,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     }
 
     private class TestFieldExtractOperatorFactory implements Operator.OperatorFactory {
-
-        final String columnName;
         final Operator op;
+        private String columnName;
 
-        TestFieldExtractOperatorFactory(String columnName) {
-            this.columnName = columnName;
-            this.op = new TestFieldExtractOperator(columnName);
+        TestFieldExtractOperatorFactory(Attribute attr, MappedFieldType.FieldExtractPreference extractPreference) {
+            this.op = new TestFieldExtractOperator(attr.name(), attr.dataType(), extractPreference);
+            this.columnName = attr.name();
         }
 
         @Override
@@ -198,7 +220,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         @Override
         public String describe() {
-            return "TestFieldExtractOperator";
+            return "TestFieldExtractOperator(" + columnName + ")";
         }
     }
 
@@ -218,7 +240,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
         @Override
         protected Page wrapPage(Page page) {
-            return page.appendBlock(extractBlockForColumn(page, columnName));
+            return page.appendBlock(extractBlockForColumn(page, columnName, null, NONE));
         }
     }
 
@@ -255,8 +277,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 aggregators,
                 () -> BlockHash.build(
                     List.of(new HashAggregationOperator.GroupSpec(groupByChannel, groupElementType)),
-                    bigArrays,
-                    pageSize
+                    driverContext,
+                    pageSize,
+                    false
                 ),
                 columnName,
                 driverContext
@@ -273,7 +296,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
     }
 
-    private Block extractBlockForColumn(Page page, String columnName) {
+    private Block extractBlockForColumn(
+        Page page,
+        String columnName,
+        DataType dataType,
+        MappedFieldType.FieldExtractPreference extractPreference
+    ) {
         var columnIndex = -1;
         // locate the block index corresponding to "columnName"
         for (int i = 0, size = columnNames.size(); i < size && columnIndex < 0; i++) {
@@ -284,14 +312,87 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         if (columnIndex < 0) {
             throw new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, columnNames);
         }
-        // this is the first block added by TestSourceOperator
-        IntBlock docIndexBlock = page.getBlock(0);
-        // use its filtered position to extract the data needed for "columnName" block
-        Block loadedBlock = testData.getBlock(columnIndex);
-        int[] filteredPositions = new int[docIndexBlock.getPositionCount()];
-        for (int c = 0; c < docIndexBlock.getPositionCount(); c++) {
-            filteredPositions[c] = (Integer) docIndexBlock.getInt(c);
+        DocBlock docBlock = page.getBlock(0);
+        IntVector docIndices = docBlock.asVector().docs();
+        Block originalData = testData.getBlock(columnIndex);
+        var blockCopier = shouldMapToDocValues(dataType, extractPreference)
+            ? TestSpatialPointStatsBlockCopier.create(docIndices, dataType)
+            : new TestBlockCopier(docIndices);
+        return blockCopier.copyBlock(originalData);
+    }
+
+    private boolean shouldMapToDocValues(DataType dataType, MappedFieldType.FieldExtractPreference extractPreference) {
+        return extractPreference == DOC_VALUES && EsqlDataTypes.isSpatialPoint(dataType);
+    }
+
+    private static class TestBlockCopier {
+
+        protected final IntVector docIndices;
+
+        private TestBlockCopier(IntVector docIndices) {
+            this.docIndices = docIndices;
         }
-        return loadedBlock.filter(filteredPositions);
+
+        protected Block copyBlock(Block originalData) {
+            try (
+                Block.Builder builder = originalData.elementType()
+                    .newBlockBuilder(docIndices.getPositionCount(), TestBlockFactory.getNonBreakingInstance())
+            ) {
+                for (int c = 0; c < docIndices.getPositionCount(); c++) {
+                    int doc = docIndices.getInt(c);
+                    builder.copyFrom(originalData, doc, doc + 1);
+                }
+                return builder.build();
+            }
+        }
+    }
+
+    /**
+     * geo_point and cartesian_point are normally loaded as WKT from source, but for aggregations we can load them as doc-values
+     * which are encoded Long values. This class is used to convert the test loaded WKB into encoded longs for the aggregators.
+     * TODO: We need a different solution to support geo_shape and cartesian_shape
+     */
+    private abstract static class TestSpatialPointStatsBlockCopier extends TestBlockCopier {
+
+        private TestSpatialPointStatsBlockCopier(IntVector docIndices) {
+            super(docIndices);
+        }
+
+        protected abstract long encode(BytesRef wkb);
+
+        @Override
+        protected Block copyBlock(Block originalData) {
+            BytesRef scratch = new BytesRef(100);
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) originalData;
+            try (LongBlock.Builder builder = bytesRefBlock.blockFactory().newLongBlockBuilder(docIndices.getPositionCount())) {
+                for (int c = 0; c < docIndices.getPositionCount(); c++) {
+                    int doc = docIndices.getInt(c);
+                    int count = bytesRefBlock.getValueCount(doc);
+                    int i = bytesRefBlock.getFirstValueIndex(doc);
+                    if (count == 0) {
+                        builder.appendNull();
+                    } else {
+                        for (int v = 0; v < count; v++) {
+                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i, scratch)));
+                        }
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private static TestSpatialPointStatsBlockCopier create(IntVector docIndices, DataType dataType) {
+            Function<BytesRef, Long> encoder = switch (dataType.esType()) {
+                case "geo_point" -> SpatialCoordinateTypes.GEO::wkbAsLong;
+                case "cartesian_point" -> SpatialCoordinateTypes.CARTESIAN::wkbAsLong;
+                default -> throw new IllegalArgumentException("Unsupported spatial data type: " + dataType);
+            };
+            return new TestSpatialPointStatsBlockCopier(docIndices) {
+                @Override
+                protected long encode(BytesRef wkb) {
+                    return encoder.apply(wkb);
+                }
+            };
+        }
     }
 }

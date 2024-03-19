@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
@@ -136,7 +137,7 @@ public final class AnalysisModule {
         tokenFilters.register("standard", new AnalysisProvider<TokenFilterFactory>() {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-                if (indexSettings.getIndexVersionCreated().before(IndexVersion.V_7_0_0)) {
+                if (indexSettings.getIndexVersionCreated().before(IndexVersions.V_7_0_0)) {
                     deprecationLogger.warn(
                         DeprecationCategory.ANALYSIS,
                         "standard_deprecation",
@@ -201,7 +202,7 @@ public final class AnalysisModule {
             // This was originally removed in 7_0_0 but due to a cacheing bug it was still possible
             // in certain circumstances to create a new index referencing the standard token filter
             // until version 7_5_2
-            if (version.before(IndexVersion.V_7_6_0)) {
+            if (version.before(IndexVersions.V_7_6_0)) {
                 deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "standard_deprecation",

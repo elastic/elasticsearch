@@ -10,11 +10,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
@@ -42,15 +44,17 @@ import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
+import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -92,7 +96,13 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         TrainedModelProvider trainedModelProvider,
         Client client
     ) {
-        super(GetTrainedModelsStatsAction.NAME, transportService, actionFilters, GetTrainedModelsStatsAction.Request::new);
+        super(
+            GetTrainedModelsStatsAction.NAME,
+            transportService,
+            actionFilters,
+            GetTrainedModelsStatsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.clusterService = clusterService;
         this.trainedModelProvider = trainedModelProvider;
@@ -182,7 +192,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                NodesStatsAction.INSTANCE,
+                TransportNodesStatsAction.TYPE,
                 nodeStatsRequest(clusterService.state(), parentTaskId),
                 nodesStatsListener
             );
@@ -297,29 +307,23 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                 for (TrainedModelConfig model : models) {
                     if (model.getModelType() == TrainedModelType.PYTORCH) {
                         long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
+                        // We ensure that in the mixed cluster state trained model stats uses the same values for memory estimation
+                        // as the rebalancer.
+                        boolean useNewMemoryFields = TrainedModelAssignment.useNewMemoryFields(
+                            TransportVersionUtils.getMinTransportVersion(clusterService.state())
+                        );
                         long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
                             ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
                                 model.getModelId(),
                                 totalDefinitionLength,
-                                model.getPerDeploymentMemoryBytes(),
-                                model.getPerAllocationMemoryBytes(),
+                                useNewMemoryFields ? model.getPerDeploymentMemoryBytes() : 0,
+                                useNewMemoryFields ? model.getPerAllocationMemoryBytes() : 0,
                                 numberOfAllocations
                             )
                             : 0L;
                         modelSizeStatsByModelId.put(
                             model.getModelId(),
-                            new TrainedModelSizeStats(
-                                totalDefinitionLength,
-                                totalDefinitionLength > 0L
-                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                                        model.getModelId(),
-                                        totalDefinitionLength,
-                                        model.getPerDeploymentMemoryBytes(),
-                                        model.getPerAllocationMemoryBytes(),
-                                        numberOfAllocations
-                                    )
-                                    : 0L
-                            )
+                            new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
                         );
                     } else {
                         modelSizeStatsByModelId.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
@@ -353,7 +357,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             .request();
         searchRequest.setParentTask(parentTaskId);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
             Map<String, Long> totalDefinitionLengthByModelId = new HashMap<>();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 DocumentField modelIdField = hit.field(TrainedModelConfig.MODEL_ID.getPreferredName());
@@ -394,7 +398,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     static NodesStatsRequest nodeStatsRequest(ClusterState state, TaskId parentTaskId) {
         String[] ingestNodes = state.nodes().getIngestNodes().keySet().toArray(String[]::new);
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
-            .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
+            .addMetric(NodesStatsRequestParameters.Metric.INGEST.metricName());
+        nodesStatsRequest.setIncludeShardsStats(false);
         nodesStatsRequest.setParentTask(parentTaskId);
         return nodesStatsRequest;
     }
@@ -495,7 +500,5 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             return new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count());
         }
     }
-
-    private record ModelAndDeployment(String modelId, String deploymentId) {}
 
 }

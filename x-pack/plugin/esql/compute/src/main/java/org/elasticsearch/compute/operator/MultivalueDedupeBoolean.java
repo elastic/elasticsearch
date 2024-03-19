@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -40,24 +42,55 @@ public class MultivalueDedupeBoolean {
     /**
      * Dedupe values using an adaptive algorithm based on the size of the input list.
      */
-    public BooleanBlock dedupeToBlock() {
+    public BooleanBlock dedupeToBlock(BlockFactory blockFactory) {
         if (false == block.mayHaveMultivaluedFields()) {
+            block.incRef();
             return block;
         }
-        BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
-                case 1 -> builder.appendBoolean(block.getBoolean(first));
-                default -> {
-                    readValues(first, count);
-                    writeValues(builder);
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendBoolean(block.getBoolean(first));
+                    default -> {
+                        readValues(first, count);
+                        writeValues(builder);
+                    }
                 }
             }
+            return builder.build();
         }
-        return builder.build();
+    }
+
+    /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
+    public BooleanBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
+        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int totalCount = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (totalCount) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendBoolean(block.getBoolean(first));
+                    default -> {
+                        int trueCount = countTrue(first, totalCount);
+                        builder.beginPositionEntry();
+                        if (ascending) {
+                            writeValues(builder, false, 1, totalCount - trueCount);
+                            writeValues(builder, true, totalCount - trueCount + 1, totalCount);
+                        } else {
+                            writeValues(builder, true, 1, trueCount);
+                            writeValues(builder, false, trueCount + 1, totalCount);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
     }
 
     /**
@@ -65,24 +98,25 @@ public class MultivalueDedupeBoolean {
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      * @param everSeen array tracking if the values {@code false} and {@code true} are ever seen
      */
-    public IntBlock hash(boolean[] everSeen) {
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> {
-                    everSeen[NULL_ORD] = true;
-                    builder.appendInt(NULL_ORD);
-                }
-                case 1 -> builder.appendInt(hashOrd(everSeen, block.getBoolean(first)));
-                default -> {
-                    readValues(first, count);
-                    hashValues(everSeen, builder);
+    public IntBlock hash(BlockFactory blockFactory, boolean[] everSeen) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> {
+                        everSeen[NULL_ORD] = true;
+                        builder.appendInt(NULL_ORD);
+                    }
+                    case 1 -> builder.appendInt(hashOrd(everSeen, block.getBoolean(first)));
+                    default -> {
+                        readValues(first, count);
+                        hashValues(everSeen, builder);
+                    }
                 }
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     /**
@@ -193,5 +227,22 @@ public class MultivalueDedupeBoolean {
         }
         everSeen[FALSE_ORD] = true;
         return FALSE_ORD;
+    }
+
+    private int countTrue(int first, int count) {
+        int trueCount = 0;
+        int end = first + count;
+        for (int i = first; i < end; i++) {
+            if (block.getBoolean(i)) {
+                trueCount++;
+            }
+        }
+        return trueCount;
+    }
+
+    private void writeValues(BooleanBlock.Builder builder, boolean value, int startIndex, int endIndex) {
+        for (int i = startIndex; i <= endIndex; i++) {
+            builder.appendBoolean(value);
+        }
     }
 }

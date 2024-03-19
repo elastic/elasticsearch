@@ -43,7 +43,7 @@ fix problems that an {es} deployment might encounter.
 [[troubleshooting-snapshot]]
 === Snapshot and restore
 * <<restore-from-snapshot,Restore data from snapshot>>
-* <<add-repository,Multiple deployments writing to the same snapshot repository>>
+* <<add-repository,Troubleshooting broken repositories>>
 * <<repeated-snapshot-failures,Troubleshooting repeated snapshot failures>>
 
 [discrete]
@@ -56,11 +56,17 @@ fix problems that an {es} deployment might encounter.
 * <<watcher-troubleshooting,Troubleshooting Watcher>>
 * <<troubleshooting-searches,Troubleshooting searches>>
 * <<troubleshooting-shards-capacity-issues,Troubleshooting shards capacity>>
+* <<troubleshooting-unbalanced-cluster,Troubleshooting an unbalanced cluster>>
 * <<remote-clusters-troubleshooting,Troubleshooting remote clusters>>
 
-If none of these solutions relate to your issue, you can still get help:
+[discrete]
+[[troubleshooting-contact-support]]
+=== Contact us
 
-* For users with an active subscription, you can get help in several ways:
+If none of these guides relate to your issue, or you need further assistance,
+then you can contact us as follows:
+
+* If you have an active subscription, you have several options:
 
 ** Go directly to the http://support.elastic.co[Support Portal]
 
@@ -125,8 +131,10 @@ include::monitoring/troubleshooting.asciidoc[]
 
 include::transform/troubleshooting.asciidoc[leveloffset=+1]
 
-include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
+include::watcher/troubleshooting.asciidoc[]
 
 include::troubleshooting/troubleshooting-searches.asciidoc[]
 
 include::troubleshooting/troubleshooting-shards-capacity.asciidoc[]
+
+include::troubleshooting/troubleshooting-unbalanced-cluster.asciidoc[]

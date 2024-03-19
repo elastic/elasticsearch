@@ -14,7 +14,11 @@ import org.elasticsearch.gradle.Version;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
@@ -22,10 +26,15 @@ import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.process.ExecOperations;
 
@@ -35,6 +44,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.GeneralSecurityException;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +56,9 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
+import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.BUNDLE_ATTRIBUTE;
 
 public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
@@ -59,7 +73,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final FileOperations fileOperations;
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final Project project;
+    private final transient Project project;
     private final Provider<ReaperService> reaper;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
@@ -67,6 +81,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final Provider<File> runtimeJava;
     private final Function<Version, Boolean> isReleasedVersion;
     private int nodeIndex = 0;
+
+    private final ConfigurableFileCollection pluginAndModuleConfiguration;
+
+    private boolean shared = false;
 
     public ElasticsearchCluster(
         String path,
@@ -93,6 +111,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.runtimeJava = runtimeJava;
         this.isReleasedVersion = isReleasedVersion;
         this.nodes = project.container(ElasticsearchNode.class);
+        this.pluginAndModuleConfiguration = project.getObjects().fileCollection();
         this.nodes.add(
             new ElasticsearchNode(
                 safeName(clusterName),
@@ -111,6 +130,29 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         );
 
         addWaitForClusterHealth();
+    }
+
+    /**
+     * this cluster si marked as shared across TestClusterAware tasks
+     * */
+    @Internal
+    public boolean isShared() {
+        return shared;
+    }
+
+    protected void setShared(boolean shared) {
+        this.shared = shared;
+    }
+
+    @Classpath
+    public FileCollection getInstalledClasspath() {
+        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"));
+    }
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public FileCollection getInstalledFiles() {
+        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false);
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
@@ -195,34 +237,70 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.all(each -> each.setTestDistribution(distribution));
     }
 
-    @Override
-    public void plugin(Provider<RegularFile> plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void plugin(TaskProvider<Zip> plugin) {
-        nodes.all(each -> each.plugin(plugin));
+    private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
+        Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
+        Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
+        extractedConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        extractedConfig.getAttributes().attribute(BUNDLE_ATTRIBUTE, true);
+        pluginAndModuleConfiguration.from(extractedConfig);
     }
 
     @Override
     public void plugin(String pluginProjectPath) {
-        nodes.all(each -> each.plugin(pluginProjectPath));
+        plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath, "zip"));
+    }
+
+    public void plugin(TaskProvider<Zip> plugin) {
+        plugin(plugin.flatMap(AbstractArchiveTask::getArchiveFile));
+    }
+
+    @Override
+    public void plugin(Provider<RegularFile> plugin) {
+        registerExtractedConfig(plugin);
+        nodes.all(each -> each.plugin(plugin));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
+        registerExtractedConfig(module);
         nodes.all(each -> each.module(module));
     }
 
-    @Override
     public void module(TaskProvider<Sync> module) {
-        nodes.all(each -> each.module(module));
+        module(project.getLayout().file(module.map(Sync::getDestinationDir)));
     }
 
     @Override
     public void module(String moduleProjectPath) {
-        nodes.all(each -> each.module(moduleProjectPath));
+        module(maybeCreatePluginOrModuleDependency(moduleProjectPath, EXPLODED_BUNDLE_CONFIG));
+    }
+
+    private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
+
+    // package protected so only TestClustersAware can access
+    @Internal
+    Collection<Configuration> getPluginAndModuleConfigurations() {
+        return pluginAndModuleConfigurations.values();
+    }
+
+    // creates a configuration to depend on the given plugin project, then wraps that configuration
+    // to grab the zip as a file provider
+    private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path, String consumingConfiguration) {
+        var configuration = pluginAndModuleConfigurations.computeIfAbsent(path, key -> {
+            var bundleDependency = this.project.getDependencies().project(Map.of("path", path, "configuration", consumingConfiguration));
+            return project.getConfigurations().detachedConfiguration(bundleDependency);
+        });
+
+        Provider<File> fileProvider = configuration.getElements()
+            .map(
+                s -> s.stream()
+                    .findFirst()
+                    .orElseThrow(
+                        () -> new IllegalStateException(consumingConfiguration + " configuration of project " + path + " had no files")
+                    )
+                    .getAsFile()
+            );
+        return project.getLayout().file(fileProvider);
     }
 
     @Override
@@ -355,7 +433,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             if (node.getTestDistribution().equals(TestDistribution.INTEG_TEST)) {
                 node.defaultConfig.put("xpack.security.enabled", "false");
             } else {
-                if (node.getVersion().onOrAfter("7.16.0")) {
+                if (hasDeprecationIndexing(node)) {
                     node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
                 }
             }
@@ -396,11 +474,15 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         commonNodeConfig();
         nodeIndex += 1;
         if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
-            if (node.getVersion().onOrAfter("7.16.0")) {
+            if (hasDeprecationIndexing(node)) {
                 node.setting("cluster.deprecation_indexing.enabled", "false");
             }
         }
         node.start();
+    }
+
+    private static boolean hasDeprecationIndexing(ElasticsearchNode node) {
+        return node.getVersion().onOrAfter("7.16.0") && node.getSettingKeys().contains("stateless.enabled") == false;
     }
 
     @Override
@@ -579,4 +661,5 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     public String toString() {
         return "cluster{" + path + ":" + clusterName + "}";
     }
+
 }

@@ -16,17 +16,16 @@ import org.elasticsearch.common.util.LongHash;
 $endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-$if(int)$
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+$if(int)$
 import org.elasticsearch.compute.data.IntBlock;
 
 $elseif(long)$
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 
 $else$
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntBlock;
 
@@ -47,9 +46,7 @@ $if(BytesRef)$
     private static final int ALWAYS_COPY_MISSING = 20;  // TODO BytesRef should try adding to the hash *first* and then comparing.
 $elseif(double)$
     private static final int ALWAYS_COPY_MISSING = 110;
-$elseif(int)$
-    private static final int ALWAYS_COPY_MISSING = 300;
-$elseif(long)$
+$else$
     private static final int ALWAYS_COPY_MISSING = 300;
 $endif$
 
@@ -69,50 +66,52 @@ $endif$
      * Remove duplicate values from each position and write the results to a
      * {@link Block} using an adaptive algorithm based on the size of the input list.
      */
-    public $Type$Block dedupeToBlockAdaptive() {
-        if (false == block.mayHaveMultivaluedFields()) {
+    public $Type$Block dedupeToBlockAdaptive(BlockFactory blockFactory) {
+        if (block.mvDeduplicated()) {
+            block.incRef();
             return block;
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
 $if(BytesRef)$
-                case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
 $else$
-                case 1 -> builder.append$Type$(block.get$Type$(first));
+                    case 1 -> builder.append$Type$(block.get$Type$(first));
 $endif$
-                default -> {
-                    /*
-                     * It's better to copyMissing when there are few unique values
-                     * and better to copy and sort when there are many unique values.
-                     * The more duplicate values there are the more comparatively worse
-                     * copyAndSort is. But we don't know how many unique values there
-                     * because our job is to find them. So we use the count of values
-                     * as a proxy that is fast to test. It's not always going to be
-                     * optimal but it has the nice property of being quite quick on
-                     * short lists and not n^2 levels of terrible on long ones.
-                     *
-                     * It'd also be possible to make a truly hybrid mechanism that
-                     * switches from copyMissing to copyUnique once it collects enough
-                     * unique values. The trouble is that the switch is expensive and
-                     * makes kind of a "hole" in the performance of that mechanism where
-                     * you may as well have just gone with either of the two other
-                     * strategies. So we just don't try it for now.
-                     */
-                    if (count < ALWAYS_COPY_MISSING) {
-                        copyMissing(first, count);
-                        writeUniquedWork(builder);
-                    } else {
-                        copyAndSort(first, count);
-                        writeSortedWork(builder);
+                    default -> {
+                        /*
+                         * It's better to copyMissing when there are few unique values
+                         * and better to copy and sort when there are many unique values.
+                         * The more duplicate values there are the more comparatively worse
+                         * copyAndSort is. But we don't know how many unique values there
+                         * because our job is to find them. So we use the count of values
+                         * as a proxy that is fast to test. It's not always going to be
+                         * optimal but it has the nice property of being quite quick on
+                         * short lists and not n^2 levels of terrible on long ones.
+                         *
+                         * It'd also be possible to make a truly hybrid mechanism that
+                         * switches from copyMissing to copyUnique once it collects enough
+                         * unique values. The trouble is that the switch is expensive and
+                         * makes kind of a "hole" in the performance of that mechanism where
+                         * you may as well have just gone with either of the two other
+                         * strategies. So we just don't try it for now.
+                         */
+                        if (count < ALWAYS_COPY_MISSING) {
+                            copyMissing(first, count);
+                            writeUniquedWork(builder);
+                        } else {
+                            copyAndSort(first, count);
+                            deduplicatedSortedWork(builder);
+                        }
                     }
                 }
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     /**
@@ -121,28 +120,30 @@ $endif$
      * case complexity for larger. Prefer {@link #dedupeToBlockAdaptive}
      * which picks based on the number of elements at each position.
      */
-    public $Type$Block dedupeToBlockUsingCopyAndSort() {
-        if (false == block.mayHaveMultivaluedFields()) {
+    public $Type$Block dedupeToBlockUsingCopyAndSort(BlockFactory blockFactory) {
+        if (block.mvDeduplicated()) {
+            block.incRef();
             return block;
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
 $if(BytesRef)$
-                case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
 $else$
-                case 1 -> builder.append$Type$(block.get$Type$(first));
+                    case 1 -> builder.append$Type$(block.get$Type$(first));
 $endif$
-                default -> {
-                    copyAndSort(first, count);
-                    writeSortedWork(builder);
+                    default -> {
+                        copyAndSort(first, count);
+                        deduplicatedSortedWork(builder);
+                    }
                 }
             }
+            return builder.build();
         }
-        return builder.build();
     }
 
     /**
@@ -153,28 +154,55 @@ $endif$
      * performance is dominated by the {@code n*log n} sort. Prefer
      * {@link #dedupeToBlockAdaptive} unless you need the results sorted.
      */
-    public $Type$Block dedupeToBlockUsingCopyMissing() {
-        if (false == block.mayHaveMultivaluedFields()) {
+    public $Type$Block dedupeToBlockUsingCopyMissing(BlockFactory blockFactory) {
+        if (block.mvDeduplicated()) {
+            block.incRef();
             return block;
         }
-        $Type$Block.Builder builder = $Type$Block.newBlockBuilder(block.getPositionCount());
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> builder.appendNull();
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
 $if(BytesRef)$
-                case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
 $else$
-                case 1 -> builder.append$Type$(block.get$Type$(first));
+                    case 1 -> builder.append$Type$(block.get$Type$(first));
 $endif$
-                default -> {
-                    copyMissing(first, count);
-                    writeUniquedWork(builder);
+                    default -> {
+                        copyMissing(first, count);
+                        writeUniquedWork(builder);
+                    }
                 }
             }
+            return builder.build();
         }
-        return builder.build();
+    }
+
+    /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
+    public $Type$Block sortToBlock(BlockFactory blockFactory, boolean ascending) {
+        try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+$if(BytesRef)$
+                    case 1 -> builder.appendBytesRef(block.getBytesRef(first, work[0]));
+$else$
+                    case 1 -> builder.append$Type$(block.get$Type$(first));
+$endif$
+                    default -> {
+                        copyAndSort(first, count);
+                        writeSortedWork(builder, ascending);
+                    }
+                }
+            }
+            return builder.build();
+        }
     }
 
     /**
@@ -182,40 +210,41 @@ $endif$
      * as the grouping block to a {@link GroupingAggregatorFunction}.
      */
 $if(BytesRef)$
-    public MultivalueDedupe.HashResult hash(BytesRefHash hash) {
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, BytesRefHash hash) {
 $else$
-    public MultivalueDedupe.HashResult hash(LongHash hash) {
+    public MultivalueDedupe.HashResult hash(BlockFactory blockFactory, LongHash hash) {
 $endif$
-        IntBlock.Builder builder = IntBlock.newBlockBuilder(block.getPositionCount());
-        boolean sawNull = false;
-        for (int p = 0; p < block.getPositionCount(); p++) {
-            int count = block.getValueCount(p);
-            int first = block.getFirstValueIndex(p);
-            switch (count) {
-                case 0 -> {
-                    sawNull = true;
-                    builder.appendInt(0);
-                }
-                case 1 -> {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(block.getPositionCount())) {
+            boolean sawNull = false;
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> {
+                        sawNull = true;
+                        builder.appendInt(0);
+                    }
+                    case 1 -> {
 $if(BytesRef)$
-                    BytesRef v = block.getBytesRef(first, work[0]);
+                        BytesRef v = block.getBytesRef(first, work[0]);
 $else$
-                    $type$ v = block.get$Type$(first);
+                        $type$ v = block.get$Type$(first);
 $endif$
-                    hash(builder, hash, v);
-                }
-                default -> {
-                    if (count < ALWAYS_COPY_MISSING) {
-                        copyMissing(first, count);
-                        hashUniquedWork(hash, builder);
-                    } else {
-                        copyAndSort(first, count);
-                        hashSortedWork(hash, builder);
+                        hash(builder, hash, v);
+                    }
+                    default -> {
+                        if (count < ALWAYS_COPY_MISSING) {
+                            copyMissing(first, count);
+                            hashUniquedWork(hash, builder);
+                        } else {
+                            copyAndSort(first, count);
+                            hashSortedWork(hash, builder);
+                        }
                     }
                 }
             }
+            return new MultivalueDedupe.HashResult(builder.build(), sawNull);
         }
-        return new MultivalueDedupe.HashResult(builder.build(), sawNull);
     }
 
     /**
@@ -369,11 +398,7 @@ $endif$
     /**
      * Writes a sorted {@link #work} to a {@link $Type$Block.Builder}, skipping duplicates.
      */
-    private void writeSortedWork($Type$Block.Builder builder) {
-        if (w == 1) {
-            builder.append$Type$(work[0]);
-            return;
-        }
+    private void deduplicatedSortedWork($Type$Block.Builder builder) {
         builder.beginPositionEntry();
         $type$ prev = work[0];
         builder.append$Type$(prev);
@@ -385,6 +410,21 @@ $else$
 $endif$
                 prev = work[i];
                 builder.append$Type$(prev);
+            }
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Writes a {@link #work} to a {@link $Type$Block.Builder}.
+     */
+    private void writeSortedWork($Type$Block.Builder builder, boolean ascending) {
+        builder.beginPositionEntry();
+        for (int i = 0; i < w; i++) {
+            if (ascending) {
+                builder.append$Type$(work[i]);
+            } else {
+                builder.append$Type$(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();

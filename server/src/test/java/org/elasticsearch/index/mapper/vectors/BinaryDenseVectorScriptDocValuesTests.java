@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.ByteBinaryDenseVectorDocValuesField;
@@ -31,7 +32,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
-        for (IndexVersion indexVersion : List.of(IndexVersion.V_7_4_0, IndexVersion.current())) {
+        for (IndexVersion indexVersion : List.of(IndexVersions.V_7_4_0, IndexVersion.current())) {
             BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
             DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", ElementType.FLOAT, dims, indexVersion);
             DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();

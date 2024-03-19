@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 
@@ -33,6 +34,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.ql.util.SourceUtils.readSourceWithText;
 
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
@@ -62,7 +65,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
     // hook for nameId, where can cache and map, for now just return a NameId of the same long value.
     private final LongFunction<NameId> nameIdFunction;
 
-    private EsqlConfiguration configuration;
+    private final EsqlConfiguration configuration;
 
     public PlanStreamInput(
         StreamInput streamInput,
@@ -99,6 +102,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
 
     public PhysicalPlan readPhysicalPlanNode() throws IOException {
         return readNamed(PhysicalPlan.class);
+    }
+
+    public Source readSource() throws IOException {
+        boolean hasSource = readBoolean();
+        return hasSource ? readSourceWithText(this, configuration.query()) : Source.EMPTY;
     }
 
     public Expression readExpression() throws IOException {

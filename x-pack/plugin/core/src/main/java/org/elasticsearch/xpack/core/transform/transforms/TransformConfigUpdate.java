@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.
 /**
  * This class holds the mutable configuration items for a data frame transform
  */
-public class TransformConfigUpdate implements Writeable {
+public final class TransformConfigUpdate implements Writeable {
 
     public static final String NAME = "data_frame_transform_config_update";
 
@@ -117,7 +117,7 @@ public class TransformConfigUpdate implements Writeable {
             setHeaders(in.readMap(StreamInput::readString));
         }
         settings = in.readOptionalWriteable(SettingsConfig::new);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
         retentionPolicyConfig = in.readOptionalNamedWriteable(RetentionPolicyConfig.class);
     }
 
@@ -239,7 +239,7 @@ public class TransformConfigUpdate implements Writeable {
         return isNullOrEqual(headers, config.getHeaders()) == false;
     }
 
-    private boolean isNullOrEqual(Object lft, Object rgt) {
+    private static boolean isNullOrEqual(Object lft, Object rgt) {
         return lft == null || lft.equals(rgt);
     }
 

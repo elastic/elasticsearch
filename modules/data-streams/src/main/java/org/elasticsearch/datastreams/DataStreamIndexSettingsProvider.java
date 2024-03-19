@@ -26,12 +26,13 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
@@ -83,7 +84,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (indexMode != null) {
                 if (indexMode == IndexMode.TIME_SERIES) {
                     Settings.Builder builder = Settings.builder();
-                    TimeValue lookAheadTime = DataStreamsPlugin.LOOK_AHEAD_TIME.get(allSettings);
+                    TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(allSettings);
                     TimeValue lookBackTime = DataStreamsPlugin.LOOK_BACK_TIME.get(allSettings);
                     final Instant start;
                     final Instant end;
@@ -152,20 +153,25 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             // Avoid failing because index.routing_path is missing
-            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .putList(INDEX_ROUTING_PATH.getKey(), List.of("path"))
             .build();
 
         tmpIndexMetadata.settings(finalResolvedSettings);
         // Create MapperService just to extract keyword dimension fields:
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
-            for (var mapping : combinedTemplateMappings) {
-                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
-            }
-
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
             List<String> routingPaths = new ArrayList<>();
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
                 extractPath(routingPaths, fieldMapper);
+            }
+            for (var objectMapper : mapperService.documentMapper().mappers().objectMappers().values()) {
+                if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+                    if (passThroughObjectMapper.containsDimensions()) {
+                        routingPaths.add(passThroughObjectMapper.fullPath() + ".*");
+                    }
+                }
             }
             for (var template : mapperService.getAllDynamicTemplates()) {
                 if (template.pathMatch().isEmpty()) {
@@ -180,14 +186,18 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 }
 
                 MappingParserContext parserContext = mapperService.parserContext();
-                for (String pathMatch : template.pathMatch()) {
+                for (Iterator<String> iterator = template.pathMatch().iterator(); iterator.hasNext();) {
                     var mapper = parserContext.typeParser(mappingSnippetType)
-                        // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
-                        // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
-                        // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
-                        .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
-                        .build(MapperBuilderContext.root(false));
+                        .parse(iterator.next(), mappingSnippet, parserContext)
+                        .build(MapperBuilderContext.root(false, false));
                     extractPath(routingPaths, mapper);
+                    if (iterator.hasNext()) {
+                        // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
+                        // that only the first pathMatch passed in gets recognized as a time_series_dimension.
+                        // To avoid this, each parsing call uses a new mapping snippet.
+                        // Note that a shallow copy of the mappingSnippet map is not enough if there are multi-fields.
+                        mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
+                    }
                 }
             }
             return routingPaths;

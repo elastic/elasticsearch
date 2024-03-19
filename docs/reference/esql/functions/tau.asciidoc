@@ -1,9 +1,18 @@
+[discrete]
 [[esql-tau]]
 === `TAU`
+
+*Syntax*
+
 [.text-center]
 image::esql/functions/signature/tau.svg[Embedded,opts=inline]
 
-The https://tauday.com/tau-manifesto[ratio] of a circle's circumference to its radius.
+*Description*
+
+Returns the https://tauday.com/tau-manifesto[ratio] of a circle's circumference
+to its radius.
+
+*Example*
 
 [source.merge.styled,esql]
 ----

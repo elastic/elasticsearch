@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.WriteAckDelay;
+import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -80,6 +81,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -208,6 +210,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.THRESHOLD_SETTING,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN,
+        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING,
+        DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS,
+        DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS,
         DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING,
         DesiredBalanceReconciler.UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
@@ -425,6 +432,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ScriptService.CONTEXTS_ALLOWED_SETTING,
         IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
         IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
+        IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_EXPIRE,
         IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
         IndicesRequestCache.INDICES_CACHE_QUERY_EXPIRE,
         HunspellService.HUNSPELL_LAZY_LOAD,
@@ -572,11 +580,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
         RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE,
         HealthPeriodicLogger.POLL_INTERVAL_SETTING,
         HealthPeriodicLogger.ENABLED_SETTING,
+        HealthPeriodicLogger.OUTPUT_MODE_SETTING,
         DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING,
         IndicesClusterStateService.SHARD_LOCK_RETRY_INTERVAL_SETTING,
         IndicesClusterStateService.SHARD_LOCK_RETRY_TIMEOUT_SETTING,
         IngestSettings.GROK_WATCHDOG_INTERVAL,
         IngestSettings.GROK_WATCHDOG_MAX_EXECUTION_TIME,
-        TDigestExecutionHint.SETTING
+        TDigestExecutionHint.SETTING,
+        MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT_SETTING,
+        MergePolicyConfig.DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 }

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -17,7 +19,7 @@ import java.io.IOException;
  * Block that stores double values.
  * This class is generated. Do not edit it.
  */
-public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, DoubleArrayBlock, DoubleVectorBlock {
+public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock, DoubleBigArrayBlock {
 
     /**
      * Retrieves the double value stored at the given value index.
@@ -36,54 +38,81 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
     @Override
     DoubleBlock filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "DoubleBlock", DoubleBlock::of);
-
     @Override
     default String getWriteableName() {
         return "DoubleBlock";
     }
 
-    static DoubleBlock of(StreamInput in) throws IOException {
-        final boolean isVector = in.readBoolean();
-        if (isVector) {
-            return DoubleVector.of(in).asBlock();
-        }
-        final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.appendDouble(in.readDouble());
-                }
-                builder.endPositionEntry();
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "DoubleBlock", DoubleBlock::readFrom);
+
+    private static DoubleBlock readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_BLOCK_VALUES -> DoubleBlock.readValues(in);
+            case SERIALIZE_BLOCK_VECTOR -> DoubleVector.readFrom(in.blockFactory(), in).asBlock();
+            case SERIALIZE_BLOCK_ARRAY -> DoubleArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> DoubleBigArrayBlock.readArrayBlock(in.blockFactory(), in);
+            default -> {
+                assert false : "invalid block serialization type " + serializationType;
+                throw new IllegalStateException("invalid serialization type " + serializationType);
             }
+        };
+    }
+
+    private static DoubleBlock readValues(BlockStreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        try (DoubleBlock.Builder builder = in.blockFactory().newDoubleBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.appendDouble(in.readDouble());
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
         }
-        return builder.build();
     }
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
         DoubleVector vector = asVector();
-        out.writeBoolean(vector != null);
+        final var version = out.getTransportVersion();
         if (vector != null) {
+            out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof DoubleArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof DoubleBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
+            b.writeArrayBlock(out);
         } else {
-            final int positions = getPositionCount();
-            out.writeVInt(positions);
-            for (int pos = 0; pos < positions; pos++) {
-                if (isNull(pos)) {
-                    out.writeBoolean(true);
-                } else {
-                    out.writeBoolean(false);
-                    final int valueCount = getValueCount(pos);
-                    out.writeVInt(valueCount);
-                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                        out.writeDouble(getDouble(getFirstValueIndex(pos) + valueIndex));
-                    }
+            out.writeByte(SERIALIZE_BLOCK_VALUES);
+            DoubleBlock.writeValues(this, out);
+        }
+    }
+
+    private static void writeValues(DoubleBlock block, StreamOutput out) throws IOException {
+        final int positions = block.getPositionCount();
+        out.writeVInt(positions);
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                out.writeBoolean(true);
+            } else {
+                out.writeBoolean(false);
+                final int valueCount = block.getValueCount(pos);
+                out.writeVInt(valueCount);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    out.writeDouble(block.getDouble(block.getFirstValueIndex(pos) + valueIndex));
                 }
             }
         }
@@ -107,6 +136,9 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
      * equals method works properly across different implementations of the DoubleBlock interface.
      */
     static boolean equals(DoubleBlock block1, DoubleBlock block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -158,19 +190,14 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
         return result;
     }
 
-    static Builder newBlockBuilder(int estimatedSize) {
-        return new DoubleBlockBuilder(estimatedSize);
-    }
-
-    static DoubleBlock newConstantBlockWith(double value, int positions) {
-        return new ConstantDoubleVector(value, positions).asBlock();
-    }
-
-    sealed interface Builder extends Block.Builder permits DoubleBlockBuilder {
-
+    /**
+     * Builder for {@link DoubleBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.DoubleBuilder permits DoubleBlockBuilder {
         /**
          * Appends a double to the current entry.
          */
+        @Override
         Builder appendDouble(double value);
 
         /**
@@ -194,12 +221,11 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

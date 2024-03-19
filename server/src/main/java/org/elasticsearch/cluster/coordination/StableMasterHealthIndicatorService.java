@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -39,14 +40,36 @@ import java.util.Map;
 public class StableMasterHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "master_is_stable";
-    public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
+
+    public static final Diagnosis TROUBLESHOOT_DISCOVERY = new Diagnosis(
+        new Diagnosis.Definition(
+            NAME,
+            "troubleshoot_discovery",
+            "The Elasticsearch cluster does not have a stable master node.",
+            "See discovery troubleshooting guidance at " + ReferenceDocs.DISCOVERY_TROUBLESHOOTING,
+            ReferenceDocs.DISCOVERY_TROUBLESHOOTING.toString()
+        ),
+        null
+    );
+
+    public static final Diagnosis TROUBLESHOOT_UNSTABLE_CLUSTER = new Diagnosis(
+        new Diagnosis.Definition(
+            NAME,
+            "troubleshoot_unstable_cluster",
+            "The Elasticsearch cluster does not have a stable master node.",
+            "See unstable cluster troubleshooting guidance at " + ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING,
+            ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING.toString()
+        ),
+        null
+    );
+
     public static final Diagnosis CONTACT_SUPPORT = new Diagnosis(
         new Diagnosis.Definition(
             NAME,
             "contact_support",
             "The Elasticsearch cluster does not have a stable master node.",
-            "Get help at " + GET_HELP_GUIDE,
-            GET_HELP_GUIDE
+            "Get help at " + ReferenceDocs.CONTACT_SUPPORT,
+            ReferenceDocs.CONTACT_SUPPORT.toString()
         ),
         null
     );
@@ -67,12 +90,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public static final String BACKUP_DISABLED_IMPACT_ID = "backup_disabled";
 
     // Impacts of having an unstable master:
-    private static final String UNSTABLE_MASTER_INGEST_IMPACT = "The cluster cannot create, delete, or rebalance indices, and cannot "
-        + "insert or update documents.";
-    private static final String UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = "Scheduled tasks such as Watcher, Index Lifecycle "
-        + "Management, and Snapshot Lifecycle Management will not work. The _cat APIs will not work.";
-    private static final String UNSTABLE_MASTER_BACKUP_IMPACT = "Snapshot and restore will not work, your data will not be backed up. "
-        + "Searchable snapshots cannot be mounted.";
+    private static final String UNSTABLE_MASTER_INGEST_IMPACT = """
+        The cluster cannot create, delete, or rebalance indices, and cannot insert or update documents.""";
+    private static final String UNSTABLE_MASTER_DEPLOYMENT_MANAGEMENT_IMPACT = """
+        Scheduled tasks such as Watcher, Index Lifecycle Management, and Snapshot Lifecycle Management will not work. \
+        The _cat APIs will not work.""";
+    private static final String UNSTABLE_MASTER_BACKUP_IMPACT = """
+        Snapshot and restore will not work. Your data will not be backed up, and searchable snapshots cannot be mounted.""";
 
     /**
      * This is the list of the impacts to be reported when the master node is determined to be unstable.
@@ -128,7 +152,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         HealthStatus status = HealthStatus.fromCoordinationDiagnosticsStatus(coordinationDiagnosticsResult.status());
         HealthIndicatorDetails details = getDetails(coordinationDiagnosticsResult.details(), explain);
         Collection<HealthIndicatorImpact> impacts = status.indicatesHealthProblem() ? UNSTABLE_MASTER_IMPACTS : List.of();
-        List<Diagnosis> diagnosis = status.indicatesHealthProblem() ? getContactSupportUserActions(explain) : List.of();
+        List<Diagnosis> diagnosis = status.indicatesHealthProblem() ? getUnstableMasterDiagnoses(explain) : List.of();
         return createIndicator(status, coordinationDiagnosticsResult.summary(), details, impacts, diagnosis);
     }
 
@@ -215,13 +239,16 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     /**
-     * This method returns the only user action that is relevant when the master is unstable -- contact support.
-     * @param explain If true, the returned list includes a UserAction to contact support, otherwise an empty list
-     * @return a single UserAction instructing users to contact support.
+     * This method returns the relevant user actions when the master is unstable, linking to some troubleshooting docs and suggesting to
+     * contact support.
+     *
+     * @param explain If true, the returned list includes UserActions linking to troubleshooting docs and another to contact support,
+     *                otherwise an empty list.
+     * @return the relevant user actions when the master is unstable.
      */
-    private List<Diagnosis> getContactSupportUserActions(boolean explain) {
+    private List<Diagnosis> getUnstableMasterDiagnoses(boolean explain) {
         if (explain) {
-            return List.of(CONTACT_SUPPORT);
+            return List.of(TROUBLESHOOT_DISCOVERY, TROUBLESHOOT_UNSTABLE_CLUSTER, CONTACT_SUPPORT);
         } else {
             return List.of();
         }

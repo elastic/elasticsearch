@@ -1,0 +1,53 @@
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.bwc-test'
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster'
+  }
+  restTests {
+    includeXpack 'esql'
+  }
+}
+
+dependencies {
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+}
+
+GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
+
+def supportedVersion = bwcVersion -> {
+  // ESQL is available in 8.11 or later
+  return bwcVersion.onOrAfter(Version.fromString("8.11.0"));
+}
+
+BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+  def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+  }
+
+  def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+    classpath = sourceSets.yamlRestTest.runtimeClasspath
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn javaRestTest, yamlRestTest
+  }
+}
+
+tasks.named("yamlRestTest") {
+  enabled = false
+}

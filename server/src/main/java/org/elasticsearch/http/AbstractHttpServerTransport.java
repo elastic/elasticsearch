@@ -29,6 +29,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -38,8 +39,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -51,7 +52,6 @@ import java.net.InetSocketAddress;
 import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -91,9 +91,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private volatile BoundTransportAddress boundAddress;
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Map<HttpChannel, RequestTrackingHttpChannel> httpChannels = new ConcurrentHashMap<>();
-    private final PlainActionFuture<Void> allClientsClosedListener = PlainActionFuture.newFuture();
+    private final PlainActionFuture<Void> allClientsClosedListener = new PlainActionFuture<>();
     private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
-    private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<HttpServerChannel> httpServerChannels = ConcurrentCollections.newConcurrentSet();
     private final long shutdownGracePeriodMillis;
     private final HttpClientStatsTracker httpClientStatsTracker;
 
@@ -168,7 +168,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get(), httpClientStatsTracker.getClientStats());
+        return new HttpStats(
+            httpChannels.size(),
+            totalChannelsAccepted.get(),
+            httpClientStatsTracker.getClientStats(),
+            dispatcher.getStats()
+        );
     }
 
     protected void bindServer() {
@@ -419,7 +424,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             // The channel may not be present if the close listener (set in serverAcceptedChannel) runs before this method because the
             // connection closed early
             if (trackingChannel == null) {
-                logger.warn("http channel [{}] missing tracking channel", httpChannel);
+                httpRequest.release();
+                logger.warn(
+                    "http channel [{}] closed before starting to handle [{}][{}][{}]",
+                    httpChannel,
+                    httpRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
+                    httpRequest.method(),
+                    httpRequest.uri()
+                );
                 return;
             }
             trackingChannel.incomingRequest();

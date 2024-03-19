@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -88,7 +89,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             Request::new,
             Response::new,
             Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
         this.transformConfigManager = transformServices.getConfigManager();
@@ -241,6 +242,20 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         }
 
         if (ids.contains(transformTask.getTransformId())) {
+            if (request.isForce()) {
+                // If force==true, we skip the additional step (setShouldStopAtCheckpoint) and move directly to shutting down the task.
+                // This way we ensure that the persistent task is removed ASAP (as opposed to being removed in one of the listeners).
+                try {
+                    // Here the task is deregistered in scheduler and marked as completed in persistent task service.
+                    transformTask.shutdown();
+                    // Here the indexer is aborted so that its thread finishes work ASAP.
+                    transformTask.onCancelled();
+                    listener.onResponse(new Response(true));
+                } catch (ElasticsearchException ex) {
+                    listener.onFailure(ex);
+                }
+                return;
+            }
             // move the call to the generic thread pool, so we do not block the network thread
             threadPool.generic().execute(() -> {
                 transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {
@@ -498,7 +513,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {
-                persistentTasksService.sendRemoveRequest(unassignedTaskId, groupedListener);
+                persistentTasksService.sendRemoveRequest(unassignedTaskId, null, groupedListener);
             }
 
         }, e -> {
@@ -510,7 +525,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {
-                persistentTasksService.sendRemoveRequest(unassignedTaskId, groupedListener);
+                persistentTasksService.sendRemoveRequest(unassignedTaskId, null, groupedListener);
             }
         });
         return doExecuteListener;

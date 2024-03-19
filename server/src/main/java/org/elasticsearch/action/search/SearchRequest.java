@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -149,6 +149,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     /**
      * Constructs a new search request against the provided indices with the given search source.
      */
+    @SuppressWarnings("this-escape")
     public SearchRequest(String[] indices, SearchSourceBuilder source) {
         this();
         if (source == null) {
@@ -264,15 +265,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             minCompatibleShardNode = Version.readVersion(in);
         } else {
             minCompatibleShardNode = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            waitForCheckpoints = in.readMap(StreamInput::readLongArray);
-            waitForCheckpointsTimeout = in.readTimeValue();
-        }
+        waitForCheckpoints = in.readMap(StreamInput::readLongArray);
+        waitForCheckpointsTimeout = in.readTimeValue();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
@@ -305,26 +304,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            out.writeBoolean(minCompatibleShardNode != null);
-            if (minCompatibleShardNode != null) {
-                Version.writeVersion(minCompatibleShardNode, out);
-            }
+        out.writeBoolean(minCompatibleShardNode != null);
+        if (minCompatibleShardNode != null) {
+            Version.writeVersion(minCompatibleShardNode, out);
         }
-        TransportVersion waitForCheckpointsVersion = TransportVersions.V_7_16_0;
-        if (out.getTransportVersion().onOrAfter(waitForCheckpointsVersion)) {
-            out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
-            out.writeTimeValue(waitForCheckpointsTimeout);
-        } else if (waitForCheckpoints.isEmpty() == false) {
-            throw new IllegalArgumentException(
-                "Remote transport version ["
-                    + out.getTransportVersion()
-                    + " incompatible with "
-                    + "wait_for_checkpoints. All nodes must use transport version ["
-                    + waitForCheckpointsVersion
-                    + "] or greater."
-            );
-        }
+        out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
+        out.writeTimeValue(waitForCheckpointsTimeout);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
@@ -355,12 +340,52 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (source.rescores() != null && source.rescores().isEmpty() == false) {
                     validationException = addValidationError("using [rescore] is not allowed in a scroll context", validationException);
                 }
+                if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
+                    validationException = addValidationError("[search_after] cannot be used in a scroll context", validationException);
+                }
+                if (source.collapse() != null) {
+                    validationException = addValidationError("cannot use `collapse` in a scroll context", validationException);
+                }
             }
             if (requestCache != null && requestCache) {
                 validationException = addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
         }
         if (source != null) {
+            if (source.slice() != null) {
+                if (source.pointInTimeBuilder() == null && (scroll == false)) {
+                    validationException = addValidationError(
+                        "[slice] can only be used with [scroll] or [point-in-time] requests",
+                        validationException
+                    );
+                }
+            }
+            if (source.from() > 0 && CollectionUtils.isEmpty(source.searchAfter()) == false) {
+                validationException = addValidationError(
+                    "[from] parameter must be set to 0 when [search_after] is used",
+                    validationException
+                );
+            }
+            if (source.collapse() != null && source.rescores() != null && source.rescores().isEmpty() == false) {
+                validationException = addValidationError("cannot use `collapse` in conjunction with `rescore`", validationException);
+            }
+            if (source.storedFields() != null) {
+                if (source.storedFields().fetchFields() == false) {
+                    if (source.fetchSource() != null && source.fetchSource().fetchSource()) {
+                        validationException = addValidationError(
+                            "[stored_fields] cannot be disabled if [_source] is requested",
+                            validationException
+                        );
+                    }
+                    if (source.fetchFields() != null) {
+                        validationException = addValidationError(
+                            "[stored_fields] cannot be disabled when using the [fields] option",
+                            validationException
+                        );
+                    }
+
+                }
+            }
             if (source.subSearches().size() >= 2 && source.rankBuilder() == null) {
                 validationException = addValidationError("[sub_searches] requires [rank]", validationException);
             }
@@ -422,6 +447,21 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (pointInTimeBuilder() != null) {
             if (scroll) {
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
+            }
+            if (indices().length > 0) {
+                validationException = addValidationError(
+                    "[indices] cannot be used with point in time. Do not specify any index with point in time.",
+                    validationException
+                );
+            }
+            if (indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
+                validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
+            }
+            if (routing() != null) {
+                validationException = addValidationError("[routing] cannot be used with point in time", validationException);
+            }
+            if (preference() != null) {
+                validationException = addValidationError("[preference] cannot be used with point in time", validationException);
             }
         } else if (source != null && source.sorts() != null) {
             for (SortBuilder<?> sortBuilder : source.sorts()) {
@@ -538,13 +578,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
         this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
-    }
-
-    /**
-     * Returns the default value of {@link #ccsMinimizeRoundtrips} of a search request
-     */
-    public static boolean defaultCcsMinimizeRoundtrips(SearchRequest request) {
-        return request.minCompatibleShardNode == null;
     }
 
     /**

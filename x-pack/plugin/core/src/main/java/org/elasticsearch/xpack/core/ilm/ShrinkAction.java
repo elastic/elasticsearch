@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -142,6 +143,7 @@ public class ShrinkAction implements LifecycleAction {
         StepKey preShrinkBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
+        StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
         StepKey checkTargetShardsCountKey = new StepKey(phase, NAME, CheckTargetShardsCountStep.NAME);
         StepKey cleanupShrinkIndexKey = new StepKey(phase, NAME, CleanupShrinkIndexStep.NAME);
@@ -197,7 +199,17 @@ public class ShrinkAction implements LifecycleAction {
             checkNotWriteIndex,
             waitForNoFollowerStepKey
         );
-        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
+        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(
+            waitForNoFollowerStepKey,
+            waitTimeSeriesEndTimePassesKey,
+            client
+        );
+        WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
+            waitTimeSeriesEndTimePassesKey,
+            readOnlyKey,
+            Instant::now,
+            client
+        );
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client);
         CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(
             checkTargetShardsCountKey,
@@ -271,6 +283,7 @@ public class ShrinkAction implements LifecycleAction {
             conditionalSkipShrinkStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
+            waitUntilTimeSeriesEndTimeStep,
             readOnlyStep,
             checkTargetShardsCountStep,
             cleanupShrinkIndexStep,

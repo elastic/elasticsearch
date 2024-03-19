@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.security.enrollment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -65,9 +65,9 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     public void maybeCreateNodeEnrollmentToken(Consumer<String> consumer, Iterator<TimeValue> backoff) {
         // the enrollment token can only be used against the node that generated it
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().nodesIds("_local")
-            .addMetrics(NodesInfoRequest.Metric.HTTP.metricName(), NodesInfoRequest.Metric.TRANSPORT.metricName());
+            .addMetrics(NodesInfoMetrics.Metric.HTTP.metricName(), NodesInfoMetrics.Metric.TRANSPORT.metricName());
 
-        client.execute(NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(response -> {
+        client.execute(TransportNodesInfoAction.TYPE, nodesInfoRequest, ActionListener.wrap(response -> {
             assert response.getNodes().size() == 1;
             NodeInfo nodeInfo = response.getNodes().get(0);
             TransportInfo transportInfo = nodeInfo.getInfo(TransportInfo.class);
@@ -133,8 +133,8 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
     public void createKibanaEnrollmentToken(Consumer<EnrollmentToken> consumer, Iterator<TimeValue> backoff) {
         // the enrollment token can only be used against the node that generated it
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().nodesIds("_local")
-            .addMetric(NodesInfoRequest.Metric.HTTP.metricName());
-        client.execute(NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(response -> {
+            .addMetric(NodesInfoMetrics.Metric.HTTP.metricName());
+        client.execute(TransportNodesInfoAction.TYPE, nodesInfoRequest, ActionListener.wrap(response -> {
             assert response.getNodes().size() == 1;
             NodeInfo nodeInfo = response.getNodes().get(0);
             HttpInfo httpInfo = nodeInfo.getInfo(HttpInfo.class);
@@ -197,7 +197,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         apiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client.execute(CreateApiKeyAction.INSTANCE, apiKeyRequest, ActionListener.wrap(createApiKeyResponse -> {
             final String apiKey = createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString();
-            final EnrollmentToken enrollmentToken = new EnrollmentToken(apiKey, fingerprint, Version.CURRENT.toString(), tokenAddresses);
+            final EnrollmentToken enrollmentToken = new EnrollmentToken(apiKey, fingerprint, tokenAddresses);
             consumer.accept(enrollmentToken);
         }, e -> {
             LOGGER.error("Failed to create enrollment token when generating API key", e);

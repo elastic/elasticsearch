@@ -10,11 +10,10 @@ package org.elasticsearch.xpack.transform.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -28,11 +27,13 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 
 import java.time.Clock;
@@ -40,6 +41,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
@@ -127,7 +129,7 @@ public final class TransformIndex {
         // <2> Set up destination index aliases, regardless whether the destination index was created by the transform or by the user
         ActionListener<Boolean> createDestinationIndexListener = ActionListener.wrap(createdDestinationIndex -> {
             if (createdDestinationIndex) {
-                String message = Boolean.FALSE.equals(config.getSettings().getDeduceMappings())
+                String message = TransformEffectiveSettings.isDeduceMappingsDisabled(config.getSettings())
                     ? "Created destination index [" + destinationIndex + "]."
                     : "Created destination index [" + destinationIndex + "] with deduced mappings.";
                 auditor.info(config.getId(), message);
@@ -138,7 +140,7 @@ public final class TransformIndex {
         if (dest.length == 0) {
             TransformDestIndexSettings generatedDestIndexSettings = createTransformDestIndexSettings(
                 destIndexSettings,
-                destIndexMappings,
+                TransformEffectiveSettings.isDeduceMappingsDisabled(config.getSettings()) ? emptyMap() : destIndexMappings,
                 config.getId(),
                 Clock.systemUTC()
             );
@@ -233,7 +235,7 @@ public final class TransformIndex {
             config.getHeaders(),
             TRANSFORM_ORIGIN,
             client,
-            IndicesAliasesAction.INSTANCE,
+            TransportIndicesAliasesAction.TYPE,
             request,
             ActionListener.wrap(aliasesResponse -> {
                 listener.onResponse(true);
@@ -265,14 +267,14 @@ public final class TransformIndex {
     }
 
     /*
-     * Return meta data that stores some useful information about the transform index, stored as "_meta":
+     * Return metadata that stores some useful information about the transform index, stored as "_meta":
      *
      * {
      *   "created_by" : "transform",
      *   "_transform" : {
      *     "transform" : "id",
      *     "version" : {
-     *       "created" : "8.0.0"
+     *       "created" : "10.0.0"
      *     },
      *     "creation_date_in_millis" : 1584025695202
      *   }
@@ -285,7 +287,10 @@ public final class TransformIndex {
 
         Map<String, Object> transformMetadata = new HashMap<>();
         transformMetadata.put(TransformField.CREATION_DATE_MILLIS, clock.millis());
-        transformMetadata.put(TransformField.VERSION.getPreferredName(), Map.of(TransformField.CREATED, Version.CURRENT.toString()));
+        transformMetadata.put(
+            TransformField.VERSION.getPreferredName(),
+            Map.of(TransformField.CREATED, TransformConfigVersion.CURRENT.toString())
+        );
         transformMetadata.put(TransformField.TRANSFORM, id);
 
         metadata.put(TransformField.META_FIELDNAME, transformMetadata);

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -31,8 +31,8 @@ public class PercentileDoubleAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new PercentileDoubleAggregatorFunctionSupplier(inputChannels, percentile);
     }
 
     @Override
@@ -41,8 +41,8 @@ public class PercentileDoubleAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
-        return new SequenceDoubleBlockSourceOperator(LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        return new SequenceDoubleBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToDouble(l -> ESTestCase.randomDouble()));
     }
 
     @Override

@@ -38,4 +38,12 @@ public final class DeleteResult {
     public DeleteResult add(long blobs, long bytes) {
         return new DeleteResult(blobsDeleted + blobs, bytesDeleted + bytes);
     }
+
+    public static DeleteResult of(long blobs, long bytes) {
+        if (blobs == 0 && bytes == 0) {
+            return ZERO;
+        } else {
+            return new DeleteResult(blobs, bytes);
+        }
+    }
 }

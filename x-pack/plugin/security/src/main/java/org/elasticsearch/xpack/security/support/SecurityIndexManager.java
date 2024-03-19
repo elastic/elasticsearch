@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -67,31 +68,45 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 
+    /**
+     * When checking availability, check for availability of search or availability of all primaries
+     **/
+    public enum Availability {
+        SEARCH_SHARDS,
+        PRIMARY_SHARDS
+    }
+
     private final Client client;
     private final SystemIndexDescriptor systemIndexDescriptor;
 
     private final List<BiConsumer<State, State>> stateChangeListeners = new CopyOnWriteArrayList<>();
 
     private volatile State state;
+    private final boolean defensiveCopy;
 
     public static SecurityIndexManager buildSecurityIndexManager(
         Client client,
         ClusterService clusterService,
         SystemIndexDescriptor descriptor
     ) {
-        final SecurityIndexManager securityIndexManager = new SecurityIndexManager(client, descriptor, State.UNRECOVERED_STATE);
+        final SecurityIndexManager securityIndexManager = new SecurityIndexManager(client, descriptor, State.UNRECOVERED_STATE, false);
         clusterService.addListener(securityIndexManager);
         return securityIndexManager;
     }
 
-    private SecurityIndexManager(Client client, SystemIndexDescriptor descriptor, State state) {
+    private SecurityIndexManager(Client client, SystemIndexDescriptor descriptor, State state, boolean defensiveCopy) {
         this.client = client;
         this.state = state;
         this.systemIndexDescriptor = descriptor;
+        this.defensiveCopy = defensiveCopy;
     }
 
-    public SecurityIndexManager freeze() {
-        return new SecurityIndexManager(null, systemIndexDescriptor, state);
+    /**
+     * Creates a defensive to protect against the underlying state changes. Should be called prior to making decisions and that same copy
+     * should be reused for multiple checks in the same workflow.
+     */
+    public SecurityIndexManager defensiveCopy() {
+        return new SecurityIndexManager(null, systemIndexDescriptor, state, true);
     }
 
     public String aliasName() {
@@ -100,6 +115,10 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     public boolean indexExists() {
         return this.state.indexExists();
+    }
+
+    public boolean indexIsClosed() {
+        return this.state.indexState == IndexMetadata.State.CLOSE;
     }
 
     public Instant getCreationTime() {
@@ -114,8 +133,27 @@ public class SecurityIndexManager implements ClusterStateListener {
         return this.state.isIndexUpToDate;
     }
 
-    public boolean isAvailable() {
-        return this.state.indexAvailable;
+    /**
+     * Optimization to avoid making unnecessary calls when we know the underlying shard state. This call will check that the index exists,
+     * is discoverable from the alias, is not closed, and will determine if available based on the {@link Availability} parameter.
+     * @param availability Check availability for search or write/update/real time get workflows. Write/update/realtime get workflows
+     *                     should check for availability of primary shards. Search workflows should check availability of search shards
+     *                     (which may or may not also be the primary shards).
+     * @return
+     * when checking for search: <code>true</code> if all searchable shards for the security index are available
+     * when checking for primary: <code>true</code> if all primary shards for the security index are available
+     */
+    public boolean isAvailable(Availability availability) {
+        switch (availability) {
+            case SEARCH_SHARDS -> {
+                return this.state.indexAvailableForSearch;
+            }
+            case PRIMARY_SHARDS -> {
+                return this.state.indexAvailableForWrite;
+            }
+        }
+        // can never happen
+        throw new IllegalStateException("Unexpected availability enumeration. This is bug, please contact support.");
     }
 
     public boolean isMappingUpToDate() {
@@ -126,19 +164,34 @@ public class SecurityIndexManager implements ClusterStateListener {
         return this.state != State.UNRECOVERED_STATE;
     }
 
-    public ElasticsearchException getUnavailableReason() {
-        final State state = this.state; // use a local copy so all checks execute against the same state!
-        if (state.indexAvailable) {
-            throw new IllegalStateException("caller must make sure to use a frozen state and check indexAvailable");
+    public ElasticsearchException getUnavailableReason(Availability availability) {
+        // ensure usage of a local copy so all checks execute against the same state!
+        if (defensiveCopy == false) {
+            throw new IllegalStateException("caller must make sure to use a defensive copy");
         }
-
+        final State state = this.state;
         if (state.indexState == IndexMetadata.State.CLOSE) {
             return new IndexClosedException(new Index(state.concreteIndexName, ClusterState.UNKNOWN_UUID));
         } else if (state.indexExists()) {
-            return new UnavailableShardsException(
-                null,
-                "at least one primary shard for the index [" + state.concreteIndexName + "] is unavailable"
-            );
+            assert state.indexAvailableForSearch == false || state.indexAvailableForWrite == false;
+            if (Availability.PRIMARY_SHARDS.equals(availability) && state.indexAvailableForWrite == false) {
+                return new UnavailableShardsException(
+                    null,
+                    "at least one primary shard for the index [" + state.concreteIndexName + "] is unavailable"
+                );
+            } else if (Availability.SEARCH_SHARDS.equals(availability) && state.indexAvailableForSearch == false) {
+                // The current behavior is that when primaries are unavailable and replicas can not be promoted then
+                // any replicas will be marked as unavailable as well. This is applicable in stateless where there index only primaries
+                // with non-promotable replicas (i.e. search only shards). In the case "at least one search ... is unavailable" is
+                // a technically correct statement, but it may be unavailable because it is not promotable and the primary is unavailable
+                return new UnavailableShardsException(
+                    null,
+                    "at least one search shard for the index [" + state.concreteIndexName + "] is unavailable"
+                );
+            } else {
+                // should never happen
+                throw new IllegalStateException("caller must ensure original availability matches the current availability");
+            }
         } else {
             return new IndexNotFoundException(state.concreteIndexName);
         }
@@ -174,7 +227,9 @@ public class SecurityIndexManager implements ClusterStateListener {
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
         final boolean isIndexUpToDate = indexMetadata == null
             || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == systemIndexDescriptor.getIndexFormat();
-        final boolean indexAvailable = checkIndexAvailable(event.state());
+        Tuple<Boolean, Boolean> available = checkIndexAvailable(event.state());
+        final boolean indexAvailableForWrite = available.v1();
+        final boolean indexAvailableForSearch = available.v2();
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final Version mappingVersion = oldestIndexMappingVersion(event.state());
         final String concreteIndexName = indexMetadata == null
@@ -199,7 +254,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         final State newState = new State(
             creationTime,
             isIndexUpToDate,
-            indexAvailable,
+            indexAvailableForSearch,
+            indexAvailableForWrite,
             mappingIsUpToDate,
             mappingVersion,
             concreteIndexName,
@@ -230,24 +286,35 @@ public class SecurityIndexManager implements ClusterStateListener {
         stateChangeListeners.add(stateChangeListener);
     }
 
-    private boolean checkIndexAvailable(ClusterState state) {
+    private Tuple<Boolean, Boolean> checkIndexAvailable(ClusterState state) {
         final String aliasName = systemIndexDescriptor.getAliasName();
         IndexMetadata metadata = resolveConcreteIndex(aliasName, state.metadata());
         if (metadata == null) {
             logger.debug("Index [{}] is not available - no metadata", aliasName);
-            return false;
+            return new Tuple<>(false, false);
         }
         if (metadata.getState() == IndexMetadata.State.CLOSE) {
             logger.warn("Index [{}] is closed", aliasName);
-            return false;
+            return new Tuple<>(false, false);
         }
+        boolean allPrimaryShards = false;
+        boolean searchShards = false;
         final IndexRoutingTable routingTable = state.routingTable().index(metadata.getIndex());
-        if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
-            logger.debug("Index [{}] is not yet active", aliasName);
-            return false;
-        } else {
-            return true;
+        if (routingTable != null && routingTable.allPrimaryShardsActive()) {
+            allPrimaryShards = true;
         }
+        if (routingTable != null && routingTable.readyForSearch(state)) {
+            searchShards = true;
+        }
+        if (allPrimaryShards == false || searchShards == false) {
+            logger.debug(
+                "Index [{}] is not fully available. all primary shards available [{}], search shards available, [{}]",
+                aliasName,
+                allPrimaryShards,
+                searchShards
+            );
+        }
+        return new Tuple<>(allPrimaryShards, searchShards);
     }
 
     private boolean checkIndexMappingUpToDate(ClusterState clusterState) {
@@ -482,10 +549,11 @@ public class SecurityIndexManager implements ClusterStateListener {
      * State of the security index.
      */
     public static class State {
-        public static final State UNRECOVERED_STATE = new State(null, false, false, false, null, null, null, null, null, null);
+        public static final State UNRECOVERED_STATE = new State(null, false, false, false, false, null, null, null, null, null, null);
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
-        public final boolean indexAvailable;
+        public final boolean indexAvailableForSearch;
+        public final boolean indexAvailableForWrite;
         public final boolean mappingUpToDate;
         public final Version mappingVersion;
         public final String concreteIndexName;
@@ -497,7 +565,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         public State(
             Instant creationTime,
             boolean isIndexUpToDate,
-            boolean indexAvailable,
+            boolean indexAvailableForSearch,
+            boolean indexAvailableForWrite,
             boolean mappingUpToDate,
             Version mappingVersion,
             String concreteIndexName,
@@ -508,7 +577,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         ) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
-            this.indexAvailable = indexAvailable;
+            this.indexAvailableForSearch = indexAvailableForSearch;
+            this.indexAvailableForWrite = indexAvailableForWrite;
             this.mappingUpToDate = mappingUpToDate;
             this.mappingVersion = mappingVersion;
             this.concreteIndexName = concreteIndexName;
@@ -525,7 +595,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             State state = (State) o;
             return Objects.equals(creationTime, state.creationTime)
                 && isIndexUpToDate == state.isIndexUpToDate
-                && indexAvailable == state.indexAvailable
+                && indexAvailableForSearch == state.indexAvailableForSearch
+                && indexAvailableForWrite == state.indexAvailableForWrite
                 && mappingUpToDate == state.mappingUpToDate
                 && Objects.equals(mappingVersion, state.mappingVersion)
                 && Objects.equals(concreteIndexName, state.concreteIndexName)
@@ -543,7 +614,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             return Objects.hash(
                 creationTime,
                 isIndexUpToDate,
-                indexAvailable,
+                indexAvailableForSearch,
+                indexAvailableForWrite,
                 mappingUpToDate,
                 mappingVersion,
                 concreteIndexName,

@@ -34,15 +34,21 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.SOURCE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 
 public final class EsqlDataTypes {
 
     public static final DataType DATE_PERIOD = new DataType("DATE_PERIOD", null, 3 * Integer.BYTES, false, false, false);
     public static final DataType TIME_DURATION = new DataType("TIME_DURATION", null, Integer.BYTES + Long.BYTES, false, false, false);
+    public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2, false, false, false);
+    public static final DataType CARTESIAN_POINT = new DataType("cartesian_point", Double.BYTES * 2, false, false, false);
+    public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, false);
+    public static final DataType CARTESIAN_SHAPE = new DataType("cartesian_shape", Integer.MAX_VALUE, false, false, false);
 
     private static final Collection<DataType> TYPES = Stream.of(
         BOOLEAN,
@@ -64,8 +70,13 @@ public final class EsqlDataTypes {
         OBJECT,
         NESTED,
         SCALED_FLOAT,
+        SOURCE,
         VERSION,
-        UNSIGNED_LONG
+        UNSIGNED_LONG,
+        GEO_POINT,
+        CARTESIAN_POINT,
+        CARTESIAN_SHAPE,
+        GEO_SHAPE
     ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
@@ -74,6 +85,9 @@ public final class EsqlDataTypes {
 
     static {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
+        // ES calls this 'point', but ESQL calls it 'cartesian_point'
+        map.put("point", CARTESIAN_POINT);
+        map.put("shape", CARTESIAN_SHAPE);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
@@ -87,7 +101,7 @@ public final class EsqlDataTypes {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
 
-    public static DataType fromEs(String name) {
+    public static DataType fromName(String name) {
         DataType type = ES_TO_TYPE.get(name);
         return type != null ? type : UNSUPPORTED;
     }
@@ -145,6 +159,26 @@ public final class EsqlDataTypes {
         return t == DATE_PERIOD || t == TIME_DURATION;
     }
 
+    public static boolean isNullOrTemporalAmount(DataType t) {
+        return isTemporalAmount(t) || isNull(t);
+    }
+
+    public static boolean isNullOrDatePeriod(DataType t) {
+        return t == DATE_PERIOD || isNull(t);
+    }
+
+    public static boolean isNullOrTimeDuration(DataType t) {
+        return t == TIME_DURATION || isNull(t);
+    }
+
+    public static boolean isSpatial(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT || t == GEO_SHAPE || t == CARTESIAN_SHAPE;
+    }
+
+    public static boolean isSpatialPoint(DataType t) {
+        return t == GEO_POINT || t == CARTESIAN_POINT;
+    }
+
     /**
      * Supported types that can be contained in a block.
      */
@@ -158,6 +192,7 @@ public final class EsqlDataTypes {
             && t != SHORT
             && t != FLOAT
             && t != SCALED_FLOAT
+            && t != SOURCE
             && t != HALF_FLOAT;
     }
 

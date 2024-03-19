@@ -10,4 +10,36 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-public record LocalLogicalOptimizerContext(EsqlConfiguration configuration, SearchStats searchStats) {}
+import java.util.Objects;
+
+public final class LocalLogicalOptimizerContext extends LogicalOptimizerContext {
+    private final SearchStats searchStats;
+
+    public LocalLogicalOptimizerContext(EsqlConfiguration configuration, SearchStats searchStats) {
+        super(configuration);
+        this.searchStats = searchStats;
+    }
+
+    public SearchStats searchStats() {
+        return searchStats;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj)) {
+            var that = (LocalLogicalOptimizerContext) obj;
+            return Objects.equals(this.searchStats, that.searchStats);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), searchStats);
+    }
+
+    @Override
+    public String toString() {
+        return "LocalLogicalOptimizerContext[" + "configuration=" + configuration() + ", " + "searchStats=" + searchStats + ']';
+    }
+}

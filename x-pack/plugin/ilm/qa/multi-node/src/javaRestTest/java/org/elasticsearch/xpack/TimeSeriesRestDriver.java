@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -60,6 +61,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -93,9 +95,16 @@ public final class TimeSeriesRestDriver {
 
     public static Map<String, Map<String, Object>> explain(RestClient client, String indexPattern, boolean onlyErrors, boolean onlyManaged)
         throws IOException {
+        RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> warnings.isEmpty() == false && List.of("""
+                [indices.lifecycle.rollover.only_if_has_documents] setting was deprecated in Elasticsearch \
+                and will be removed in a future release.""").equals(warnings) == false)
+            .build();
+
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
         explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
         explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
+        explainRequest.setOptions(consumeWarningsOptions);
         Response response = client.performRequest(explainRequest);
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {
@@ -482,6 +491,24 @@ public final class TimeSeriesRestDriver {
         }, 30, TimeUnit.SECONDS);
         logger.info("--> original index name is [{}], shrunken index name is [{}]", originalIndex, shrunkenIndexName[0]);
         return shrunkenIndexName[0];
+    }
+
+    @SuppressWarnings("unchecked")
+    public static List<String> getBackingIndices(RestClient client, String dataStreamName) throws IOException {
+        Response getDataStream = client.performRequest(new Request("GET", "_data_stream/" + dataStreamName));
+        Map<String, Object> responseMap;
+        try (InputStream is = getDataStream.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) responseMap.get("data_streams");
+        assertThat(dataStreams.size(), is(1));
+        Map<String, Object> dataStream = dataStreams.get(0);
+        assertThat(dataStream.get("name"), is(dataStreamName));
+        List<String> indices = ((List<Map<String, Object>>) dataStream.get("indices")).stream()
+            .map(indexMap -> (String) indexMap.get("index_name"))
+            .toList();
+        return indices;
     }
 
     private static void executeDummyClusterStateUpdate(RestClient client) throws IOException {

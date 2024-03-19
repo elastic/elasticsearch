@@ -21,7 +21,11 @@ import org.elasticsearch.script.field.VersionDocValuesField;
 
 import java.util.Collections;
 
-/** Mapper for the _version field. */
+/** Mapper for the _version field.
+ *
+ *  This is the field mapper for the monotonically increasing document version.  If you are looking for the field that stores semver style
+ *  strings in a sortable binary format, you want VersionStringFieldMapper in the xpack VersionField plugin
+ */
 public class VersionFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_version";
@@ -52,6 +56,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockDocValuesReader.LongsBlockLoader(name());
         }
 
         @Override

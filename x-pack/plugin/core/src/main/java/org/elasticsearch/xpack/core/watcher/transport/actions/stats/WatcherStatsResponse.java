@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -31,11 +32,6 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     private final WatcherMetadata watcherMetadata;
 
-    public WatcherStatsResponse(StreamInput in) throws IOException {
-        super(in);
-        watcherMetadata = new WatcherMetadata(in.readBoolean());
-    }
-
     public WatcherStatsResponse(
         ClusterName clusterName,
         WatcherMetadata watcherMetadata,
@@ -48,18 +44,17 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(watcherMetadata.manuallyStopped());
+        TransportAction.localOnly();
     }
 
     @Override
     protected List<Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(Node::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-        out.writeCollection(nodes);
+        TransportAction.localOnly();
     }
 
     @Override

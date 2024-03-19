@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -31,6 +32,7 @@ import java.util.Map;
  */
 public abstract class ConstantFieldType extends MappedFieldType {
 
+    @SuppressWarnings("this-escape")
     public ConstantFieldType(String name, Map<String, String> meta) {
         super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         assert isSearchable();
@@ -130,5 +132,11 @@ public abstract class ConstantFieldType extends MappedFieldType {
         } else {
             return new MatchNoDocsQuery();
         }
+    }
+
+    @Override
+    public final boolean fieldHasValue(FieldInfos fieldInfos) {
+        // We consider constant field types to always have value.
+        return true;
     }
 }

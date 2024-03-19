@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ql.optimizer;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -69,6 +71,7 @@ import java.util.function.BiFunction;
 
 import static java.lang.Math.signum;
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineAnd;
@@ -144,7 +147,7 @@ public final class OptimizerRules {
             return e;
         }
 
-        private Expression simplifyAndOr(BinaryPredicate<?, ?, ?, ?> bc) {
+        private static Expression simplifyAndOr(BinaryPredicate<?, ?, ?, ?> bc) {
             Expression l = bc.left();
             Expression r = bc.right();
 
@@ -339,7 +342,7 @@ public final class OptimizerRules {
         }
 
         // combine conjunction
-        private Expression propagate(And and) {
+        private static Expression propagate(And and) {
             List<Range> ranges = new ArrayList<>();
             // Only equalities, not-equalities and inequalities with a foldable .right are extracted separately;
             // the others go into the general 'exps'.
@@ -479,7 +482,7 @@ public final class OptimizerRules {
         // a = 2 OR a < 3 -> a < 3; a = 2 OR a < 1 -> nop
         // a = 2 OR 3 < a < 5 -> nop; a = 2 OR 1 < a < 3 -> 1 < a < 3; a = 2 OR 0 < a < 1 -> nop
         // a = 2 OR a != 2 -> TRUE; a = 2 OR a = 5 -> nop; a = 2 OR a != 5 -> a != 5
-        private Expression propagate(Or or) {
+        private static Expression propagate(Or or) {
             List<Expression> exps = new ArrayList<>();
             List<Equals> equals = new ArrayList<>(); // foldable right term Equals
             List<NotEquals> notEquals = new ArrayList<>(); // foldable right term NotEquals
@@ -652,7 +655,7 @@ public final class OptimizerRules {
         }
 
         // combine conjunction
-        private Expression combine(And and) {
+        private static Expression combine(And and) {
             List<Range> ranges = new ArrayList<>();
             List<BinaryComparison> bcs = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
@@ -764,7 +767,7 @@ public final class OptimizerRules {
         }
 
         // combine disjunction
-        private Expression combine(Or or) {
+        private static Expression combine(Or or) {
             List<BinaryComparison> bcs = new ArrayList<>();
             List<Range> ranges = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
@@ -912,7 +915,7 @@ public final class OptimizerRules {
             return false;
         }
 
-        private boolean findConjunctiveComparisonInRange(BinaryComparison main, List<Range> ranges) {
+        private static boolean findConjunctiveComparisonInRange(BinaryComparison main, List<Range> ranges) {
             Object value = main.right().fold();
 
             // NB: the loop modifies the list (hence why the int is used)
@@ -1675,14 +1678,9 @@ public final class OptimizerRules {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof IsNotNull isnn) {
-                if (isnn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
-                }
-            } else if (e instanceof IsNull isn) {
-                if (isn.field().nullable() == Nullability.FALSE) {
-                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
-                }
+            Expression result = tryReplaceIsNullIsNotNull(e);
+            if (result != e) {
+                return result;
             } else if (e instanceof In in) {
                 if (Expressions.isNull(in.value())) {
                     return Literal.of(in, null);
@@ -1692,6 +1690,19 @@ public final class OptimizerRules {
                 && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                     return Literal.of(e, null);
                 }
+            return e;
+        }
+
+        protected Expression tryReplaceIsNullIsNotNull(Expression e) {
+            if (e instanceof IsNotNull isnn) {
+                if (isnn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+                }
+            } else if (e instanceof IsNull isn) {
+                if (isn.field().nullable() == Nullability.FALSE) {
+                    return new Literal(e.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+                }
+            }
             return e;
         }
     }
@@ -1785,15 +1796,102 @@ public final class OptimizerRules {
         }
     }
 
+    /**
+     * Simplify IsNotNull targets by resolving the underlying expression to its root fields with unknown
+     * nullability.
+     * e.g.
+     * (x + 1) / 2 IS NOT NULL --> x IS NOT NULL AND (x+1) / 2 IS NOT NULL
+     * SUBSTRING(x, 3) > 4 IS NOT NULL --> x IS NOT NULL AND SUBSTRING(x, 3) > 4 IS NOT NULL
+     * When dealing with multiple fields, a conjunction/disjunction based on the predicate:
+     * (x + y) / 4 IS NOT NULL --> x IS NOT NULL AND y IS NOT NULL AND (x + y) / 4 IS NOT NULL
+     * This handles the case of fields nested inside functions or expressions in order to avoid:
+     * - having to evaluate the whole expression
+     * - not pushing down the filter due to expression evaluation
+     * IS NULL cannot be simplified since it leads to a disjunction which prevents the filter to be
+     * pushed down:
+     * (x + 1) IS NULL --> x IS NULL OR x + 1 IS NULL
+     * and x IS NULL cannot be pushed down
+     * <br/>
+     * Implementation-wise this rule goes bottom-up, keeping an alias up to date to the current plan
+     * and then looks for replacing the target.
+     */
+    public static class InferIsNotNull extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            // the alias map is shared across the whole plan
+            AttributeMap<Expression> aliases = new AttributeMap<>();
+            // traverse bottom-up to pick up the aliases as we go
+            plan = plan.transformUp(p -> inspectPlan(p, aliases));
+            return plan;
+        }
+
+        private LogicalPlan inspectPlan(LogicalPlan plan, AttributeMap<Expression> aliases) {
+            // inspect just this plan properties
+            plan.forEachExpression(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
+            // now go about finding isNull/isNotNull
+            LogicalPlan newPlan = plan.transformExpressionsOnlyUp(IsNotNull.class, inn -> inferNotNullable(inn, aliases));
+            return newPlan;
+        }
+
+        private Expression inferNotNullable(IsNotNull inn, AttributeMap<Expression> aliases) {
+            Expression result = inn;
+            Set<Expression> refs = resolveExpressionAsRootAttributes(inn.field(), aliases);
+            // no refs found or could not detect - return the original function
+            if (refs.size() > 0) {
+                // add IsNull for the filters along with the initial inn
+                var innList = CollectionUtils.combine(refs.stream().map(r -> (Expression) new IsNotNull(inn.source(), r)).toList(), inn);
+                result = Predicates.combineAnd(innList);
+            }
+            return result;
+        }
+
+        /**
+         * Unroll the expression to its references to get to the root fields
+         * that really matter for filtering.
+         */
+        protected Set<Expression> resolveExpressionAsRootAttributes(Expression exp, AttributeMap<Expression> aliases) {
+            Set<Expression> resolvedExpressions = new LinkedHashSet<>();
+            boolean changed = doResolve(exp, aliases, resolvedExpressions);
+            return changed ? resolvedExpressions : emptySet();
+        }
+
+        private boolean doResolve(Expression exp, AttributeMap<Expression> aliases, Set<Expression> resolvedExpressions) {
+            boolean changed = false;
+            // check if the expression can be skipped or is not nullabe
+            if (skipExpression(exp)) {
+                resolvedExpressions.add(exp);
+            } else {
+                for (Expression e : exp.references()) {
+                    Expression resolved = aliases.resolve(e, e);
+                    // found a root attribute, bail out
+                    if (resolved instanceof Attribute a && resolved == e) {
+                        resolvedExpressions.add(a);
+                        // don't mark things as change if the original expression hasn't been broken down
+                        changed |= resolved != exp;
+                    } else {
+                        // go further
+                        changed |= doResolve(resolved, aliases, resolvedExpressions);
+                    }
+                }
+            }
+            return changed;
+        }
+
+        protected boolean skipExpression(Expression e) {
+            return e.nullable() == Nullability.FALSE;
+        }
+    }
+
     public static final class SetAsOptimized extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            plan.forEachUp(this::rule);
+            plan.forEachUp(SetAsOptimized::rule);
             return plan;
         }
 
-        private void rule(LogicalPlan plan) {
+        private static void rule(LogicalPlan plan) {
             if (plan.optimized() == false) {
                 plan.setOptimized();
             }

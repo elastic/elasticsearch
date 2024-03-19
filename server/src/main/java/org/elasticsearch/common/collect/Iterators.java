@@ -10,11 +10,14 @@ package org.elasticsearch.common.collect;
 
 import org.elasticsearch.core.Nullable;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
@@ -90,33 +93,17 @@ public class Iterators {
             }
             return value;
         }
+
+        @Override
+        public void forEachRemaining(Consumer<? super T> action) {
+            while (index < iterators.length) {
+                iterators[index++].forEachRemaining(action);
+            }
+        }
     }
 
     public static <T> Iterator<T> forArray(T[] array) {
-        return new ArrayIterator<>(array);
-    }
-
-    private static final class ArrayIterator<T> implements Iterator<T> {
-
-        private final T[] array;
-        private int index;
-
-        private ArrayIterator(T[] array) {
-            this.array = Objects.requireNonNull(array, "Unable to iterate over a null array");
-        }
-
-        @Override
-        public boolean hasNext() {
-            return index < array.length;
-        }
-
-        @Override
-        public T next() {
-            if (index >= array.length) {
-                throw new NoSuchElementException();
-            }
-            return array[index++];
-        }
+        return Arrays.asList(array).iterator();
     }
 
     public static <T> Iterator<T> forRange(int lowerBoundInclusive, int upperBoundExclusive, IntFunction<? extends T> fn) {
@@ -153,8 +140,12 @@ public class Iterators {
         }
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public static <T, U> Iterator<U> map(Iterator<? extends T> input, Function<T, ? extends U> fn) {
         if (input.hasNext()) {
+            if (input instanceof MapIterator mapIterator) {
+                return new MapIterator<>(mapIterator.input, mapIterator.fn.andThen(fn));
+            }
             return new MapIterator<>(input, fn);
         } else {
             return Collections.emptyIterator();
@@ -178,6 +169,11 @@ public class Iterators {
         @Override
         public U next() {
             return fn.apply(input.next());
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super U> action) {
+            input.forEachRemaining(t -> action.accept(fn.apply(t)));
         }
     }
 
@@ -227,6 +223,38 @@ public class Iterators {
                 }
             }
             return value;
+        }
+    }
+
+    /**
+     * Returns an iterator over the same items as the provided {@code input} except that it stops yielding items (i.e. starts returning
+     * {@code false} from {@link Iterator#hasNext()} on failure.
+     */
+    public static <T> Iterator<T> failFast(Iterator<T> input, BooleanSupplier isFailingSupplier) {
+        if (isFailingSupplier.getAsBoolean()) {
+            return Collections.emptyIterator();
+        } else {
+            return new FailFastIterator<>(input, isFailingSupplier);
+        }
+    }
+
+    private static class FailFastIterator<T> implements Iterator<T> {
+        private final Iterator<T> delegate;
+        private final BooleanSupplier isFailingSupplier;
+
+        FailFastIterator(Iterator<T> delegate, BooleanSupplier isFailingSupplier) {
+            this.delegate = delegate;
+            this.isFailingSupplier = isFailingSupplier;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return isFailingSupplier.getAsBoolean() == false && delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return delegate.next();
         }
     }
 

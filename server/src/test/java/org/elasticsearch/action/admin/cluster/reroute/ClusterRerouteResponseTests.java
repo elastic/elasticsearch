@@ -27,6 +27,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -129,7 +131,19 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                         "nodes_versions": [
                           {
                             "node_id": "node0",
-                            "transport_version": "8000099"
+                            "transport_version": "8000099",
+                            "mappings_versions": {
+                              ".system-index": {
+                                "version": 1,
+                                "hash": 0
+                              }
+                            }
+                          }
+                        ],
+                        "nodes_features": [
+                          {
+                            "node_id": "node0",
+                            "features": []
                           }
                         ],
                         "metadata": {
@@ -197,7 +211,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                 clusterState.stateUUID(),
                 clusterState.getNodes().get("node0").getEphemeralId(),
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 IndexVersion.current()
             ),
@@ -284,7 +298,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
             ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, params);
             assertEquals(XContentHelper.stripWhitespace(expectedBody), XContentHelper.stripWhitespace(Strings.toString(builder)));
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
 
         final var expectedChunks = Objects.equals(params.param("metric"), "none")
@@ -322,7 +336,11 @@ public class ClusterRerouteResponseTests extends ESTestCase {
         var node0 = DiscoveryNodeUtils.create("node0", new TransportAddress(TransportAddress.META_ADDRESS, 9000));
         return ClusterState.builder(new ClusterName("test"))
             .nodes(new DiscoveryNodes.Builder().add(node0).masterNodeId(node0.getId()).build())
-            .putTransportVersion(node0.getId(), TransportVersions.V_8_0_0)
+            .putCompatibilityVersions(
+                node0.getId(),
+                TransportVersions.V_8_0_0,
+                Map.of(".system-index", new SystemIndexDescriptor.MappingsVersion(1, 0))
+            )
             .metadata(
                 Metadata.builder()
                     .put(

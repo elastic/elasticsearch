@@ -13,8 +13,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class MultiTermVectorsRequestBuilder extends ActionRequestBuilder<MultiTermVectorsRequest, MultiTermVectorsResponse> {
 
-    public MultiTermVectorsRequestBuilder(ElasticsearchClient client, MultiTermVectorsAction action) {
-        super(client, action, new MultiTermVectorsRequest());
+    public MultiTermVectorsRequestBuilder(ElasticsearchClient client) {
+        super(client, MultiTermVectorsAction.INSTANCE, new MultiTermVectorsRequest());
     }
 
     public MultiTermVectorsRequestBuilder add(String index, Iterable<String> ids) {

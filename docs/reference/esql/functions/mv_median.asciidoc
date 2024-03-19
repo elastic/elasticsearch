@@ -1,6 +1,27 @@
+[discrete]
 [[esql-mv_median]]
 === `MV_MEDIAN`
-Converts a multivalued field into a single valued field containing the median value. For example:
+
+[source,esql]
+----
+MV_MEDIAN(v)
+----
+
+*Parameters*
+
+`v`::
+Multivalue expression.
+
+*Description*
+
+Converts a multivalued column into a single valued column containing the median
+value.
+
+*Supported types*
+
+include::types/mv_median.asciidoc[]
+
+*Examples*
 
 [source.merge.styled,esql]
 ----
@@ -11,9 +32,9 @@ include::{esql-specs}/math.csv-spec[tag=mv_median]
 include::{esql-specs}/math.csv-spec[tag=mv_median-result]
 |===
 
-It can be used by any numeric field type and returns a value of the same type. If the
-row has an even number of values for a column the result will be the average of the
-middle two entries. If the field is not floating point then the average rounds *down*:
+If the row has an even number of values for a column, the result will be the
+average of the middle two entries. If the column is not floating point, the
+average rounds *down*:
 
 [source.merge.styled,esql]
 ----

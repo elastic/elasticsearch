@@ -114,11 +114,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         }
 
         seedHostsResolver.resolveConfiguredHosts(resolvedAddresses -> {
-            try {
-                assertTrue(startLatch.await(30, TimeUnit.SECONDS));
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(startLatch);
             resolvedAddressesRef.set(resolvedAddresses);
             endLatch.countDown();
         });

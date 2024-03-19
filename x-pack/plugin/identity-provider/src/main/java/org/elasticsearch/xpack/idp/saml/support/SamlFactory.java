@@ -78,7 +78,7 @@ public class SamlFactory {
         return cast(type, elementName, obj);
     }
 
-    private <T extends XMLObject> T cast(Class<T> type, QName elementName, XMLObject obj) {
+    private static <T extends XMLObject> T cast(Class<T> type, QName elementName, XMLObject obj) {
         if (type.isInstance(obj)) {
             return type.cast(obj);
         } else {
@@ -120,7 +120,7 @@ public class SamlFactory {
         }
     }
 
-    public <T extends XMLObject> T buildXmlObject(Element element, Class<T> type) {
+    public static <T extends XMLObject> T buildXmlObject(Element element, Class<T> type) {
         try {
             UnmarshallerFactory unmarshallerFactory = getUnmarshallerFactory();
             Unmarshaller unmarshaller = unmarshallerFactory.getUnmarshaller(element);
@@ -163,24 +163,12 @@ public class SamlFactory {
         }
     }
 
-    public boolean elementNameMatches(Element element, String namespace, String localName) {
+    public static boolean elementNameMatches(Element element, String namespace, String localName) {
         return localName.equals(element.getLocalName()) && namespace.equals(element.getNamespaceURI());
     }
 
-    public String text(Element dom, int length) {
+    public static String text(Element dom, int length) {
         return text(dom, length, 0);
-    }
-
-    public String text(XMLObject xml, int prefixLength, int suffixLength) {
-        final Element dom = xml.getDOM();
-        if (dom == null) {
-            return null;
-        }
-        return text(dom, prefixLength, suffixLength);
-    }
-
-    public String text(XMLObject xml, int length) {
-        return text(xml, length, 0);
     }
 
     protected static String text(Element dom, int prefixLength, int suffixLength) {
@@ -202,7 +190,7 @@ public class SamlFactory {
         }
     }
 
-    public String describeCredentials(Collection<? extends Credential> credentials) {
+    public static String describeCredentials(Collection<? extends Credential> credentials) {
         return credentials.stream().map(c -> {
             if (c == null) {
                 return "<null>";
@@ -221,7 +209,7 @@ public class SamlFactory {
         }).collect(Collectors.joining(","));
     }
 
-    public Element toDomElement(XMLObject object) {
+    public static Element toDomElement(XMLObject object) {
         try {
             return XMLObjectSupport.marshall(object);
         } catch (MarshallingException e) {
@@ -230,7 +218,7 @@ public class SamlFactory {
     }
 
     @SuppressForbidden(reason = "This is the only allowed way to construct a Transformer")
-    public Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {
+    public static Transformer getHardenedXMLTransformer() throws TransformerConfigurationException {
         final TransformerFactory tfactory = TransformerFactory.newInstance();
         tfactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         tfactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
@@ -282,7 +270,7 @@ public class SamlFactory {
         return documentBuilder;
     }
 
-    public String getJavaAlorithmNameFromUri(String sigAlg) {
+    public static String getJavaAlorithmNameFromUri(String sigAlg) {
         return switch (sigAlg) {
             case "http://www.w3.org/2000/09/xmldsig#dsa-sha1" -> "SHA1withDSA";
             case "http://www.w3.org/2000/09/xmldsig#dsa-sha256" -> "SHA256withDSA";

@@ -1,7 +1,30 @@
+[discrete]
 [[esql-starts_with]]
 === `STARTS_WITH`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/starts_with.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`str`::
+String expression. If `null`, the function returns `null`.
+
+`prefix`::
+String expression. If `null`, the function returns `null`.
+
+*Description*
+
 Returns a boolean that indicates whether a keyword string starts with another
-string:
+string.
+
+*Supported types*
+
+include::types/starts_with.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----

@@ -9,7 +9,7 @@
 package org.elasticsearch.versioning;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -31,9 +31,9 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(numberOfUpdates);
         for (int i = 0; i < numberOfUpdates; i++) {
-            client().prepareIndex("test").setId("1").setSource("field1", i).execute(new ActionListener<IndexResponse>() {
+            prepareIndex("test").setId("1").setSource("field1", i).execute(new ActionListener<>() {
                 @Override
-                public void onResponse(IndexResponse response) {
+                public void onResponse(DocWriteResponse response) {
                     latch.countDown();
                 }
 
@@ -50,12 +50,12 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
 
         assertThat(failure.get(), nullValue());
 
-        indicesAdmin().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().get();
 
         logger.info("done indexing, check all have the same field value");
-        Map<String, Object> masterSource = client().prepareGet("test", "1").execute().actionGet().getSourceAsMap();
+        Map<String, Object> masterSource = client().prepareGet("test", "1").get().getSourceAsMap();
         for (int i = 0; i < (cluster().size() * 5); i++) {
-            assertThat(client().prepareGet("test", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
+            assertThat(client().prepareGet("test", "1").get().getSourceAsMap(), equalTo(masterSource));
         }
     }
 }

@@ -1,8 +1,8 @@
 ---
 "basic tsdb delete":
   - skip:
-      version: " - 8.8.0"
-      reason: fixed in 8.8.1
+      version: " - 8.12.99"
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -43,15 +43,15 @@
           location: swamp
           temperature: 32.4
           humidity: 88.9
-  - match:   { _id: crxuhC8WO3aVdhvtAAABiHD35_g }
+  - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
   - match:   { result: created }
   - match:   { _version: 1 }
 
   - do:
       delete:
         index: weather_sensors
-        id: crxuhC8WO3aVdhvtAAABiHD35_g
-  - match:   { _id: crxuhC8WO3aVdhvtAAABiHD35_g }
+        id: crxuhAep5Npwt_etAAABiHD35_g
+  - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
   - match:   { result: deleted }
   - match:   { _version: 2 }
 
@@ -68,6 +68,6 @@
           location: swamp
           temperature: 32.4
           humidity: 88.9
-  - match:   { _id: crxuhC8WO3aVdhvtAAABiHD35_g }
+  - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
   - match:   { result: created }
   - match:   { _version: 3 }

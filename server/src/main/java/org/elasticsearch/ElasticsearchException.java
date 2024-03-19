@@ -28,11 +28,18 @@ import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.indices.FailureIndexNotSupportedException;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
+import org.elasticsearch.ingest.GraphStructureException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.TooManyScrollContextsException;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -143,6 +150,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         super(LoggerMessageFormat.format(msg, args), cause);
     }
 
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
@@ -337,12 +345,20 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, 0);
+    }
+
+    /**
+     * Equivalent to {@link org.elasticsearch.xcontent.ToXContent#toXContent(XContentBuilder, Params)} except that it limits nesting depth
+     * so that it can avoid stackoverflow errors.
+     */
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this);
+            generateThrowableXContent(builder, params, this, nestedLevel);
         } else {
-            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause());
+            innerToXContent(builder, params, this, getExceptionName(), getMessage(), headers, metadata, getCause(), nestedLevel);
         }
         return builder;
     }
@@ -355,8 +371,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         String message,
         Map<String, List<String>> headers,
         Map<String, List<String>> metadata,
-        Throwable cause
+        Throwable cause,
+        int nestedLevel
     ) throws IOException {
+
+        if (nestedLevel > MAX_NESTED_EXCEPTION_LEVEL) {
+            var terminalException = new IllegalStateException("too many nested exceptions");
+            builder.field(TYPE, getExceptionName(terminalException));
+            builder.field(REASON, terminalException.getMessage());
+            return;
+        }
+
         builder.field(TYPE, type);
         builder.field(REASON, message);
 
@@ -372,7 +397,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             if (cause != null) {
                 builder.field(CAUSED_BY);
                 builder.startObject();
-                generateThrowableXContent(builder, params, cause);
+                generateThrowableXContent(builder, params, cause, nestedLevel + 1);
                 builder.endObject();
             }
         }
@@ -394,7 +419,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.startArray(SUPPRESSED.getPreferredName());
             for (Throwable suppressed : allSuppressed) {
                 builder.startObject();
-                generateThrowableXContent(builder, params, suppressed);
+                generateThrowableXContent(builder, params, suppressed, nestedLevel + 1);
                 builder.endObject();
             }
             builder.endArray();
@@ -547,18 +572,27 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Static toXContent helper method that renders {@link org.elasticsearch.ElasticsearchException} or {@link Throwable} instances
      * as XContent, delegating the rendering to {@link #toXContent(XContentBuilder, Params)}
-     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable)}.
+     * or {@link #innerToXContent(XContentBuilder, Params, Throwable, String, String, Map, Map, Throwable, int)}.
      *
      * This method is usually used when the {@link Throwable} is rendered as a part of another XContent object, and its result can
      * be parsed back using the {@link #fromXContent(XContentParser)} method.
      */
     public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
+        generateThrowableXContent(builder, params, t, 0);
+    }
+
+    /**
+     * Equivalent to {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)} but limits nesting depth
+     * so that it can avoid stackoverflow errors.
+     */
+    protected static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t, int nestedLevel)
+        throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         if (t instanceof ElasticsearchException) {
-            ((ElasticsearchException) t).toXContent(builder, params);
+            ((ElasticsearchException) t).toXContent(builder, params, nestedLevel);
         } else {
-            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
+            innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause(), nestedLevel);
         }
     }
 
@@ -1127,12 +1161,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UNKNOWN_VERSION_ADDED
         ),
         // 26 was BatchOperationException
-        SNAPSHOT_CREATION_EXCEPTION(
-            org.elasticsearch.snapshots.SnapshotCreationException.class,
-            org.elasticsearch.snapshots.SnapshotCreationException::new,
-            27,
-            UNKNOWN_VERSION_ADDED
-        ),
+        // 27 was SnapshotCreationException
         // 28 was DeleteFailedEngineException, deprecated in 6.0, removed in 7.0
         DOCUMENT_MISSING_EXCEPTION(
             org.elasticsearch.index.engine.DocumentMissingException.class,
@@ -1838,15 +1867,57 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.http.HttpHeadersValidationException.class,
             org.elasticsearch.http.HttpHeadersValidationException::new,
             169,
-            TransportVersions.V_8_500_020
+            TransportVersions.V_8_9_X
         ),
         ROLE_RESTRICTION_EXCEPTION(
             ElasticsearchRoleRestrictionException.class,
             ElasticsearchRoleRestrictionException::new,
             170,
-            TransportVersions.V_8_500_020
+            TransportVersions.V_8_9_X
         ),
-        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_500_065);
+        API_NOT_AVAILABLE_EXCEPTION(ApiNotAvailableException.class, ApiNotAvailableException::new, 171, TransportVersions.V_8_11_X),
+        RECOVERY_COMMIT_TOO_NEW_EXCEPTION(
+            RecoveryCommitTooNewException.class,
+            RecoveryCommitTooNewException::new,
+            172,
+            TransportVersions.V_8_11_X
+        ),
+        TOO_MANY_SCROLL_CONTEXTS_NEW_EXCEPTION(
+            TooManyScrollContextsException.class,
+            TooManyScrollContextsException::new,
+            173,
+            TransportVersions.V_8_12_0
+        ),
+        INVALID_BUCKET_PATH_EXCEPTION(
+            AggregationExecutionException.InvalidPath.class,
+            AggregationExecutionException.InvalidPath::new,
+            174,
+            TransportVersions.V_8_12_0
+        ),
+        MISSED_INDICES_UPDATE_EXCEPTION(
+            AutoscalingMissedIndicesUpdateException.class,
+            AutoscalingMissedIndicesUpdateException::new,
+            175,
+            TransportVersions.V_8_12_0
+        ),
+        SEARCH_TIMEOUT_EXCEPTION(
+            SearchTimeoutException.class,
+            SearchTimeoutException::new,
+            176,
+            TransportVersions.SEARCH_TIMEOUT_EXCEPTION_ADDED
+        ),
+        INGEST_GRAPH_STRUCTURE_EXCEPTION(
+            GraphStructureException.class,
+            GraphStructureException::new,
+            177,
+            TransportVersions.INGEST_GRAPH_STRUCTURE_EXCEPTION
+        ),
+        FAILURE_INDEX_NOT_SUPPORTED_EXCEPTION(
+            FailureIndexNotSupportedException.class,
+            FailureIndexNotSupportedException::new,
+            178,
+            TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS
+        );
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

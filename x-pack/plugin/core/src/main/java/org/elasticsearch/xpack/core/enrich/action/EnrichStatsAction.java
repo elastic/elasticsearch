@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -29,7 +28,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/enrich/stats";
 
     private EnrichStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -62,7 +61,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             super(in);
             executingPolicies = in.readCollectionAsList(ExecutingPolicy::new);
             coordinatorStats = in.readCollectionAsList(CoordinatorStats::new);
-            cacheStats = in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0) ? in.readCollectionAsList(CacheStats::new) : null;
+            cacheStats = in.readCollectionAsList(CacheStats::new);
         }
 
         public List<ExecutingPolicy> getExecutingPolicies() {
@@ -81,9 +80,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(executingPolicies);
             out.writeCollection(coordinatorStats);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-                out.writeCollection(cacheStats);
-            }
+            out.writeCollection(cacheStats);
         }
 
         @Override

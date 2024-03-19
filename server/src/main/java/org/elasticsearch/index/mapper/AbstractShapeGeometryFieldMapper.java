@@ -55,12 +55,18 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             Orientation orientation,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, parser, meta);
+            super(name, isSearchable, isStored, hasDocValues, parser, null, meta);
             this.orientation = orientation;
         }
 
         public Orientation orientation() {
             return this.orientation;
+        }
+
+        @Override
+        protected Object nullValueAsSource(T nullValue) {
+            // we don't support null value fors shapes
+            return nullValue;
         }
     }
 
@@ -79,6 +85,21 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         Parser<T> parser
     ) {
         super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        this.coerce = coerce;
+        this.orientation = orientation;
+    }
+
+    protected AbstractShapeGeometryFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        Explicit<Boolean> coerce,
+        Explicit<Orientation> orientation,
+        CopyTo copyTo,
+        Parser<T> parser,
+        OnScriptError onScriptError
+    ) {
+        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
         this.coerce = coerce;
         this.orientation = orientation;
     }

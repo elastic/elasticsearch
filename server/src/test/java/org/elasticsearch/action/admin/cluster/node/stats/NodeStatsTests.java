@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
@@ -32,8 +33,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.http.HttpStatsTests;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -490,8 +492,8 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        // expectedChunks = number of static chunks (8 at the moment, see NodeStats#toXContentChunked) + number of variable chunks
-        return 8 + expectedChunks(nodeStats.getHttp()) //
+        return 7 // number of static chunks, see NodeStats#toXContentChunked
+            + expectedChunks(nodeStats.getHttp()) //
             + expectedChunks(nodeStats.getIndices(), level) //
             + expectedChunks(nodeStats.getTransport()) //
             + expectedChunks(nodeStats.getIngestStats()) //
@@ -541,7 +543,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(@Nullable HttpStats httpStats) {
-        return httpStats == null ? 0 : 2 + httpStats.getClientStats().size();
+        return httpStats == null ? 0 : 3 + httpStats.getClientStats().size() + httpStats.httpRouteStats().size();
     }
 
     private static int expectedChunks(@Nullable TransportStats transportStats) {
@@ -663,7 +665,7 @@ public class NodeStatsTests extends ESTestCase {
     public static NodeStats createNodeStats() {
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {
@@ -680,7 +682,7 @@ public class NodeStatsTests extends ESTestCase {
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard);
+            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, true);
         }
         OsStats osStats = null;
         if (frequently()) {
@@ -859,7 +861,12 @@ public class NodeStatsTests extends ESTestCase {
                 );
                 clientStats.add(cs);
             }
-            httpStats = new HttpStats(randomNonNegativeLong(), randomNonNegativeLong(), clientStats);
+            httpStats = new HttpStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                clientStats,
+                randomMap(1, 3, () -> new Tuple<>(randomAlphaOfLength(10), HttpStatsTests.randomHttpRouteStats()))
+            );
         }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
@@ -1037,6 +1044,13 @@ public class NodeStatsTests extends ESTestCase {
         RepositoriesStats repositoriesStats = new RepositoriesStats(
             Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
         );
+        NodeAllocationStats nodeAllocationStats = new NodeAllocationStats(
+            randomIntBetween(0, 10000),
+            randomIntBetween(0, 1000),
+            randomDoubleBetween(0, 8, true),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
 
         return new NodeStats(
             node,
@@ -1056,7 +1070,8 @@ public class NodeStatsTests extends ESTestCase {
             adaptiveSelectionStats,
             scriptCacheStats,
             indexingPressureStats,
-            repositoriesStats
+            repositoriesStats,
+            nodeAllocationStats
         );
     }
 
@@ -1072,7 +1087,4 @@ public class NodeStatsTests extends ESTestCase {
         }
     }
 
-    private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
-        return pipelineStats.stream().filter(p1 -> p1.pipelineId().equals(id)).findFirst().map(p2 -> p2.stats()).orElse(null);
-    }
 }

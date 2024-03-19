@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -231,17 +232,14 @@ public class DiscoveryNodesTests extends ESTestCase {
                 Map<String, String> attrs = new HashMap<>(node.getAttributes());
                 attrs.put("new", "new");
                 final TransportAddress nodeAddress = node.getAddress();
-                node = new DiscoveryNode(
-                    node.getName(),
-                    node.getId(),
-                    node.getEphemeralId(),
-                    nodeAddress.address().getHostString(),
-                    nodeAddress.getAddress(),
-                    nodeAddress,
-                    attrs,
-                    node.getRoles(),
-                    node.getVersionInformation()
-                );
+                node = DiscoveryNodeUtils.builder(node.getId())
+                    .name(node.getName())
+                    .ephemeralId(node.getEphemeralId())
+                    .address(nodeAddress)
+                    .attributes(attrs)
+                    .roles(node.getRoles())
+                    .version(node.getVersionInformation())
+                    .build();
             }
             nodesB.add(node);
         }
@@ -406,7 +404,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertEquals(Version.CURRENT, DiscoveryNodes.EMPTY_NODES.getMaxNodeVersion());
         assertEquals(Version.CURRENT.minimumCompatibilityVersion(), DiscoveryNodes.EMPTY_NODES.getMinNodeVersion());
         assertEquals(IndexVersion.current(), DiscoveryNodes.EMPTY_NODES.getMaxDataNodeCompatibleIndexVersion());
-        assertEquals(IndexVersion.MINIMUM_COMPATIBLE, DiscoveryNodes.EMPTY_NODES.getMinSupportedIndexVersion());
+        assertEquals(IndexVersions.MINIMUM_COMPATIBLE, DiscoveryNodes.EMPTY_NODES.getMinSupportedIndexVersion());
 
         // use a mix of versions with major, minor, and patch numbers
         List<VersionInformation> dataVersions = List.of(
@@ -466,27 +464,25 @@ public class DiscoveryNodesTests extends ESTestCase {
                             TransportVersion.current()
                         );
                     } catch (IOException e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 }
                 assertEquals(expectedGeneration, discoveryNodes.getNodeLeftGeneration());
             }
         };
 
-        final BiFunction<Integer, VersionInformation, DiscoveryNode> nodeVersionFactory = (i, v) -> new DiscoveryNode(
-            "name" + i,
-            "id" + i,
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())),
-            v
-        );
+        final BiFunction<Integer, VersionInformation, DiscoveryNode> nodeVersionFactory = (i, v) -> DiscoveryNodeUtils.builder("id" + i)
+            .name("name" + i)
+            .address(buildNewFakeTransportAddress())
+            .roles(new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles())))
+            .version(v)
+            .build();
 
         final IntFunction<DiscoveryNode> nodeFactory = i -> nodeVersionFactory.apply(i, VersionInformation.CURRENT);
 
         final var node0 = nodeVersionFactory.apply(
             0,
-            new VersionInformation(VersionUtils.randomVersion(random()), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+            new VersionInformation(VersionUtils.randomVersion(random()), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
         );
         testHarness.accept(builder -> builder.add(node0), 0L);
 

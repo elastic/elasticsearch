@@ -48,7 +48,7 @@ BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/bu
 export BUILDKITE_API_TOKEN
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
-  data=$(.buildkite/scripts/lucene-snapshot/get-credentials.sh)
+  data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
 
   AWS_ACCESS_KEY_ID=$(echo "$data" | jq -r .data.access_key)
   export AWS_ACCESS_KEY_ID
@@ -70,7 +70,38 @@ if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
   export DRA_VAULT_ADDR
 fi
 
+source .buildkite/scripts/third-party-test-credentials.sh
+
 if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
   SNYK_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/migrated/snyk)
   export SNYK_TOKEN
+fi
+
+if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
+  DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+  export DOCKER_REGISTRY_USERNAME
+
+  DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+  export DOCKER_REGISTRY_PASSWORD
+fi
+
+if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
+  # Run in the background, while the job continues
+  nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+fi
+
+# Initialize the build scan and gobld annotations with empty/open <details> tags
+# This ensures that they are collapsible when they get appended to
+if [[ "${BUILDKITE_LABEL:-}" == *"Pipeline upload"* || "${BUILDKITE_LABEL:-}" == *"Upload Pipeline"* ]]; then
+  cat << EOF | buildkite-agent annotate --context "gradle-build-scans" --style "info"
+<details>
+
+<summary>Gradle build scan links</summary>
+EOF
+
+  cat << EOF | buildkite-agent annotate --context "ctx-gobld-metrics" --style "info"
+<details>
+
+<summary>Agent information from gobld</summary>
+EOF
 fi

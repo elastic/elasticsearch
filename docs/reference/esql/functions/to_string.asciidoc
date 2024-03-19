@@ -1,6 +1,28 @@
+[discrete]
 [[esql-to_string]]
 === `TO_STRING`
-Converts a field into a string. For example:
+
+*Alias*
+
+`TO_STR`
+
+[.text-center]
+image::esql/functions/signature/to_string.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+
+*Description*
+
+Converts an input value into a string.
+
+*Supported types*
+
+include::types/to_string.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -21,5 +43,3 @@ include::{esql-specs}/string.csv-spec[tag=to_string_multivalue]
 |===
 include::{esql-specs}/string.csv-spec[tag=to_string_multivalue-result]
 |===
-
-Alias: TO_STR

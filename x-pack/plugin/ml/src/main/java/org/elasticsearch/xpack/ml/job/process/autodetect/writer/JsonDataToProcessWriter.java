@@ -101,7 +101,7 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         }
     }
 
-    private byte[] findNextObject(byte marker, InputStream data) throws IOException {
+    private static byte[] findNextObject(byte marker, InputStream data) throws IOException {
         // The underlying stream, MarkSupportingStreamInputWrapper, doesn't care about
         // readlimit, so just set to -1. We could pick a value, but I worry that if the
         // underlying implementation changes it may cause strange behavior, whereas -1 should

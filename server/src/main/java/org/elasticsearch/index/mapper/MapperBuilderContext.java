@@ -9,37 +9,82 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
+
+import java.util.Objects;
 
 /**
  * Holds context for building Mapper objects from their Builders
  */
 public class MapperBuilderContext {
 
-    private static final MapperBuilderContext ROOT_SYNTHETIC = new MapperBuilderContext(null, true);
-    private static final MapperBuilderContext ROOT_NOT_SYNTHETIC = new MapperBuilderContext(null, false);
-
     /**
      * The root context, to be used when building a tree of mappers
      */
-    public static MapperBuilderContext root(boolean isSourceSynthetic) {
-        return isSourceSynthetic ? ROOT_SYNTHETIC : ROOT_NOT_SYNTHETIC;
+    public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC);
     }
 
     private final String path;
     private final boolean isSourceSynthetic;
+    private final boolean isDataStream;
+    private final boolean parentObjectContainsDimensions;
+    private final ObjectMapper.Dynamic dynamic;
 
-    MapperBuilderContext(String path, boolean isSourceSynthetic) {
+    MapperBuilderContext(String path) {
+        this(path, false, false, false, ObjectMapper.Defaults.DYNAMIC);
+    }
+
+    MapperBuilderContext(
+        String path,
+        boolean isSourceSynthetic,
+        boolean isDataStream,
+        boolean parentObjectContainsDimensions,
+        ObjectMapper.Dynamic dynamic
+    ) {
+        Objects.requireNonNull(dynamic, "dynamic must not be null");
         this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
+        this.isDataStream = isDataStream;
+        this.parentObjectContainsDimensions = parentObjectContainsDimensions;
+        this.dynamic = dynamic;
     }
 
     /**
      * Creates a new MapperBuilderContext that is a child of this context
-     * @param name the name of the child context
+     *
+     * @param name    the name of the child context
+     * @param dynamic strategy for handling dynamic mappings in this context
      * @return a new MapperBuilderContext with this context as its parent
      */
-    public MapperBuilderContext createChildContext(String name) {
-        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic);
+    public MapperBuilderContext createChildContext(String name, @Nullable ObjectMapper.Dynamic dynamic) {
+        return createChildContext(name, this.parentObjectContainsDimensions, dynamic);
+    }
+
+    /**
+     * Creates a new MapperBuilderContext that is a child of this context
+     *
+     * @param name    the name of the child context
+     * @param dynamic strategy for handling dynamic mappings in this context
+     * @param parentObjectContainsDimensions whether the parent object contains dimensions
+     * @return a new MapperBuilderContext with this context as its parent
+     */
+    public MapperBuilderContext createChildContext(
+        String name,
+        boolean parentObjectContainsDimensions,
+        @Nullable ObjectMapper.Dynamic dynamic
+    ) {
+        return new MapperBuilderContext(
+            buildFullName(name),
+            this.isSourceSynthetic,
+            this.isDataStream,
+            parentObjectContainsDimensions,
+            getDynamic(dynamic)
+        );
+    }
+
+    protected ObjectMapper.Dynamic getDynamic(@Nullable ObjectMapper.Dynamic dynamic) {
+        return dynamic == null ? this.dynamic : dynamic;
     }
 
     /**
@@ -59,4 +104,21 @@ public class MapperBuilderContext {
         return isSourceSynthetic;
     }
 
+    /**
+     * Are these mappings being built for a data stream index?
+     */
+    public boolean isDataStream() {
+        return isDataStream;
+    }
+
+    /**
+     * Are these field mappings being built dimensions?
+     */
+    public boolean parentObjectContainsDimensions() {
+        return parentObjectContainsDimensions;
+    }
+
+    public ObjectMapper.Dynamic getDynamic() {
+        return dynamic;
+    }
 }

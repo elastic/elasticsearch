@@ -142,8 +142,10 @@ public class AllocationIdTests extends ESTestCase {
             allocationId = AllocationId.newRelocation(allocationId);
         }
         BytesReference bytes = BytesReference.bytes(allocationId.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
-        AllocationId parsedAllocationId = AllocationId.fromXContent(createParser(JsonXContent.jsonXContent, bytes));
-        assertEquals(allocationId, parsedAllocationId);
+        try (var parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            AllocationId parsedAllocationId = AllocationId.fromXContent(parser);
+            assertEquals(allocationId, parsedAllocationId);
+        }
     }
 
     public void testEquals() {

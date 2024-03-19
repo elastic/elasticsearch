@@ -1,7 +1,11 @@
 // Integral types-specific tests
 
 inLongAndInt
+required_feature: esql.mv_warn
+
 from employees | where avg_worked_seconds in (372957040, salary_change.long, 236703986) | where emp_no in (10017, emp_no - 1) | keep emp_no, avg_worked_seconds;
+warning:Line 1:24: evaluation of [avg_worked_seconds in (372957040, salary_change.long, 236703986)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer |avg_worked_seconds:long
 10017          |236703986
@@ -64,9 +68,11 @@ long:long                    |ul:ul
 ;
 
 convertDoubleToUL
+required_feature:esql.convert_warn
+
 row d = 123.4 | eval ul = to_ul(d), overflow = to_ul(1e20);
 warning:Line 1:48: evaluation of [to_ul(1e20)] failed, treating result as null. Only first 20 failures recorded.
-warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [1.0E20] out of [unsigned_long] range
+warning:Line 1:48: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E20] out of [unsigned_long] range
 
 d:double       |ul:ul      |overflow:ul
 123.4          |123        |null
@@ -95,7 +101,7 @@ ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 // end::to_unsigned_long-str[]
 ;
 warning:Line 2:72: evaluation of [TO_UL(str3)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.NumberFormatException: Character f is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.
+warning:Line 2:72: java.lang.NumberFormatException: Character f is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark.
 
 
 // tag::to_unsigned_long-str-result[]
@@ -121,9 +127,11 @@ int:integer       |long:long
 ;
 
 convertULToLong
+required_feature:esql.convert_warn
+
 row ul = [9223372036854775807, 9223372036854775808] | eval long = to_long(ul);
 warning:Line 1:67: evaluation of [to_long(ul)] failed, treating result as null. Only first 20 failures recorded.
-warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775808] out of [long] range
+warning:Line 1:67: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
 
                     ul:ul                 |       long:long
 [9223372036854775807, 9223372036854775808]|9223372036854775807
@@ -152,7 +160,7 @@ ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 // end::to_long-str[]
 ;
 warning:Line 2:62: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.NumberFormatException: For input string: \"foo\"
+warning:Line 2:62: java.lang.NumberFormatException: For input string: \"foo\"
 
 
 // tag::to_long-str-result[]
@@ -162,9 +170,11 @@ str1:keyword |str2:keyword |str3:keyword |long1:long  |long2:long |long3:long
 ;
 
 convertDoubleToLong
+required_feature:esql.convert_warn
+
 row d = 123.4 | eval d2l = to_long(d), overflow = to_long(1e19);
 warning:Line 1:51: evaluation of [to_long(1e19)] failed, treating result as null. Only first 20 failures recorded.
-warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [1.0E19] out of [long] range
+warning:Line 1:51: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [long] range
 
 d:double       |d2l:long      |overflow:long     
 123.4          |123           |null    
@@ -180,13 +190,15 @@ int:integer       |ii:integer
 ;
 
 convertLongToInt
+required_feature:esql.convert_warn
+
 // tag::to_int-long[]
 ROW long = [5013792, 2147483647, 501379200000]
 | EVAL int = TO_INTEGER(long)
 // end::to_int-long[]
 ;
 warning:Line 2:14: evaluation of [TO_INTEGER(long)] failed, treating result as null. Only first 20 failures recorded.
-warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [501379200000] out of [integer] range
+warning:Line 2:14: org.elasticsearch.xpack.ql.InvalidArgumentException: [501379200000] out of [integer] range
 
 // tag::to_int-long-result[]
 long:long                           |int:integer
@@ -195,10 +207,11 @@ long:long                           |int:integer
 ;
 
 convertULToInt
+required_feature:esql.convert_warn
+
 row ul = [2147483647, 9223372036854775808] | eval int = to_int(ul);
 warning:Line 1:57: evaluation of [to_int(ul)] failed, treating result as null. Only first 20 failures recorded.
-// UL conversion to int dips into long; not the most efficient, but it's how SQL does it too.
-warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [9223372036854775808] out of [long] range
+warning:Line 1:57: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [integer] range
 
                     ul:ul        |int:integer
 [2147483647, 9223372036854775808]|2147483647
@@ -219,27 +232,44 @@ tf:boolean     |t2i:integer    |f2i:integer    |tf2i:integer
 ;
 
 convertStringToInt
-row int_str = "2147483647", int_dbl_str = "2147483647.2" | eval is2i = to_integer(int_str), ids2i = to_integer(int_dbl_str), overflow = to_integer("2147483648"), no_number = to_integer("foo");
-warning:Line 1:137: evaluation of [to_integer(\"2147483648\")] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.NumberFormatException: For input string: \"2147483648\"
-warning:Line 1:175: evaluation of [to_integer(\"foo\")] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.NumberFormatException: For input string: \"foo\"
+row int_str = "2147483647", int_dbl_str = "2147483646.2" | eval is2i = to_integer(int_str), ids2i = to_integer(int_dbl_str);
 
-int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer   |overflow:integer |no_number:integer
-2147483647       |2147483647.2        |2147483647  |2147483647      |null             |null
+int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
+2147483647       |2147483646.2        |2147483647  |2147483646
+;
+
+convertStringToIntFail
+required_feature: esql.mv_warn
+
+row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
+warning:Line 1:79: evaluation of [to_integer(str1)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:79: java.lang.NumberFormatException: For input string: \"2147483647.2\"
+warning:Line 1:102: evaluation of [to_integer(str2)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:102: java.lang.NumberFormatException: For input string: \"2147483648\"
+warning:Line 1:126: evaluation of [to_integer(non)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:126: java.lang.NumberFormatException: For input string: \"no number\"
+
+str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |noi:integer
+2147483647.2   |2147483648     |no number      |null           |null           |null
 ;
 
 convertDoubleToInt
+required_feature:esql.convert_warn
+
 row d = 123.4 | eval d2i = to_integer(d), overflow = to_integer(1e19);
 warning:Line 1:54: evaluation of [to_integer(1e19)] failed, treating result as null. Only first 20 failures recorded.
-warning:org.elasticsearch.xpack.ql.QlIllegalArgumentException: [1.0E19] out of [long] range
+warning:Line 1:54: org.elasticsearch.xpack.ql.InvalidArgumentException: [1.0E19] out of [integer] range
 
 d:double       |d2i:integer   |overflow:integer
 123.4          |123           |null    
 ;
 
 lessThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change.int < 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [salary_change.int < 1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -251,7 +281,11 @@ emp_no:integer |salary_change.int:integer
 ;
 
 greaterThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change.int > 1 | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [salary_change.int > 1] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -263,7 +297,11 @@ emp_no:integer |salary_change.int:integer
 ;
 
 equalToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change.int == 0 | keep emp_no, salary_change.int | sort emp_no;
+warning:Line 1:24: evaluation of [salary_change.int == 0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -274,7 +312,11 @@ emp_no:integer |salary_change.int:integer
 ;
 
 equalToOrEqualToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change.int == 1 or salary_change.int == 8 | keep emp_no, salary_change.int | sort emp_no;
+warning:Line 1:24: evaluation of [salary_change.int] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change.int:integer
@@ -283,7 +325,11 @@ emp_no:integer |salary_change.int:integer
 ;
 
 inMultivalue
+required_feature: esql.mv_warn
+
 from employees | where salary_change.int in (1, 7) | keep emp_no, salary_change.int | sort emp_no;
+warning:Line 1:24: evaluation of [salary_change.int in (1, 7)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change.int:integer
@@ -292,7 +338,11 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notLessThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(salary_change.int < 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [not(salary_change.int < 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change.int < 1] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -304,7 +354,11 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notGreaterThanMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(salary_change.int > 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [not(salary_change.int > 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change.int > 1] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued salaries aren't less than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -316,7 +370,11 @@ emp_no:integer |salary_change.int:integer
 ;
 
 notEqualToMultivalue
+required_feature: esql.mv_warn
+
 from employees | where not(salary_change.int == 1) | keep emp_no, salary_change.int | sort emp_no | limit 5;
+warning:Line 1:24: evaluation of [not(salary_change.int == 1)] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [salary_change.int == 1] failed, treating result as null. Only first 20 failures recorded.]
+warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value#[Emulated:Line 1:28: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 // Note that multivalued salaries aren't greater than 1 - they are null - so they aren't included
 emp_no:integer |salary_change.int:integer
@@ -358,11 +416,209 @@ row a = [1, 2, 2, 3] | eval da = mv_dedupe(a);
 [1, 2, 2, 3] | [1, 2, 3]
 ;
 
+mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+// tag::mv_sort[]
+ROW a = [4, 2, -3, 2]
+| EVAL sa = mv_sort(a), sd = mv_sort(a, "DESC")
+// end::mv_sort[]
+;
+
+// tag::mv_sort-result[]
+a:integer     | sa:integer    | sd:integer
+[4, 2, -3, 2] | [-3, 2, 2, 4] | [4, 2, 2, -3]
+// end::mv_sort-result[]
+;
+
+mvSortEmpInt#[skip:-8.13.99, reason:newly added in 8.14]
+FROM employees
+| eval sd = mv_sort(salary_change.int, "DESC"), sa = mv_sort(salary_change.int)
+| sort emp_no
+| keep emp_no, salary_change.int, sa, sd
+| limit 9
+;
+
+emp_no:integer | salary_change.int:integer | sa:integer    | sd:integer
+10001          | 1                         | 1             | 1
+10002          | [-7, 11]                  | [-7, 11]      | [11, -7]
+10003          | [12, 14]                  | [12, 14]      | [14, 12]
+10004          | [0, 1, 3, 13]             | [0, 1, 3, 13] | [13, 3, 1, 0]
+10005          | [-2,13]                   | [-2,13]       | [13, -2]
+10006          | -3                        | -3            | -3
+10007          | [-7,0, 1]                 | [-7, 0, 1]    | [1,0, -7]
+10008          | [-2,0,3,12]               | [-2,0,3,12]   | [12,3,0,-2]
+10009          | null                      | null          | null
+;
+
+mvSortEmpLong#[skip:-8.13.99, reason:newly added in 8.14]
+FROM employees
+| eval sd = mv_sort(salary_change.long, "DESC"), sa = mv_sort(salary_change.long)
+| sort emp_no
+| keep emp_no, salary_change.long, sa, sd
+| limit 9
+;
+
+emp_no:integer | salary_change.long:long | sa:long        | sd:long
+10001          | 1                       | 1              | 1
+10002          | [-7, 11]                | [-7, 11]       | [11, -7]
+10003          | [12, 14]                | [12, 14]       | [14, 12]
+10004          | [0, 1, 3, 13]           | [0, 1, 3, 13]  | [13, 3, 1, 0]
+10005          | [-2, 13]                | [-2, 13]       | [13, -2]
+10006          | -3                      | -3             | -3
+10007          | [-7, 0, 1]              | [-7, 0, 1]     | [1, 0, -7]
+10008          | [-2, 0, 3, 12]          | [-2, 0, 3, 12] | [12, 3, 0, -2]
+10009          | null                    | null           | null
+;
+
+mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+// tag::mv_slice_positive[]
+row a = [1, 2, 2, 3]
+| eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3)
+// end::mv_slice_positive[]
+;
+// tag::mv_slice_positive-result[]
+a:integer    | a1:integer | a2:integer
+[1, 2, 2, 3] | 2          | [2, 3]
+// end::mv_slice_positive-result[]
+;
+
+mvSliceNegativeOffset#[skip:-8.13.99, reason:newly added in 8.14]
+// tag::mv_slice_negative[]
+row a = [1, 2, 2, 3]
+| eval a1 = mv_slice(a, -2), a2 = mv_slice(a, -3, -1)
+// end::mv_slice_negative[]
+;
+// tag::mv_slice_negative-result[]
+a:integer    | a1:integer | a2:integer
+[1, 2, 2, 3] | 2          | [2, 2, 3]
+// end::mv_slice_negative-result[]
+;
+
+mvSliceSingle#[skip:-8.13.99, reason:newly added in 8.14]
+row a = 1
+| eval a1 = mv_slice(a, 0);
+
+a:integer | a1:integer
+1         | 1
+;
+
+mvSliceOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+row a = [1, 2, 2, 3]
+| eval a1 = mv_slice(a, 4), a2 = mv_slice(a, 2, 6), a3 = mv_slice(a, 4, 6);
+
+a:integer    | a1:integer | a2:integer | a3:integer
+[1, 2, 2, 3] | null          | [2, 3]     | null
+;
+
+mvSliceEmpInt#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, 0, 1)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | 1
+10002          | [-7, 11]                  | [-7, 11]
+10003          | [12, 14]                  | [12, 14]
+10004          | [0, 1, 3, 13]             | [0, 1]
+10005          | [-2, 13]                  | [-2, 13]
+;
+
+mvSliceEmpIntSingle#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, 1)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | 11
+10003          | [12, 14]                  | 14
+10004          | [0, 1, 3, 13]             | 1
+10005          | [-2, 13]                  | 13
+;
+
+mvSliceEmpIntEndOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, 1, 4)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | 11
+10003          | [12, 14]                  | 14
+10004          | [0, 1, 3, 13]             | [1, 3, 13]
+10005          | [-2, 13]                  | 13
+;
+
+mvSliceEmpIntOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, 2, 4)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | null
+10003          | [12, 14]                  | null
+10004          | [0, 1, 3, 13]             | [3, 13]
+10005          | [-2, 13]                  | null
+;
+
+mvSliceEmpIntStartOutOfBoundNegative#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, -5, -2)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | -7
+10003          | [12, 14]                  | 12
+10004          | [0, 1, 3, 13]             | [0, 1, 3]
+10005          | [-2, 13]                  | -2
+;
+
+mvSliceEmpIntOutOfBoundNegative#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.int, -5, -3)
+| keep emp_no, salary_change.int, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.int:integer | a1:integer
+10001          | 1                         | null
+10002          | [-7, 11]                  | null
+10003          | [12, 14]                  | null
+10004          | [0, 1, 3, 13]             | [0, 1]
+10005          | [-2, 13]                  | null
+;
+
+mvSliceEmpLong#[skip:-8.13.99, reason:newly added in 8.14]
+from employees
+| eval a1 = mv_slice(salary_change.long, 0, 1)
+| keep emp_no, salary_change.long, a1
+| sort emp_no
+| limit 5;
+
+emp_no:integer | salary_change.long:long | a1:long
+10001          | 1                       | 1
+10002          | [-7, 11]                | [-7, 11]
+10003          | [12, 14]                | [12, 14]
+10004          | [0, 1, 3, 13]           | [0, 1]
+10005          | [-2, 13]                | [-2, 13]
+;
+
 autoBucket
 // tag::auto_bucket[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bs = auto_bucket(salary, 20, 25324, 74999)
+| EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
 | SORT hire_date, salary
 | KEEP hire_date, salary, bs
 // end::auto_bucket[]
@@ -382,6 +638,30 @@ hire_date:date           | salary:integer | bs:double
 1985-11-20T00:00:00.000Z | 74999          | 70000.0
 1985-11-21T00:00:00.000Z | 56371          | 55000.0
 // end::auto_bucket-result[]
+;
+
+docsAutoBucketNumeric
+//tag::docsAutoBucketNumeric[]
+FROM employees
+| EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
+| STATS COUNT(*) by bs
+| SORT bs
+//end::docsAutoBucketNumeric[]
+;
+
+//tag::docsAutoBucketNumeric-result[]
+   COUNT(*):long    |    bs:double
+9              |25000.0        
+9              |30000.0        
+18             |35000.0        
+11             |40000.0        
+11             |45000.0        
+10             |50000.0        
+7              |55000.0        
+9              |60000.0        
+8              |65000.0        
+8              |70000.0        
+//end::docsAutoBucketNumeric-result[]
 ;
 
 cos
@@ -471,4 +751,41 @@ ROW deg = [90, 180, 270]
 
    deg:integer | rad:double
 [90, 180, 270] | [1.5707963267948966, 3.141592653589793, 4.71238898038469]
+;
+
+warningWithFromSource-Ignore
+from employees | sort emp_no | limit 1 | eval x = to_long(emp_no) * 10000000 | eval y = to_int(x) > 1 | keep y;
+warning:Line 1:89: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:89: org.elasticsearch.xpack.ql.InvalidArgumentException: [100010000000] out of [integer] range
+
+y:boolean
+null
+;
+
+// the test is also notable through having the "failing" operation in the filter, which will be part of the fragment sent to a data node
+multipleWarnings-Ignore
+from employees | sort emp_no | eval x = to_long(emp_no) * 10000000 | where to_int(x) > 1 | keep x | limit 1;
+warning:Line 1:76: evaluation of [to_int(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100010000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100020000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100030000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100040000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100050000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100060000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100070000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100080000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100090000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100100000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100110000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100120000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100130000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100140000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100150000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100160000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100170000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100180000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100190000000] out of [integer] range
+warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100200000000] out of [integer] range
+
+x:long
 ;

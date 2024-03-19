@@ -65,7 +65,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
 
     // Build at post-collection phase
     @Nullable
-    private HyperLogLogPlusPlusSparse counts;
+    private HyperLogLogPlusPlus counts;
     private ObjectArray<BitArray> visitedOrds;
     private SortedSetDocValues values;
 
@@ -252,17 +252,14 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 }
             } else {
                 final FieldInfo fi = aggCtx.getLeafReaderContext().reader().getFieldInfos().fieldInfo(field);
-                if (fi == null) {
-                    // The field doesn't exist at all, we can skip the segment entirely
-                    noData++;
-                    return LeafBucketCollector.NO_OP_COLLECTOR;
-                } else if (fi.getIndexOptions() != IndexOptions.NONE) {
+                if (fi != null && fi.getIndexOptions() != IndexOptions.NONE) {
                     // The field doesn't have terms while index options are not NONE. This means that this segment doesn't have a single
                     // value for the field.
                     noData++;
                     return LeafBucketCollector.NO_OP_COLLECTOR;
                 }
-                // Otherwise we might be aggregating e.g. an IP field, which indexes data using points rather than an inverted index.
+                // Otherwise we might be aggregating e.g. an IP or a const_keyword field, which index data using points rather than an
+                // inverted index.
             }
         }
 
@@ -288,7 +285,7 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
     }
 
     protected void doPostCollection() throws IOException {
-        counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, visitedOrds.size());
+        counts = new HyperLogLogPlusPlus(precision, bigArrays, visitedOrds.size());
         try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
             try (BitArray allVisitedOrds = new BitArray(maxOrd, bigArrays)) {
                 for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
@@ -311,7 +308,6 @@ public class GlobalOrdCardinalityAggregator extends NumericMetricsAggregator.Sin
                 try (BitArray bits = visitedOrds.get(bucket)) {
                     if (bits != null) {
                         visitedOrds.set(bucket, null); // remove bitset from array
-                        counts.ensureCapacity(bucket, bits.cardinality());
                         for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
                             ? bits.nextSetBit(ord + 1)
                             : Long.MAX_VALUE) {

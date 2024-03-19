@@ -59,6 +59,7 @@ import java.util.Objects;
 public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
     private static final TransportVersion VERSION_SUPPORTING_STATS_BY_INDEX = TransportVersions.V_8_5_0;
+    private static final Map<Index, List<IndexShardStats>> EMPTY_STATS_BY_SHARD = Map.of();
 
     private final CommonStats stats;
     private final Map<Index, List<IndexShardStats>> statsByShard;
@@ -86,8 +87,17 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
         }
     }
 
-    public NodeIndicesStats(CommonStats oldStats, Map<Index, CommonStats> statsByIndex, Map<Index, List<IndexShardStats>> statsByShard) {
-        this.statsByShard = Objects.requireNonNull(statsByShard);
+    public NodeIndicesStats(
+        CommonStats oldStats,
+        Map<Index, CommonStats> statsByIndex,
+        Map<Index, List<IndexShardStats>> statsByShard,
+        boolean includeShardsStats
+    ) {
+        if (includeShardsStats) {
+            this.statsByShard = Objects.requireNonNull(statsByShard);
+        } else {
+            this.statsByShard = EMPTY_STATS_BY_SHARD;
+        }
         this.statsByIndex = Objects.requireNonNull(statsByIndex);
 
         // make a total common stats from old ones and current ones

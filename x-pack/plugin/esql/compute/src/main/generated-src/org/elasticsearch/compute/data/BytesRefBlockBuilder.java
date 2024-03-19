@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block build of BytesRefBlocks.
@@ -17,15 +19,14 @@ import org.elasticsearch.common.util.BytesRefArray;
  */
 final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRefBlock.Builder {
 
-    private static final BytesRef NULL_VALUE = new BytesRef();
-
     private BytesRefArray values;
 
-    BytesRefBlockBuilder(int estimatedSize) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    BytesRefBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
     }
 
-    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays) {
+    BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
+        super(blockFactory);
         values = new BytesRefArray(Math.max(estimatedSize, 2), bigArrays);
     }
 
@@ -37,6 +38,11 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         valueCount++;
         updatePosition();
         return this;
+    }
+
+    @Override
+    protected int elementSize() {
+        return -1;
     }
 
     @Override
@@ -69,7 +75,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
 
     @Override
     protected void writeNullValue() {
-        values.append(NULL_VALUE);
+        values.append(BytesRefBlock.NULL_VALUE);
     }
 
     /**
@@ -184,17 +190,57 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         return this;
     }
 
-    @Override
-    public BytesRefBlock build() {
-        finish();
+    private BytesRefBlock buildFromBytesArray() {
+        assert estimatedBytes == 0 || firstValueIndexes != null;
+        final BytesRefBlock theBlock;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            return new ConstantBytesRefVector(values.get(0, new BytesRef()), 1).asBlock();
+            theBlock = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes);
+            Releasables.closeExpectNoException(values);
         } else {
             if (isDense() && singleValued()) {
-                return new BytesRefArrayVector(values, positionCount).asBlock();
+                theBlock = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                return new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering);
+                theBlock = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed());
         }
+        return theBlock;
+    }
+
+    @Override
+    public BytesRefBlock build() {
+        try {
+            finish();
+            BytesRefBlock theBlock;
+            theBlock = buildFromBytesArray();
+            values = null;
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
+        }
+    }
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
     }
 }

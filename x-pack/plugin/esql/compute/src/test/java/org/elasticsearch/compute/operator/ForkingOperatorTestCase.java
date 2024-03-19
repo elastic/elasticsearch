@@ -9,15 +9,19 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -46,62 +50,58 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
-    protected abstract Operator.OperatorFactory simpleWithMode(BigArrays bigArrays, AggregatorMode mode);
+    protected abstract Operator.OperatorFactory simpleWithMode(AggregatorMode mode);
 
     @Override
-    protected final Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return simpleWithMode(bigArrays, AggregatorMode.SINGLE);
+    protected final Operator.OperatorFactory simple() {
+        return simpleWithMode(AggregatorMode.SINGLE);
     }
 
     public final void testInitialFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
-
         try (
             Driver d = new Driver(
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
-                List.of(
-                    simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext),
-                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
-                ),
-                new PageConsumerOperator(page -> results.add(page)),
+                List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext), simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
+                new TestResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
             runDriver(d);
         }
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
     }
 
     public final void testManyInitialFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
-        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
                 driverContext,
                 new CannedSourceOperator(partials.iterator()),
-                List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new PageConsumerOperator(results::add),
+                List.of(simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
             runDriver(d);
         }
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
     }
 
     public final void testInitialIntermediateFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
 
         try (
@@ -109,31 +109,30 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
                 List.of(
-                    simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext),
-                    simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driverContext),
-                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
+                    simpleWithMode(AggregatorMode.INITIAL).get(driverContext),
+                    simpleWithMode(AggregatorMode.INTERMEDIATE).get(driverContext),
+                    simpleWithMode(AggregatorMode.FINAL).get(driverContext)
                 ),
-                new PageConsumerOperator(page -> results.add(page)),
+                new TestResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
             runDriver(d);
         }
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99160")
     public final void testManyInitialManyPartialFinal() {
-        BigArrays bigArrays = nonBreakingBigArrays();
-        DriverContext driverContext = new DriverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
-        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext)));
+        List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext)));
         Collections.shuffle(partials, random());
         List<Page> intermediates = oneDriverPerPageList(
             randomSplits(partials).iterator(),
-            () -> List.of(simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driverContext))
+            () -> List.of(simpleWithMode(AggregatorMode.INTERMEDIATE).get(driverContext))
         );
 
         List<Page> results = new ArrayList<>();
@@ -141,57 +140,58 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             Driver d = new Driver(
                 driverContext,
                 new CannedSourceOperator(intermediates.iterator()),
-                List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new PageConsumerOperator(results::add),
+                List.of(simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
             runDriver(d);
         }
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
         assertDriverContext(driverContext);
     }
 
     // Similar to testManyInitialManyPartialFinal, but uses with the DriverRunner infrastructure
     // to move the data through the pipeline.
     public final void testManyInitialManyPartialFinalRunner() {
-        BigArrays bigArrays = nonBreakingBigArrays();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext().blockFactory(), between(1_000, 100_000)));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
-
-        List<Driver> drivers = createDriversForInput(bigArrays, input, results, false /* no throwing ops */);
-        var runner = new DriverRunner() {
+        List<Driver> drivers = createDriversForInput(input, results, false /* no throwing ops */);
+        var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         runner.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
-        assertSimpleOutput(input, results);
+        assertSimpleOutput(origInput, results);
         drivers.stream().map(Driver::driverContext).forEach(OperatorTestCase::assertDriverContext);
     }
 
     // Similar to testManyInitialManyPartialFinalRunner, but creates a pipeline that contains an
     // operator that throws - fails. The primary motivation for this is to ensure that the driver
     // runner behaves correctly and also releases all resources (bigArrays) appropriately.
-    public final void testManyInitialManyPartialFinalRunnerThrowing() {
-        BigArrays bigArrays = nonBreakingBigArrays();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(between(1_000, 100_000)));
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
+    public final void testManyInitialManyPartialFinalRunnerThrowing() throws Exception {
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1_000, 100_000)));
         List<Page> results = new ArrayList<>();
 
-        List<Driver> drivers = createDriversForInput(bigArrays, input, results, true /* one throwing op */);
-        var runner = new DriverRunner() {
+        List<Driver> drivers = createDriversForInput(input, results, true /* one throwing op */);
+        var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         runner.runToCompletion(drivers, future);
         BadException e = expectThrows(BadException.class, () -> future.actionGet(TimeValue.timeValueMinutes(1)));
         assertThat(e.getMessage(), startsWith("bad exception from"));
+        Releasables.close(() -> Iterators.map(results.iterator(), p -> p::releaseBlocks));
         drivers.stream().map(Driver::driverContext).forEach(OperatorTestCase::assertDriverContext);
     }
 
@@ -200,10 +200,10 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     // intermediate results. The second is a single operator that consumes intermediate input and
     // produces the final results. The throwingOp param allows to construct a pipeline that will
     // fail by throwing an exception in one of the operators.
-    List<Driver> createDriversForInput(BigArrays bigArrays, List<Page> input, List<Page> results, boolean throwingOp) {
+    List<Driver> createDriversForInput(List<Page> input, List<Page> results, boolean throwingOp) {
         Collection<List<Page>> splitInput = randomSplits(input, randomIntBetween(2, 4));
-
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
+        BlockFactory factory = blockFactory();
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(factory, randomIntBetween(2, 10), threadPool::relativeTimeInMillis);
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 4), threadPool.executor(ESQL_TEST_EXECUTOR));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
 
@@ -217,16 +217,16 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
         List<Driver> drivers = new ArrayList<>();
         for (List<Page> pages : splitInput) {
-            DriverContext driver1Context = new DriverContext();
+            DriverContext driver1Context = driverContext();
             drivers.add(
                 new Driver(
                     driver1Context,
                     new CannedSourceOperator(pages.iterator()),
                     List.of(
                         intermediateOperatorItr.next(),
-                        simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driver1Context),
+                        simpleWithMode(AggregatorMode.INITIAL).get(driver1Context),
                         intermediateOperatorItr.next(),
-                        simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driver1Context),
+                        simpleWithMode(AggregatorMode.INTERMEDIATE).get(driver1Context),
                         intermediateOperatorItr.next()
                     ),
                     new ExchangeSinkOperator(sinkExchanger.createExchangeSink(), Function.identity()),
@@ -234,19 +234,19 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 )
             );
         }
-        DriverContext driver2Context = new DriverContext();
+        DriverContext driver2Context = driverContext();
         drivers.add(
             new Driver(
                 driver2Context,
                 new ExchangeSourceOperator(sourceExchanger.createExchangeSource()),
                 List.of(
                     intermediateOperatorItr.next(),
-                    simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driver2Context),
+                    simpleWithMode(AggregatorMode.INTERMEDIATE).get(driver2Context),
                     intermediateOperatorItr.next(),
-                    simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driver2Context),
+                    simpleWithMode(AggregatorMode.FINAL).get(driver2Context),
                     intermediateOperatorItr.next()
                 ),
-                new PageConsumerOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         );
@@ -296,6 +296,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     private static class ThrowInAddInputOperator extends PassThroughOperator {
         @Override
         public void addInput(Page page) {
+            super.addInput(page); // retain a reference to the Page, so it is not lost
             throw new BadException("bad exception from addInput");
         }
     }
@@ -324,6 +325,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
     private static class ThrowInCloseOperator extends PassThroughOperator {
         @Override
         public void close() {
+            super.close();
             throw new BadException("bad exception from close");
         }
     }

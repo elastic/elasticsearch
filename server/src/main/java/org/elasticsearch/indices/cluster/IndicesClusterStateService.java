@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -645,12 +644,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 this::updateGlobalCheckpointForShard,
                 retentionLeaseSyncer,
                 originalState.nodes().getLocalNode(),
-                sourceNode
+                sourceNode,
+                originalState.version()
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
             if (e.getCause() instanceof InterruptedException || Thread.currentThread().isInterrupted()) {
-                logger.warn(Strings.format("interrupted while creating shard [{}]", shardRouting), e);
+                logger.warn(format("interrupted while creating shard [%s]", shardRouting), e);
                 listener.onFailure(e);
                 return;
             }
@@ -1090,10 +1090,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param retentionLeaseSyncer   a callback when this shard syncs retention leases
          * @param targetNode             the node where this shard will be recovered
          * @param sourceNode             the source node to recover this shard from (it might be null)
-         * @return a new shard
+         * @param clusterStateVersion    the cluster state version in which the shard was created
          * @throws IOException if an I/O exception occurs when creating the shard
          */
-        T createShard(
+        void createShard(
             ShardRouting shardRouting,
             PeerRecoveryTargetService recoveryTargetService,
             PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -1102,7 +1102,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             GlobalCheckpointSyncer globalCheckpointSyncer,
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
-            @Nullable DiscoveryNode sourceNode
+            @Nullable DiscoveryNode sourceNode,
+            long clusterStateVersion
         ) throws IOException;
 
         /**

@@ -16,8 +16,6 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
@@ -25,6 +23,7 @@ import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,16 +38,8 @@ public class DfsPhaseTests extends ESTestCase {
 
     @Before
     public final void init() {
-        int numThreads = randomIntBetween(2, 4);
         threadPool = new TestThreadPool(DfsPhaseTests.class.getName());
-        threadPoolExecutor = EsExecutors.newFixed(
-            "test",
-            numThreads,
-            10,
-            EsExecutors.daemonThreadFactory("test"),
-            threadPool.getThreadContext(),
-            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
-        );
+        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
     }
 
     @After
@@ -83,12 +74,12 @@ public class DfsPhaseTests extends ESTestCase {
 
             int k = 10;
             // run without profiling enabled
-            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, null, searcher);
+            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, null, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
 
             // run with profiling enabled
             Profilers profilers = new Profilers(searcher);
-            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher);
+            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, profilers, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
             SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = profilers.getDfsProfiler().buildDfsPhaseResults();
             List<QueryProfileShardResult> queryProfileShardResult = searchProfileDfsPhaseResult.getQueryProfileShardResult();

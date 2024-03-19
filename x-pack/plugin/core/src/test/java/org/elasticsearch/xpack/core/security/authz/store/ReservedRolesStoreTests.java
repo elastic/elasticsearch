@@ -3896,7 +3896,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertTrue(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/start", request, authentication));
         assertTrue(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/stop", request, authentication));
         assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
-        assertOnlyReadAllowed(role, ".inference");
+        assertNoAccessAllowed(role, ".inference");
     }
 
     public void testInferenceUserRole() {
@@ -3916,7 +3916,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertFalse(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/start", request, authentication));
         assertFalse(role.cluster().check("cluster:admin/xpack/ml/trained_models/deployment/stop", request, authentication));
         assertFalse(role.runAs().check(randomAlphaOfLengthBetween(1, 30)));
-        assertOnlyReadAllowed(role, ".inference");
+        assertNoAccessAllowed(role, ".inference");
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

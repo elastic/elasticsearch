@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -143,7 +144,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * To log the results logResults() should return "true".
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106501")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
@@ -321,7 +321,11 @@ public class CsvTests extends ESTestCase {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         var indices = preAnalysis.indices;
         if (indices.size() == 0) {
-            return CSV_DATASET_MAP.values().iterator().next(); // default dataset for `row` source command
+            /*
+             * If the data set doesn't matter we'll just grab one we know works.
+             * Employees is fine.
+             */
+            return CSV_DATASET_MAP.get("employees");
         } else if (preAnalysis.indices.size() > 1) {
             throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }

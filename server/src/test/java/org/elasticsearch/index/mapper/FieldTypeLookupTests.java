@@ -37,7 +37,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNotNull(names);
         assertThat(names, hasSize(0));
 
-        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        Map<String, String> fieldsForModels = lookup.getInferenceIdsForFields();
         assertNotNull(fieldsForModels);
         assertTrue(fieldsForModels.isEmpty());
     }
@@ -48,7 +48,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup.get("foo"));
 
-        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
+        Map<String, String> fieldsForModels = lookup.getInferenceIdsForFields();
         assertNotNull(fieldsForModels);
         assertTrue(fieldsForModels.isEmpty());
     }
@@ -440,11 +440,13 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(f2.fieldType(), lookup.get("foo2"));
         assertEquals(f3.fieldType(), lookup.get("foo3"));
 
-        Map<String, Set<String>> fieldsForModels = lookup.getFieldsForModels();
-        assertNotNull(fieldsForModels);
-        assertEquals(2, fieldsForModels.size());
-        assertEquals(Set.of("foo1", "foo2"), fieldsForModels.get("bar1"));
-        assertEquals(Set.of("foo3"), fieldsForModels.get("bar2"));
+        Map<String, String> inferenceIdsForFields = lookup.getInferenceIdsForFields();
+        assertNotNull(inferenceIdsForFields);
+        assertEquals(3, inferenceIdsForFields.size());
+
+        assertEquals("bar1", inferenceIdsForFields.get("foo1"));
+        assertEquals("bar1", inferenceIdsForFields.get("foo2"));
+        assertEquals("bar2", inferenceIdsForFields.get("foo3"));
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {

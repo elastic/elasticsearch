@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.apache.lucene.util.automaton.Automata;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -43,6 +44,12 @@ public class WildcardLike extends org.elasticsearch.xpack.ql.expression.predicat
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        return RegexMatch.toEvaluator(toEvaluator, this);
+        return RegexMatch.toEvaluator(
+            toEvaluator,
+            source(),
+            field(),
+            // The empty pattern will accept the empty string
+            pattern().pattern().length() == 0 ? Automata.makeEmptyString() : pattern().createAutomaton()
+        );
     }
 }

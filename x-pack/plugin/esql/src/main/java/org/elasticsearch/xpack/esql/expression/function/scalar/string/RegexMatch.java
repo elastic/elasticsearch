@@ -17,7 +17,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.regex.AbstractStringPattern;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.function.Function;
 
@@ -27,14 +27,17 @@ public class RegexMatch {
      */
     public static EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
-        org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch<?> expression
+        Source source,
+        Expression field,
+        Automaton utf32Automaton
     ) {
-        Automaton automaton = Operations.determinize(
-            new UTF32ToUTF8().convert(((AbstractStringPattern) expression.pattern()).createAutomaton()),
-            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
-        );
+        /*
+         * ByteRunAutomaton has a way to convert utf32 to utf8, but if we used it
+         * we couldn't get a nice toDot - so we call UTF32ToUTF8 ourselves.
+         */
+        Automaton automaton = Operations.determinize(new UTF32ToUTF8().convert(utf32Automaton), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         ByteRunAutomaton run = new ByteRunAutomaton(automaton, true, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
-        return new RegexMatchEvaluator.Factory(expression.source(), toEvaluator.apply(expression.field()), run, toDot(automaton));
+        return new RegexMatchEvaluator.Factory(source, toEvaluator.apply(field), run, toDot(automaton));
     }
 
     @Evaluator

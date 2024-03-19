@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.toolchain;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.commons.compress.utils.Lists;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainDownload;
 import org.gradle.jvm.toolchain.JavaToolchainRequest;
@@ -20,17 +21,17 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.StreamSupport;
 
 import static org.gradle.jvm.toolchain.JavaToolchainDownload.fromUri;
 
 public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
     // package protected for better testing
-    final Map<AdoptiumVersionRequest, Optional<String>> CACHED_RELEASES = new ConcurrentHashMap<>();
+    final Map<AdoptiumVersionRequest, Optional<AdoptiumVersionInfo>> CACHED_SEMVERS = new ConcurrentHashMap<>();
 
     @Override
     public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {
@@ -38,7 +39,7 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
             return Optional.empty();
         }
         AdoptiumVersionRequest versionRequestKey = toVersionRequest(request);
-        Optional<String> versionInfo = CACHED_RELEASES.computeIfAbsent(
+        Optional<AdoptiumVersionInfo> versionInfo = CACHED_SEMVERS.computeIfAbsent(
             versionRequestKey,
             (r) -> resolveAvailableVersion(versionRequestKey)
         );
@@ -53,12 +54,12 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
         return new AdoptiumVersionRequest(platform, arch, javaLanguageVersion);
     }
 
-    private Optional<String> resolveAvailableVersion(AdoptiumVersionRequest requestKey) {
+    private Optional<AdoptiumVersionInfo> resolveAvailableVersion(AdoptiumVersionRequest requestKey) {
         ObjectMapper mapper = new ObjectMapper();
         try {
             int languageVersion = requestKey.languageVersion.asInt();
             URL source = new URL(
-                "https://api.adoptium.net/v3/info/release_names?architecture="
+                "https://api.adoptium.net/v3/info/release_versions?architecture="
                     + requestKey.arch
                     + "&image_type=jdk&os="
                     + requestKey.platform
@@ -87,7 +88,18 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
         }
     }
 
-    private URI resolveDownloadURI(AdoptiumVersionRequest request, String version) {
+    private AdoptiumVersionInfo toVersionInfo(JsonNode node) {
+        return new AdoptiumVersionInfo(
+            node.get("build").asInt(),
+            node.get("major").asInt(),
+            node.get("minor").asInt(),
+            node.get("openjdk_version").asText(),
+            node.get("security").asInt(),
+            node.get("semver").asText()
+        );
+    }
+
+    private URI resolveDownloadURI(AdoptiumVersionRequest request, AdoptiumVersionInfo versionInfo) {
         return URI.create(
             "https://api.adoptium.net/v3/binary/version/jdk-"
                 + versionInfo.openjdkVersion
@@ -106,6 +118,8 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
     private boolean requestIsSupported(JavaToolchainRequest request) {
         return anyVendorOr(request.getJavaToolchainSpec().getVendor().get(), JvmVendorSpec.ADOPTIUM);
     }
+
+    record AdoptiumVersionInfo(int build, int major, int minor, String openjdkVersion, int security, String semver) {}
 
     record AdoptiumVersionRequest(String platform, String arch, JavaLanguageVersion languageVersion) {}
 }

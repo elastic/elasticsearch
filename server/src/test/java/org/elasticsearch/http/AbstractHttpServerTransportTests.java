@@ -918,8 +918,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    public void testStopDoesntWaitIfGraceIsZero() {
-        try (var noWait = LogExpectation.unexpectWait(); var transport = new TestHttpServerTransport(Settings.EMPTY)) {
+    public void testStopWaitsIndefinitelyIfGraceIsZero() {
+        try (var wait = LogExpectation.expectWait(); var transport = new TestHttpServerTransport(Settings.EMPTY)) {
             TestHttpChannel httpChannel = new TestHttpChannel();
             transport.serverAcceptedChannel(httpChannel);
             transport.incomingRequest(testHttpRequest(), httpChannel);
@@ -927,7 +927,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.doStop();
             assertFalse(transport.testHttpServerChannel.isOpen());
             assertFalse(httpChannel.isOpen());
-            noWait.assertExpectationsMatched();
+            wait.assertExpectationsMatched();
         }
     }
 
@@ -1352,8 +1352,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             return new LogExpectation(grace).timedOut(false).wait(true);
         }
 
-        public static LogExpectation unexpectWait() {
-            return new LogExpectation(0).wait(false);
+        public static LogExpectation expectWait() {
+            return new LogExpectation(0).wait(true);
         }
 
         private LogExpectation timedOut(boolean expected) {
@@ -1370,14 +1370,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
 
         private LogExpectation wait(boolean expected) {
-            var message = "closing all client connections immediately";
+            var message = "waiting indefinitely for clients to close connections";
             var name = "message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.DEBUG;
             if (expected) {
-                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
-            } else {
                 appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
+            } else {
+                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
             }
             return this;
         }

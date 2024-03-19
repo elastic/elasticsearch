@@ -281,7 +281,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
             }
         } else {
-            logger.debug("closing all client connections immediately");
+            logger.debug("waiting indefinitely for clients to close connections");
+            FutureUtils.get(allClientsClosedListener);
         }
         if (closed == false) {
             try {

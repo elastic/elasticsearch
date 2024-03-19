@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
@@ -19,7 +21,10 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Less
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -50,6 +55,7 @@ import java.time.ZonedDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
@@ -63,6 +69,7 @@ public final class EsqlExpressionTranslators {
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
+        new SpatialRelatesTranslator(),
         new ExpressionTranslators.Ranges(),
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
@@ -348,6 +355,65 @@ public final class EsqlExpressionTranslators {
             }
 
             return ExpressionTranslators.Scalars.doTranslate(f, handler);
+        }
+    }
+
+    public static class SpatialRelatesTranslator extends ExpressionTranslator<SpatialRelatesFunction> {
+
+        @Override
+        protected Query asQuery(SpatialRelatesFunction bc, TranslatorHandler handler) {
+            return doTranslate(bc, handler);
+        }
+
+        public static void checkSpatialRelatesFunction(Expression constantExpression, ShapeField.QueryRelation queryRelation) {
+            Check.isTrue(
+                constantExpression.foldable(),
+                "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [ST_{}]",
+                constantExpression.sourceLocation().getLineNumber(),
+                constantExpression.sourceLocation().getColumnNumber(),
+                Expressions.name(constantExpression),
+                queryRelation
+            );
+        }
+
+        /**
+         * We should normally be using the real `wrapFunctionQuery` above, so we get the benefits of `SingleValueQuery`,
+         * but at the moment `SingleValueQuery` makes use of `SortDocValues` to determine if the results are single or multi-valued,
+         * and LeafShapeFieldData does not support `SortedBinaryDocValues getBytesValues()`.
+         * Skipping this code path entirely is a temporary workaround while separate work is being done to simplify `SingleValueQuery`
+         * to rather rely on a new method on `LeafFieldData`. This is both for the benefit of the spatial queries, as well as an
+         * improvement overall.
+         * TODO: Remove this method and call the parent method once the SingleValueQuery improvements have been made
+         */
+        public static Query wrapFunctionQuery(Expression field, Supplier<Query> querySupplier) {
+            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
+        }
+
+        public static Query doTranslate(SpatialRelatesFunction bc, TranslatorHandler handler) {
+            if (bc.left().foldable()) {
+                checkSpatialRelatesFunction(bc.left(), bc.queryRelation());
+                return wrapFunctionQuery(bc.right(), () -> translate(bc, handler, bc.right(), bc.left()));
+            } else {
+                checkSpatialRelatesFunction(bc.right(), bc.queryRelation());
+                return wrapFunctionQuery(bc.left(), () -> translate(bc, handler, bc.left(), bc.right()));
+            }
+        }
+
+        static Query translate(
+            SpatialRelatesFunction bc,
+            TranslatorHandler handler,
+            Expression spatialExpression,
+            Expression constantExpression
+        ) {
+            TypedAttribute attribute = checkIsPushableAttribute(spatialExpression);
+            String name = handler.nameOf(attribute);
+
+            try {
+                Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(constantExpression);
+                return new SpatialRelatesQuery(bc.source(), name, bc.queryRelation(), shape, attribute.dataType());
+            } catch (IllegalArgumentException e) {
+                throw new QlIllegalArgumentException(e.getMessage(), e);
+            }
         }
     }
 }

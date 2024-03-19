@@ -21,7 +21,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.MockBlockFactory;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.MultivalueDedupeTests;
 import org.elasticsearch.core.Releasables;
@@ -202,10 +201,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
         for (int c = 0; c < types.size(); c++) {
             specs.add(new HashAggregationOperator.GroupSpec(c, types.get(c)));
         }
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
         return forcePackedHash
-            ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
-            : BlockHash.build(specs, driverContext, emitBatchSize, true);
+            ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
+            : BlockHash.build(specs, blockFactory, emitBatchSize, true);
     }
 
     private static class KeyComparator implements Comparator<List<?>> {

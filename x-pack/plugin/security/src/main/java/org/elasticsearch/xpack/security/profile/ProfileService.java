@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortOrder;
@@ -61,16 +63,19 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.ResultsAndErrors;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -85,6 +90,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -118,6 +124,7 @@ public class ProfileService {
     private final ClusterService clusterService;
     private final FeatureService featureService;
     private final Function<String, DomainConfig> domainConfigLookup;
+    private final Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
 
     public ProfileService(
         Settings settings,
@@ -126,7 +133,7 @@ public class ProfileService {
         SecurityIndexManager profileIndex,
         ClusterService clusterService,
         FeatureService featureService,
-        Function<String, DomainConfig> domainConfigLookup
+        Realms realms
     ) {
         this.settings = settings;
         this.clock = clock;
@@ -134,7 +141,8 @@ public class ProfileService {
         this.profileIndex = profileIndex;
         this.clusterService = clusterService;
         this.featureService = featureService;
-        this.domainConfigLookup = domainConfigLookup;
+        this.domainConfigLookup = realms::getDomainConfig;
+        this.realmRefLookup = realms::getRealmRef;
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {
@@ -313,6 +321,42 @@ public class ProfileService {
             return;
         }
         doUpdate(buildUpdateRequest(uid, builder, refreshPolicy), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
+    }
+
+    public void resolveProfileUidsForApiKeys(Collection<ApiKey> apiKeyInfos, ActionListener<Collection<ApiKey.WithProfileUid>> listener) {
+        List<Subject> subjects = apiKeyInfos.stream().map(this::getApiKeyCreatorSubject).filter(Objects::nonNull).distinct().toList();
+        searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
+            if (resultsAndErrors == null) {
+                // profile index does not exist
+                listener.onResponse(apiKeyInfos.stream().map(apiKeyInfo -> new ApiKey.WithProfileUid(apiKeyInfo, null)).toList());
+            } else if (resultsAndErrors.errors().isEmpty()) {
+                assert subjects.size() == resultsAndErrors.results().size();
+                Map<Subject, String> profileUidLookup = resultsAndErrors.results()
+                    .stream()
+                    .filter(t -> Objects.nonNull(t.v2()))
+                    .map(t -> new Tuple<>(t.v1(), t.v2().uid()))
+                    .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
+                listener.onResponse(
+                    apiKeyInfos.stream()
+                        .map(
+                            apiKeyInfo -> new ApiKey.WithProfileUid(
+                                apiKeyInfo,
+                                getApiKeyCreatorSubject(apiKeyInfo) == null
+                                    ? null
+                                    : profileUidLookup.get(getApiKeyCreatorSubject(apiKeyInfo))
+                            )
+                        )
+                        .toList()
+                );
+            } else {
+                final ElasticsearchStatusException exception = new ElasticsearchStatusException(
+                    "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
+                    RestStatus.INTERNAL_SERVER_ERROR
+                );
+                resultsAndErrors.errors().values().forEach(exception::addSuppressed);
+                listener.onFailure(exception);
+            }
+        }, listener::onFailure));
     }
 
     public void searchProfilesForSubjects(List<Subject> subjects, ActionListener<SubjectSearchResultsAndErrors<Profile>> listener) {
@@ -852,6 +896,14 @@ public class ProfileService {
         } else {
             return null;
         }
+    }
+
+    private Subject getApiKeyCreatorSubject(ApiKey apiKeyInfo) {
+        Authentication.RealmRef realmRef = realmRefLookup.apply(apiKeyInfo.getRealmIdentifier());
+        if (realmRef == null) {
+            return null;
+        }
+        return new Subject(new User(apiKeyInfo.getUsername(), Strings.EMPTY_ARRAY), realmRef);
     }
 
     // package private for testing

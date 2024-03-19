@@ -15,27 +15,32 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 
 public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyRequest, GetApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
+    private final ProfileService profileService;
 
     @Inject
     public TransportGetApiKeyAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ApiKeyService apiKeyService,
-        SecurityContext context
+        SecurityContext context,
+        ProfileService profileService
     ) {
         super(GetApiKeyAction.NAME, actionFilters, transportService.getTaskManager());
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
+        this.profileService = profileService;
     }
 
     @Override
@@ -56,8 +61,28 @@ public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyReq
             username = authentication.getEffectiveSubject().getUser().principal();
             realms = ApiKeyService.getOwnersRealmNames(authentication);
         }
-
-        apiKeyService.getApiKeys(realms, username, apiKeyName, apiKeyIds, request.withLimitedBy(), request.activeOnly(), listener);
+        apiKeyService.getApiKeys(
+            realms,
+            username,
+            apiKeyName,
+            apiKeyIds,
+            request.withLimitedBy(),
+            request.activeOnly(),
+            ActionListener.wrap(apiKeyInfos -> {
+                if (request.isWithProfileUid()) {
+                    profileService.resolveProfileUidsForApiKeys(
+                        apiKeyInfos,
+                        ActionListener.wrap(
+                            apiKeyInfosWithProfileUid -> listener.onResponse(new GetApiKeyResponse(apiKeyInfosWithProfileUid)),
+                            listener::onFailure
+                        )
+                    );
+                } else {
+                    listener.onResponse(
+                        new GetApiKeyResponse(apiKeyInfos.stream().map(apiKeyInfo -> new ApiKey.WithProfileUid(apiKeyInfo, null)).toList())
+                    );
+                }
+            }, listener::onFailure)
+        );
     }
-
 }

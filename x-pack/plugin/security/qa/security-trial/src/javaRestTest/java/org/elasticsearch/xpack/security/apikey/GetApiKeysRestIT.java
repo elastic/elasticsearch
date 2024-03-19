@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +36,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -103,7 +102,7 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         // We get an empty result when no API keys active
         getSecurityClient().invalidateApiKeys(apiKeyId1);
-        assertThat(getApiKeysWithRequestParams(Map.of("active_only", "true")).getApiKeyInfos(), emptyArray());
+        assertThat(getApiKeysWithRequestParams(Map.of("active_only", "true")).getApiKeyInfos(), empty());
 
         {
             // Using together with id parameter, returns 404 for inactive key
@@ -167,11 +166,11 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
         assertThat(
             getApiKeysWithRequestParams(Map.of("active_only", "true", "username", MANAGE_OWN_API_KEY_USER)).getApiKeyInfos(),
-            emptyArray()
+            empty()
         );
         assertThat(
             getApiKeysWithRequestParams(MANAGE_OWN_API_KEY_USER, Map.of("active_only", "true", "owner", "true")).getApiKeyInfos(),
-            emptyArray()
+            empty()
         );
 
         // No more active API keys
@@ -181,14 +180,14 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
             getApiKeysWithRequestParams(
                 Map.of("active_only", "true", "username", randomFrom(MANAGE_SECURITY_USER, MANAGE_OWN_API_KEY_USER))
             ).getApiKeyInfos(),
-            emptyArray()
+            empty()
         );
         assertThat(
             getApiKeysWithRequestParams(
                 randomFrom(MANAGE_SECURITY_USER, MANAGE_OWN_API_KEY_USER),
                 Map.of("active_only", "true", "owner", "true")
             ).getApiKeyInfos(),
-            emptyArray()
+            empty()
         );
         // With flag set to false, we get both inactive keys
         assertResponseContainsApiKeyIds(
@@ -205,8 +204,9 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         setUserForRequest(request, MANAGE_SECURITY_USER);
         GetApiKeyResponse getApiKeyResponse = GetApiKeyResponse.fromXContent(getParser(client().performRequest(request)));
 
-        assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
-        ApiKey apiKey = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(getApiKeyResponse.getApiKeyInfos().size(), equalTo(1));
+        // TODO: what about the profileUid
+        ApiKey apiKey = getApiKeyResponse.getApiKeyInfos().iterator().next().apiKey();
         assertThat(apiKey.isInvalidated(), equalTo(false));
         assertThat(apiKey.getInvalidation(), nullValue());
         assertThat(apiKey.getId(), equalTo(apiKeyId0));
@@ -226,8 +226,9 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
         setUserForRequest(request, MANAGE_SECURITY_USER);
         getApiKeyResponse = GetApiKeyResponse.fromXContent(getParser(client().performRequest(request)));
 
-        assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
-        apiKey = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(getApiKeyResponse.getApiKeyInfos().size(), equalTo(1));
+        // TODO: what about the profileUid
+        apiKey = getApiKeyResponse.getApiKeyInfos().iterator().next().apiKey();
         assertThat(apiKey.isInvalidated(), equalTo(true));
         assertThat(apiKey.getInvalidation(), notNullValue());
         assertThat(apiKey.getId(), equalTo(apiKeyId0));
@@ -245,7 +246,10 @@ public class GetApiKeysRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     private static void assertResponseContainsApiKeyIds(GetApiKeyResponse response, String... ids) {
-        assertThat(Arrays.stream(response.getApiKeyInfos()).map(ApiKey::getId).collect(Collectors.toList()), containsInAnyOrder(ids));
+        assertThat(
+            response.getApiKeyInfos().stream().map(ApiKey.WithProfileUid::apiKey).map(ApiKey::getId).collect(Collectors.toList()),
+            containsInAnyOrder(ids)
+        );
     }
 
     private static XContentParser getParser(Response response) throws IOException {

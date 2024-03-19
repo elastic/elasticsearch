@@ -1661,7 +1661,11 @@ public class OptimizerRulesTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         IsNull isNull = new IsNull(EMPTY, fa);
 
-        And nestedAnd = new And(EMPTY, lessThanOf(TestUtils.getFieldAttribute("b"), ONE), lessThanOf(TestUtils.getFieldAttribute("c"), ONE));
+        And nestedAnd = new And(
+            EMPTY,
+            lessThanOf(TestUtils.getFieldAttribute("b"), ONE),
+            lessThanOf(TestUtils.getFieldAttribute("c"), ONE)
+        );
         And and = new And(EMPTY, isNull, nestedAnd);
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 

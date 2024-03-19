@@ -200,4 +200,4 @@ setup:
                 query: "inference test"
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Field [inference_field] has multiple models associated with it" }
+  - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }

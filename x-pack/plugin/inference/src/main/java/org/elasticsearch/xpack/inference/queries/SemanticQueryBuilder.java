@@ -19,6 +19,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -150,18 +151,18 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             return this;
         }
 
-        Map<String, Set<String>> modelsForFields = computeModelsForFields(queryRewriteContext.getIndexMetadataMap().values());
-        Set<String> modelsForField = modelsForFields.getOrDefault(fieldName, Set.of());
-        if (modelsForField.size() > 1) {
+        Map<String, Set<String>> inferenceIdsForFields = computeInferenceIdsForFields(queryRewriteContext.getIndexMetadataMap().values());
+        Set<String> inferenceIdsForField = inferenceIdsForFields.getOrDefault(fieldName, Set.of());
+        if (inferenceIdsForField.size() > 1) {
             // TODO: Handle multi-index semantic queries
-            throw new IllegalArgumentException("Field [" + fieldName + "] has multiple models associated with it");
+            throw new IllegalArgumentException("Field [" + fieldName + "] has multiple inference IDs associated with it");
         }
 
         SetOnce<InferenceServiceResults> inferenceResultsSupplier;
-        if (modelsForField.isEmpty() == false) {
+        if (inferenceIdsForField.isEmpty() == false) {
             InferenceAction.Request inferenceRequest = new InferenceAction.Request(
                 TaskType.ANY,
-                modelsForField.iterator().next(),
+                inferenceIdsForField.iterator().next(),
                 List.of(query),
                 Map.of(),
                 InputType.SEARCH
@@ -181,8 +182,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 )
             );
         } else {
-            // The most likely reason for an empty modelsForField set is an invalid field name, invalid index name(s), or a combination of
-            // both.
+            // The most likely reason for an empty inferenceIdsForField set is an invalid field name, invalid index name(s), or a
+            // combination of both.
             // Set the inference results to an empty list so that query rewriting can complete.
             // Invalid index names will be handled in TransportSearchAction, which will throw IndexNotFoundException.
             // Invalid field names will be handled in doToQuery.
@@ -219,19 +220,20 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return semanticQuery(inferenceResults, context);
     }
 
-    private Map<String, Set<String>> computeModelsForFields(Collection<IndexMetadata> indexMetadataCollection) {
-        Map<String, Set<String>> modelsForFields = new HashMap<>();
+    private Map<String, Set<String>> computeInferenceIdsForFields(Collection<IndexMetadata> indexMetadataCollection) {
+        Map<String, Set<String>> inferenceIdsForFields = new HashMap<>();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            Map<String, Set<String>> fieldsForModels = indexMetadata.getFieldsForModels();
-            for (Map.Entry<String, Set<String>> entry : fieldsForModels.entrySet()) {
-                for (String fieldName : entry.getValue()) {
-                    Set<String> models = modelsForFields.computeIfAbsent(fieldName, v -> new HashSet<>());
-                    models.add(entry.getKey());
-                }
+            Map<String, FieldInferenceMetadata.FieldInferenceOptions> fieldInferenceOptionsMap = indexMetadata
+                .getFieldInferenceMetadata()
+                .getFieldInferenceOptions();
+
+            for (Map.Entry<String, FieldInferenceMetadata.FieldInferenceOptions> entry : fieldInferenceOptionsMap.entrySet()) {
+                Set<String> inferenceIds = inferenceIdsForFields.computeIfAbsent(entry.getKey(), v -> new HashSet<>());
+                inferenceIds.add(entry.getValue().inferenceId());
             }
         }
 
-        return modelsForFields;
+        return inferenceIdsForFields;
     }
 
     private Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) {

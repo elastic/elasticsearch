@@ -160,7 +160,7 @@ public class RealmsTests extends ESTestCase {
         licenseStateListeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
-    public void testNativeDisabled() throws Exception {
+    public void testRealmRefForDisabledNativeRealm() throws Exception {
         String nodeName = randomAlphaOfLengthBetween(3, 8);
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir()).put(Node.NODE_NAME_SETTING.getKey(), nodeName);
         String nativeRealmName = randomAlphaOfLength(8);
@@ -168,6 +168,7 @@ public class RealmsTests extends ESTestCase {
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        // there is still a realm ref for the disabled native realm
         Authentication.RealmRef nativeRealmRef = randomFrom(
             realms.getNativeRealmRef(),
             realms.getRealmRef(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, nativeRealmName)),

@@ -11,7 +11,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xpack.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 

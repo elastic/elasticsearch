@@ -36,7 +36,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
 
 /**
  * An {@link ActionFilter} that performs inference on {@link BulkShardRequest} asynchronously and stores the results in
- * the individual {@link BulkItemRequest}. The results are then consumed by the {@link InferenceResultFieldMapper}
+ * the individual {@link BulkItemRequest}. The results are then consumed by the {@link InferenceMetadataFieldMapper}
  * in the subsequent {@link TransportShardBulkAction} downstream.
  */
 public class ShardBulkInferenceActionFilter implements ActionFilter {
@@ -261,10 +261,10 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
             Map<String, Object> newDocMap = indexRequest.sourceAsMap();
             Map<String, Object> inferenceMap = new LinkedHashMap<>();
             // ignore the existing inference map if any
-            newDocMap.put(InferenceResultFieldMapper.NAME, inferenceMap);
+            newDocMap.put(InferenceMetadataFieldMapper.NAME, inferenceMap);
             for (FieldInferenceResponse fieldResponse : response.responses()) {
                 try {
-                    InferenceResultFieldMapper.applyFieldInference(
+                    InferenceMetadataFieldMapper.applyFieldInference(
                         inferenceMap,
                         fieldResponse.field(),
                         fieldResponse.model(),

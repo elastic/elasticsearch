@@ -171,9 +171,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         String feature = null;
+        boolean origIsWithLeafObject = context.path().isWithinLeafObject();
         try {
             // make sure that we don't expand dots in field names while parsing
-            context.path().setWithinLeafObject(true);
+            if (context.path().isWithinLeafObject() == false) {
+                context.path().setWithinLeafObject(true);
+            }
             for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
                 if (token == Token.FIELD_NAME) {
                     feature = context.parser().currentName();
@@ -207,7 +210,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 context.addToFieldNames(fieldType().name());
             }
         } finally {
-            context.path().setWithinLeafObject(false);
+            context.path().setWithinLeafObject(origIsWithLeafObject);
         }
     }
 

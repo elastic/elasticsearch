@@ -9,30 +9,54 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.InferenceModelFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_RESULTS;
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_TEXT;
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.RESULTS;
+
 /**
- *  A {@link FieldMapper} for semantic text fields. These fields have a model id reference, that is used for performing inference
- * at ingestion and query time.
- * For now, it is compatible with text expansion models only, but will be extended to support dense vector models as well.
+ * A {@link FieldMapper} for semantic text fields.
+ * These fields have a model id reference, that is used for performing inference at ingestion and query time.
  * This field mapper performs no indexing, as inference results will be included as a different field in the document source, and will
- * be indexed using {@link InferenceResultFieldMapper}.
+ * be indexed using {@link InferenceMetadataFieldMapper}.
  */
 public class SemanticTextFieldMapper extends FieldMapper {
+    private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
 
     public static final String CONTENT_TYPE = "semantic_text";
 
@@ -40,15 +64,47 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return (SemanticTextFieldMapper) in;
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()),
+        notInMultiFields(CONTENT_TYPE)
+    );
 
-    private SemanticTextFieldMapper(String simpleName, MappedFieldType mappedFieldType, CopyTo copyTo) {
+    private final IndexVersion indexVersionCreated;
+    private final SemanticTextModelSettings modelSettings;
+    private final IndexAnalyzers indexAnalyzers;
+    private final NestedObjectMapper subMappers;
+
+    private SemanticTextFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        CopyTo copyTo,
+        IndexVersion indexVersionCreated,
+        IndexAnalyzers indexAnalyzers,
+        SemanticTextModelSettings modelSettings,
+        NestedObjectMapper subMappers
+    ) {
         super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
+        this.indexVersionCreated = indexVersionCreated;
+        this.indexAnalyzers = indexAnalyzers;
+        this.modelSettings = modelSettings;
+        this.subMappers = subMappers;
+    }
+
+    @Override
+    public String name() {
+        return super.name();
+    }
+
+    @Override
+    public Iterator<Mapper> iterator() {
+        List<Mapper> subIterators = new ArrayList<>();
+        subIterators.add(subMappers);
+        return subIterators.iterator();
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(simpleName(), indexVersionCreated, indexAnalyzers).init(this);
     }
 
     @Override
@@ -67,7 +123,17 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return (SemanticTextFieldType) super.fieldType();
     }
 
+    public SemanticTextModelSettings getModelSettings() {
+        return modelSettings;
+    }
+
+    public NestedObjectMapper getNestedField() {
+        return subMappers;
+    }
+
     public static class Builder extends FieldMapper.Builder {
+        private final IndexVersion indexVersionCreated;
+        private final IndexAnalyzers indexAnalyzers;
 
         private final Parameter<String> modelId = Parameter.stringParam("model_id", false, m -> toType(m).fieldType().modelId, null)
             .addValidator(v -> {
@@ -76,25 +142,84 @@ public class SemanticTextFieldMapper extends FieldMapper {
                 }
             });
 
+        @SuppressWarnings("unchecked")
+        private final Parameter<SemanticTextModelSettings> modelSettings = new Parameter<>(
+            "model_settings",
+            true,
+            () -> null,
+            (name, context, node) -> {
+                if (node == null) {
+                    return null;
+                }
+                try {
+                    Map<String, Object> map = (Map<String, Object>) node;
+                    XContentParser parser = new MapXContentParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.IGNORE_DEPRECATIONS,
+                        map,
+                        XContentType.JSON
+                    );
+                    return SemanticTextModelSettings.parse(parser);
+                } catch (Exception exc) {
+                    throw new IllegalArgumentException(exc);
+                }
+            },
+            m -> ((SemanticTextFieldMapper) m).modelSettings,
+            XContentBuilder::field,
+            Strings::toString
+        ).acceptsNull().setMergeValidator(SemanticTextModelSettings::checkCompatibility);
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name) {
+        public Builder(String name, IndexVersion indexVersionCreated, IndexAnalyzers indexAnalyzers) {
             super(name);
+            this.indexVersionCreated = indexVersionCreated;
+            this.indexAnalyzers = indexAnalyzers;
+        }
+
+        public Builder setModelId(String id) {
+            this.modelId.setValue(id);
+            return this;
+        }
+
+        public Builder setModelSettings(SemanticTextModelSettings value) {
+            this.modelSettings.setValue(value);
+            return this;
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { modelId, meta };
+            return new Parameter<?>[] { modelId, meta, modelSettings };
         }
 
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
-            return new SemanticTextFieldMapper(name(), new SemanticTextFieldType(name(), modelId.getValue(), meta.getValue()), copyTo);
+            final String fullName = context.buildFullName(name());
+            NestedObjectMapper.Builder nestedBuilder = new NestedObjectMapper.Builder(RESULTS, indexVersionCreated);
+            nestedBuilder.dynamic(ObjectMapper.Dynamic.FALSE);
+            TextFieldMapper.Builder textMapperBuilder = new TextFieldMapper.Builder(
+                INFERENCE_CHUNKS_TEXT,
+                indexVersionCreated,
+                indexAnalyzers
+            ).index(false).store(false);
+            if (modelSettings.get() != null) {
+                nestedBuilder.add(createInferenceMapperBuilder(INFERENCE_CHUNKS_RESULTS, modelSettings.get(), indexVersionCreated));
+            }
+            nestedBuilder.add(textMapperBuilder);
+            var childContext = context.createChildContext(name(), ObjectMapper.Dynamic.FALSE);
+            return new SemanticTextFieldMapper(
+                name(),
+                new SemanticTextFieldType(fullName, modelId.getValue(), meta.getValue()),
+                copyTo,
+                indexVersionCreated,
+                indexAnalyzers,
+                modelSettings.getValue(),
+                nestedBuilder.build(childContext)
+            );
         }
     }
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {
-
         private final String modelId;
 
         public SemanticTextFieldType(String name, String modelId, Map<String, String> meta) {
@@ -126,5 +251,55 @@ public class SemanticTextFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
+    }
+
+    private static Mapper.Builder createInferenceMapperBuilder(
+        String fieldName,
+        SemanticTextModelSettings modelSettings,
+        IndexVersion indexVersionCreated
+    ) {
+        return switch (modelSettings.taskType()) {
+            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(INFERENCE_CHUNKS_RESULTS);
+            case TEXT_EMBEDDING -> {
+                DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
+                    INFERENCE_CHUNKS_RESULTS,
+                    indexVersionCreated
+                );
+                SimilarityMeasure similarity = modelSettings.similarity();
+                if (similarity != null) {
+                    switch (similarity) {
+                        case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
+                        case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
+                        default -> throw new IllegalArgumentException(
+                            "Unknown similarity measure for field [" + fieldName + "] in model settings: " + similarity
+                        );
+                    }
+                }
+                Integer dimensions = modelSettings.dimensions();
+                denseVectorMapperBuilder.dimensions(dimensions);
+                yield denseVectorMapperBuilder;
+            }
+            default -> throw new IllegalArgumentException(
+                "Invalid [task_type] for [" + fieldName + "] in model settings: " + modelSettings.taskType().name()
+            );
+        };
+    }
+
+    @Override
+    protected void checkIncomingMergeType(FieldMapper mergeWith) {
+        if (mergeWith instanceof SemanticTextFieldMapper other) {
+            if (other.modelSettings != null && other.modelSettings.inferenceId().equals(other.fieldType().getInferenceModel()) == false) {
+                throw new IllegalArgumentException(
+                    "mapper ["
+                        + name()
+                        + "] refers to different model ids ["
+                        + other.modelSettings.inferenceId()
+                        + "] and ["
+                        + other.fieldType().getInferenceModel()
+                        + "]"
+                );
+            }
+        }
+        super.checkIncomingMergeType(mergeWith);
     }
 }

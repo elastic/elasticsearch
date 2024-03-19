@@ -86,7 +86,7 @@ setup:
             _inference:
               dense_field:
                 model_settings:
-                  inference_id: sparse-inference-id
+                  inference_id: dense-inference-id
                   task_type: text_embedding
                   dimensions: 5
                   similarity: cosine
@@ -144,7 +144,7 @@ setup:
           _inference:
             dense_field:
               model_settings:
-                inference_id: sparse-inference-id
+                inference_id: dense-inference-id
                 task_type: text_embedding
               results:
                 - text: "inference test"

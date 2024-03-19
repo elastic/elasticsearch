@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -22,7 +25,7 @@ import java.util.Objects;
 /**
  * Serialization class for specifying the settings of a model from semantic_text inference to field mapper.
  */
-public class SemanticTextModelSettings {
+public class SemanticTextModelSettings implements ToXContentObject {
 
     public static final String NAME = "model_settings";
     public static final ParseField TASK_TYPE_FIELD = new ParseField("task_type");
@@ -97,5 +100,45 @@ public class SemanticTextModelSettings {
 
     public SimilarityMeasure similarity() {
         return similarity;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(TASK_TYPE_FIELD.getPreferredName(), taskType.toString());
+        builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+        if (dimensions != null) {
+            builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
+        }
+        if (similarity != null) {
+            builder.field(SIMILARITY_FIELD.getPreferredName(), similarity);
+        }
+        return builder.endObject();
+    }
+
+    public static boolean checkCompatibility(
+        SemanticTextModelSettings original,
+        SemanticTextModelSettings another,
+        FieldMapper.Conflicts conflicts
+    ) {
+        if (original == null) {
+            return true;
+        }
+        if (original != null && another == null) {
+            conflicts.addConflict("model_settings", "missing");
+        }
+        if (original.inferenceId.equals(another.inferenceId) == false) {
+            conflicts.addConflict(INFERENCE_ID_FIELD.getPreferredName(), "values differ");
+        }
+        if (original.taskType != another.taskType()) {
+            conflicts.addConflict(TASK_TYPE_FIELD.getPreferredName(), "values differ");
+        }
+        if (original.dimensions != another.dimensions) {
+            conflicts.addConflict(DIMENSIONS_FIELD.getPreferredName(), "values differ");
+        }
+        if (original.similarity != another.similarity) {
+            conflicts.addConflict(SIMILARITY_FIELD.getPreferredName(), "values differ");
+        }
+        return conflicts.hasConflicts() == false;
     }
 }

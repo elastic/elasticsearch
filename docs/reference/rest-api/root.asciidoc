@@ -65,7 +65,7 @@ If Elasticsearch's build was from a snapshot.
 
 `lucene_version` ::
 Version number of Elasticsearch's 
-<<https://archive.apache.org/dist/lucene/java/,underlying Lucene software>>.
+https://archive.apache.org/dist/lucene/java/[underlying Lucene software].
 
 `minimum_wire_compatibility_version` ::
 Minimum node version with which the responding node can 
@@ -81,7 +81,7 @@ from disk.
 [[rest-api-root-response-example]]
 === {api-examples-title}
 
-The API returns the following response: 
+The API returns a response like the following: 
 
 [source,console-result]
 ----

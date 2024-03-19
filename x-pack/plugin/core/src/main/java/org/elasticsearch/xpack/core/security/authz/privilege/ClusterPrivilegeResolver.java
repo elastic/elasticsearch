@@ -116,7 +116,7 @@ public class ClusterPrivilegeResolver {
     private static final Predicate<String> ACTION_MATCHER = Automatons.predicate(ALL_CLUSTER_PATTERN);
     private static final Set<String> MANAGE_INFERENCE_PATTERN = Set.of(
         "cluster:admin/xpack/inference/*",
-        "cluster:monitor/xpack/inference*",
+        "cluster:monitor/xpack/inference*", // no trailing slash to match the POST InferenceAction name
         "cluster:admin/xpack/ml/trained_models/deployment/start",
         "cluster:admin/xpack/ml/trained_models/deployment/stop",
         "cluster:monitor/xpack/ml/trained_models/deployment/infer"

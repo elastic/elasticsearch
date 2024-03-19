@@ -290,34 +290,38 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
                 }
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
                 for (var entry : fieldInferenceMetadata.getFieldInferenceOptions().entrySet()) {
-                    String field = entry.getKey();
                     String inferenceId = entry.getValue().inferenceId();
-                    var value = XContentMapValues.extractValue(field, docMap);
-                    if (value == null) {
-                        continue;
-                    }
-                    if (inferenceResults.get(item.id()) == null) {
-                        inferenceResults.set(
-                            item.id(),
-                            new FieldInferenceResponseAccumulator(
+                    for (var field : entry.getValue().sourceFields()) {
+                        var value = XContentMapValues.extractValue(field, docMap);
+                        if (value == null) {
+                            continue;
+                        }
+                        if (inferenceResults.get(item.id()) == null) {
+                            inferenceResults.set(
                                 item.id(),
-                                Collections.synchronizedList(new ArrayList<>()),
-                                Collections.synchronizedList(new ArrayList<>())
-                            )
-                        );
-                    }
-                    if (value instanceof String valueStr) {
-                        List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
-                        fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
-                    } else {
-                        inferenceResults.get(item.id()).failures.add(
-                            new ElasticsearchStatusException(
-                                "Invalid format for field [{}], expected [String] got [{}]",
-                                RestStatus.BAD_REQUEST,
-                                field,
-                                value.getClass().getSimpleName()
-                            )
-                        );
+                                new FieldInferenceResponseAccumulator(
+                                    item.id(),
+                                    Collections.synchronizedList(new ArrayList<>()),
+                                    Collections.synchronizedList(new ArrayList<>())
+                                )
+                            );
+                        }
+                        if (value instanceof String valueStr) {
+                            List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(
+                                inferenceId,
+                                k -> new ArrayList<>()
+                            );
+                            fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
+                        } else {
+                            inferenceResults.get(item.id()).failures.add(
+                                new ElasticsearchStatusException(
+                                    "Invalid format for field [{}], expected [String] got [{}]",
+                                    RestStatus.BAD_REQUEST,
+                                    field,
+                                    value.getClass().getSimpleName()
+                                )
+                            );
+                        }
                     }
                 }
             }

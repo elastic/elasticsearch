@@ -39,7 +39,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -123,10 +122,12 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
-        SubscribableListener.<Tuple<Long, Map<String, Set<String>>>>newForked(l -> {
+        SubscribableListener.<String>newForked(l -> {
             // When the request resource is a deployment find the
             // model used in that deployment for the model stats
             String idExpression = addModelsUsedInMatchingDeployments(request.getResourceId(), assignmentMetadata);
+            l.onResponse(idExpression);
+        }).<Tuple<Long, Map<String, Set<String>>>>andThen(executor, null, (l, idExpression) -> {
             logger.debug("Expanded models/deployment Ids request [{}]", idExpression);
 
             // the request id may contain deployment ids
@@ -208,7 +209,6 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     }
 
     static String addModelsUsedInMatchingDeployments(String idExpression, TrainedModelAssignmentMetadata assignmentMetadata) {
-        assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
         if (Strings.isAllOrWildcard(idExpression)) {
             return idExpression;
         } else {

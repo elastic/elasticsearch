@@ -143,7 +143,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * To log the results logResults() should return "true".
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106501")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -30,13 +32,26 @@ import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.plan.QueryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineOr;
+import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
 
 class OptimizerRules {
 
@@ -137,6 +152,82 @@ class OptimizerRules {
                 }
             }
             return plan.references();
+        }
+    }
+
+    /**
+     * Combine disjunctions on the same field into an In expression.
+     * This rule looks for both simple equalities:
+     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
+     * and combinations of In
+     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
+     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
+     *
+     * This rule does NOT check for type compatibility as that phase has been
+     * already be verified in the analyzer.
+     */
+    public static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<Or> {
+        public CombineDisjunctionsToIn() {
+            super(org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP);
+        }
+
+        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
+            return new In(key.source(), key, values);
+        }
+
+        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
+            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
+        }
+
+        @Override
+        protected Expression rule(Or or) {
+            Expression e = or;
+            // look only at equals and In
+            List<Expression> exps = splitOr(e);
+
+            Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
+            ZoneId zoneId = null;
+            List<Expression> ors = new LinkedList<>();
+
+            for (Expression exp : exps) {
+                if (exp instanceof Equals eq) {
+                    // consider only equals against foldables
+                    if (eq.right().foldable()) {
+                        found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
+                    } else {
+                        ors.add(exp);
+                    }
+                    if (zoneId == null) {
+                        zoneId = eq.zoneId();
+                    }
+                } else if (exp instanceof In in) {
+                    found.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
+                    if (zoneId == null) {
+                        zoneId = in.zoneId();
+                    }
+                } else {
+                    ors.add(exp);
+                }
+            }
+
+            if (found.isEmpty() == false) {
+                // combine equals alongside the existing ors
+                final ZoneId finalZoneId = zoneId;
+                found.forEach(
+                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
+                );
+
+                // TODO: this makes a QL `or`, not an ESQL `or`
+                Expression combineOr = combineOr(ors);
+                // check the result semantically since the result might different in order
+                // but be actually the same which can trigger a loop
+                // e.g. a == 1 OR a == 2 OR null --> null OR a in (1,2) --> literalsOnTheRight --> cycle
+                if (e.semanticEquals(combineOr) == false) {
+                    e = combineOr;
+                }
+            }
+
+            return e;
         }
     }
 }

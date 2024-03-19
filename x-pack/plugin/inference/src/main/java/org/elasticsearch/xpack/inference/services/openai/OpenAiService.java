@@ -194,7 +194,7 @@ public class OpenAiService extends SenderService {
 
         if (model instanceof OpenAiChatCompletionModel) {
             if (input.size() > 1) {
-                listener.onFailure(new UnsupportedOperationException("OpenAI completions only accepts 1 input"));
+                listener.onFailure(new ElasticsearchStatusException("OpenAI completions only accepts 1 input", RestStatus.BAD_REQUEST));
                 return;
             }
         }

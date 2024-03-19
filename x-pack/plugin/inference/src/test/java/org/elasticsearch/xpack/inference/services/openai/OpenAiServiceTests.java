@@ -23,6 +23,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -730,9 +731,10 @@ public class OpenAiServiceTests extends ESTestCase {
 
             service.infer(model, List.of("abc", "def"), new HashMap<>(), InputType.INGEST, listener);
 
-            var thrownException = expectThrows(UnsupportedOperationException.class, () -> listener.actionGet(TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
             assertThat(thrownException.getMessage(), is("OpenAI completions only accepts 1 input"));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
         }
     }
 

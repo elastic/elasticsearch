@@ -378,12 +378,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 new RoleDescriptor(
                     "inference_admin",
                     new String[] { "manage_inference" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".inference*")
-                            .allowRestrictedIndices(true)
-                            .privileges("view_index_metadata", "read")
-                            .build() },
+                    null,
                     null,
                     null,
                     null,
@@ -396,12 +391,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 new RoleDescriptor(
                     "inference_user",
                     new String[] { "monitor_inference" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".inference*")
-                            .allowRestrictedIndices(true)
-                            .privileges("view_index_metadata", "read")
-                            .build() },
+                    null,
                     null,
                     null,
                     null,

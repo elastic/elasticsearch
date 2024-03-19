@@ -547,6 +547,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 Instant.now(),
                 randomBoolean(),
                 false,
+                null,
                 null
             );
             long after = testThreadPool.absoluteTimeInMillis();
@@ -615,6 +616,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 Instant.now(),
                 randomBoolean(),
                 false,
+                null,
                 null
             );
             long after = testThreadPool.absoluteTimeInMillis();
@@ -701,6 +703,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             Instant.now(),
             randomBoolean(),
             true,
+            null,
             null
         );
 
@@ -742,6 +745,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 Instant.now(),
                 false,
                 randomBoolean(),
+                null,
                 null
             )
         );

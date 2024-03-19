@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -21,89 +18,50 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.xcontent.InstantiatingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
-public record ColumnInfo(String name, String type) implements Writeable {
+abstract class PositionToXContent {
+    protected final Block block;
 
-    private static final InstantiatingObjectParser<ColumnInfo, Void> PARSER;
-    static {
-        InstantiatingObjectParser.Builder<ColumnInfo, Void> parser = InstantiatingObjectParser.builder(
-            "esql/column_info",
-            true,
-            ColumnInfo.class
-        );
-        parser.declareString(constructorArg(), new ParseField("name"));
-        parser.declareString(constructorArg(), new ParseField("type"));
-        PARSER = parser.build();
+    PositionToXContent(Block block) {
+        this.block = block;
     }
 
-    public static ColumnInfo fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
-    public ColumnInfo(StreamInput in) throws IOException {
-        this(in.readString(), in.readString());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeString(type);
-    }
-
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        builder.field("name", name);
-        builder.field("type", type);
-        builder.endObject();
-        return builder;
-    }
-
-    public abstract class PositionToXContent {
-        protected final Block block;
-
-        PositionToXContent(Block block) {
-            this.block = block;
+    public XContentBuilder positionToXContent(XContentBuilder builder, ToXContent.Params params, int position) throws IOException {
+        if (block.isNull(position)) {
+            return builder.nullValue();
         }
-
-        public XContentBuilder positionToXContent(XContentBuilder builder, ToXContent.Params params, int position) throws IOException {
-            if (block.isNull(position)) {
-                return builder.nullValue();
-            }
-            int count = block.getValueCount(position);
-            int start = block.getFirstValueIndex(position);
-            if (count == 1) {
-                return valueToXContent(builder, params, start);
-            }
-            builder.startArray();
-            int end = start + count;
-            for (int i = start; i < end; i++) {
-                valueToXContent(builder, params, i);
-            }
-            return builder.endArray();
+        int count = block.getValueCount(position);
+        int start = block.getFirstValueIndex(position);
+        if (count == 1) {
+            return valueToXContent(builder, params, start);
         }
-
-        protected abstract XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
-            throws IOException;
+        builder.startArray();
+        int end = start + count;
+        for (int i = start; i < end; i++) {
+            valueToXContent(builder, params, i);
+        }
+        return builder.endArray();
     }
 
-    public PositionToXContent positionToXContent(Block block, BytesRef scratch) {
-        return switch (type) {
+    protected abstract XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+        throws IOException;
+
+    public static PositionToXContent positionToXContent(ColumnInfo columnInfo, Block block, BytesRef scratch) {
+        return switch (columnInfo.type()) {
             case "long" -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
@@ -216,7 +174,7 @@ public record ColumnInfo(String name, String type) implements Writeable {
                     }
                 }
             };
-            default -> throw new IllegalArgumentException("can't convert values of type [" + type + "]");
+            default -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
         };
     }
 }

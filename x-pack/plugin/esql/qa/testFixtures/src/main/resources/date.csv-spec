@@ -182,7 +182,9 @@ string:keyword                                          |datetime:date
 // end::to_datetime-str-result[]
 ;
 
-convertFromUnsignedLong#[skip:-8.11.99, reason:ql exceptions were updated in 8.12]
+convertFromUnsignedLong
+required_feature:esql.convert_warn
+
 row ul = [9223372036854775808, 520128000000] | eval dt = to_datetime(ul);
 warning:Line 1:58: evaluation of [to_datetime(ul)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:58: org.elasticsearch.xpack.ql.InvalidArgumentException: [9223372036854775808] out of [long] range
@@ -1160,4 +1162,21 @@ row a = ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:
 
 datetime:date                                                                       | sa:date                                                                              | sd:date
 ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"]| ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"] | ["1987-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1985-01-01T00:00:00.000Z"]
+;
+
+calculateAges
+FROM employees
+| WHERE birth_date > NOW() - 100 years
+| EVAL age = 2024 - DATE_EXTRACT("year", birth_date)
+| STATS count=count(age) BY age
+| SORT count DESC, age DESC
+| LIMIT 5
+;
+
+count:long | age:long
+11         | 71
+9          | 65
+8          | 72
+8          | 70
+8          | 64
 ;

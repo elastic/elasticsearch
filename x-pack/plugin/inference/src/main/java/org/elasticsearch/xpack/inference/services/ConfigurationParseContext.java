@@ -5,13 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai;
+package org.elasticsearch.xpack.inference.services;
 
-public enum OpenAiParseContext {
+public enum ConfigurationParseContext {
     REQUEST,
     PERSISTENT;
 
-    public static boolean isRequestContext(OpenAiParseContext context) {
+    public static boolean isRequestContext(ConfigurationParseContext context) {
         return context == REQUEST;
     }
 }

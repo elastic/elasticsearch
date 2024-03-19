@@ -24,8 +24,9 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
                 return null
             }
         }
-        toolChain.bundledJdkVersion = "20+36@bdc68b4b9cbc4ebcb30745c85038d91d"
-        toolChain.bundledJdkMajorVersion = JavaLanguageVersion.of(20)
+        toolChain.builds = [
+            new OracleOpenJdkToolchainResolver.JdkBuild(JavaLanguageVersion.of(20), "20", "36", "bdc68b4b9cbc4ebcb30745c85038d91d")
+        ]
         toolChain
     }
 
@@ -39,7 +40,8 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
          [20, anyVendor(), MAC_OS, AARCH64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_macos-aarch64_bin.tar.gz"],
          [20, anyVendor(), LINUX, X86_64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-x64_bin.tar.gz"],
          [20, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-aarch64_bin.tar.gz"],
-         [20, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-x64_bin.zip"]]
+         [20, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-x64_bin.zip"]
+        ]
     }
 
     def unsupportedRequests() {

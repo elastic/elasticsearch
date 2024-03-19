@@ -119,9 +119,9 @@ public final class ExchangeSinkHandler {
     }
 
     /**
-     * Fails this sink exchange handler
+     * Aborts and fails this exchange sink handler
      */
-    void onFailure(Exception failure) {
+    public void onFailure(Exception failure) {
         completionFuture.onFailure(failure);
         buffer.finish(true);
         notifyListeners();

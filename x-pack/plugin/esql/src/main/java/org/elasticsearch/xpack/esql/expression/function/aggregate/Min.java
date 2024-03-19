@@ -11,8 +11,10 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,7 +22,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 
-public class Min extends NumericAggregate {
+public class Min extends NumericAggregate implements SurrogateExpression {
 
     @FunctionInfo(returnType = { "double", "integer", "long" }, description = "The minimum value of a numeric field.", isAggregation = true)
     public Min(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
@@ -60,5 +62,13 @@ public class Min extends NumericAggregate {
     @Override
     protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
         return new MinDoubleAggregatorFunctionSupplier(inputChannels);
+    }
+
+    @Override
+    public Expression surrogate() {
+        if (field().foldable()) {
+            return new MvMin(source(), field());
+        }
+        return null;
     }
 }

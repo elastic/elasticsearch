@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
@@ -182,6 +183,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             // spatial
             new FunctionDefinition[] {
                 def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid"),
+                def(SpatialContains.class, SpatialContains::new, "st_contains"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
                 def(StX.class, StX::new, "st_x"),
                 def(StY.class, StY::new, "st_y") },

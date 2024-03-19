@@ -1,0 +1,5 @@
+pr: 106503
+summary: "Support ST_CONTAINS"
+area: "ES|QL"
+type: enhancement
+issues: []

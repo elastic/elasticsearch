@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -32,8 +33,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatialGeo;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
 
-public class SpatialintersectsTests extends AbstractFunctionTestCase {
-    public SpatialintersectsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+@FunctionName("st_intersects")
+
+public class SpatialIntersectsTests extends AbstractFunctionTestCase {
+    public SpatialIntersectsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -45,7 +48,7 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
         DataType[] cartesianDataTypes = { EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE };
         addSpatialCombinations(suppliers, cartesianDataTypes);
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialintersectsTests::typeErrorMessage)
+            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialIntersectsTests::typeErrorMessage)
         );
     }
 
@@ -64,7 +67,7 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
                         TestCaseSupplier.testCaseSupplier(
                             leftDataSupplier,
                             rightDataSupplier,
-                            SpatialintersectsTests::spatialEvaluatorString,
+                            SpatialIntersectsTests::spatialEvaluatorString,
                             DataTypes.BOOLEAN,
                             (l, r) -> expected(l, leftType, r, rightType)
                         )

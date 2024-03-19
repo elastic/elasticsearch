@@ -32,7 +32,10 @@ public class MvDedupe extends AbstractMultivalueFunction {
     )
     public MvDedupe(
         Source source,
-        @Param(name = "v", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression field
+        @Param(
+            name = "field",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }
+        ) Expression field
     ) {
         super(source, field);
     }

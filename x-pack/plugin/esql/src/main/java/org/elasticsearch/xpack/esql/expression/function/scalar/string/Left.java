@@ -47,7 +47,7 @@ public class Left extends EsqlScalarFunction {
     )
     public Left(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "string", type = { "keyword", "text" }) Expression str,
         @Param(name = "length", type = { "integer" }) Expression length
     ) {
         super(source, Arrays.asList(str, length));

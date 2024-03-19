@@ -66,7 +66,7 @@ public final class Case extends EsqlScalarFunction {
         Source source,
         @Param(name = "condition", type = { "boolean" }) Expression first,
         @Param(
-            name = "value",
+            name = "trueValue",
             type = {
                 "boolean",
                 "cartesian_point",

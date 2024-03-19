@@ -39,6 +39,8 @@ import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -75,34 +77,29 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
 
     @Override
     protected TypeResolution resolveType() {
-        // We determine the spatial data type first, then check if the other expression is of the same type or a string.
-        TypeResolution leftResolution = isSpatial(left(), sourceText(), FIRST);
-        TypeResolution rightResolution = isSpatial(right(), sourceText(), SECOND);
-        // Both are spatial, but one could be a literal spatial function
-        if (leftResolution.resolved() && rightResolution.resolved()) {
-            if (left().foldable() && right().foldable() == false || isNull(left().dataType())) {
-                // Left is literal, but right is not, check the left field's type against the right field
-                return resolveType(right(), left(), FIRST);
-            } else {
-                // All other cases check the right against the left
-                return resolveType(left(), right(), SECOND);
-            }
-        }
-        // If any parameter is not spatial, we are unresolved
-        if ((leftResolution.unresolved() || isNull(left().dataType())) && (rightResolution.unresolved() || isNull(right().dataType()))) {
-            return isNull(left().dataType()) ? rightResolution : leftResolution;
-        } else if (leftResolution.resolved() && isNull(left().dataType()) == false) {
-            // Left is spatial, check right against left
-            return resolveType(left(), right(), SECOND);
-        } else if (rightResolution.resolved() && isNull(right().dataType()) == false) {
-            // Right is spatial, check left against right
-            return resolveType(right(), left(), FIRST);
-        } else if (isNull(right().dataType())) {
-            // Neither are spatial, return left resolution
-            return leftResolution;
+        if (left().foldable() && right().foldable() == false || isNull(left().dataType())) {
+            // Left is literal, but right is not, check the left field's type against the right field
+            return resolveType(right(), left(), SECOND, FIRST);
         } else {
-            // Neither are spatial, return left resolution
-            return resolveType(left(), right(), SECOND);
+            // All other cases check the right against the left
+            return resolveType(left(), right(), FIRST, SECOND);
+        }
+    }
+
+    private TypeResolution resolveType(
+        Expression leftExpression,
+        Expression rightExpression,
+        TypeResolutions.ParamOrdinal leftOrdinal,
+        TypeResolutions.ParamOrdinal rightOrdinal
+    ) {
+        TypeResolution leftResolution = isSpatial(leftExpression, sourceText(), leftOrdinal);
+        TypeResolution rightResolution = isSpatial(rightExpression, sourceText(), rightOrdinal);
+        if (leftResolution.resolved()) {
+            return resolveType(leftExpression, rightExpression, rightOrdinal);
+        } else if (rightResolution.resolved()) {
+            return resolveType(rightExpression, leftExpression, leftOrdinal);
+        } else {
+            return leftResolution;
         }
     }
 
@@ -133,13 +130,20 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
             dt -> EsqlDataTypes.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
             operationName,
             paramOrd,
-            spatialDataType.esType()
+            compatibleTypeNames(spatialDataType)
         );
     }
+
+    private static final String[] GEO_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
+    private static final String[] CARTESIAN_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
 
     private static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
         return EsqlDataTypes.isSpatialGeo(spatialDataType) && EsqlDataTypes.isSpatialGeo(otherDataType)
             || EsqlDataTypes.isSpatialGeo(spatialDataType) == false && EsqlDataTypes.isSpatialGeo(otherDataType) == false;
+    }
+
+    static String[] compatibleTypeNames(DataType spatialDataType) {
+        return EsqlDataTypes.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
     }
 
     @Override

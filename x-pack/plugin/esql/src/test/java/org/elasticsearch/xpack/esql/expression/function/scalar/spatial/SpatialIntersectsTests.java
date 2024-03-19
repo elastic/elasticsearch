@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import joptsimple.internal.Strings;
+
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -29,6 +31,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction.compatibleTypeNames;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatialGeo;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
@@ -105,10 +108,14 @@ public class SpatialIntersectsTests extends AbstractFunctionTestCase {
     private static String oneInvalid(int badArgPosition, int goodArgPosition, boolean includeOrdinal, List<DataType> types) {
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
         String expectedType = goodArgPosition >= 0
-            ? types.get(goodArgPosition).esType()
+            ? compatibleTypes(types.get(goodArgPosition))
             : "geo_point, cartesian_point, geo_shape or cartesian_shape";
         String name = types.get(badArgPosition).typeName();
         return ordinal + "argument of [] must be [" + expectedType + "], found value [" + name + "] type [" + name + "]";
+    }
+
+    private static String compatibleTypes(DataType spatialDataType) {
+        return Strings.join(compatibleTypeNames(spatialDataType), " or ");
     }
 
     private static TestCaseSupplier.TypedDataSupplier testCaseSupplier(DataType dataType) {

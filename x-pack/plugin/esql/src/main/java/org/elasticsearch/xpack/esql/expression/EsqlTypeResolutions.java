@@ -17,6 +17,10 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import java.util.Locale;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
@@ -45,11 +49,18 @@ public class EsqlTypeResolutions {
         return Expression.TypeResolution.TYPE_RESOLVED;
     }
 
+    private static final String[] SPATIAL_TYPE_NAMES = new String[] {
+        GEO_POINT.typeName(),
+        CARTESIAN_POINT.typeName(),
+        GEO_SHAPE.typeName(),
+        CARTESIAN_SHAPE.typeName() };
+    private static final String[] POINT_TYPE_NAMES = new String[] { GEO_POINT.typeName(), CARTESIAN_POINT.typeName() };
+
     public static Expression.TypeResolution isSpatialPoint(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, EsqlDataTypes::isSpatialPoint, operationName, paramOrd, "geo_point", "cartesian_point");
+        return isType(e, EsqlDataTypes::isSpatialPoint, operationName, paramOrd, POINT_TYPE_NAMES);
     }
 
     public static Expression.TypeResolution isSpatial(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, EsqlDataTypes::isSpatial, operationName, paramOrd, "geo_point", "cartesian_point", "geo_shape", "cartesian_shape");
+        return isType(e, EsqlDataTypes::isSpatial, operationName, paramOrd, SPATIAL_TYPE_NAMES);
     }
 }

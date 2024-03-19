@@ -36,5 +36,5 @@ include::{esql-specs}/spatial.csv-spec[tag=st_intersects-airports]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/spatial.csv-spec[tag=st_intersects-airports-result]
+include::{esql-specs}/spatial.csv-spec[tag=st_intersects-airports-results]
 |===

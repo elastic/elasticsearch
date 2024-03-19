@@ -12,35 +12,51 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -308,5 +324,83 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 emptyIterable()
             )
         );
+    }
+
+    /**
+     * Ensure that when some exchange requests fail, we cancel the ESQL request, and complete all
+     * exchange sinks with the failure, despite having outstanding pages in the buffer.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106443")
+    public void testCancelRequestWhenFailingFetchingPages() throws Exception {
+        String coordinator = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        String dataNode = internalCluster().startDataOnlyNode();
+        // block, then fail exchange requests when we have outstanding pages
+        var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, dataNode);
+        CountDownLatch fetchingStarted = new CountDownLatch(1);
+        CountDownLatch allowedFetching = new CountDownLatch(1);
+        transportService.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+            AbstractRunnable runnable = new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    channel.sendResponse(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    fetchingStarted.countDown();
+                    assertTrue(allowedFetching.await(1, TimeUnit.MINUTES));
+                    onFailure(new IOException("failed to fetch pages"));
+                }
+            };
+            transportService.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(runnable);
+        });
+        try {
+            scriptPermits.release(numberOfDocs()); // do not block Lucene operators
+            Client client = client(coordinator);
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.routing.allocation.include._name", dataNode).build())
+                .get();
+            ensureYellowAndNoInitializingShards("test");
+            request.query("FROM test | LIMIT 10");
+            request.pragmas(randomPragmas());
+            PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
+            client.execute(EsqlQueryAction.INSTANCE, request, future);
+            try {
+                List<TaskInfo> foundTasks = new ArrayList<>();
+                assertBusy(() -> {
+                    List<TaskInfo> tasks = client().admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .setActions(EsqlQueryAction.NAME)
+                        .setDetailed(true)
+                        .get()
+                        .getTasks();
+                    assertThat(tasks, hasSize(1));
+                    foundTasks.addAll(tasks);
+                });
+                String sessionId = foundTasks.get(0).taskId().toString();
+                ExchangeService exchangeService = internalCluster().getInstance(ExchangeService.class, dataNode);
+                assertTrue(fetchingStarted.await(1, TimeUnit.MINUTES));
+                ExchangeSinkHandler exchangeSink = exchangeService.getSinkHandler(sessionId);
+                if (randomBoolean()) {
+                    // do not fail exchange requests when we have some pages
+                    assertBusy(() -> assertThat(exchangeSink.bufferSize(), greaterThan(0)));
+                }
+            } finally {
+                allowedFetching.countDown();
+            }
+            Exception failure = expectThrows(Exception.class, () -> future.actionGet().close());
+            assertThat(failure.getMessage(), containsString("failed to fetch pages"));
+        } finally {
+            transportService.clearAllRules();
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
     }
 }

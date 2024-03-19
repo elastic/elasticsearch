@@ -18,12 +18,12 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
 
@@ -46,10 +46,10 @@ final class BytesRefBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    BytesRefBlockHash(int channel, DriverContext driverContext) {
-        super(driverContext);
+    BytesRefBlockHash(int channel, BlockFactory blockFactory) {
+        super(blockFactory);
         this.channel = channel;
-        this.bytesRefHash = new BytesRefHash(1, bigArrays);
+        this.bytesRefHash = new BytesRefHash(1, blockFactory.bigArrays());
     }
 
     @Override

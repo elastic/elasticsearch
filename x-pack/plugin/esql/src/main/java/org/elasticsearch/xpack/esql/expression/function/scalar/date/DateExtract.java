@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.extractLongChronoField;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
@@ -75,8 +75,12 @@ public class DateExtract extends EsqlConfigurationFunction {
         // TODO: move the slimmed down code here to toEvaluator?
         if (chronoField == null) {
             Expression field = children().get(0);
-            if (field.foldable()) {
-                chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field);
+            try {
+                if (field.foldable() && field.dataType() == DataTypes.KEYWORD) {
+                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold());
+                }
+            } catch (Exception e) {
+                return null;
             }
         }
         return chronoField;
@@ -84,12 +88,12 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static long process(long value, BytesRef chronoField, @Fixed ZoneId zone) {
-        return extractLongChronoField(value, chronoField, zone);
+        return chronoToLong(value, chronoField, zone);
     }
 
     @Evaluator(extraName = "Constant")
     static long process(long value, @Fixed ChronoField chronoField, @Fixed ZoneId zone) {
-        return extractLongChronoField(value, chronoField, zone);
+        return chronoToLong(value, chronoField, zone);
     }
 
     @Override

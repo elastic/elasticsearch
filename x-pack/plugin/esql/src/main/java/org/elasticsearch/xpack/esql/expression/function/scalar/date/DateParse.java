@@ -29,7 +29,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeStringToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
@@ -84,12 +84,12 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
     public static long process(BytesRef val, @Fixed DateFormatter formatter) throws IllegalArgumentException {
-        return convertDatetimeStringToLong(val.utf8ToString(), formatter);
+        return dateTimeToLong(val.utf8ToString(), formatter);
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static long process(BytesRef val, BytesRef formatter, @Fixed ZoneId zoneId) throws IllegalArgumentException {
-        return convertDatetimeStringToLong(val.utf8ToString(), toFormatter(formatter, zoneId));
+        return dateTimeToLong(val.utf8ToString(), toFormatter(formatter, zoneId));
     }
 
     @Override

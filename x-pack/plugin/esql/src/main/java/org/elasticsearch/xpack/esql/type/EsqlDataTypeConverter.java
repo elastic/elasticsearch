@@ -15,13 +15,10 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -164,75 +161,52 @@ public class EsqlDataTypeConverter {
         };
     }
 
-    /**
-     * Converts a string or date expression to long.
-     */
-    private static Long foldExpressionToLong(Expression exp) {
-        Object value = Foldables.valueOf(exp);
-        if (DataTypes.isDateTime(exp.dataType())) {
-            return ((Number) value).longValue();
-        } else if (DataTypes.isString(exp.dataType())) {
-            return convertDatetimeStringToLong(((BytesRef) value).utf8ToString());
-        }
-        return null;
-    }
-
-    /**
-     * Converts a string expression to ChronoField.
-     */
-    private static ChronoField foldExpressionToChronoField(Expression exp) {
-        Object value = Foldables.valueOf(exp);
+    private static ChronoField stringToChrono(Object value) {
         ChronoField chronoField = null;
-        if (exp.dataType() == DataTypes.KEYWORD) {
-            try {
-                BytesRef br = BytesRefs.toBytesRef(value);
-                chronoField = ChronoField.valueOf(br.utf8ToString().toUpperCase(Locale.ROOT));
-            } catch (Exception e) {
-                return null;
-            }
+        try {
+            BytesRef br = BytesRefs.toBytesRef(value);
+            chronoField = ChronoField.valueOf(br.utf8ToString().toUpperCase(Locale.ROOT));
+        } catch (Exception e) {
+            return null;
         }
         return chronoField;
     }
 
-    private static BytesRef convertStringToIP(BytesRef value) {
+    private static BytesRef stringToIP(BytesRef value) {
         return parseIP(value.utf8ToString());
     }
 
-    /**
-     * Returns Datetime in long according to a ChronoField provided.
-     */
-    public static long extractLongChronoField(long value, Object chronoField, ZoneId zone) {
-        ChronoField chrono = null;
-        if (chronoField instanceof BytesRef cf) {
-            chrono = ChronoField.valueOf(cf.utf8ToString().toUpperCase(Locale.ROOT));
-        } else if (chronoField instanceof ChronoField cf) {
-            chrono = cf;
-        } else {
-            throw new IllegalArgumentException("unsupported type [" + chrono.getClass() + "]");
-        }
-        return Instant.ofEpochMilli(value).atZone(zone).getLong(chrono);
+    public static long chronoToLong(long dateTime, BytesRef chronoField, ZoneId zone) {
+        ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
+        return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chrono);
     }
 
-    public static long convertDatetimeStringToLong(String value) {
-        return DEFAULT_DATE_TIME_FORMATTER.parseMillis(value);
+    public static long chronoToLong(long dateTime, ChronoField chronoField, ZoneId zone) {
+        return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chronoField);
     }
 
-    public static long convertDatetimeStringToLong(String value, DateFormatter formatter) {
-        formatter = formatter == null ? DEFAULT_DATE_TIME_FORMATTER : formatter;
-        return formatter.parseMillis(value);
+    public static long dateTimeToLong(String dateTime) {
+        return DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
     }
 
-    public static String convertDatetimeLongToString(long value, DateFormatter formatter) {
-        return formatter.formatMillis(value);
+    public static long dateTimeToLong(String dateTime, DateFormatter formatter) {
+        return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
+    }
+
+    public static String dateTimeToString(long dateTime) {
+        return DEFAULT_DATE_TIME_FORMATTER.formatMillis(dateTime);
+    }
+
+    public static String dateTimeToString(long dateTime, DateFormatter formatter) {
+        return formatter == null ? dateTimeToString(dateTime) : formatter.formatMillis(dateTime);
     }
 
     public enum EsqlConverter implements Converter {
 
         STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.DATE_PERIOD)),
         STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.TIME_DURATION)),
-        STRING_DATETIME_TO_LONG(x -> EsqlDataTypeConverter.foldExpressionToLong((Expression) x)),
-        STRING_TO_CHRONO_FIELD(x -> EsqlDataTypeConverter.foldExpressionToChronoField((Expression) x)),
-        STRING_TO_IP(x -> EsqlDataTypeConverter.convertStringToIP((BytesRef) x));
+        STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
+        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((BytesRef) x));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

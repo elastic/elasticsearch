@@ -29,7 +29,7 @@ import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeLongToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
@@ -84,12 +84,12 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     @Evaluator(extraName = "Constant")
     static BytesRef process(long val, @Fixed DateFormatter formatter) {
-        return new BytesRef(convertDatetimeLongToString(val, formatter));
+        return new BytesRef(dateTimeToString(val, formatter));
     }
 
     @Evaluator
     static BytesRef process(long val, BytesRef formatter, @Fixed Locale locale) {
-        return new BytesRef(convertDatetimeLongToString(val, toFormatter(formatter, locale)));
+        return new BytesRef(dateTimeToString(val, toFormatter(formatter, locale)));
     }
 
     @Override

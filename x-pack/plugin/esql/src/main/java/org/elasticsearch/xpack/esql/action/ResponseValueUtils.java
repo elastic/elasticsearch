@@ -39,9 +39,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeLongToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.convertDatetimeStringToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
@@ -133,7 +132,7 @@ public final class ResponseValueUtils {
             }
             case "date" -> {
                 long longVal = ((LongBlock) block).getLong(offset);
-                yield convertDatetimeLongToString(longVal, DEFAULT_DATE_TIME_FORMATTER);
+                yield dateTimeToString(longVal);
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
             case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
@@ -179,7 +178,7 @@ public final class ResponseValueUtils {
                     );
                     case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(parseIP(value.toString()));
                     case "date" -> {
-                        long longVal = convertDatetimeStringToLong(value.toString());
+                        long longVal = dateTimeToLong(value.toString());
                         ((LongBlock.Builder) builder).appendLong(longVal);
                     }
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));

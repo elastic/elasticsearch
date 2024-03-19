@@ -490,6 +490,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                             );
                         }
                         metadata = parser.map();
+                    } else if (Fields.METADATA_FLATTENED.match(currentFieldName, parser.getDeprecationHandler())) {
+                        if (token != XContentParser.Token.START_OBJECT) {
+                            throw new ElasticsearchParseException(
+                                "expected field [{}] to be of type object, but found [{}] instead",
+                                currentFieldName,
+                                token
+                            );
+                        }
                     } else if (Fields.TRANSIENT_METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token == XContentParser.Token.START_OBJECT) {
                             // consume object but just drop
@@ -1691,6 +1699,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField GRANT_FIELDS = new ParseField("grant");
         ParseField EXCEPT_FIELDS = new ParseField("except");
         ParseField METADATA = new ParseField("metadata");
+
+        ParseField METADATA_FLATTENED = new ParseField("metadata_flattened");
         ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
         ParseField TYPE = new ParseField("type");
         ParseField RESTRICTION = new ParseField("restriction");

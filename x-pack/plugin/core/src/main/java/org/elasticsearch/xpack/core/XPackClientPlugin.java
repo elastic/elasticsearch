@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.MigrateSecurityIndexFieldTaskParams;
 import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
@@ -354,6 +355,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 Metadata.Custom.class,
                 new ParseField(TransformMetadata.TYPE),
                 parser -> TransformMetadata.LENIENT_PARSER.parse(parser, null).build()
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(MigrateSecurityIndexFieldTaskParams.TASK_NAME),
+                MigrateSecurityIndexFieldTaskParams::fromXContent
             )
         );
     }

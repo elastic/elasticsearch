@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ESQL_DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
 public class ToDatetimeTests extends AbstractFunctionTestCase {
     public ToDatetimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -118,7 +118,7 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
                 )
             ),
             DataTypes.DATETIME,
-            bytesRef -> ESQL_DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) bytesRef).utf8ToString()),
+            bytesRef -> DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) bytesRef).utf8ToString()),
             emptyList()
         );
         TestCaseSupplier.unary(

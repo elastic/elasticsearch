@@ -96,12 +96,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return dvrCtx -> new DateFormatConstantEvaluator(
-                source(),
-                fieldEvaluator.get(dvrCtx),
-                DEFAULT_DATE_TIME_FORMATTER,
-                dvrCtx
-            );
+            return dvrCtx -> new DateFormatConstantEvaluator(source(), fieldEvaluator.get(dvrCtx), DEFAULT_DATE_TIME_FORMATTER, dvrCtx);
         }
         if (format.dataType() != DataTypes.KEYWORD) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
@@ -121,9 +116,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     }
 
     private static DateFormatter toFormatter(Object format, Locale locale) {
-        DateFormatter result = format == null
-            ? DEFAULT_DATE_TIME_FORMATTER
-            : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
+        DateFormatter result = format == null ? DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(((BytesRef) format).utf8ToString());
         return result.withLocale(locale);
     }
 

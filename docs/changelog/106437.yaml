@@ -1,5 +1,0 @@
-pr: 106437
-summary: Block readiness on file settings being applied
-area: Infra/Node Lifecycle
-type: enhancement
-issues: []

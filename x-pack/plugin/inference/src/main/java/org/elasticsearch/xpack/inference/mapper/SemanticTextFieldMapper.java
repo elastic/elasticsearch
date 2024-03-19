@@ -233,7 +233,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public String getInferenceModel() {
+        public String getInferenceId() {
             return modelId;
         }
 
@@ -288,14 +288,14 @@ public class SemanticTextFieldMapper extends FieldMapper {
     @Override
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (mergeWith instanceof SemanticTextFieldMapper other) {
-            if (other.modelSettings != null && other.modelSettings.inferenceId().equals(other.fieldType().getInferenceModel()) == false) {
+            if (other.modelSettings != null && other.modelSettings.inferenceId().equals(other.fieldType().getInferenceId()) == false) {
                 throw new IllegalArgumentException(
                     "mapper ["
                         + name()
                         + "] refers to different model ids ["
                         + other.modelSettings.inferenceId()
                         + "] and ["
-                        + other.fieldType().getInferenceModel()
+                        + other.fieldType().getInferenceId()
                         + "]"
                 );
             }

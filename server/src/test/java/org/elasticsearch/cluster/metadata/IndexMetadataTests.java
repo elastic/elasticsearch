@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.OptimalShardCountCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,7 +42,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -83,7 +84,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
-        Map<String, Set<String>> fieldsForModels = randomFieldsForModels(true);
+        FieldInferenceMetadata fieldInferenceMetadata = randomFieldInferenceMetadata(true);
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
@@ -100,7 +101,8 @@ public class IndexMetadataTests extends ESTestCase {
                         new MaxDocsCondition(randomNonNegativeLong()),
                         new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
                         new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
+                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong()),
+                        new OptimalShardCountCondition(3)
                     ),
                     randomNonNegativeLong()
                 )
@@ -108,7 +110,7 @@ public class IndexMetadataTests extends ESTestCase {
             .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
-            .fieldsForModels(fieldsForModels)
+            .fieldInferenceMetadata(fieldInferenceMetadata)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -132,6 +134,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
         assertEquals(metadata.getCompatibilityVersion(), fromXContentMeta.getCompatibilityVersion());
         assertEquals(metadata.getRoutingNumShards(), fromXContentMeta.getRoutingNumShards());
+        assertEquals(metadata.getRolloverInfos(), fromXContentMeta.getRolloverInfos());
         assertEquals(metadata.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
@@ -142,7 +145,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getStats(), fromXContentMeta.getStats());
         assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
         assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
-        assertEquals(metadata.getFieldsForModels(), fromXContentMeta.getFieldsForModels());
+        assertEquals(metadata.getFieldInferenceMetadata(), fromXContentMeta.getFieldInferenceMetadata());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -166,7 +169,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getStats(), deserialized.getStats());
             assertEquals(metadata.getForecastedWriteLoad(), deserialized.getForecastedWriteLoad());
             assertEquals(metadata.getForecastedShardSizeInBytes(), deserialized.getForecastedShardSizeInBytes());
-            assertEquals(metadata.getFieldsForModels(), deserialized.getFieldsForModels());
+            assertEquals(metadata.getFieldInferenceMetadata(), deserialized.getFieldInferenceMetadata());
         }
     }
 
@@ -550,35 +553,35 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
-    public void testFieldsForModels() {
+    public void testFieldInferenceMetadata() {
         Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
         IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
-        assertThat(idxMeta1.getFieldsForModels(), equalTo(Map.of()));
+        assertSame(idxMeta1.getFieldInferenceMetadata(), FieldInferenceMetadata.EMPTY);
 
-        Map<String, Set<String>> fieldsForModels = randomFieldsForModels(false);
-        IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).fieldsForModels(fieldsForModels).build();
-        assertThat(idxMeta2.getFieldsForModels(), equalTo(fieldsForModels));
+        FieldInferenceMetadata fieldInferenceMetadata = randomFieldInferenceMetadata(false);
+        IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).fieldInferenceMetadata(fieldInferenceMetadata).build();
+        assertThat(idxMeta2.getFieldInferenceMetadata(), equalTo(fieldInferenceMetadata));
     }
 
     private static Settings indexSettingsWithDataTier(String dataTier) {
         return indexSettings(IndexVersion.current(), 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
     }
 
-    private static Map<String, Set<String>> randomFieldsForModels(boolean allowNull) {
-        if (allowNull && randomBoolean()) {
+    public static FieldInferenceMetadata randomFieldInferenceMetadata(boolean allowNull) {
+        if (randomBoolean() && allowNull) {
             return null;
         }
 
-        Map<String, Set<String>> fieldsForModels = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 5); i++) {
-            Set<String> fields = new HashSet<>();
-            for (int j = 0; j < randomIntBetween(1, 4); j++) {
-                fields.add(randomAlphaOfLengthBetween(4, 10));
-            }
-            fieldsForModels.put(randomAlphaOfLengthBetween(4, 10), fields);
-        }
+        Map<String, FieldInferenceMetadata.FieldInferenceOptions> fieldInferenceMap = randomMap(
+            0,
+            10,
+            () -> new Tuple<>(randomIdentifier(), randomFieldInference())
+        );
+        return new FieldInferenceMetadata(fieldInferenceMap);
+    }
 
-        return fieldsForModels;
+    private static FieldInferenceMetadata.FieldInferenceOptions randomFieldInference() {
+        return new FieldInferenceMetadata.FieldInferenceOptions(randomIdentifier(), randomSet(0, 5, ESTestCase::randomIdentifier));
     }
 
     private IndexMetadataStats randomIndexStats(int numberOfShards) {

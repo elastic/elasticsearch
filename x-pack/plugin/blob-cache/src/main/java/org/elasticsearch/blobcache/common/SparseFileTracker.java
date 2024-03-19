@@ -525,7 +525,7 @@ public class SparseFileTracker {
 
     @Override
     public String toString() {
-        return "SparseFileTracker[" + description + ']';
+        return "SparseFileTracker{description=" + description + ", length=" + length + ", complete=" + complete + '}';
     }
 
     /**

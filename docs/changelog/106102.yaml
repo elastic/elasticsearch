@@ -1,0 +1,5 @@
+pr: 106102
+summary: Specialize serialization of array blocks
+area: ES|QL
+type: enhancement
+issues: []

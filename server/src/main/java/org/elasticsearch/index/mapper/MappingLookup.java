@@ -400,6 +400,13 @@ public final class MappingLookup {
     }
 
     /**
+     * @return A map from field name to the MappedFieldType
+     */
+    public Map<String, MappedFieldType> getFullNameToFieldType() {
+        return fieldTypeLookup.getFullNameToFieldType();
+    }
+
+    /**
      * Returns the mapped field type for the given field name.
      */
     public MappedFieldType getFieldType(String field) {
@@ -517,7 +524,7 @@ public final class MappingLookup {
         }
     }
 
-    public Map<String, Set<String>> getFieldsForModels() {
-        return fieldTypeLookup.getFieldsForModels();
+    public Map<String, String> getInferenceIdsForFields() {
+        return fieldTypeLookup.getInferenceIdsForFields();
     }
 }

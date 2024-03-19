@@ -179,13 +179,13 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         SemanticTextModelSettings modelSettings,
         XContentLocation xContentLocation
     ) {
-        if (modelSettings.inferenceId().equals(original.fieldType().getInferenceModel()) == false) {
+        if (modelSettings.inferenceId().equals(original.fieldType().getInferenceId()) == false) {
             throw new DocumentParsingException(
                 xContentLocation,
                 "Model settings for field ["
                     + original.fieldType().name()
                     + "] is already set to ["
-                    + original.fieldType().getInferenceModel()
+                    + original.fieldType().getInferenceId()
                     + "], got ["
                     + modelSettings.inferenceId()
                     + "]"

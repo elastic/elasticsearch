@@ -8,8 +8,12 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasable;
+
+import java.io.IOException;
 
 /**
  * Vector implementation that defers to an enclosed {@link DoubleArray}.
@@ -25,6 +29,26 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     public DoubleBigArrayVector(DoubleArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static DoubleBigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        DoubleArray values = blockFactory.bigArrays().newDoubleArray(positions, false);
+        boolean success = false;
+        try {
+            values.fillWith(in);
+            DoubleBigArrayVector vector = new DoubleBigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
     }
 
     @Override

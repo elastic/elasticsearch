@@ -1,0 +1,5 @@
+pr: 106288
+summary: Small time series agg improvement
+area: TSDB
+type: enhancement
+issues: []

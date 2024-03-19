@@ -307,8 +307,6 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    // TODO: persisted config
-
     public void testParseRequestConfig_MovesModel() throws IOException {
         try (var service = createOpenAiService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {

@@ -89,8 +89,6 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
     }
 
     public OpenAiChatCompletionServiceSettings(StreamInput in) throws IOException {
-        // TODO: check transport version?
-
         this.modelId = in.readString();
         this.uri = createOptionalUri(in.readOptionalString());
         this.organizationId = in.readOptionalString();

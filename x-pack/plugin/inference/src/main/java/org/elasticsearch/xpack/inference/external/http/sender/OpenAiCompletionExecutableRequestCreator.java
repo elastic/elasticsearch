@@ -27,7 +27,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
-//TODO: tests (actual tests live somewhere else, see embeddings executor for reference)
 public class OpenAiCompletionExecutableRequestCreator implements ExecutableRequestCreator {
 
     private static final Logger logger = LogManager.getLogger(OpenAiCompletionExecutableRequestCreator.class);

@@ -83,20 +83,12 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // TODO: new ML_INFERENCE_TASK added?
         return TransportVersions.V_8_12_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(user);
-    }
-
-    // TODO: overrideWith for tests
-    public OpenAiChatCompletionTaskSettings overrideWith(OpenAiChatCompletionRequestTaskSettings requestSettings) {
-        var modelToUse = requestSettings.user() == null ? user : requestSettings.user();
-
-        return new OpenAiChatCompletionTaskSettings(modelToUse);
     }
 
     @Override

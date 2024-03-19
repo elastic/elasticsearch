@@ -94,8 +94,8 @@ class S3RetryingInputStream extends InputStream {
                         : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
                     getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
                 }
-                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
                 this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
+                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
                 this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(s3Object));
                 this.currentStream = s3Object.getObjectContent();
                 return;

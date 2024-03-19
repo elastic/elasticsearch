@@ -47,6 +47,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonIndicesPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -226,7 +227,6 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106457")
     public void testReadFromPositionLargerThanBlobLength() {
         final var blobName = randomIdentifier();
         final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
@@ -239,7 +239,11 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
 
         long position = randomLongBetween(blobBytes.length(), Long.MAX_VALUE - 1L);
         long length = randomLongBetween(1L, Long.MAX_VALUE - position);
-        var exception = expectThrows(AmazonClientException.class, () -> readBlob(repository, blobName, position, length));
+        var exception = expectThrows(
+            AmazonClientException.class,
+            // non Indices operation purpose to avoid Integer.MAX_VALUE number of retries
+            () -> readBlob(repository, randomNonIndicesPurpose(), blobName, position, length)
+        );
 
         assertThat(exception, instanceOf(AmazonS3Exception.class));
         assertThat(((AmazonS3Exception) exception).getStatusCode(), equalTo(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()));

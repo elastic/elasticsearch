@@ -458,4 +458,8 @@ public final class BlobStoreTestUtil {
     public static OperationPurpose randomNonDataPurpose() {
         return randomValueOtherThan(OperationPurpose.SNAPSHOT_DATA, BlobStoreTestUtil::randomPurpose);
     }
+
+    public static OperationPurpose randomNonIndicesPurpose() {
+        return randomValueOtherThan(OperationPurpose.INDICES, BlobStoreTestUtil::randomPurpose);
+    }
 }

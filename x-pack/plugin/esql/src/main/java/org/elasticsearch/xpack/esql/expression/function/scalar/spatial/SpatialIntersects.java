@@ -58,12 +58,12 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     public SpatialIntersects(
         Source source,
         @Param(
-            name = "field",
+            name = "geomA",
             type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
             description = "Geometry column name or variable of geometry type"
         ) Expression left,
         @Param(
-            name = "other",
+            name = "geomB",
             type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
             description = "Geometry column name or variable of geometry type"
         ) Expression right

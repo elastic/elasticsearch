@@ -397,12 +397,16 @@ HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen        
 ;
 
 pointIntersectsLiteralPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
+// tag::st_intersects-airports[]
 FROM airports
 | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+// end::st_intersects-airports[]
 ;
 
+// tag::st_intersects-airports-results[]
 abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
 HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+// end::st_intersects-airports-results[]
 ;
 
 literalPointIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]

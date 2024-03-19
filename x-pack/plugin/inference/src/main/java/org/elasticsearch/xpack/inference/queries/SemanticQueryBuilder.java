@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -35,11 +36,13 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
@@ -236,25 +239,41 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     private Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) {
-        // Cant use QueryBuilders.boolQuery() because a mapper is not registered for <field>.inference, causing
-        // TermQueryBuilder#doToQuery to fail
+        // Cant use QueryBuilders because a mapper is not registered for <field>.inference, causing TermQueryBuilder#doToQuery to fail
         String inferenceResultsFieldName = fieldName + "." + INFERENCE_CHUNKS_RESULTS;
-        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(1);
+        Query query;
 
-        // TODO: Support dense vectors
         if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
+            BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(1);
             for (TextExpansionResults.WeightedToken weightedToken : textExpansionResults.getWeightedTokens()) {
                 queryBuilder.add(
                     new BoostQuery(new TermQuery(new Term(inferenceResultsFieldName, weightedToken.token())), weightedToken.weight()),
                     BooleanClause.Occur.SHOULD
                 );
             }
+
+            query = queryBuilder.build();
+        } else if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
+            float[] inference = textEmbeddingResults.getInferenceAsFloat();
+            DenseVectorFieldMapper.DenseVectorFieldType denseVectorFieldType = new DenseVectorFieldMapper.DenseVectorFieldType(
+                inferenceResultsFieldName,
+                context.indexVersionCreated(),
+                DenseVectorFieldMapper.ElementType.FLOAT, // TODO: get element type from external source?
+                inference.length,
+                true,
+                DenseVectorFieldMapper.VectorSimilarity.COSINE, // TODO: get similarity from external source
+                Map.of()
+            );
+
+            // TODO: Need to set parent filter?
+            // TODO: Where to get numCands from?
+            query = denseVectorFieldType.createKnnQuery(VectorData.fromFloats(inference), 10, null, null , null);
         } else {
             throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
         }
 
         BitSetProducer parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
-        return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, fieldName);
+        return new ESToParentBlockJoinQuery(query, parentFilter, ScoreMode.Total, fieldName);
     }
 
     @Override

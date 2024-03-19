@@ -90,6 +90,36 @@ setup:
   - lte: { hits.hits.0._score: 9.50 }
 
 ---
+"Query using a dense embedding model":
+  - skip:
+      features: [ "headers" ]
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.0._score: 1.0 }
+
+---
 "Apply boost and query name":
   - skip:
       features: [ "headers" ]

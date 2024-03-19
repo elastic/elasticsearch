@@ -9,13 +9,14 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.Terminal.Verbosity;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -32,7 +33,7 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
  */
 class ErrorPumpThread extends Thread implements Closeable {
     private final BufferedReader reader;
-    private final PrintWriter writer;
+    private final Terminal terminal;
 
     // a latch which changes state when the server is ready or has had a bootstrap error
     private final CountDownLatch readyOrDead = new CountDownLatch(1);
@@ -43,10 +44,10 @@ class ErrorPumpThread extends Thread implements Closeable {
     // an unexpected io failure that occurred while pumping stderr
     private volatile IOException ioFailure;
 
-    ErrorPumpThread(PrintWriter errOutput, InputStream errInput) {
+    ErrorPumpThread(Terminal terminal, InputStream errInput) {
         super("server-cli[stderr_pump]");
         this.reader = new BufferedReader(new InputStreamReader(errInput, StandardCharsets.UTF_8));
-        this.writer = errOutput;
+        this.terminal = terminal;
     }
 
     private void checkForIoFailure() throws IOException {
@@ -94,13 +95,13 @@ class ErrorPumpThread extends Thread implements Closeable {
                     ready = true;
                     readyOrDead.countDown();
                 } else if (filter.contains(line) == false) {
-                    writer.println(line);
+                    terminal.errorPrintln(Verbosity.SILENT, line, false);
                 }
             }
         } catch (IOException e) {
             ioFailure = e;
         } finally {
-            writer.flush();
+            terminal.flush();
             readyOrDead.countDown();
         }
     }

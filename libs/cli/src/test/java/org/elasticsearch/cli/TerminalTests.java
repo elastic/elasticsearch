@@ -11,6 +11,17 @@ package org.elasticsearch.cli;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+
 @WithoutSecurityManager
 public class TerminalTests extends ESTestCase {
 
@@ -19,5 +30,29 @@ public class TerminalTests extends ESTestCase {
         // To force new behavior in JDK 22 this should run without security manager.
         // Otherwise, JDK 22 doesn't provide a console if redirected.
         assertEquals(Terminal.SystemTerminal.class, Terminal.DEFAULT.getClass());
+    }
+
+    public void testTerminalAsLineOutputStream() throws IOException {
+        PrintWriter stdOut = mock("stdOut");
+        PrintWriter stdErr = mock("stdErr");
+
+        OutputStream out = new Terminal(mock("reader"), stdOut, stdErr) {
+        }.asLineOutputStream();
+
+        out.write("123".getBytes(StandardCharsets.UTF_8));
+        out.write("456".getBytes(StandardCharsets.UTF_8));
+        out.write("789\r\n".getBytes(StandardCharsets.UTF_8)); // CR is removed as well
+
+        verify(stdOut).println(eq((CharSequence) "123456789"));
+        verify(stdOut).flush();
+        verifyNoMoreInteractions(stdOut, stdErr);
+
+        out.write("\n".getBytes(StandardCharsets.UTF_8));
+        verify(stdOut).println(eq((CharSequence) ""));
+        verify(stdOut, times(2)).flush();
+        verifyNoMoreInteractions(stdOut, stdErr);
+
+        out.flush();
+        verifyNoMoreInteractions(stdOut, stdErr);
     }
 }

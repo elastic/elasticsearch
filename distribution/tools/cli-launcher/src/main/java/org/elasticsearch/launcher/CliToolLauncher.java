@@ -91,7 +91,7 @@ class CliToolLauncher {
             try {
                 closeable.close();
             } catch (final IOException e) {
-                e.printStackTrace(terminal.getErrorWriter());
+                terminal.errorPrintln(e);
             }
             terminal.flush(); // make sure to flush whatever the close or error might have written
         }, "elasticsearch-cli-shutdown");

@@ -17,6 +17,7 @@ import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.util.Arrays;
 
 /**
@@ -104,15 +105,17 @@ public abstract class Command implements Closeable {
 
     /** Prints a help message for the command to the terminal. */
     private void printHelp(Terminal terminal, boolean toStdError) throws IOException {
+        StringWriter writer = new StringWriter();
+        parser.printHelpOn(writer);
         if (toStdError) {
             terminal.errorPrintln(description);
             terminal.errorPrintln("");
-            parser.printHelpOn(terminal.getErrorWriter());
+            terminal.errorPrintln(writer.toString());
         } else {
             terminal.println(description);
             terminal.println("");
             printAdditionalHelp(terminal);
-            parser.printHelpOn(terminal.getWriter());
+            terminal.println(writer.toString());
         }
     }
 

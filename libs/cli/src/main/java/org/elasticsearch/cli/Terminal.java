@@ -21,6 +21,7 @@ import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -73,6 +74,13 @@ public abstract class Terminal {
     }
 
     /**
+     * Constructs a terminal instance from a delegate instance.
+     */
+    protected Terminal(Terminal delegate) {
+        this(delegate.reader, delegate.outWriter, delegate.errWriter);
+    }
+
+    /**
      * Sets the verbosity of the terminal.
      *
      * <p> Defaults to {@link Verbosity#NORMAL}.
@@ -113,14 +121,12 @@ public abstract class Terminal {
         return reader;
     }
 
-    /** Returns a Writer which can be used to write to the terminal directly using standard output. */
-    public final PrintWriter getWriter() {
-        return outWriter;
-    }
-
-    /** Returns a Writer which can be used to write to the terminal directly using standard error. */
-    public final PrintWriter getErrorWriter() {
-        return errWriter;
+    /**
+     * Returns a line based OutputStream wrapping this Terminal's println.
+     * Note, this OutputStream is not thread-safe!
+     */
+    public final OutputStream asLineOutputStream() {
+        return new LineOutputStream();
     }
 
     /**
@@ -138,7 +144,7 @@ public abstract class Terminal {
      * Returns an OutputStream which can be used to write to the terminal directly using standard output.
      *
      * <p> May return {@code null} if this Terminal is not capable of binary output.
-     * This corresponds with the underlying stream of bytes written to by {@link #getWriter()}.
+     * This corresponds with the underlying stream of bytes written to by {@link #println(CharSequence)}.
       */
     @Nullable
     public OutputStream getOutputStream() {
@@ -152,12 +158,50 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal at {@code verbosity} level. */
     public final void println(Verbosity verbosity, CharSequence msg) {
-        print(verbosity, outWriter, msg, true);
+        print(verbosity, outWriter, msg, true, true);
     }
 
     /** Prints message to the terminal's standard output at {@code verbosity} level, without a newline. */
     public final void print(Verbosity verbosity, String msg) {
-        print(verbosity, outWriter, msg, false);
+        print(verbosity, outWriter, msg, false, true);
+    }
+
+    /**
+     * Prints message to the terminal at {@code verbosity} level.
+     *
+     * Subclasses may override if the writers are not implemented.
+     */
+    protected void print(Verbosity verbosity, PrintWriter writer, CharSequence msg, boolean newline, boolean flush) {
+        if (isPrintable(verbosity)) {
+            if (newline) {
+                writer.println(msg);
+            } else {
+                writer.print(msg);
+            }
+            if (flush) {
+                writer.flush();
+            }
+        }
+    }
+
+    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
+    public final void errorPrint(Verbosity verbosity, String msg) {
+        print(verbosity, errWriter, msg, false, true);
+    }
+
+    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level. */
+    public final void errorPrintln(String msg) {
+        print(Verbosity.NORMAL, errWriter, msg, true, true);
+    }
+
+    /** Prints a line to the terminal's standard error at {@code verbosity} level. */
+    public final void errorPrintln(Verbosity verbosity, String msg) {
+        print(verbosity, errWriter, msg, true, true);
+    }
+
+    /** Prints a line to the terminal's standard error at {@code verbosity} level, with an optional flush */
+    public final void errorPrintln(Verbosity verbosity, String msg, boolean flush) {
+        print(verbosity, errWriter, msg, true, flush);
     }
 
     /** Prints a stacktrace to the terminal's standard error at {@code verbosity} level. */
@@ -170,37 +214,6 @@ public abstract class Terminal {
     /** Prints a stacktrace to the terminal's standard error at {@link Verbosity#SILENT} verbosity level. */
     public void errorPrintln(Throwable throwable) {
         errorPrintln(Verbosity.SILENT, throwable);
-    }
-
-    /**
-     * Prints message to the terminal at {@code verbosity} level.
-     *
-     * Subclasses may override if the writers are not implemented.
-     */
-    protected void print(Verbosity verbosity, PrintWriter writer, CharSequence msg, boolean newline) {
-        if (isPrintable(verbosity)) {
-            if (newline) {
-                writer.println(msg);
-            } else {
-                writer.print(msg);
-            }
-            writer.flush();
-        }
-    }
-
-    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
-    public final void errorPrint(Verbosity verbosity, String msg) {
-        print(verbosity, errWriter, msg, false);
-    }
-
-    /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level. */
-    public final void errorPrintln(String msg) {
-        errorPrintln(Verbosity.NORMAL, msg);
-    }
-
-    /** Prints a line to the terminal's standard error at {@code verbosity} level. */
-    public final void errorPrintln(Verbosity verbosity, String msg) {
-        print(verbosity, errWriter, msg, true);
     }
 
     /** Checks if is enough {@code verbosity} level to be printed */
@@ -349,6 +362,51 @@ public abstract class Terminal {
         @Override
         public OutputStream getOutputStream() {
             return System.out;
+        }
+    }
+
+    /** A line based OutputStream wrapping this Terminal's println, not thread-safe! */
+    private class LineOutputStream extends OutputStream {
+        static final int DEFAULT_BUFFER_LENGTH = 1024;
+        static final int MAX_BUFFER_LENGTH = DEFAULT_BUFFER_LENGTH * 8;
+
+        private byte[] bytes = new byte[DEFAULT_BUFFER_LENGTH];
+        private int count = 0;
+
+        @Override
+        public void write(int b) {
+            if (b == 0) return;
+            if (b == '\n') {
+                flushLine(false);
+                return;
+            }
+            if (count == bytes.length) {
+                if (count >= MAX_BUFFER_LENGTH) {
+                    flushLine(false);
+                } else {
+                    bytes = Arrays.copyOf(bytes, 2 * bytes.length);
+                }
+            }
+            bytes[count++] = (byte) b;
+        }
+
+        private void flushLine(boolean skipEmpty) {
+            if (count > 0 && bytes[count - 1] == '\r') {
+                --count; // drop CR on windows as well
+            }
+            if (skipEmpty && count == 0) {
+                return;
+            }
+            println(count > 0 ? new String(bytes, 0, count, StandardCharsets.UTF_8) : "");
+            count = 0;
+            if (bytes.length > DEFAULT_BUFFER_LENGTH) {
+                bytes = new byte[DEFAULT_BUFFER_LENGTH];
+            }
+        }
+
+        @Override
+        public void flush() {
+            flushLine(true);
         }
     }
 }

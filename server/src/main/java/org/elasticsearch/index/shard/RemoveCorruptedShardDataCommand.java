@@ -50,9 +50,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TruncateTranslogAction;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.PrintStream;
-import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -249,13 +248,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 throw new ElasticsearchException("translog directory [" + translogPath + "], must exist and be a directory");
             }
 
-            final PrintWriter writer = terminal.getWriter();
-            final PrintStream printStream = new PrintStream(new OutputStream() {
-                @Override
-                public void write(int b) {
-                    writer.write(b);
-                }
-            }, false, "UTF-8");
+            final PrintStream printStream = new PrintStream(terminal.asLineOutputStream(), false, StandardCharsets.UTF_8);
             final boolean verbose = terminal.isPrintable(Terminal.Verbosity.VERBOSE);
 
             final Directory indexDirectory = getDirectory(indexPath);

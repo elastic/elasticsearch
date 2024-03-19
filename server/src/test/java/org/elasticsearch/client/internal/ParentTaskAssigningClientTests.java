@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.concurrent.Executor;
@@ -67,7 +68,11 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var mockClient = new NoOpClient(threadPool) {
                 @Override
-                public RemoteClusterClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+                public RemoteClusterClient getRemoteClusterClient(
+                    String clusterAlias,
+                    Executor responseExecutor,
+                    RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+                ) {
                     return new RemoteClusterClient() {
                         @Override
                         public <Request extends ActionRequest, Response extends TransportResponse> void execute(
@@ -83,7 +88,11 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
             };
 
             final var client = new ParentTaskAssigningClient(mockClient, parentTaskId);
-            final var remoteClusterClient = client.getRemoteClusterClient("remote-cluster", EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            final var remoteClusterClient = client.getRemoteClusterClient(
+                "remote-cluster",
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                randomFrom(RemoteClusterService.DisconnectedStrategy.values())
+            );
             assertEquals(
                 "fake remote-cluster client",
                 expectThrows(

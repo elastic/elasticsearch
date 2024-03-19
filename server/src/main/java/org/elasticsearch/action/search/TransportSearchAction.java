@@ -70,6 +70,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -291,6 +292,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
             searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+            if (searchResponse.isTimedOut()) {
+                searchResponseMetrics.countTimeout();
+            }
             if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
                 // Deduplicate failures by exception message and index
                 ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
@@ -306,6 +310,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
             l.onResponse(searchResponse);
+        });
+        loggingAndMetrics = loggingAndMetrics.delegateResponse((l, e) -> {
+            Throwable cause = e.getCause();
+            if (cause instanceof SearchTimeoutException) {
+                this.searchResponseMetrics.countTimeout();
+            }
+            l.onFailure(e);
         });
         executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
     }

@@ -106,6 +106,10 @@ teardown:
 
 ---
 "Invalid IP strings":
+  - skip:
+      version: " - 8.13.99"
+      reason: "IP range ENRICH support was added in 8.14.0"
+
   - do:
       catch: /'invalid_[\d\.]+' is not an IP string literal/
       esql.query:

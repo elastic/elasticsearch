@@ -22,8 +22,6 @@ End position. Optional; if omitted, the position at `start` is returned. The end
 
 Returns a subset of the multivalued field using the start and end index values.
 
-*Supported types*
-
 include::types/mv_slice.asciidoc[]
 
 *Example*

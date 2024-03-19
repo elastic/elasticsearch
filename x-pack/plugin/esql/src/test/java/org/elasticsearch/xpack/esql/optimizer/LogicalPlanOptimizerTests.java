@@ -336,6 +336,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var condition = as(filter.condition(), In.class);
         assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
     }
+
     public void testCombineDisjunctionToInFromIn() {
         LogicalPlan plan = plan("""
             from test
@@ -346,6 +347,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var condition = as(filter.condition(), In.class);
         assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
     }
+
     public void testCombineProjectionWithPruning() {
         var plan = plan("""
             from test

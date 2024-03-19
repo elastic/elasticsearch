@@ -8,21 +8,27 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 
-import java.util.Collections;
+import java.util.Set;
 
-import static org.apache.lucene.tests.util.LuceneTestCase.random;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.cluster.routing.AllocationId.newInitializing;
+import static org.elasticsearch.cluster.routing.AllocationId.newRelocation;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
+import static org.elasticsearch.test.ESTestCase.randomUUID;
+import static org.elasticsearch.test.ESTestCase.safeSleep;
 import static org.junit.Assert.assertNotEquals;
 
 /**
@@ -32,6 +38,8 @@ import static org.junit.Assert.assertNotEquals;
  * Please do not add more `newShardRouting`, consider using a aSharRouting builder instead
  */
 public class TestShardRouting {
+
+    private static final Logger logger = LogManager.getLogger(TestShardRouting.class);
 
     public static Builder shardRoutingBuilder(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
         return shardRoutingBuilder(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
@@ -62,23 +70,8 @@ public class TestShardRouting {
             this.state = state;
         }
 
-        public Builder withCurrentNodeId(String currentNodeId) {
-            this.currentNodeId = currentNodeId;
-            return this;
-        }
-
         public Builder withRelocatingNodeId(String relocatingNodeId) {
             this.relocatingNodeId = relocatingNodeId;
-            return this;
-        }
-
-        public Builder withPrimary(boolean primary) {
-            this.primary = primary;
-            return this;
-        }
-
-        public Builder withState(ShardRoutingState state) {
-            this.state = state;
             return this;
         }
 
@@ -201,8 +194,8 @@ public class TestShardRouting {
     public static AllocationId buildAllocationId(ShardRoutingState state) {
         return switch (state) {
             case UNASSIGNED -> null;
-            case INITIALIZING, STARTED -> AllocationId.newInitializing();
-            case RELOCATING -> AllocationId.newRelocation(AllocationId.newInitializing());
+            case INITIALIZING, STARTED -> newInitializing(randomUUID());
+            case RELOCATING -> newRelocation(newInitializing(randomUUID()));
         };
     }
 
@@ -228,21 +221,36 @@ public class TestShardRouting {
             if (randomBoolean()) {
                 delayed = true;
             }
-            lastAllocatedNodeId = randomAlphaOfLength(10);
+            lastAllocatedNodeId = randomIdentifier();
         }
         int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+
+        long unassignedTimeMillis = randomNonNegativeLong();
+        long unassignedTimeNanos = randomLongBetween(0L, 1_000_000_000);
+        ensureInPast(unassignedTimeNanos);
+
         return new UnassignedInfo(
             reason,
             message,
             null,
             failedAllocations,
-            System.nanoTime(),
-            System.currentTimeMillis(),
+            unassignedTimeNanos,
+            unassignedTimeMillis,
             delayed,
             UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
+            Set.of(),
             lastAllocatedNodeId
         );
+    }
+
+    /**
+     * This ensures that deterministically selected nano time is actually in past to avoid unassigned info code constraints
+     */
+    private static void ensureInPast(long nanoTime) {
+        while (System.nanoTime() < nanoTime) {
+            logger.info("Waiting to ensure selected nano-time [{}] is in past", nanoTime);
+            safeSleep(1000);
+        }
     }
 
     public static RecoverySource buildRecoverySource() {
@@ -252,10 +260,10 @@ public class TestShardRouting {
             RecoverySource.PeerRecoverySource.INSTANCE,
             RecoverySource.LocalShardsRecoverySource.INSTANCE,
             new RecoverySource.SnapshotRecoverySource(
-                UUIDs.randomBase64UUID(),
-                new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
+                randomUUID(),
+                new Snapshot("repo", new SnapshotId(randomIdentifier(), randomUUID())),
                 IndexVersion.current(),
-                new IndexId("some_index", UUIDs.randomBase64UUID(random()))
+                new IndexId("some_index", randomUUID())
             )
         );
     }

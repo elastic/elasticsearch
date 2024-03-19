@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -1037,8 +1038,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testShowFunctions() {
-        try (EsqlQueryResponse results = run("show functions")) {
+    public void testMetaFunctions() {
+        try (EsqlQueryResponse results = run("meta functions")) {
             assertThat(
                 results.columns(),
                 equalTo(

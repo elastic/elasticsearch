@@ -17,6 +17,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettingsTe
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,7 +65,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     CohereEmbeddingType.INT8.toString()
                 )
             ),
-            false
+            ConfigurationParseContext.PERSISTENT
         );
 
         MatcherAssert.assertThat(
@@ -100,7 +102,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     CohereEmbeddingType.INT8.toString()
                 )
             ),
-            false
+            ConfigurationParseContext.PERSISTENT
         );
 
         MatcherAssert.assertThat(
@@ -139,7 +141,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     CohereEmbeddingType.INT8.toString()
                 )
             ),
-            false
+            ConfigurationParseContext.PERSISTENT
         );
 
         MatcherAssert.assertThat(
@@ -154,14 +156,17 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testFromMap_MissingEmbeddingType_DoesNotThrowException() {
-        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of()), false);
+        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
         assertNull(serviceSettings.getEmbeddingType());
     }
 
     public void testFromMap_EmptyEmbeddingType_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereEmbeddingsServiceSettings.fromMap(new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "")), true)
+            () -> CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "")),
+                ConfigurationParseContext.REQUEST
+            )
         );
 
         MatcherAssert.assertThat(
@@ -180,7 +185,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "abc")),
-                false
+                ConfigurationParseContext.PERSISTENT
             )
         );
 
@@ -194,18 +199,62 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
+    public void testFromMap_InvalidEmbeddingType_ThrowsError_WhenByteFromPersistedConfig() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingsServiceSettings.EMBEDDING_TYPE_BYTE)),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+
+        MatcherAssert.assertThat(
+            thrownException.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [byte] received. [embedding_type] must be one of [float, int8];"
+                )
+            )
+        );
+    }
+
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
         var exception = expectThrows(
             ElasticsearchStatusException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, List.of("abc"))),
-                false
+                ConfigurationParseContext.PERSISTENT
             )
         );
 
         MatcherAssert.assertThat(
             exception.getMessage(),
             is("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
+        );
+    }
+
+    public void testFromMap_ConvertsCohereEmbeddingType_FromByteToInt8() {
+        assertThat(
+            CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingsServiceSettings.EMBEDDING_TYPE_BYTE)),
+                ConfigurationParseContext.REQUEST
+            ),
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings((URI) null, null, null, null, null), CohereEmbeddingType.INT8))
+        );
+    }
+
+    public void testFromMap_PreservesEmbeddingTypeFloat() {
+        assertThat(
+            CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.FLOAT.toString())),
+                ConfigurationParseContext.REQUEST
+            ),
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings((URI) null, null, null, null, null),
+                    CohereEmbeddingType.FLOAT
+                )
+            )
         );
     }
 

@@ -218,6 +218,22 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             )
         );
         enrichResolution.addResolvedPolicy(
+            "city_boundaries",
+            Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(
+                "city_boundary",
+                EnrichPolicy.GEO_MATCH_TYPE,
+                List.of("city", "airport", "region", "city_boundary"),
+                Map.of("", "airport_city_boundaries"),
+                Map.ofEntries(
+                    Map.entry("city", new EsField("city", DataTypes.KEYWORD, Map.of(), true)),
+                    Map.entry("airport", new EsField("airport", DataTypes.TEXT, Map.of(), false)),
+                    Map.entry("region", new EsField("region", DataTypes.TEXT, Map.of(), false)),
+                    Map.entry("city_boundary", new EsField("city_boundary", EsqlDataTypes.GEO_SHAPE, Map.of(), false))
+                )
+            )
+        );
+        enrichResolution.addResolvedPolicy(
             "departments",
             Enrich.Mode.ANY,
             new ResolvedEnrichPolicy(
@@ -2742,6 +2758,75 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
         }));
         source(extract.child());
+    }
+
+    /**
+     * Plan:
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(city_location{f}#16) AS centroid],FINAL,null]
+     *   \_ExchangeExec[[xVal{r}#24, xDel{r}#25, yVal{r}#26, yDel{r}#27, count{r}#28],true]
+     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
+     * Aggregate[[],[SPATIALCENTROID(city_location{f}#16) AS centroid]]
+     * \_Enrich[ANY,[63 69 74 79 5f 62 6f 75 6e 64 61 72 69 65 73][KEYWORD],city_location{f}#16,{"geo_match":{"indices":[],"match
+     * _field":"city_boundary","enrich_fields":["city","airport","region","city_boundary"]}},{=airport_city_boundaries
+     * },[airport{r}#21, region{r}#22, city_boundary{r}#23]]
+     *   \_EsRelation[airports][abbrev{f}#9, city{f}#15, city_location{f}#16, count..]]]
+     *
+     * Optimized:
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[SPATIALCENTROID(city_location{f}#16) AS centroid],FINAL,50]
+     *   \_ExchangeExec[[xVal{r}#24, xDel{r}#25, yVal{r}#26, yDel{r}#27, count{r}#28],true]
+     *     \_AggregateExec[[],[SPATIALCENTROID(city_location{f}#16) AS centroid],PARTIAL,50]
+     *       \_EnrichExec[ANY,geo_match,city_location{f}#16,city_boundaries,city_boundary,{=airport_city_boundaries},[airport{r}#21,
+     *                    region{r}#22, city_boundary{r}#23]]
+     *         \_FilterExec[ISNOTNULL(city_location{f}#16)]
+     *           \_FieldExtractExec[city_location{f}#16][city_location{f}#16]>
+     *             \_EsQueryExec[airports], query[][_doc{f}#46], limit[], sort[] estimatedRowSize[204]
+     *
+     * Note the FieldExtractExec has 'city_location' set for doc-values: FieldExtractExec[city_location{f}#16][city_location{f}#16]
+     */
+    public void testEnrichBeforeSpatialAggregationSupportsDocValues() {
+        var plan = physicalPlanAirports("""
+            from airports
+            | enrich city_boundaries ON city_location WITH airport, region, city_boundary
+            | stats centroid = st_centroid(city_location)
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        // Before optimization the aggregation does not use doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var fAgg = as(fragment.fragment(), Aggregate.class);
+        var enrich = as(fAgg.child(), Enrich.class);
+        assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
+        assertThat(enrich.concreteIndices(), equalTo(Map.of("", "airport_city_boundaries")));
+        assertThat(enrich.enrichFields().size(), equalTo(3));
+        as(enrich.child(), EsRelation.class);
+
+        // Now optimize the plan and assert the aggregation uses doc-values
+        var optimized = optimizedPlan(plan);
+        limit = as(optimized, LimitExec.class);
+        agg = as(limit.child(), AggregateExec.class);
+        // Above the exchange (in coordinator) the aggregation is not using doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+        exchange = as(agg.child(), ExchangeExec.class);
+        agg = as(exchange.child(), AggregateExec.class);
+        // below the exchange (in data node) the aggregation is using doc-values
+        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+        var enrichExec = as(agg.child(), EnrichExec.class);
+        assertThat(enrichExec.mode(), equalTo(Enrich.Mode.ANY));
+        assertThat(enrichExec.concreteIndices(), equalTo(Map.of("", "airport_city_boundaries")));
+        assertThat(enrichExec.enrichFields().size(), equalTo(3));
+        var filter = as(enrichExec.child(), FilterExec.class);
+        var extract = as(filter.child(), FieldExtractExec.class);
+        source(extract.child());
+        assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr -> {
+            MappedFieldType.FieldExtractPreference extractPreference = PlannerUtils.extractPreference(extract.hasDocValuesAttribute(attr));
+            return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
+        }));
     }
 
     public void testEnrichBeforeAggregation() {

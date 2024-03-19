@@ -31,17 +31,13 @@ POST /my-index-000001/_clone/cloned-my-index-000001
 
 For example,
 the following request prevents write operations on `my_source_index`
-so it can be cloned.
+so it can be cloned using the
+<<add-index-block,add index block>> API.
 Metadata changes like deleting the index are still allowed.
 
 [source,console]
 --------------------------------------------------
-PUT /my_source_index/_settings
-{
-  "settings": {
-    "index.blocks.write": true
-  }
-}
+PUT /my_source_index/_block/write
 --------------------------------------------------
 // TEST[s/^/PUT my_source_index\n/]
 

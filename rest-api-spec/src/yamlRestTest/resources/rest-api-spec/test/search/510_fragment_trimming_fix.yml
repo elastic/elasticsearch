@@ -1,4 +1,7 @@
 setup:
+  - skip:
+        version: ' - 8.13.99'
+        reason: 'no trimming highlight snippets when number_of_fragments is 0 was introduced  in 8.14'
   - do:
       indices.create:
         index: test_trim

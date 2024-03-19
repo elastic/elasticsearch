@@ -1,6 +1,6 @@
 pr: 99961
 summary: "added fix for inconsistent text trimming in Unified Highlighter"
-area: Search
+area: Highlighting
 type: bug
 issues:
  - 101803

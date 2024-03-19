@@ -1345,11 +1345,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
 
         public static LogExpectation expectTimeout(int grace) {
-            return new LogExpectation(grace).timedOut(true).wait(true);
+            return new LogExpectation(grace).timedOut(true).wait(false);
         }
 
         public static LogExpectation unexpectedTimeout(int grace) {
-            return new LogExpectation(grace).timedOut(false).wait(true);
+            return new LogExpectation(grace).timedOut(false).wait(false);
         }
 
         public static LogExpectation expectWait() {

@@ -1004,7 +1004,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)
                 ? in.readOptionalWriteable(DataStreamAutoShardingEvent::new)
                 : null,
-            in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER) ? in.readVLong() : 1
+            in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_GENERATION) ? in.readVLong() : 1
         );
     }
 
@@ -1051,7 +1051,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
             out.writeOptionalWriteable(autoShardingEvent);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_GENERATION)) {
             out.writeVLong(failureStoreGeneration);
         }
     }

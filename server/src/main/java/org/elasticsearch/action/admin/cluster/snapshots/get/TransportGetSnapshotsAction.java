@@ -153,8 +153,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final boolean isMultiRepoRequest;
 
         // snapshots selection
-        private final String[] snapshots;
-        private final boolean ignoreUnavailable;
+        private final SnapshotNamePredicate snapshotNamePredicate;
         private final SnapshotPredicates fromSortValuePredicates;
         private final Predicate<String> slmPolicyPredicate;
 
@@ -172,6 +171,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SnapshotsInProgress snapshotsInProgress;
 
         // output detail
+        private final boolean ignoreUnavailable;
         private final boolean verbose;
         private final boolean indices;
 
@@ -204,7 +204,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.cancellableTask = cancellableTask;
             this.repositories = resolvedRepositories.repositoryMetadata();
             this.isMultiRepoRequest = isMultiRepoRequest;
-            this.snapshots = snapshots;
             this.ignoreUnavailable = ignoreUnavailable;
             this.sortBy = sortBy;
             this.order = order;
@@ -216,6 +215,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.verbose = verbose;
             this.indices = indices;
 
+            this.snapshotNamePredicate = SnapshotNamePredicate.forSnapshots(ignoreUnavailable, snapshots);
             this.fromSortValuePredicates = SnapshotPredicates.forFromSortValue(fromSortValue, sortBy, order);
             this.slmPolicyPredicate = SlmPolicyPredicate.forPolicies(policies);
 
@@ -282,113 +282,46 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         private void getSingleRepoSnapshotInfo(String repo, ActionListener<SnapshotsInRepo> listener) {
-            final Map<String, Snapshot> allSnapshotIds = new HashMap<>();
-            final List<SnapshotInfo> currentSnapshots = new ArrayList<>();
-            for (final SnapshotInfo snapshotInfo : currentSnapshots(repo)) {
-                Snapshot snapshot = snapshotInfo.snapshot();
-                allSnapshotIds.put(snapshot.getSnapshotId().getName(), snapshot);
-                currentSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
-            }
-
             final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-            if (isCurrentSnapshotsOnly()) {
+            if (snapshotNamePredicate == SnapshotNamePredicate.MATCH_CURRENT_ONLY) {
                 repositoryDataListener.onResponse(null);
             } else {
                 repositoriesService.getRepositoryData(repo, repositoryDataListener);
             }
 
             repositoryDataListener.addListener(
-                listener.delegateFailureAndWrap(
-                    (l, repositoryData) -> loadSnapshotInfos(repo, allSnapshotIds, currentSnapshots, repositoryData, l)
-                )
+                listener.delegateFailureAndWrap((l, repositoryData) -> loadSnapshotInfos(repo, repositoryData, l))
             );
         }
 
-        /**
-         * Returns a list of currently running snapshots from repository sorted by snapshot creation date
-         *
-         * @param repositoryName      repository name
-         * @return list of snapshots
-         */
-        private List<SnapshotInfo> currentSnapshots(String repositoryName) {
-            List<SnapshotInfo> snapshotList = new ArrayList<>();
-            List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
-                snapshotsInProgress,
-                repositoryName,
-                Collections.emptyList()
-            );
-            for (SnapshotsInProgress.Entry entry : entries) {
-                snapshotList.add(SnapshotInfo.inProgress(entry));
-            }
-            return snapshotList;
-        }
-
-        private void loadSnapshotInfos(
-            String repo,
-            Map<String, Snapshot> allSnapshotIds,
-            List<SnapshotInfo> currentSnapshots,
-            @Nullable RepositoryData repositoryData,
-            ActionListener<SnapshotsInRepo> listener
-        ) {
+        private void loadSnapshotInfos(String repo, @Nullable RepositoryData repositoryData, ActionListener<SnapshotsInRepo> listener) {
             if (cancellableTask.notifyIfCancelled(listener)) {
                 return;
             }
 
+            final Set<String> unmatchedRequiredNames = new HashSet<>(snapshotNamePredicate.requiredNames());
+            final Set<Snapshot> toResolve = new HashSet<>();
+
+            for (final var snapshotInProgress : snapshotsInProgress.forRepo(repo)) {
+                final var snapshotName = snapshotInProgress.snapshot().getSnapshotId().getName();
+                unmatchedRequiredNames.remove(snapshotName);
+                if (snapshotNamePredicate.test(snapshotName, true)) {
+                    toResolve.add(snapshotInProgress.snapshot());
+                }
+            }
+
             if (repositoryData != null) {
-                for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
-                    if (matchesPredicates(snapshotId, repositoryData)) {
-                        allSnapshotIds.put(snapshotId.getName(), new Snapshot(repo, snapshotId));
+                for (final var snapshotId : repositoryData.getSnapshotIds()) {
+                    final var snapshotName = snapshotId.getName();
+                    unmatchedRequiredNames.remove(snapshotName);
+                    if (snapshotNamePredicate.test(snapshotName, false) && matchesPredicates(snapshotId, repositoryData)) {
+                        toResolve.add(new Snapshot(repo, snapshotId));
                     }
                 }
             }
 
-            final Set<Snapshot> toResolve = new HashSet<>();
-            if (ResolvedRepositories.isMatchAll(snapshots)) {
-                toResolve.addAll(allSnapshotIds.values());
-            } else {
-                final List<String> includePatterns = new ArrayList<>();
-                final List<String> excludePatterns = new ArrayList<>();
-                boolean hasCurrent = false;
-                boolean seenWildcard = false;
-                for (String snapshotOrPattern : snapshots) {
-                    if (seenWildcard && snapshotOrPattern.length() > 1 && snapshotOrPattern.startsWith("-")) {
-                        excludePatterns.add(snapshotOrPattern.substring(1));
-                    } else {
-                        if (Regex.isSimpleMatchPattern(snapshotOrPattern)) {
-                            seenWildcard = true;
-                            includePatterns.add(snapshotOrPattern);
-                        } else if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
-                            hasCurrent = true;
-                            seenWildcard = true;
-                        } else {
-                            if (ignoreUnavailable == false && allSnapshotIds.containsKey(snapshotOrPattern) == false) {
-                                throw new SnapshotMissingException(repo, snapshotOrPattern);
-                            }
-                            includePatterns.add(snapshotOrPattern);
-                        }
-                    }
-                }
-                final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
-                final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
-                for (Map.Entry<String, Snapshot> entry : allSnapshotIds.entrySet()) {
-                    final Snapshot snapshot = entry.getValue();
-                    if (toResolve.contains(snapshot) == false
-                        && Regex.simpleMatch(includes, entry.getKey())
-                        && Regex.simpleMatch(excludes, entry.getKey()) == false) {
-                        toResolve.add(snapshot);
-                    }
-                }
-                if (hasCurrent) {
-                    for (SnapshotInfo snapshotInfo : currentSnapshots) {
-                        final Snapshot snapshot = snapshotInfo.snapshot();
-                        if (Regex.simpleMatch(excludes, snapshot.getSnapshotId().getName()) == false) {
-                            toResolve.add(snapshot);
-                        }
-                    }
-                }
-                if (toResolve.isEmpty() && ignoreUnavailable == false && isCurrentSnapshotsOnly() == false) {
-                    throw new SnapshotMissingException(repo, snapshots[0]);
-                }
+            if (unmatchedRequiredNames.isEmpty() == false) {
+                throw new SnapshotMissingException(repo, unmatchedRequiredNames.iterator().next());
             }
 
             if (verbose) {
@@ -396,13 +329,18 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             } else {
                 assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
                 assert slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES : "filtering is not supported in non-verbose mode";
+                final var currentSnapshots = snapshotsInProgress.forRepo(repo)
+                    .stream()
+                    .map(entry -> SnapshotInfo.inProgress(entry).basic())
+                    .toList();
+
                 final SnapshotsInRepo snapshotInfos;
                 if (repositoryData != null) {
                     // want non-current snapshots as well, which are found in the repository data
                     snapshotInfos = buildSimpleSnapshotInfos(toResolve, repo, repositoryData, currentSnapshots);
                 } else {
                     // only want current snapshots
-                    snapshotInfos = sortSnapshotsWithNoOffsetOrLimit(currentSnapshots.stream().map(SnapshotInfo::basic).toList());
+                    snapshotInfos = sortSnapshotsWithNoOffsetOrLimit(currentSnapshots);
                 }
                 listener.onResponse(snapshotInfos);
             }
@@ -487,10 +425,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
         }
 
-        private boolean isCurrentSnapshotsOnly() {
-            return snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]);
-        }
-
         private SnapshotsInRepo buildSimpleSnapshotInfos(
             final Set<Snapshot> toResolve,
             final String repoName,
@@ -499,8 +433,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         ) {
             List<SnapshotInfo> snapshotInfos = new ArrayList<>();
             for (SnapshotInfo snapshotInfo : currentSnapshots) {
+                assert snapshotInfo.startTime() == 0L && snapshotInfo.endTime() == 0L && snapshotInfo.totalShards() == 0L : snapshotInfo;
                 if (toResolve.remove(snapshotInfo.snapshot())) {
-                    snapshotInfos.add(snapshotInfo.basic());
+                    snapshotInfos.add(snapshotInfo);
                 }
             }
             Map<SnapshotId, List<String>> snapshotsToIndices = new HashMap<>();

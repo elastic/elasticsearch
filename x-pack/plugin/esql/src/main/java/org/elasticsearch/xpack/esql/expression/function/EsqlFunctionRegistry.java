@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -94,7 +95,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -178,9 +179,11 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(Now.class, Now::new, "now") },
             // spatial
-            new FunctionDefinition[] { def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid") },
-            new FunctionDefinition[] { def(StX.class, StX::new, "st_x") },
-            new FunctionDefinition[] { def(StY.class, StY::new, "st_y") },
+            new FunctionDefinition[] {
+                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid"),
+                def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
+                def(StX.class, StX::new, "st_x"),
+                def(StY.class, StY::new, "st_y") },
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // null
@@ -243,7 +246,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
     ) {
         public String fullSignature() {
             StringBuilder builder = new StringBuilder();
-            builder.append(ShowFunctions.withPipes(returnType));
+            builder.append(MetaFunctions.withPipes(returnType));
             builder.append(" ");
             builder.append(name);
             builder.append("(");
@@ -260,7 +263,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                     builder.append("...");
                 }
                 builder.append(":");
-                builder.append(ShowFunctions.withPipes(arg.type()));
+                builder.append(MetaFunctions.withPipes(arg.type()));
             }
             builder.append(")");
             return builder.toString();

@@ -48,7 +48,7 @@ public class DiskHealthTracker extends HealthTracker<DiskHealthInfo> {
      * @return the current disk health info.
      */
     @Override
-    public DiskHealthInfo checkCurrentHealth() {
+    protected DiskHealthInfo determineCurrentHealth() {
         var clusterState = clusterService.state();
         var healthMetadata = HealthMetadata.getFromClusterState(clusterState);
         DiscoveryNode node = clusterState.getNodes().getLocalNode();
@@ -92,7 +92,7 @@ public class DiskHealthTracker extends HealthTracker<DiskHealthInfo> {
     }
 
     @Override
-    public void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
+    protected void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, DiskHealthInfo healthInfo) {
         builder.diskHealthInfo(healthInfo);
     }
 

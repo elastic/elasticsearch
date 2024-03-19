@@ -9,7 +9,6 @@
 package org.elasticsearch.common.time;
 
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -23,13 +22,9 @@ interface DateTimeParser {
 
     Locale getLocale();
 
-    String getFormatString();
-
     DateTimeParser withZone(ZoneId zone);
 
     DateTimeParser withLocale(Locale locale);
-
-    void applyToBuilder(DateTimeFormatterBuilder builder);
 
     /**
      * Parses the specified string.

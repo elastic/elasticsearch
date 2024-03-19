@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.cluster.Diff;
@@ -209,6 +211,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         assertThat(ComposableIndexTemplate.componentTemplatesEquals(List.of(), List.of(randomAlphaOfLength(5))), equalTo(false));
     }
 
+    @Seed("1F8A73D5B8BD4DFC")
     public void testXContentSerializationWithRolloverAndGlobalRetention() throws IOException {
         Settings settings = null;
         CompressedXContent mappings = null;

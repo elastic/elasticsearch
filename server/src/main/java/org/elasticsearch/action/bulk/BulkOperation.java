@@ -209,8 +209,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     requests.toArray(new BulkItemRequest[0])
                 );
                 var indexMetadata = clusterState.getMetadata().index(shardId.getIndexName());
-                if (indexMetadata != null && indexMetadata.getFieldsForModels().isEmpty() == false) {
-                    bulkShardRequest.setFieldInferenceMetadata(indexMetadata.getFieldsForModels());
+                if (indexMetadata != null && indexMetadata.getFieldInferenceMetadata().isEmpty() == false) {
+                    bulkShardRequest.setFieldInferenceMetadata(indexMetadata.getFieldInferenceMetadata());
                 }
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());

@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,7 +41,6 @@ import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +79,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
-                assertNull(((BulkShardRequest) request).getFieldsInferenceMetadata());
+                assertNull(((BulkShardRequest) request).getFieldsInferenceMetadataMap());
             } finally {
                 chainExecuted.countDown();
             }
@@ -91,7 +91,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             WriteRequest.RefreshPolicy.NONE,
             new BulkItemRequest[0]
         );
-        request.setFieldInferenceMetadata(Map.of("foo", Set.of("bar")));
+        request.setFieldInferenceMetadata(
+            new FieldInferenceMetadata(Map.of("foo", new FieldInferenceMetadata.FieldInferenceOptions("bar", Set.of())))
+        );
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
     }
@@ -104,7 +106,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
-                assertNull(bulkShardRequest.getFieldsInferenceMetadata());
+                assertNull(bulkShardRequest.getFieldsInferenceMetadataMap());
                 for (BulkItemRequest item : bulkShardRequest.items()) {
                     assertNotNull(item.getPrimaryResponse());
                     assertTrue(item.getPrimaryResponse().isFailed());
@@ -118,11 +120,15 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ActionListener actionListener = mock(ActionListener.class);
         Task task = mock(Task.class);
 
-        Map<String, Set<String>> inferenceFields = Map.of(
-            model.getInferenceEntityId(),
-            Set.of("field1"),
-            "inference_0",
-            Set.of("field2", "field3")
+        FieldInferenceMetadata inferenceFields = new FieldInferenceMetadata(
+            Map.of(
+                "field1",
+                new FieldInferenceMetadata.FieldInferenceOptions(model.getInferenceEntityId(), Set.of()),
+                "field2",
+                new FieldInferenceMetadata.FieldInferenceOptions("inference_0", Set.of()),
+                "field3",
+                new FieldInferenceMetadata.FieldInferenceOptions("inference_0", Set.of())
+            )
         );
         BulkItemRequest[] items = new BulkItemRequest[10];
         for (int i = 0; i < items.length; i++) {
@@ -144,19 +150,19 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         }
 
         int numInferenceFields = randomIntBetween(1, 5);
-        Map<String, Set<String>> inferenceFields = new HashMap<>();
+        Map<String, FieldInferenceMetadata.FieldInferenceOptions> inferenceFieldsMap = new HashMap<>();
         for (int i = 0; i < numInferenceFields; i++) {
-            String inferenceId = randomFrom(inferenceModelMap.keySet());
             String field = randomAlphaOfLengthBetween(5, 10);
-            var res = inferenceFields.computeIfAbsent(inferenceId, k -> new HashSet<>());
-            res.add(field);
+            String inferenceId = randomFrom(inferenceModelMap.keySet());
+            inferenceFieldsMap.put(field, new FieldInferenceMetadata.FieldInferenceOptions(inferenceId, Set.of()));
         }
+        FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(inferenceFieldsMap);
 
         int numRequests = randomIntBetween(100, 1000);
         BulkItemRequest[] originalRequests = new BulkItemRequest[numRequests];
         BulkItemRequest[] modifiedRequests = new BulkItemRequest[numRequests];
         for (int id = 0; id < numRequests; id++) {
-            BulkItemRequest[] res = randomBulkItemRequest(id, inferenceModelMap, inferenceFields);
+            BulkItemRequest[] res = randomBulkItemRequest(id, inferenceModelMap, fieldInferenceMetadata);
             originalRequests[id] = res[0];
             modifiedRequests[id] = res[1];
         }
@@ -167,7 +173,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             try {
                 assertThat(request, instanceOf(BulkShardRequest.class));
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
-                assertNull(bulkShardRequest.getFieldsInferenceMetadata());
+                assertNull(bulkShardRequest.getFieldsInferenceMetadataMap());
                 BulkItemRequest[] items = bulkShardRequest.items();
                 assertThat(items.length, equalTo(originalRequests.length));
                 for (int id = 0; id < items.length; id++) {
@@ -186,7 +192,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ActionListener actionListener = mock(ActionListener.class);
         Task task = mock(Task.class);
         BulkShardRequest original = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, originalRequests);
-        original.setFieldInferenceMetadata(inferenceFields);
+        original.setFieldInferenceMetadata(fieldInferenceMetadata);
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, original, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
     }
@@ -257,42 +263,40 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     private static BulkItemRequest[] randomBulkItemRequest(
         int id,
         Map<String, StaticModel> modelMap,
-        Map<String, Set<String>> inferenceFieldMap
+        FieldInferenceMetadata fieldInferenceMetadata
     ) {
         Map<String, Object> docMap = new LinkedHashMap<>();
         Map<String, Object> inferenceResultsMap = new LinkedHashMap<>();
-        for (var entry : inferenceFieldMap.entrySet()) {
-            String inferenceId = entry.getKey();
-            var model = modelMap.get(inferenceId);
-            for (var field : entry.getValue()) {
-                String text = randomAlphaOfLengthBetween(10, 100);
-                docMap.put(field, text);
-                if (model == null) {
-                    // ignore results, the doc should fail with a resource not found exception
-                    continue;
-                }
-                int numChunks = randomIntBetween(1, 5);
-                List<String> chunks = new ArrayList<>();
-                for (int i = 0; i < numChunks; i++) {
-                    chunks.add(randomAlphaOfLengthBetween(5, 10));
-                }
-                TaskType taskType = model.getTaskType();
-                final ChunkedInferenceServiceResults results;
-                switch (taskType) {
-                    case TEXT_EMBEDDING:
-                        results = randomTextEmbeddings(chunks);
-                        break;
-
-                    case SPARSE_EMBEDDING:
-                        results = randomSparseEmbeddings(chunks);
-                        break;
-
-                    default:
-                        throw new AssertionError("Unknown task type " + taskType.name());
-                }
-                model.putResult(text, results);
-                InferenceResultFieldMapper.applyFieldInference(inferenceResultsMap, field, model, results);
+        for (var entry : fieldInferenceMetadata.getFieldInferenceOptions().entrySet()) {
+            String field = entry.getKey();
+            var model = modelMap.get(entry.getValue().inferenceId());
+            String text = randomAlphaOfLengthBetween(10, 100);
+            docMap.put(field, text);
+            if (model == null) {
+                // ignore results, the doc should fail with a resource not found exception
+                continue;
             }
+            int numChunks = randomIntBetween(1, 5);
+            List<String> chunks = new ArrayList<>();
+            for (int i = 0; i < numChunks; i++) {
+                chunks.add(randomAlphaOfLengthBetween(5, 10));
+            }
+            TaskType taskType = model.getTaskType();
+            final ChunkedInferenceServiceResults results;
+            switch (taskType) {
+                case TEXT_EMBEDDING:
+                    results = randomTextEmbeddings(chunks);
+                    break;
+
+                case SPARSE_EMBEDDING:
+                    results = randomSparseEmbeddings(chunks);
+                    break;
+
+                default:
+                    throw new AssertionError("Unknown task type " + taskType.name());
+            }
+            model.putResult(text, results);
+            InferenceResultFieldMapper.applyFieldInference(inferenceResultsMap, field, model, results);
         }
         Map<String, Object> expectedDocMap = new LinkedHashMap<>(docMap);
         expectedDocMap.put(InferenceResultFieldMapper.NAME, inferenceResultsMap);

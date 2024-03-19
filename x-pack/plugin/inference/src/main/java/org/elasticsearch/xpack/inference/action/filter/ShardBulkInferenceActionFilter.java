@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -44,7 +45,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -81,7 +81,7 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
             case TransportShardBulkAction.ACTION_NAME:
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
                 var fieldInferenceMetadata = bulkShardRequest.consumeFieldInferenceMetadata();
-                if (fieldInferenceMetadata != null && fieldInferenceMetadata.size() > 0) {
+                if (fieldInferenceMetadata != null && fieldInferenceMetadata.isEmpty() == false) {
                     Runnable onInferenceCompletion = () -> chain.proceed(task, action, request, listener);
                     processBulkShardRequest(fieldInferenceMetadata, bulkShardRequest, onInferenceCompletion);
                 } else {
@@ -96,7 +96,7 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
     }
 
     private void processBulkShardRequest(
-        Map<String, Set<String>> fieldInferenceMetadata,
+        FieldInferenceMetadata fieldInferenceMetadata,
         BulkShardRequest bulkShardRequest,
         Runnable onCompletion
     ) {
@@ -112,13 +112,13 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
     private record FieldInferenceResponseAccumulator(int id, List<FieldInferenceResponse> responses, List<Exception> failures) {}
 
     private class AsyncBulkShardInferenceAction implements Runnable {
-        private final Map<String, Set<String>> fieldInferenceMetadata;
+        private final FieldInferenceMetadata fieldInferenceMetadata;
         private final BulkShardRequest bulkShardRequest;
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
 
         private AsyncBulkShardInferenceAction(
-            Map<String, Set<String>> fieldInferenceMetadata,
+            FieldInferenceMetadata fieldInferenceMetadata,
             BulkShardRequest bulkShardRequest,
             Runnable onCompletion
         ) {
@@ -289,39 +289,35 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
                     continue;
                 }
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
-                for (var entry : fieldInferenceMetadata.entrySet()) {
-                    String inferenceId = entry.getKey();
-                    for (var field : entry.getValue()) {
-                        var value = XContentMapValues.extractValue(field, docMap);
-                        if (value == null) {
-                            continue;
-                        }
-                        if (inferenceResults.get(item.id()) == null) {
-                            inferenceResults.set(
+                for (var entry : fieldInferenceMetadata.getFieldInferenceOptions().entrySet()) {
+                    String field = entry.getKey();
+                    String inferenceId = entry.getValue().inferenceId();
+                    var value = XContentMapValues.extractValue(field, docMap);
+                    if (value == null) {
+                        continue;
+                    }
+                    if (inferenceResults.get(item.id()) == null) {
+                        inferenceResults.set(
+                            item.id(),
+                            new FieldInferenceResponseAccumulator(
                                 item.id(),
-                                new FieldInferenceResponseAccumulator(
-                                    item.id(),
-                                    Collections.synchronizedList(new ArrayList<>()),
-                                    Collections.synchronizedList(new ArrayList<>())
-                                )
-                            );
-                        }
-                        if (value instanceof String valueStr) {
-                            List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(
-                                inferenceId,
-                                k -> new ArrayList<>()
-                            );
-                            fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
-                        } else {
-                            inferenceResults.get(item.id()).failures.add(
-                                new ElasticsearchStatusException(
-                                    "Invalid format for field [{}], expected [String] got [{}]",
-                                    RestStatus.BAD_REQUEST,
-                                    field,
-                                    value.getClass().getSimpleName()
-                                )
-                            );
-                        }
+                                Collections.synchronizedList(new ArrayList<>()),
+                                Collections.synchronizedList(new ArrayList<>())
+                            )
+                        );
+                    }
+                    if (value instanceof String valueStr) {
+                        List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
+                        fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
+                    } else {
+                        inferenceResults.get(item.id()).failures.add(
+                            new ElasticsearchStatusException(
+                                "Invalid format for field [{}], expected [String] got [{}]",
+                                RestStatus.BAD_REQUEST,
+                                field,
+                                value.getClass().getSimpleName()
+                            )
+                        );
                     }
                 }
             }

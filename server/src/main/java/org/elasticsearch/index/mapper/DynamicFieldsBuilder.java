@@ -333,7 +333,11 @@ final class DynamicFieldsBuilder {
                 );
             } else {
                 return createDynamicField(
-                    new TextFieldMapper.Builder(name, context.indexAnalyzers()).addMultiField(
+                    new TextFieldMapper.Builder(
+                        name,
+                        context.indexAnalyzers(),
+                        context.indexSettings().getMode().isSyntheticSourceEnabled()
+                    ).addMultiField(
                         new KeywordFieldMapper.Builder("keyword", context.indexSettings().getIndexVersionCreated()).ignoreAbove(256)
                     ),
                     context

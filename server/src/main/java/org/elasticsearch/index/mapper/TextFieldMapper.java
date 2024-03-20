@@ -236,9 +236,9 @@ public final class TextFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         private final IndexVersion indexCreatedVersion;
+        private final Parameter<Boolean> store;
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, false);
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
@@ -283,12 +283,23 @@ public final class TextFieldMapper extends FieldMapper {
 
         final TextParams.Analyzers analyzers;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, IndexVersion.current(), indexAnalyzers);
+        public Builder(String name, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceAlwaysUsed) {
+            this(name, IndexVersion.current(), indexAnalyzers, isSyntheticSourceAlwaysUsed);
         }
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceAlwaysUsed) {
             super(name);
+
+            // If synthetic source is used we need to either store this field
+            // to recreate the source or use keyword multi-fields for that.
+            // So if there are no suitable multi-fields we will default to
+            // storing the field without requiring users to explicitly set 'store'.
+            //
+            // If 'store' parameter was explicitly provided we'll reject the request.
+            this.store = Parameter.storeParam(
+                m -> ((TextFieldMapper) m).store,
+                () -> isSyntheticSourceAlwaysUsed && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
+            );
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
@@ -456,20 +467,6 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-
-            // If synthetic source is used we need to either store this field
-            // to recreate the source or use keyword multi-fields for that.
-            // So if there are no suitable multi-fields we will default to
-            // storing the field without requiring users to explicitly set 'store'.
-            //
-            // If 'store' parameter was explicitly provided we'll let it pass and
-            // fail in TextFieldMapper#syntheticFieldLoader later if needed.
-            if (store.isSet() == false
-                && context.isSourceSynthetic()
-                && TextFieldMapper.getKeywordFieldMapperForSyntheticSource(multiFields) == null) {
-                store.setValue(true);
-            }
-
             FieldType fieldType = TextParams.buildFieldType(
                 index,
                 store,
@@ -493,7 +490,7 @@ public final class TextFieldMapper extends FieldMapper {
     private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()),
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers(), c.getIndexSettings().getMode().isSyntheticSourceEnabled()),
         MINIMUM_COMPATIBILITY_VERSION
     );
 
@@ -1268,7 +1265,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion, indexAnalyzers).init(this);
+        return new Builder(simpleName(), indexCreatedVersion, indexAnalyzers, false).init(this);
     }
 
     @Override

@@ -227,6 +227,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public boolean hasNormalizer() {
+            return this.normalizer.get() != null;
+        }
+
         Builder nullValue(String nullValue) {
             this.nullValue.setValue(nullValue);
             return this;
@@ -237,6 +241,10 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public boolean hasDocValues() {
+            return this.hasDocValues.get();
+        }
+
         public Builder dimension(boolean dimension) {
             this.dimension.setValue(dimension);
             return this;
@@ -245,6 +253,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         public Builder indexed(boolean indexed) {
             this.indexed.setValue(indexed);
             return this;
+        }
+
+        public Builder stored(boolean stored) {
+            this.stored.setValue(stored);
+            return this;
+        }
+
+        public boolean isStored() {
+            return this.stored.get();
         }
 
         private FieldValues<String> scriptValues() {

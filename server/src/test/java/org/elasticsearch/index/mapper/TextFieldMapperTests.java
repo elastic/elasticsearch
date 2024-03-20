@@ -44,9 +44,11 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -247,6 +249,61 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+    }
+
+    public void testStoreParameterDefaults() throws IOException {
+        var timeSeriesIndexMode = randomBoolean();
+        var isStored = randomBoolean();
+        var hasKeywordFieldForSyntheticSource = randomBoolean();
+
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        if (timeSeriesIndexMode) {
+            indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
+            indexSettingsBuilder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension");
+        }
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "text");
+            if (isStored) {
+                b.field("store", isStored);
+            }
+            if (hasKeywordFieldForSyntheticSource) {
+                b.startObject("fields");
+                b.startObject("keyword");
+                b.field("type", "keyword");
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+
+            if (timeSeriesIndexMode) {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+                b.startObject("dimension");
+                b.field("type", "keyword");
+                b.field("time_series_dimension", "true");
+                b.endObject();
+            }
+        });
+        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("field", "1234");
+            if (timeSeriesIndexMode) {
+                b.field("@timestamp", randomMillisUpToYear9999());
+                b.field("dimension", "dimension1");
+            }
+        }));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        if (isStored || (timeSeriesIndexMode && hasKeywordFieldForSyntheticSource == false)) {
+            assertTrue(fieldType.stored());
+        } else {
+            assertFalse(fieldType.stored());
+        }
     }
 
     public void testBWCSerialization() throws IOException {
@@ -1119,7 +1176,6 @@ public class TextFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
         boolean storeTextField = randomBoolean();
-        boolean explicitlyStoreTextField = randomBoolean();
         boolean storedKeywordField = storeTextField || randomBoolean();
         boolean indexText = randomBoolean();
         Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
@@ -1140,9 +1196,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                         delegate.expectedForBlockLoader(),
                         b -> {
                             b.field("type", "text");
-                            if (explicitlyStoreTextField) {
-                                b.field("store", true);
-                            }
+                            b.field("store", true);
                             if (indexText == false) {
                                 b.field("index", false);
                             }
@@ -1178,42 +1232,41 @@ public class TextFieldMapperTests extends MapperTestCase {
                     "field [field] of type [text] doesn't support synthetic source unless it is stored or"
                         + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
                 );
-                return List.of(new SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", "text");
-                    b.field("store", "false");
-                }), new SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", "text");
-                    b.field("store", "false");
-                    b.startObject("fields");
-                    {
-                        b.startObject("l");
-                        b.field("type", "long");
+                return List.of(
+                    new SyntheticSourceInvalidExample(err, b -> { b.field("type", "text"); }),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("l");
+                            b.field("type", "long");
+                            b.endObject();
+                        }
                         b.endObject();
-                    }
-                    b.endObject();
-                }), new SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", "text");
-                    b.field("store", "false");
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("normalizer", "lowercase");
+                    }),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("kwd");
+                            b.field("type", "keyword");
+                            b.field("normalizer", "lowercase");
+                            b.endObject();
+                        }
                         b.endObject();
-                    }
-                    b.endObject();
-                }), new SyntheticSourceInvalidExample(err, b -> {
-                    b.field("type", "text");
-                    b.field("store", "false");
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("doc_values", "false");
+                    }),
+                    new SyntheticSourceInvalidExample(err, b -> {
+                        b.field("type", "text");
+                        b.startObject("fields");
+                        {
+                            b.startObject("kwd");
+                            b.field("type", "keyword");
+                            b.field("doc_values", "false");
+                            b.endObject();
+                        }
                         b.endObject();
-                    }
-                    b.endObject();
-                }));
+                    })
+                );
             }
         };
     }

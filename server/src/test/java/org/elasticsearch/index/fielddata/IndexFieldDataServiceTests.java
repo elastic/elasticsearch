@@ -156,10 +156,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers()).fielddata(true)
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("field_1", createDefaultIndexAnalyzers(), false).fielddata(true)
             .build(context)
             .fieldType();
-        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers()).fielddata(true)
+        final MappedFieldType mapper2 = new TextFieldMapper.Builder("field_2", createDefaultIndexAnalyzers(), false).fielddata(true)
             .build(context)
             .fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
@@ -223,7 +223,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
 
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
-        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers()).fielddata(true)
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s", createDefaultIndexAnalyzers(), false).fielddata(true)
             .build(context)
             .fieldType();
         final IndexWriter writer = new IndexWriter(new ByteBuffersDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));

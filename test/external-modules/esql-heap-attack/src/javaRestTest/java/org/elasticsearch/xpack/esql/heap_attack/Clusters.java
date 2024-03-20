@@ -16,10 +16,10 @@ public class Clusters {
     static ElasticsearchCluster buildCluster() {
         var spec = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .nodes(2)
             .module("test-esql-heap-attack")
             .setting("xpack.security.enabled", "false")
-            .setting("xpack.license.self_generated.type", "trial");
+            .setting("xpack.license.self_generated.type", "trial")
+            .jvmArg("-Xmx1024m");
         String javaVersion = JvmInfo.jvmInfo().version();
         if (javaVersion.equals("20") || javaVersion.equals("21")) {
             // see https://github.com/elastic/elasticsearch/issues/99592

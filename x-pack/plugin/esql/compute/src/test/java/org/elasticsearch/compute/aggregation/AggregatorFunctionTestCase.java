@@ -58,7 +58,8 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     @Override
     protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
         List<Integer> channels = mode.isInputPartial() ? range(0, aggregatorIntermediateBlockCount()).boxed().toList() : List.of(0);
-        return new AggregationOperator.AggregationOperatorFactory(List.of(aggregatorFunction(mode, channels).aggregatorFactory(mode)), mode);
+        List<Aggregator.Factory> aggregators = List.of(aggregatorFunction(mode, channels).aggregatorFactory(mode));
+        return new AggregationOperator.AggregationOperatorFactory(aggregators, mode);
     }
 
     @Override

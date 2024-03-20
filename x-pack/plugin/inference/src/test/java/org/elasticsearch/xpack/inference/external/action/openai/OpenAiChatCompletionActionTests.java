@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
@@ -24,8 +26,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -222,6 +226,52 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
         assertThat(thrownException.getMessage(), is("Failed to send OpenAI chat completions request"));
+    }
+
+    public void testExecute_ThrowsException_WhenInputIsGreaterThanOne() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                {
+                  "id": "chatcmpl-123",
+                  "object": "chat.completion",
+                  "created": 1677652288,
+                  "model": "gpt-3.5-turbo-0613",
+                  "system_fingerprint": "fp_44709d6fcb",
+                  "choices": [
+                      {
+                          "index": 0,
+                          "message": {
+                              "role": "assistant",
+                              "content": "Hello there, how may I assist you today?"
+                             },
+                          "logprobs": null,
+                          "finish_reason": "stop"
+                      }
+                  ],
+                  "usage": {
+                    "prompt_tokens": 9,
+                    "completion_tokens": 12,
+                    "total_tokens": 21
+                  }
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(List.of("abc", "def"), listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(thrownException.getMessage(), CoreMatchers.is("OpenAI completions only accepts 1 input"));
+            assertThat(thrownException.status(), CoreMatchers.is(RestStatus.BAD_REQUEST));
+        }
     }
 
     public static Map<String, Object> buildExpectedChatCompletionResultMap(List<String> results) {

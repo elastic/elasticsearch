@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.OpenAiCompletionExecutableRequestCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -40,6 +42,11 @@ public class OpenAiChatCompletionAction implements ExecutableAction {
 
     @Override
     public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
+        if (input.size() > 1) {
+            listener.onFailure(new ElasticsearchStatusException("OpenAI completions only accepts 1 input", RestStatus.BAD_REQUEST));
+            return;
+        }
+
         try {
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 

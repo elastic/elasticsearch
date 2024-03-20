@@ -28,12 +28,19 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
+import static java.util.function.Function.identity;
+import static org.elasticsearch.common.util.Maps.toUnmodifiableSortedMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.matchesRegex;
 
@@ -111,7 +118,8 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104652")
+    // temporarily re-enable to gather more data on test failures likely caused by diverging thread pool stats
+    // at the time stats are collected vs when measurements are taken.
     public void testThreadPoolMetrics() throws Exception {
         internalCluster().startNode();
 
@@ -147,30 +155,36 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         plugin.collect();
         ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
+
         tps.forEach(stats -> {
-            Map<String, Long> threadPoolMetrics = Map.of(
-                ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED,
-                stats.completed(),
-                ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE,
-                (long) stats.active(),
-                ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT,
-                (long) stats.threads(),
-                ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST,
-                (long) stats.largest(),
-                ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE,
-                (long) stats.queue()
-            );
-            threadPoolMetrics.forEach((suffix, value) -> {
-                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + stats.name() + suffix;
-                List<Measurement> measurements;
-                if (suffix.equals(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)) {
-                    measurements = plugin.getLongAsyncCounterMeasurement(metricName);
-                } else {
-                    measurements = plugin.getLongGaugeMeasurement(metricName);
-                }
+            Map<String, Long> threadPoolStats = List.of(
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, stats.completed()),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, (long) stats.active()),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, (long) stats.threads()),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST, (long) stats.largest()),
+                Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE, (long) stats.queue())
+            ).stream().collect(toUnmodifiableSortedMap(Entry::getKey, Entry::getValue));
+
+            Function<String, List<Long>> measurementExtractor = name -> {
+                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + stats.name() + name;
                 assertThat(metricName, in(registeredMetrics));
-                assertThat(measurements.get(0).getLong(), greaterThanOrEqualTo(value));
-            });
+
+                List<Measurement> measurements = name.equals(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)
+                    ? plugin.getLongAsyncCounterMeasurement(metricName)
+                    : plugin.getLongGaugeMeasurement(metricName);
+                return measurements.stream().map(Measurement::getLong).toList();
+            };
+
+            Map<String, List<Long>> measurements = threadPoolStats.keySet()
+                .stream()
+                .collect(toUnmodifiableSortedMap(identity(), measurementExtractor));
+
+            logger.info("Stats of `{}`: {}", stats.name(), threadPoolStats);
+            logger.info("Measurements of `{}`: {}", stats.name(), measurements);
+
+            threadPoolStats.forEach(
+                (metric, value) -> assertThat(measurements, hasEntry(equalTo(metric), contains(greaterThanOrEqualTo(value))))
+            );
         });
     }
 

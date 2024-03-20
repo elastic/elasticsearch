@@ -43,9 +43,9 @@ public class Replace extends EsqlScalarFunction {
     )
     public Replace(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "string", type = { "keyword", "text" }) Expression str,
         @Param(name = "regex", type = { "keyword", "text" }) Expression regex,
-        @Param(name = "newStr", type = { "keyword", "text" }) Expression newStr
+        @Param(name = "newString", type = { "keyword", "text" }) Expression newStr
     ) {
         super(source, Arrays.asList(str, regex, newStr));
         this.str = str;

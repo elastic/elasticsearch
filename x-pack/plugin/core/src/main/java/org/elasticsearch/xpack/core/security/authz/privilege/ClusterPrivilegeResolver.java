@@ -97,6 +97,10 @@ public class ClusterPrivilegeResolver {
         GetComponentTemplateAction.NAME,
         GetComposableIndexTemplateAction.NAME
     );
+    private static final Set<String> MONITOR_INFERENCE_PATTERN = Set.of(
+        "cluster:monitor/xpack/inference*",
+        "cluster:monitor/xpack/ml/trained_models/deployment/infer"
+    );
     private static final Set<String> MONITOR_ML_PATTERN = Set.of("cluster:monitor/xpack/ml/*");
     private static final Set<String> MONITOR_TEXT_STRUCTURE_PATTERN = Set.of("cluster:monitor/text_structure/*");
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Set.of("cluster:monitor/data_frame/*", "cluster:monitor/transform/*");
@@ -110,6 +114,13 @@ public class ClusterPrivilegeResolver {
         "indices:admin/index_template/*"
     );
     private static final Predicate<String> ACTION_MATCHER = Automatons.predicate(ALL_CLUSTER_PATTERN);
+    private static final Set<String> MANAGE_INFERENCE_PATTERN = Set.of(
+        "cluster:admin/xpack/inference/*",
+        "cluster:monitor/xpack/inference*", // no trailing slash to match the POST InferenceAction name
+        "cluster:admin/xpack/ml/trained_models/deployment/start",
+        "cluster:admin/xpack/ml/trained_models/deployment/stop",
+        "cluster:monitor/xpack/ml/trained_models/deployment/infer"
+    );
     private static final Set<String> MANAGE_ML_PATTERN = Set.of("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
     private static final Set<String> MANAGE_TRANSFORM_PATTERN = Set.of(
         "cluster:admin/data_frame/*",
@@ -182,6 +193,10 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege NONE = new ActionClusterPrivilege("none", Set.of(), Set.of());
     public static final NamedClusterPrivilege ALL = new ActionClusterPrivilege("all", ALL_CLUSTER_PATTERN);
     public static final NamedClusterPrivilege MONITOR = new ActionClusterPrivilege("monitor", MONITOR_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_INFERENCE = new ActionClusterPrivilege(
+        "monitor_inference",
+        MONITOR_INFERENCE_PATTERN
+    );
     public static final NamedClusterPrivilege MONITOR_ML = new ActionClusterPrivilege("monitor_ml", MONITOR_ML_PATTERN);
     public static final NamedClusterPrivilege MONITOR_TRANSFORM_DEPRECATED = new ActionClusterPrivilege(
         "monitor_data_frame_transforms",
@@ -199,6 +214,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_INFERENCE = new ActionClusterPrivilege("manage_inference", MANAGE_INFERENCE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_TRANSFORM_DEPRECATED = new ActionClusterPrivilege(
         "manage_data_frame_transforms",
@@ -356,6 +372,7 @@ public class ClusterPrivilegeResolver {
             NONE,
             ALL,
             MONITOR,
+            MONITOR_INFERENCE,
             MONITOR_ML,
             MONITOR_TEXT_STRUCTURE,
             MONITOR_TRANSFORM_DEPRECATED,
@@ -364,6 +381,7 @@ public class ClusterPrivilegeResolver {
             MONITOR_ROLLUP,
             MONITOR_ENRICH,
             MANAGE,
+            MANAGE_INFERENCE,
             MANAGE_ML,
             MANAGE_TRANSFORM_DEPRECATED,
             MANAGE_TRANSFORM,

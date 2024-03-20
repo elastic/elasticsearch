@@ -200,10 +200,10 @@ PUT _index_template/dsl-data-stream-template
   "template": {
     "settings": {
       "index.lifecycle.name": "pre-dsl-ilm-policy",
-      "index.lifecycle.prefer_ilm": false             <1>
+      "index.lifecycle.prefer_ilm": false                       <1>
     },
-    "lifecycle": {
-      "data_retention": "7d"                          <2>
+    "lifecycle": {                                              <2>
+      "data_retention": "7d"                                    <3>
     }
   }
 }
@@ -215,6 +215,8 @@ PUT _index_template/dsl-data-stream-template
 precedence over data stream lifecycle.
 <2> We're configuring the data stream lifecycle so _new_ data streams will be 
 managed by data stream lifecycle.
+<3> The desired retention, meaning that this data stream should keep the data for at least 7 days,
+if this retention is possible.
 
 We've now made sure that new data streams will be managed by data stream lifecycle.
 
@@ -268,7 +270,9 @@ GET _data_stream/dsl-data-stream
       "template": "dsl-data-stream-template",
       "lifecycle": {
         "enabled": true,
-        "data_retention": "7d"
+        "data_retention": "7d",
+        "effective_retention": "7d",
+        "retention_determined_by": "data_stream_configuration"
       },
       "ilm_policy": "pre-dsl-ilm-policy",
       "next_generation_managed_by": "Data stream lifecycle",         <3>
@@ -346,7 +350,9 @@ GET _data_stream/dsl-data-stream
       "template": "dsl-data-stream-template",
       "lifecycle": {
         "enabled": true,
-        "data_retention": "7d"
+        "data_retention": "7d",
+        "effective_retention": "7d",
+        "retention_determined_by": "data_stream_configuration"
       },
       "ilm_policy": "pre-dsl-ilm-policy",
       "next_generation_managed_by": "Data stream lifecycle",

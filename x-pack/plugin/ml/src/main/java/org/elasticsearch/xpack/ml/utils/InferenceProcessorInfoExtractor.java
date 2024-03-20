@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.transport.Transports;
 
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -75,6 +76,7 @@ public final class InferenceProcessorInfoExtractor {
      */
     @SuppressWarnings("unchecked")
     public static Map<String, Set<String>> pipelineIdsByResource(ClusterState state, Set<String> ids) {
+        assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
         Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
         Metadata metadata = state.metadata();
         if (metadata == null) {

@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.prefix;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -26,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -225,30 +225,40 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final Map<BytesRef, ReducerAndProto> buckets = new HashMap<>();
+            final ObjectObjectPagedHashMap<BytesRef, ReducerAndProto> buckets = new ObjectObjectPagedHashMap<>(
+                getBuckets().size(),
+                reduceContext.bigArrays()
+            );
 
             @Override
             public void accept(InternalAggregation aggregation) {
                 final InternalIpPrefix ipPrefix = (InternalIpPrefix) aggregation;
                 for (Bucket bucket : ipPrefix.getBuckets()) {
-                    ReducerAndProto reducerAndProto = buckets.computeIfAbsent(
-                        bucket.key,
-                        k -> new ReducerAndProto(new MultiBucketAggregatorsReducer(reduceContext, size), bucket)
-                    );
+                    ReducerAndProto reducerAndProto = buckets.get(bucket.key);
+                    if (reducerAndProto == null) {
+                        reducerAndProto = new ReducerAndProto(new MultiBucketAggregatorsReducer(reduceContext, size), bucket);
+                        boolean success = false;
+                        try {
+                            buckets.put(bucket.key, reducerAndProto);
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                Releasables.close(reducerAndProto.reducer);
+                            }
+                        }
+                    }
                     reducerAndProto.reducer.accept(bucket);
                 }
             }
 
             @Override
             public InternalAggregation get() {
-                final List<Bucket> reducedBuckets = new ArrayList<>(buckets.size());
-                for (ReducerAndProto reducerAndProto : buckets.values()) {
-                    if (false == reduceContext.isFinalReduce() || reducerAndProto.reducer.getDocCount() >= minDocCount) {
-                        reducedBuckets.add(
-                            createBucket(reducerAndProto.proto, reducerAndProto.reducer.get(), reducerAndProto.reducer.getDocCount())
-                        );
+                final List<Bucket> reducedBuckets = new ArrayList<>(Math.toIntExact(buckets.size()));
+                buckets.iterator().forEachRemaining(entry -> {
+                    if (false == reduceContext.isFinalReduce() || entry.value.reducer.getDocCount() >= minDocCount) {
+                        reducedBuckets.add(createBucket(entry.value.proto, entry.value.reducer.get(), entry.value.reducer.getDocCount()));
                     }
-                }
+                });
                 reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
                 reducedBuckets.sort(Comparator.comparing(a -> a.key));
                 return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
@@ -256,9 +266,8 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
 
             @Override
             public void close() {
-                for (ReducerAndProto reducerAndProto : buckets.values()) {
-                    Releasables.close(reducerAndProto.reducer);
-                }
+                buckets.iterator().forEachRemaining(entry -> Releasables.close(entry.value.reducer));
+                Releasables.close(buckets);
             }
         };
     }

@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -118,7 +120,10 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
 
         private final Map<String, ComposableIndexTemplate> indexTemplates;
+        @Nullable
         private final RolloverConfiguration rolloverConfiguration;
+        @Nullable
+        private final DataStreamGlobalRetention globalRetention;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -128,16 +133,27 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             } else {
                 rolloverConfiguration = null;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+                globalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
+            } else {
+                globalRetention = null;
+            }
         }
 
         public Response(Map<String, ComposableIndexTemplate> indexTemplates) {
             this.indexTemplates = indexTemplates;
             this.rolloverConfiguration = null;
+            this.globalRetention = null;
         }
 
-        public Response(Map<String, ComposableIndexTemplate> indexTemplates, RolloverConfiguration rolloverConfiguration) {
+        public Response(
+            Map<String, ComposableIndexTemplate> indexTemplates,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention globalRetention
+        ) {
             this.indexTemplates = indexTemplates;
             this.rolloverConfiguration = rolloverConfiguration;
+            this.globalRetention = globalRetention;
         }
 
         public Map<String, ComposableIndexTemplate> indexTemplates() {
@@ -150,6 +166,9 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+                out.writeOptionalWriteable(globalRetention);
+            }
         }
 
         @Override
@@ -157,23 +176,26 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             GetComposableIndexTemplateAction.Response that = (GetComposableIndexTemplateAction.Response) o;
-            return Objects.equals(indexTemplates, that.indexTemplates) && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
+            return Objects.equals(indexTemplates, that.indexTemplates)
+                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration)
+                && Objects.equals(globalRetention, that.globalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexTemplates, rolloverConfiguration);
+            return Objects.hash(indexTemplates, rolloverConfiguration, globalRetention);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
             builder.startObject();
             builder.startArray(INDEX_TEMPLATES.getPreferredName());
             for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : this.indexTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
-                indexTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
+                indexTemplate.getValue().toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
                 builder.endObject();
             }
             builder.endArray();

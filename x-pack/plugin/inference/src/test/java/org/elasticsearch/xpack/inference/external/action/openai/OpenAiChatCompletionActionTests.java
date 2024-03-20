@@ -127,10 +127,11 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
             assertThat(request.getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(request.getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("user"));
+            assertThat(requestMap.get("n"), is(1));
         }
     }
 

@@ -39,7 +39,7 @@ public class MvMedian extends AbstractMultivalueFunction {
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Converts a multivalued field into a single valued field containing the median value."
     )
-    public MvMedian(Source source, @Param(name = "v", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public MvMedian(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 

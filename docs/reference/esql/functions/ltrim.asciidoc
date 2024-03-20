@@ -16,8 +16,6 @@ String expression. If `null`, the function returns `null`.
 
 Removes leading whitespaces from strings.
 
-*Supported types*
-
 include::types/rtrim.asciidoc[]
 
 *Example*

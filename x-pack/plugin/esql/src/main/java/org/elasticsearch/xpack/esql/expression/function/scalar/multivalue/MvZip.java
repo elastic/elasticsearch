@@ -48,8 +48,8 @@ public class MvZip extends ScalarFunction implements OptionalArgument, Evaluator
     )
     public MvZip(
         Source source,
-        @Param(name = "mvLeft", type = { "keyword", "text" }, description = "A multivalued field") Expression mvLeft,
-        @Param(name = "mvRight", type = { "keyword", "text" }, description = "A multivalued field") Expression mvRight,
+        @Param(name = "string1", type = { "keyword", "text" }, description = "A multivalued field") Expression mvLeft,
+        @Param(name = "string2", type = { "keyword", "text" }, description = "A multivalued field") Expression mvRight,
         @Param(name = "delim", type = { "keyword", "text" }, description = "delimiter", optional = true) Expression delim
     ) {
         super(source, delim == null ? Arrays.asList(mvLeft, mvRight, COMMA) : Arrays.asList(mvLeft, mvRight, delim));

@@ -41,10 +41,10 @@ setup:
             properties:
               sparse_field:
                 type: semantic_text
-                model_id: sparse-inference-id
+                inference_id: sparse-inference-id
               dense_field:
                 type: semantic_text
-                model_id: dense-inference-id
+                inference_id: dense-inference-id
               non_inference_field:
                 type: text
 

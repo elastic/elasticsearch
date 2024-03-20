@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -73,6 +78,34 @@ public class SemanticTextModelSettings implements ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SIMILARITY_FIELD);
     }
 
+    public static SemanticTextModelSettings fromMap(Object node) {
+        if (node == null) {
+            return null;
+        }
+        try {
+            Map<String, Object> map = XContentMapValues.nodeMapValue(node, NAME);
+            if (map.containsKey(INFERENCE_ID_FIELD.getPreferredName()) == false) {
+                throw new IllegalArgumentException(
+                    "Failed to parse [" + NAME + "], required [" + INFERENCE_ID_FIELD.getPreferredName() + "] is missing"
+                );
+            }
+            if (map.containsKey(TASK_TYPE_FIELD.getPreferredName()) == false) {
+                throw new IllegalArgumentException(
+                    "Failed to parse [" + NAME + "], required [" + TASK_TYPE_FIELD.getPreferredName() + "] is missing"
+                );
+            }
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                map,
+                XContentType.JSON
+            );
+            return SemanticTextModelSettings.parse(parser);
+        } catch (Exception exc) {
+            throw new ElasticsearchException(exc);
+        }
+    }
+
     public Map<String, Object> asMap() {
         Map<String, Object> attrsMap = new HashMap<>();
         attrsMap.put(TASK_TYPE_FIELD.getPreferredName(), taskType.toString());
@@ -116,29 +149,19 @@ public class SemanticTextModelSettings implements ToXContentObject {
         return builder.endObject();
     }
 
-    public static boolean checkCompatibility(
-        SemanticTextModelSettings original,
-        SemanticTextModelSettings another,
-        FieldMapper.Conflicts conflicts
-    ) {
-        if (original == null) {
-            return true;
-        }
-        if (original != null && another == null) {
-            conflicts.addConflict("model_settings", "missing");
-        }
-        if (original.inferenceId.equals(another.inferenceId) == false) {
-            conflicts.addConflict(INFERENCE_ID_FIELD.getPreferredName(), "values differ");
-        }
-        if (original.taskType != another.taskType()) {
-            conflicts.addConflict(TASK_TYPE_FIELD.getPreferredName(), "values differ");
-        }
-        if (original.dimensions != another.dimensions) {
-            conflicts.addConflict(DIMENSIONS_FIELD.getPreferredName(), "values differ");
-        }
-        if (original.similarity != another.similarity) {
-            conflicts.addConflict(SIMILARITY_FIELD.getPreferredName(), "values differ");
-        }
-        return conflicts.hasConflicts() == false;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SemanticTextModelSettings that = (SemanticTextModelSettings) o;
+        return taskType == that.taskType
+            && inferenceId.equals(that.inferenceId)
+            && Objects.equals(dimensions, that.dimensions)
+            && similarity == that.similarity;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(taskType, inferenceId, dimensions, similarity);
     }
 }

@@ -110,6 +110,8 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
             });
 
             MapperService mapperService = createMapperService(mapping);
+            SemanticTextFieldMapperTests.assertSemanticTextField(mapperService, fieldName1, false);
+            SemanticTextFieldMapperTests.assertSemanticTextField(mapperService, fieldName2, false);
             DocumentMapper documentMapper = mapperService.documentMapper();
             ParsedDocument doc = documentMapper.parse(
                 source(
@@ -402,7 +404,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {
         mappingBuilder.startObject(fieldName);
         mappingBuilder.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
-        mappingBuilder.field("model_id", modelId);
+        mappingBuilder.field("inference_id", modelId);
         mappingBuilder.endObject();
     }
 
@@ -482,7 +484,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
         sourceBuilder.field(InferenceMetadataFieldMapper.NAME, inferenceResultsMap);
     }
 
-    private String randomFieldName(int numLevel) {
+    static String randomFieldName(int numLevel) {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < numLevel; i++) {
             if (i > 0) {

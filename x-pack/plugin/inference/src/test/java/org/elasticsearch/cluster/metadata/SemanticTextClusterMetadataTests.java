@@ -31,7 +31,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
     public void testCreateIndexWithSemanticTextField() {
         final IndexService indexService = createIndex(
             "test",
-            client().admin().indices().prepareCreate("test").setMapping("field", "type=semantic_text,model_id=test_model")
+            client().admin().indices().prepareCreate("test").setMapping("field", "type=semantic_text,inference_id=test_model")
         );
         assertEquals(
             indexService.getMetadata().getFieldInferenceMetadata().getFieldInferenceOptions().get("field").inferenceId(),
@@ -46,7 +46,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
-            { "properties": { "field": { "type": "semantic_text", "model_id": "test_model" }}}""");
+            { "properties": { "field": { "type": "semantic_text", "inference_id": "test_model" }}}""");
         request.indices(new Index[] { indexService.index() });
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),

@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -172,9 +173,10 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private SemanticTextFieldMapper updateSemanticTextFieldMapper(
+    private NestedObjectMapper updateSemanticTextFieldMapper(
         DocumentParserContext docContext,
         MapperBuilderContext mapperBuilderContext,
+        ObjectMapper parent,
         SemanticTextFieldMapper original,
         SemanticTextModelSettings modelSettings,
         XContentLocation xContentLocation
@@ -182,61 +184,49 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         if (modelSettings.inferenceId().equals(original.fieldType().getInferenceId()) == false) {
             throw new DocumentParsingException(
                 xContentLocation,
-                "Model settings for field ["
-                    + original.fieldType().name()
-                    + "] is already set to ["
-                    + original.fieldType().getInferenceId()
-                    + "], got ["
-                    + modelSettings.inferenceId()
-                    + "]"
+                Strings.format(
+                    "The configured %s [%s] for field [%s] doesn't match the %s [%s] reported in the document.",
+                    SemanticTextModelSettings.INFERENCE_ID_FIELD.getPreferredName(),
+                    modelSettings.inferenceId(),
+                    original.name(),
+                    SemanticTextModelSettings.INFERENCE_ID_FIELD.getPreferredName(),
+                    modelSettings.inferenceId()
+                )
             );
         }
         if (modelSettings.taskType() == TaskType.TEXT_EMBEDDING && modelSettings.dimensions() == null) {
             throw new DocumentParsingException(
                 xContentLocation,
-                "Model settings for field [" + original.fieldType().name() + "] must contain dimensions"
+                "Model settings for field [" + original.name() + "] must contain dimensions"
             );
         }
-
         if (original.getModelSettings() == null) {
+            if (parent != docContext.root()) {
+                mapperBuilderContext = mapperBuilderContext.createChildContext(parent.name(), ObjectMapper.Dynamic.FALSE);
+            }
             SemanticTextFieldMapper newMapper = new SemanticTextFieldMapper.Builder(
-                original.name(),
+                original.simpleName(),
                 docContext.indexSettings().getIndexVersionCreated(),
                 docContext.indexAnalyzers()
-            ).setModelId(modelSettings.inferenceId()).setModelSettings(modelSettings).build(mapperBuilderContext);
+            ).setInferenceId(modelSettings.inferenceId()).setModelSettings(modelSettings).build(mapperBuilderContext);
             docContext.addDynamicMapper(newMapper);
-            return newMapper;
+            return newMapper.getSubMappers();
         } else {
-            var conflicts = new Conflicts(original.name());
-            SemanticTextModelSettings.checkCompatibility(original.getModelSettings(), modelSettings, conflicts);
+            SemanticTextFieldMapper.Conflicts conflicts = new Conflicts(original.name());
+            SemanticTextFieldMapper.canMergeModelSettings(original.getModelSettings(), modelSettings, conflicts);
             try {
                 conflicts.check();
             } catch (Exception exc) {
-                throw new DocumentParsingException(xContentLocation, "Failed to update field [" + original.name() + "]", exc);
+                throw new DocumentParsingException(xContentLocation, "Incompatible model_settings", exc);
             }
         }
-        return original;
+        return original.getSubMappers();
     }
 
-    private record FieldMapperAndParent(ObjectMapper parent, Mapper mapper) {}
-
-    private FieldMapperAndParent findFieldMapper(ObjectMapper mapper, String fullName) {
-        String[] pathElements = fullName.split("\\.");
-        for (int i = 0; i < pathElements.length - 1; i++) {
-            Mapper next = mapper.getMapper(pathElements[i]);
-            if (next == null || next instanceof ObjectMapper == false) {
-                return null;
-            }
-            mapper = (ObjectMapper) next;
-        }
-        return new FieldMapperAndParent(mapper, mapper.getMapper(pathElements[pathElements.length - 1]));
-    }
-
-    @SuppressWarnings("unchecked")
     private void parseSingleField(DocumentParserContext context, MapperBuilderContext mapperBuilderContext) throws IOException {
         XContentParser parser = context.parser();
         String fieldName = parser.currentName();
-        var res = findFieldMapper(context.root(), fieldName);
+        var res = findMapper(context.mappingLookup().getMapping().getRoot(), fieldName);
         if (res == null || res.mapper == null || res.mapper instanceof SemanticTextFieldMapper == false) {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
@@ -245,20 +235,51 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         }
         parser.nextToken();
         failIfTokenIsNot(parser.getTokenLocation(), parser, XContentParser.Token.START_OBJECT);
-        XContentLocation xContentLocation = parser.getTokenLocation();
 
+        // record the location of the inference field in the original source
+        XContentLocation xContentLocation = parser.getTokenLocation();
+        // parse eagerly to extract the model settings first
         Map<String, Object> map = parser.mapOrdered();
-        Map<String, String> modelSettingsMap = (Map<String, String>) map.remove(SemanticTextModelSettings.NAME);
-        var modelSettings = SemanticTextModelSettings.parse(
-            XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, modelSettingsMap)
-        );
-        var fieldMapper = updateSemanticTextFieldMapper(
+        Object modelSettingsObj = map.remove(SemanticTextModelSettings.NAME);
+        if (modelSettingsObj == null) {
+            throw new DocumentParsingException(
+                parser.getTokenLocation(),
+                Strings.format(
+                    "Missing required [%s] for field [%s] of type [%s]",
+                    SemanticTextModelSettings.NAME,
+                    fieldName,
+                    SemanticTextFieldMapper.CONTENT_TYPE
+                )
+            );
+        }
+        Map<String, Object> modelSettingsMap = XContentMapValues.nodeMapValue(modelSettingsObj, "model_settings");
+        final SemanticTextModelSettings modelSettings;
+        try {
+            modelSettings = SemanticTextModelSettings.parse(
+                XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, modelSettingsMap)
+            );
+        } catch (Exception exc) {
+            throw new DocumentParsingException(
+                xContentLocation,
+                Strings.format(
+                    "Error parsing [%s] for field [%s] of type [%s]",
+                    SemanticTextModelSettings.NAME,
+                    fieldName,
+                    SemanticTextFieldMapper.CONTENT_TYPE
+                ),
+                exc
+            );
+        }
+        var nestedObjectMapper = updateSemanticTextFieldMapper(
             context,
             mapperBuilderContext,
+            res.parent,
             (SemanticTextFieldMapper) res.mapper,
             modelSettings,
             xContentLocation
         );
+
+        // we know the model settings, so we can (re) parse the results array now
         XContentParser subParser = new MapXContentParser(
             NamedXContentRegistry.EMPTY,
             DeprecationHandler.IGNORE_DEPRECATIONS,
@@ -266,7 +287,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
             XContentType.JSON
         );
         DocumentParserContext mapContext = context.switchParser(subParser);
-        parseFieldInferenceObject(xContentLocation, subParser, mapContext, fieldMapper.getNestedField());
+        parseFieldInferenceObject(xContentLocation, subParser, mapContext, nestedObjectMapper);
     }
 
     private void parseFieldInferenceObject(
@@ -312,9 +333,16 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
             visited.add(parser.currentName());
             FieldMapper fieldMapper = (FieldMapper) nestedMapper.getMapper(parser.currentName());
             if (fieldMapper == null) {
-                logger.debug("Skipping indexing of unrecognized field name [" + parser.currentName() + "]");
-                advancePastCurrentFieldName(xContentLocation, parser);
-                continue;
+                if (REQUIRED_SUBFIELDS.contains(parser.currentName())) {
+                    throw new DocumentParsingException(
+                        xContentLocation,
+                        "Missing sub-fields definition for [" + parser.currentName() + "]"
+                    );
+                } else {
+                    logger.debug("Skipping indexing of unrecognized field name [" + parser.currentName() + "]");
+                    advancePastCurrentFieldName(xContentLocation, parser);
+                    continue;
+                }
             }
             parser.nextToken();
             fieldMapper.parse(context);
@@ -381,5 +409,19 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         fieldMap.putAll(new SemanticTextModelSettings(model).asMap());
         fieldMap.put(InferenceMetadataFieldMapper.RESULTS, chunks);
         inferenceMap.put(field, fieldMap);
+    }
+
+    record MapperAndParent(ObjectMapper parent, Mapper mapper) {}
+
+    static MapperAndParent findMapper(ObjectMapper mapper, String fullPath) {
+        String[] pathElements = fullPath.split("\\.");
+        for (int i = 0; i < pathElements.length - 1; i++) {
+            Mapper next = mapper.getMapper(pathElements[i]);
+            if (next == null || next instanceof ObjectMapper == false) {
+                return null;
+            }
+            mapper = (ObjectMapper) next;
+        }
+        return new MapperAndParent(mapper, mapper.getMapper(pathElements[pathElements.length - 1]));
     }
 }

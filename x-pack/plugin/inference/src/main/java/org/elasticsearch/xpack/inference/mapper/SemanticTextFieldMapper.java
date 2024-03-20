@@ -32,18 +32,14 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_RESULTS;
 import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_TEXT;
@@ -51,7 +47,7 @@ import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMap
 
 /**
  * A {@link FieldMapper} for semantic text fields.
- * These fields have a model id reference, that is used for performing inference at ingestion and query time.
+ * These fields have a reference id reference, that is used for performing inference at ingestion and query time.
  * This field mapper performs no indexing, as inference results will be included as a different field in the document source, and will
  * be indexed using {@link InferenceMetadataFieldMapper}.
  */
@@ -127,7 +123,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return modelSettings;
     }
 
-    public NestedObjectMapper getNestedField() {
+    public NestedObjectMapper getSubMappers() {
         return subMappers;
     }
 
@@ -135,40 +131,27 @@ public class SemanticTextFieldMapper extends FieldMapper {
         private final IndexVersion indexVersionCreated;
         private final IndexAnalyzers indexAnalyzers;
 
-        private final Parameter<String> modelId = Parameter.stringParam("model_id", false, m -> toType(m).fieldType().modelId, null)
-            .addValidator(v -> {
-                if (Strings.isEmpty(v)) {
-                    throw new IllegalArgumentException("field [model_id] must be specified");
-                }
-            });
+        private final Parameter<String> inferenceId = Parameter.stringParam(
+            "inference_id",
+            false,
+            m -> toType(m).fieldType().inferenceId,
+            null
+        ).addValidator(v -> {
+            if (Strings.isEmpty(v)) {
+                throw new IllegalArgumentException("field [inference_id] must be specified");
+            }
+        });
 
         @SuppressWarnings("unchecked")
         private final Parameter<SemanticTextModelSettings> modelSettings = new Parameter<>(
             "model_settings",
             true,
             () -> null,
-            (name, context, node) -> {
-                if (node == null) {
-                    return null;
-                }
-                try {
-                    Map<String, Object> map = (Map<String, Object>) node;
-                    XContentParser parser = new MapXContentParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.IGNORE_DEPRECATIONS,
-                        map,
-                        XContentType.JSON
-                    );
-                    return SemanticTextModelSettings.parse(parser);
-                } catch (Exception exc) {
-                    throw new IllegalArgumentException(exc);
-                }
-            },
-            m -> ((SemanticTextFieldMapper) m).modelSettings,
+            (n, c, o) -> SemanticTextModelSettings.fromMap(o),
+            mapper -> ((SemanticTextFieldMapper) mapper).modelSettings,
             XContentBuilder::field,
-            Strings::toString
-        ).acceptsNull().setMergeValidator(SemanticTextModelSettings::checkCompatibility);
-
+            (m) -> m == null ? "null" : Strings.toString(m)
+        ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, IndexVersion indexVersionCreated, IndexAnalyzers indexAnalyzers) {
@@ -177,8 +160,8 @@ public class SemanticTextFieldMapper extends FieldMapper {
             this.indexAnalyzers = indexAnalyzers;
         }
 
-        public Builder setModelId(String id) {
-            this.modelId.setValue(id);
+        public Builder setInferenceId(String id) {
+            this.inferenceId.setValue(id);
             return this;
         }
 
@@ -189,7 +172,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { modelId, meta, modelSettings };
+            return new Parameter<?>[] { inferenceId, modelSettings, meta };
         }
 
         @Override
@@ -207,24 +190,35 @@ public class SemanticTextFieldMapper extends FieldMapper {
             }
             nestedBuilder.add(textMapperBuilder);
             var childContext = context.createChildContext(name(), ObjectMapper.Dynamic.FALSE);
+            var subMappers = nestedBuilder.build(childContext);
             return new SemanticTextFieldMapper(
                 name(),
-                new SemanticTextFieldType(fullName, modelId.getValue(), meta.getValue()),
+                new SemanticTextFieldType(fullName, inferenceId.getValue(), modelSettings.getValue(), subMappers, meta.getValue()),
                 copyTo,
                 indexVersionCreated,
                 indexAnalyzers,
                 modelSettings.getValue(),
-                nestedBuilder.build(childContext)
+                subMappers
             );
         }
     }
 
     public static class SemanticTextFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {
-        private final String modelId;
+        private final String inferenceId;
+        private final SemanticTextModelSettings modelSettings;
+        private final NestedObjectMapper subMappers;
 
-        public SemanticTextFieldType(String name, String modelId, Map<String, String> meta) {
+        public SemanticTextFieldType(
+            String name,
+            String modelId,
+            SemanticTextModelSettings modelSettings,
+            NestedObjectMapper subMappers,
+            Map<String, String> meta
+        ) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
-            this.modelId = modelId;
+            this.inferenceId = modelId;
+            this.modelSettings = modelSettings;
+            this.subMappers = subMappers;
         }
 
         @Override
@@ -234,7 +228,15 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         @Override
         public String getInferenceId() {
-            return modelId;
+            return inferenceId;
+        }
+
+        public SemanticTextModelSettings getModelSettings() {
+            return modelSettings;
+        }
+
+        public NestedObjectMapper getSubMappers() {
+            return subMappers;
         }
 
         @Override
@@ -301,5 +303,24 @@ public class SemanticTextFieldMapper extends FieldMapper {
             }
         }
         super.checkIncomingMergeType(mergeWith);
+    }
+
+    static boolean canMergeModelSettings(
+        SemanticTextModelSettings previous,
+        SemanticTextModelSettings current,
+        FieldMapper.Conflicts conflicts
+    ) {
+        if (Objects.equals(previous, current)) {
+            return true;
+        }
+        if (previous == null) {
+            return true;
+        }
+        if (current == null) {
+            conflicts.addConflict("model_settings", "");
+            return false;
+        }
+        conflicts.addConflict("model_settings", "");
+        return false;
     }
 }

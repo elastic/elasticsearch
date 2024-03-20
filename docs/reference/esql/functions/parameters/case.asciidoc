@@ -3,5 +3,5 @@
 `condition`::
 
 
-`rest`::
+`trueValue`::
 

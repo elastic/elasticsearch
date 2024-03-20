@@ -386,7 +386,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         Directory directory,
         long commitStartNanos,
         VirtualBatchedCompoundCommit pendingCommit,
-        ActionListener<StatelessCompoundCommit> listener
+        ActionListener<BatchedCompoundCommit> listener
     ) {
         enqueueTask(
             listener,
@@ -651,13 +651,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     private class BatchedCommitFileUploadTask extends ObjectStoreTask {
         private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
         private final BlobContainer blobContainer;
-        private final ActionListener<StatelessCompoundCommit> listener;
+        private final ActionListener<BatchedCompoundCommit> listener;
 
         BatchedCommitFileUploadTask(
             long timeInNanos,
             VirtualBatchedCompoundCommit virtualBatchedCompoundCommit,
             BlobContainer blobContainer,
-            ActionListener<StatelessCompoundCommit> listener
+            ActionListener<BatchedCompoundCommit> listener
         ) {
             super(virtualBatchedCompoundCommit.getShardId(), virtualBatchedCompoundCommit.getGeneration(), timeInNanos);
             this.virtualBatchedCompoundCommit = Objects.requireNonNull(virtualBatchedCompoundCommit);
@@ -672,13 +672,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRun() {
-            StatelessCompoundCommit compoundCommit = null;
+            AtomicReference<BatchedCompoundCommit> batchedCompoundCommitRef = new AtomicReference<>();
             try {
                 var before = threadPool.relativeTimeInMillis();
                 // TODO: Ensure that out usage of this method for writing files is appropriate. The javadoc is a bit concerning. "This
                 // method is only used for streaming serialization of repository metadata that is known to be of limited size at any point
                 // in time and across all concurrent invocations of this method."
-                AtomicReference<BatchedCompoundCommit> batchedCompoundCommitRef = new AtomicReference<>();
                 blobContainer.writeMetadataBlob(OperationPurpose.INDICES, virtualBatchedCompoundCommit.getBlobName(), false, true, out -> {
                     var batchedCommit = virtualBatchedCompoundCommit.writeToStore(out);
                     batchedCompoundCommitRef.set(batchedCommit);
@@ -696,13 +695,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 );
                 assert batchedCompoundCommitRef.get() != null;
                 assert batchedCompoundCommitRef.get().getLast() != null;
-                compoundCommit = batchedCompoundCommitRef.get().getLast();
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
             } finally {
-                if (compoundCommit != null) {
-                    listener.onResponse(compoundCommit);
+                if (batchedCompoundCommitRef.get() != null) {
+                    listener.onResponse(batchedCompoundCommitRef.get());
                 }
             }
         }

@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -35,6 +34,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -213,9 +213,7 @@ public class AutoBucket extends EsqlScalarFunction implements Validatable {
 
     private long foldToLong(Expression e) {
         Object value = Foldables.valueOf(e);
-        return DataTypes.isDateTime(e.dataType())
-            ? ((Number) value).longValue()
-            : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(BytesRefs.toString(value));
+        return DataTypes.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
     @Override

@@ -136,7 +136,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1461")
     public void testShouldRetryMoreThanMaxRetriesForIndicesData() throws IOException {
         s3HttpHandler.setInterceptor(new Interceptor() {
             private final int errorsPerRequest = randomIntBetween(3, 5); // More than the default attempts of 2 (1 original + 1 retry)
@@ -194,7 +193,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                     "failed opening .*/(stateless_commit_[0-9]+).* at offset .* with purpose \\[Indices]; this was attempt .*"
                 );
                 private final Pattern eventualSuccessPattern = Pattern.compile(
-                    "successfully opened input stream for .*/(stateless_commit_[0-9]+).* with purpose \\[Indices] after .* retries"
+                    "successfully open(?:ed)? input stream for .*/(stateless_commit_[0-9]+).* with purpose \\[Indices] after .* retries"
                 );
                 private final Map<CallSite, Status> bookkeeping = ConcurrentCollections.newConcurrentMap();
 

@@ -84,6 +84,26 @@ generates a consistent id:
   - match: {items.0.index._id: cZZNs7B9sSWsyrL5AAABeRnS7fM}
 
   - do:
+      get:
+        index: id_generation_test
+        id: cn4excfoxSs_KdA5AAABeRnRFAY
+  - match: {_index: id_generation_test}
+  - match: {_id: cn4excfoxSs_KdA5AAABeRnRFAY}
+  - match:
+      _source:
+        "@timestamp": "2021-04-28T18:50:03.142Z"
+        metricset: pod
+        k8s:
+          pod:
+            name: dog
+            uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+            ip: 10.10.55.3
+            network:
+              tx: 1434521831
+              rx: 530575198
+
+
+  - do:
       search:
         index: id_generation_test
         body:

@@ -49,7 +49,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .version(OLD_CLUSTER_VERSION)
-            .distribution(DistributionType.INTEG_TEST)
+            .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")

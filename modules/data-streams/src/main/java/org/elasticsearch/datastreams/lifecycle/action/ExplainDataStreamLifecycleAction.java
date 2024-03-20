@@ -8,6 +8,7 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -16,6 +17,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -136,23 +139,33 @@ public class ExplainDataStreamLifecycleAction {
     }
 
     /**
-     * Class representing the response for the explain of the data stream lifecycle action for one or more indices.
+     * Class representing the response for the 'explain' of the data stream lifecycle action for one or more indices.
      */
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
         public static final ParseField INDICES_FIELD = new ParseField("indices");
-        private List<ExplainIndexDataStreamLifecycle> indices;
+        private final List<ExplainIndexDataStreamLifecycle> indices;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
+        @Nullable
+        private final DataStreamGlobalRetention globalRetention;
 
-        public Response(List<ExplainIndexDataStreamLifecycle> indices, @Nullable RolloverConfiguration rolloverConfiguration) {
+        public Response(
+            List<ExplainIndexDataStreamLifecycle> indices,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention globalRetention
+        ) {
             this.indices = indices;
             this.rolloverConfiguration = rolloverConfiguration;
+            this.globalRetention = globalRetention;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             this.indices = in.readCollectionAsList(ExplainIndexDataStreamLifecycle::new);
             this.rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
+            this.globalRetention = in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+                ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
+                : null;
         }
 
         public List<ExplainIndexDataStreamLifecycle> getIndices() {
@@ -163,10 +176,17 @@ public class ExplainDataStreamLifecycleAction {
             return rolloverConfiguration;
         }
 
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(indices);
             out.writeOptionalWriteable(rolloverConfiguration);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+                out.writeOptionalWriteable(globalRetention);
+            }
         }
 
         @Override
@@ -178,12 +198,14 @@ public class ExplainDataStreamLifecycleAction {
                 return false;
             }
             Response response = (Response) o;
-            return Objects.equals(indices, response.indices) && Objects.equals(rolloverConfiguration, response.rolloverConfiguration);
+            return Objects.equals(indices, response.indices)
+                && Objects.equals(rolloverConfiguration, response.rolloverConfiguration)
+                && Objects.equals(globalRetention, response.globalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indices, rolloverConfiguration);
+            return Objects.hash(indices, rolloverConfiguration, globalRetention);
         }
 
         @Override
@@ -194,7 +216,11 @@ public class ExplainDataStreamLifecycleAction {
                 return builder;
             }), Iterators.map(indices.iterator(), explainIndexDataLifecycle -> (builder, params) -> {
                 builder.field(explainIndexDataLifecycle.getIndex());
-                explainIndexDataLifecycle.toXContent(builder, params, rolloverConfiguration);
+                ToXContent.Params withEffectiveRetentionParams = new ToXContent.DelegatingMapParams(
+                    DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS,
+                    params
+                );
+                explainIndexDataLifecycle.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
                 return builder;
             }), Iterators.single((builder, params) -> {
                 builder.endObject();

@@ -51,11 +51,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * A mapper for the {@code _semantic_text_inference} field.
+ * A mapper for the {@code _inference} field.
  * <br>
  * <br>
  * This mapper works in tandem with {@link SemanticTextFieldMapper semantic_text} fields to index inference results.
- * The inference results for {@code semantic_text} fields are written to {@code _source} by an upstream process like so:
+ * <br>
+ * <br>
+ * For an inference service that produces sparse embeddings (such as ELSER), the inference results for {@code semantic_text} fields are
+ * written to {@code _source} by an upstream process like so:
  * <br>
  * <br>
  * <pre>
@@ -63,25 +66,31 @@ import java.util.stream.Collectors;
  *     "_source": {
  *         "my_semantic_text_field": "these are not the droids you're looking for",
  *         "_inference": {
- *             "my_semantic_text_field": [
- *                 {
- *                     "sparse_embedding": {
- *                          "lucas": 0.05212344,
- *                          "ty": 0.041213956,
- *                          "dragon": 0.50991,
- *                          "type": 0.23241979,
- *                          "dr": 1.9312073,
- *                          "##o": 0.2797593
- *                     },
- *                     "text": "these are not the droids you're looking for"
- *                 }
- *             ]
+ *             "my_semantic_text_field": {
+ *                 "model_settings": {
+ *                     "task_type": "sparse_embedding",
+ *                     "inference_id": "my-elser-service"
+ *                 },
+ *                 "results": [
+ *                      {
+ *                          "inference": {
+ *                              "lucas": 0.05212344,
+ *                              "ty": 0.041213956,
+ *                              "dragon": 0.50991,
+ *                              "type": 0.23241979,
+ *                              "dr": 1.9312073,
+ *                              "##o": 0.2797593
+ *                          },
+ *                          "text": "these are not the droids you're looking for"
+ *                      }
+ *                 ]
+ *             }
  *         }
  *     }
  * }
  * </pre>
  *
- * This mapper parses the contents of the {@code _semantic_text_inference} field and indexes it as if the mapping were configured like so:
+ * This mapper parses the contents of the {@code _inference} field and indexes it as if the mapping were configured like so:
  * <br>
  * <br>
  * <pre>
@@ -91,8 +100,63 @@ import java.util.stream.Collectors;
  *             "my_semantic_text_field": {
  *                 "type": "nested",
  *                 "properties": {
- *                     "sparse_embedding": {
+ *                     "inference": {
  *                         "type": "sparse_vector"
+ *                     },
+ *                     "text": {
+ *                         "type": "text",
+ *                         "index": false
+ *                     }
+ *                 }
+ *             }
+ *         }
+ *     }
+ * }
+ * </pre>
+ * <br>
+ * <br>
+ * For an inference service that produces dense embeddings, the inference results for {@code semantic_text} fields are written to
+ * {@code _source} by an upstream process like so:
+ * <br>
+ * <br>
+ * <pre>
+ * {
+ *     "_source": {
+ *         "my_semantic_text_field": "these are not the droids you're looking for",
+ *         "_inference": {
+ *             "my_semantic_text_field": {
+ *                 "model_settings": {
+ *                     "task_type": "text_embedding",
+ *                     "inference_id": "my-dense-embedding-service",
+ *                     "dimensions": 10,
+ *                     "similarity": "cosine"
+ *                 },
+ *                 "results": [
+ *                      {
+ *                          "inference": [ 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ],
+ *                          "text": "these are not the droids you're looking for"
+ *                      }
+ *                 ]
+ *             }
+ *         }
+ *     }
+ * }
+ * </pre>
+ *
+ * This mapper parses the contents of the {@code _inference} field and indexes it as if the mapping were configured like so:
+ * <br>
+ * <br>
+ * <pre>
+ * {
+ *     "mappings": {
+ *         "properties": {
+ *             "my_semantic_text_field": {
+ *                 "type": "nested",
+ *                 "properties": {
+ *                     "inference": {
+ *                         "type": "dense_vector",
+ *                         "dims": 10,
+ *                         "similarity": "cosine"
  *                     },
  *                     "text": {
  *                         "type": "text",

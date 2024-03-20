@@ -510,8 +510,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
      * Every time a new term is found, either from another node requesting election, or this node trying to run for election, always update
      * the max term number. The max term may not reflect an actual election, but rather an election attempt by some node in the
      * cluster.
-     *
-     * @param term
      */
     private void updateMaxTermSeen(final long term) {
         synchronized (mutex) {

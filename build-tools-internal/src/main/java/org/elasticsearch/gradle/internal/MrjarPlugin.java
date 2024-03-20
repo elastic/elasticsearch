@@ -17,7 +17,6 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.testing.Test;
@@ -84,9 +83,7 @@ public class MrjarPlugin implements Plugin<Project> {
 
     private void configureMrjar(Project project) {
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
-        jarTask.configure(task -> {
-            task.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); });
-        });
+        jarTask.configure(task -> { task.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); }); });
 
         project.getTasks().withType(Test.class).named(JavaPlugin.TEST_TASK_NAME).configure(testTask -> {
             testTask.dependsOn(jarTask);
@@ -136,9 +133,7 @@ public class MrjarPlugin implements Plugin<Project> {
 
     private void configureSourceSetInJar(Project project, SourceSet sourceSet, int javaVersion) {
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
-        jarTask.configure(task -> {
-            task.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput()));
-        });
+        jarTask.configure(task -> { task.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput())); });
     }
 
     private void createTestTask(Project project, SourceSet sourceSet, int javaVersion, List<String> mainSourceSets) {
@@ -159,9 +154,7 @@ public class MrjarPlugin implements Plugin<Project> {
                 .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion))));
         });
 
-        project.getTasks().named("check").configure(checkTask -> {
-            checkTask.dependsOn(testTaskProvider);
-        });
+        project.getTasks().named("check").configure(checkTask -> { checkTask.dependsOn(testTaskProvider); });
     }
 
     private static List<Integer> findSourceVersions(Project project) {

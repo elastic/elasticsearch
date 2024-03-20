@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -17,7 +18,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -34,8 +37,28 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
     private final List<Item> foundApiKeyInfoList;
 
     public GetApiKeyResponse(Collection<ApiKey> foundApiKeyInfos) {
-        Objects.requireNonNull(foundApiKeyInfos, "found_api_keys_info must be provided");
-        this.foundApiKeyInfoList = foundApiKeyInfos.stream().map(Item::new).toList();
+        this(foundApiKeyInfos, null);
+    }
+
+    public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfos, @Nullable Collection<String> ownerProfileUids) {
+        Objects.requireNonNull(foundApiKeysInfos, "found_api_keys_info must be provided");
+        if (ownerProfileUids == null) {
+            this.foundApiKeyInfoList = foundApiKeysInfos.stream().map(Item::new).toList();
+        } else {
+            if (foundApiKeysInfos.size() != ownerProfileUids.size()) {
+                throw new IllegalArgumentException("Each api key info must be associated to a (nullable) owner profile uid");
+            }
+            int size = foundApiKeysInfos.size();
+            this.foundApiKeyInfoList = new ArrayList<>(size);
+            Iterator<ApiKey> apiKeyIterator = foundApiKeysInfos.iterator();
+            Iterator<String> profileUidIterator = ownerProfileUids.iterator();
+            while (apiKeyIterator.hasNext()) {
+                if (false == profileUidIterator.hasNext()) {
+                    throw new IllegalArgumentException("Each api key info must be associated to a (nullable) owner profile uid");
+                }
+                this.foundApiKeyInfoList.add(new Item(apiKeyIterator.next(), profileUidIterator.next()));
+            }
+        }
     }
 
     public List<Item> getApiKeyInfoList() {
@@ -73,18 +96,26 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
         return "GetApiKeyResponse{foundApiKeysInfo=" + foundApiKeyInfoList + "}";
     }
 
-    public record Item(ApiKey apiKeyInfo) implements ToXContentObject {
+    public record Item(ApiKey apiKeyInfo, @Nullable String ownerProfileUid) implements ToXContentObject {
+
+        Item(ApiKey apiKeyInfo) {
+            this(apiKeyInfo, null);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             apiKeyInfo.innerToXContent(builder, params);
+            if (ownerProfileUid != null) {
+                builder.field("profile_uid", ownerProfileUid);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public String toString() {
-            return "Item{apiKeyInfo=" + apiKeyInfo + "}";
+            return "Item{apiKeyInfo=" + apiKeyInfo + ", ownerProfileUid=" + ownerProfileUid + "}";
         }
     }
 

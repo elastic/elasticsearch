@@ -31,6 +31,7 @@ public final class GetApiKeyRequest extends ActionRequest {
     private final boolean ownedByAuthenticatedUser;
     private final boolean withLimitedBy;
     private final boolean activeOnly;
+    private final boolean withProfileUid;
 
     private GetApiKeyRequest(
         @Nullable String realmName,
@@ -39,7 +40,8 @@ public final class GetApiKeyRequest extends ActionRequest {
         @Nullable String apiKeyName,
         boolean ownedByAuthenticatedUser,
         boolean withLimitedBy,
-        boolean activeOnly
+        boolean activeOnly,
+        boolean withProfileUid
     ) {
         this.realmName = textOrNull(realmName);
         this.userName = textOrNull(userName);
@@ -48,6 +50,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
         this.withLimitedBy = withLimitedBy;
         this.activeOnly = activeOnly;
+        this.withProfileUid = withProfileUid;
     }
 
     private static String textOrNull(@Nullable String arg) {
@@ -80,6 +83,10 @@ public final class GetApiKeyRequest extends ActionRequest {
 
     public boolean activeOnly() {
         return activeOnly;
+    }
+
+    public boolean withProfileUid() {
+        return withProfileUid;
     }
 
     @Override
@@ -127,12 +134,13 @@ public final class GetApiKeyRequest extends ActionRequest {
             && Objects.equals(apiKeyId, that.apiKeyId)
             && Objects.equals(apiKeyName, that.apiKeyName)
             && withLimitedBy == that.withLimitedBy
-            && activeOnly == that.activeOnly;
+            && activeOnly == that.activeOnly
+            && withProfileUid == that.withProfileUid;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy, activeOnly);
+        return Objects.hash(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy, activeOnly, withProfileUid);
     }
 
     public static Builder builder() {
@@ -147,6 +155,7 @@ public final class GetApiKeyRequest extends ActionRequest {
         private boolean ownedByAuthenticatedUser = false;
         private boolean withLimitedBy = false;
         private boolean activeOnly = false;
+        private boolean withProfileUid = false;
 
         public Builder realmName(String realmName) {
             this.realmName = realmName;
@@ -191,8 +200,22 @@ public final class GetApiKeyRequest extends ActionRequest {
             return this;
         }
 
+        public Builder withProfileUid(boolean withProfileUid) {
+            this.withProfileUid = withProfileUid;
+            return this;
+        }
+
         public GetApiKeyRequest build() {
-            return new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, withLimitedBy, activeOnly);
+            return new GetApiKeyRequest(
+                realmName,
+                userName,
+                apiKeyId,
+                apiKeyName,
+                ownedByAuthenticatedUser,
+                withLimitedBy,
+                activeOnly,
+                withProfileUid
+            );
         }
     }
 }

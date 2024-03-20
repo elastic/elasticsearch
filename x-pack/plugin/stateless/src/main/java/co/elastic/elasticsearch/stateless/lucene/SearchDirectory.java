@@ -322,34 +322,13 @@ public class SearchDirectory extends ByteSizeDirectory {
         }
         return new SearchIndexInput(
             name,
-            cacheService.getCacheFile(
-                new FileCacheKey(shardId, location.primaryTerm(), location.blobName()),
-                // this length is only used to assert that the cache file does not try to read data beyond the file boundary within the blob
-                // since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to to fully utilize each region
-                location.offset() + location.fileLength()
-            ),
+            cacheService.getCacheFile(new FileCacheKey(shardId, location.primaryTerm(), location.blobName()), location.blobLength()),
             context,
             blobContainer.get().apply(location.primaryTerm()),
-            (position, length) -> getCacheRange(location, position, length),
+            cacheService,
             location.fileLength(),
             location.offset()
         );
-    }
-
-    /**
-     * Computes the range of bytes to fetch and to write in cache.
-     *
-     * @param blobLocation the location of the file in the blob
-     * @param position the absolute position in the blob
-     * @param length the length of bytes to be read from the position
-     *
-     * @return the range of bytes to fetch and to write in cache.
-     */
-    protected ByteRange getCacheRange(BlobLocation blobLocation, long position, int length) {
-        // TODO request a smaller range if the blob is not yet uploaded
-
-        // Blob is uploaded, we can request complete regions to serve the read operation
-        return BlobCacheUtils.computeRange(cacheService.getRangeSize(), position, length);
     }
 
     @Override

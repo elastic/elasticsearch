@@ -220,9 +220,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         // sending a cluster state with active master should not yet bring up the service, file settings still are not applied
         assertFalse(readinessService.ready());
 
-        ClusterState completeState = ClusterState.builder(noFileSettingsState)
-            .metadata(emptyReservedStateMetadata)
-            .build();
+        ClusterState completeState = ClusterState.builder(noFileSettingsState).metadata(emptyReservedStateMetadata).build();
         event = new ClusterChangedEvent("test", completeState, noFileSettingsState);
         readinessService.clusterChanged(event);
 

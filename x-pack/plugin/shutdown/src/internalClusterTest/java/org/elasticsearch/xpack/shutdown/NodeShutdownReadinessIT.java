@@ -44,15 +44,15 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
         Path settingsFile = masterConfigDir.resolve("operator").resolve("settings.json");
         Files.createDirectories(settingsFile.getParent());
         Files.writeString(settingsFile, """
-        {
-             "metadata": {
-                 "version": "1",
-                 "compatibility": "8.4.0"
-             },
-             "state": {
-                 "cluster_settings": {}
-             }
-        }""");
+            {
+                 "metadata": {
+                     "version": "1",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {}
+                 }
+            }""");
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.testing.Test;
@@ -67,26 +68,23 @@ public class MrjarPlugin implements Plugin<Project> {
         testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME);
         for (int javaVersion : mainVersions) {
             String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
-            addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
+            SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
+            configureSourceSetInJar(project, mainSourceSet, javaVersion);
             mainSourceSets.add(mainSourceSetName);
             testSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME + javaVersion);
 
             String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
             SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
             testSourceSets.add(testSourceSetName);
-            createTestTask(project, testSourceSet, javaVersion);
+            createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
         }
 
-        configureMrjar(project, javaExtension, mainVersions, "main");
+        configureMrjar(project);
     }
 
-    private void configureMrjar(Project project, JavaPluginExtension javaExtension, List<Integer> versions, String baseSourceSetName) {
+    private void configureMrjar(Project project) {
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
         jarTask.configure(task -> {
-            for (var version : versions) {
-                SourceSet sourceSet = javaExtension.getSourceSets().getByName(baseSourceSetName + version);
-                task.into("META-INF/versions/" + version, copySpec -> copySpec.from(sourceSet.getOutput()));
-            }
             task.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); });
         });
 
@@ -136,18 +134,33 @@ public class MrjarPlugin implements Plugin<Project> {
         return sourceSet;
     }
 
-    private void createTestTask(Project project, SourceSet sourceSet, int javaVersion) {
+    private void configureSourceSetInJar(Project project, SourceSet sourceSet, int javaVersion) {
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
-        project.getTasks().register(JavaPlugin.TEST_TASK_NAME + javaVersion, Test.class).configure(testTask -> {
+        jarTask.configure(task -> {
+            task.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput()));
+        });
+    }
+
+    private void createTestTask(Project project, SourceSet sourceSet, int javaVersion, List<String> mainSourceSets) {
+        var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
+        var testTaskProvider = project.getTasks().register(JavaPlugin.TEST_TASK_NAME + javaVersion, Test.class);
+        testTaskProvider.configure(testTask -> {
             testTask.dependsOn(jarTask);
 
             SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(project);
-            FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME + javaVersion).getOutput();
             FileCollection testRuntime = sourceSet.getRuntimeClasspath();
-            testTask.setClasspath(testRuntime.minus(mainRuntime).plus(project.files(jarTask)));
+            for (String mainSourceSetName : mainSourceSets) {
+                FileCollection mainRuntime = sourceSets.getByName(mainSourceSetName).getOutput();
+                testRuntime = testRuntime.minus(mainRuntime);
+            }
+            testTask.setClasspath(testRuntime.plus(project.files(jarTask)));
 
             testTask.getJavaLauncher()
-                .set(javaToolchains.launcherFor(spec -> { spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion)); }));
+                .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion))));
+        });
+
+        project.getTasks().named("check").configure(checkTask -> {
+            checkTask.dependsOn(testTaskProvider);
         });
     }
 

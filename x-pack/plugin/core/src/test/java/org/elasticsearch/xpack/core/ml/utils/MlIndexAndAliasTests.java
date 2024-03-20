@@ -116,7 +116,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.admin()).thenReturn(adminClient);
         doAnswer(invocationOnMock -> {
-            ActionListener<IndicesAliasesResponse> actionListener = (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[2];
+            ActionListener<IndicesAliasesResponse> actionListener = (ActionListener<IndicesAliasesResponse>) invocationOnMock
+                .getArguments()[2];
             actionListener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
             return null;
         }).when(client)

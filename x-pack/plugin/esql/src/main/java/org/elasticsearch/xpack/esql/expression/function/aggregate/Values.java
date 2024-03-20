@@ -14,10 +14,13 @@ import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSuppl
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -26,13 +29,18 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+
 public class Values extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         returnType = { "boolean|date|double|integer|ip|keyword|long|text|version" },
         description = "Collect values for a field.",
         isAggregation = true
     )
-    public Values(Source source, @Param(name = "v", type = { "boolean|date|double|integer|ip|keyword|long|text|version" }) Expression v) {
+    public Values(
+        Source source,
+        @Param(name = "field", type = { "boolean|date|double|integer|ip|keyword|long|text|version" }) Expression v
+    ) {
         super(source, v);
     }
 
@@ -49,6 +57,11 @@ public class Values extends AggregateFunction implements ToAggregator {
     @Override
     public DataType dataType() {
         return field().dataType();
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        return EsqlTypeResolutions.isNotSpatial(field(), sourceText(), DEFAULT);
     }
 
     @Override

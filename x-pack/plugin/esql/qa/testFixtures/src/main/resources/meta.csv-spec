@@ -99,7 +99,7 @@ to_upper                 |"keyword|text to_upper(str:keyword|text)"             
 to_ver                   |"version to_ver(field:keyword|text|version)"                                                         |field   |"keyword|text|version"                                                                                     |                                                    |version                          | "Converts an input string to a version value."                                                                                     |false                       |false           | false
 to_version               |"version to_version(field:keyword|text|version)"                                                     |field  |"keyword|text|version"                                                                                     |                                                    |version                          | "Converts an input string to a version value."                                                                                       |false                       |false           | false
 trim                     |"keyword|text trim(string:keyword|text)"                   |string                      |"keyword|text"    | ""                                                 |"keyword|text"       | "Removes leading and trailing whitespaces from a string." | false | false | false
-values                   |"boolean|date|double|integer|ip|keyword|long|text|version values(v:boolean|date|double|integer|ip|keyword|long|text|version)" |v |"boolean|date|double|integer|ip|keyword|long|text|version"  | |"boolean|date|double|integer|ip|keyword|long|text|version"                                              |"Collect values for a field."                                                                                                         |false                       |false           |true
+values                   |"boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)" |field |"boolean|date|double|integer|ip|keyword|long|text|version"  | |"boolean|date|double|integer|ip|keyword|long|text|version"                                              |"Collect values for a field."                                                                                                         |false                       |false           |true
 ;
 
 
@@ -203,7 +203,7 @@ double tau()
 "version to_ver(field:keyword|text|version)"
 "version to_version(field:keyword|text|version)"
 "keyword|text trim(string:keyword|text)"
-"boolean|date|double|integer|ip|keyword|long|text|version values(v:boolean|date|double|integer|ip|keyword|long|text|version)"
+"boolean|date|double|integer|ip|keyword|long|text|version values(field:boolean|date|double|integer|ip|keyword|long|text|version)"
 ;
 
 

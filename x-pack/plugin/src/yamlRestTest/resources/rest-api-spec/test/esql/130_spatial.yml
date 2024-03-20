@@ -132,6 +132,14 @@ geo_point unsortable with limit from row:
           query: 'ROW wkt = ["POINT(42.9711 -14.7553)", "POINT(75.8093 22.7277)"] | MV_EXPAND wkt | EVAL pt = TO_GEOPOINT(wkt) | limit 5 | sort pt'
 
 ---
+values unsupported for geo_point:
+  - do:
+      catch: /.+argument of \[VALUES\(location\)\] must be [boolean, date, double, integer, ip, keyword, long, null, text, unsigned_long or version.+/
+      esql.query:
+        body:
+          query: 'FROM geo_points | STATS VALUES(location)'
+
+---
 cartesian_point:
   - do:
       allowed_warnings_regex:

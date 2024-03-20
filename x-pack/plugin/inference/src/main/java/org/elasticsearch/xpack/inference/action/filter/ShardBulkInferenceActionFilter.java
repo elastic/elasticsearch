@@ -22,6 +22,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
@@ -52,7 +53,7 @@ import java.util.stream.Collectors;
  * the individual {@link BulkItemRequest}. The results are then consumed by the {@link InferenceResultFieldMapper}
  * in the subsequent {@link TransportShardBulkAction} downstream.
  */
-public class ShardBulkInferenceActionFilter implements ActionFilter {
+public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private static final Logger logger = LogManager.getLogger(ShardBulkInferenceActionFilter.class);
 
     private final InferenceServiceRegistry inferenceServiceRegistry;
@@ -67,6 +68,11 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
     public int order() {
         // must execute last (after the security action filter)
         return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public String actionName() {
+        return TransportShardBulkAction.ACTION_NAME;
     }
 
     @Override

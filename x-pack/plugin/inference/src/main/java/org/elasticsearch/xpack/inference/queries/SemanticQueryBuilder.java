@@ -7,15 +7,8 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -24,13 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -40,7 +31,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
@@ -52,7 +42,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_RESULTS;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -202,22 +191,24 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             return new MatchNoDocsQuery();
-        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType == false) {
+        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+            List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
+            if (inferenceResultsList.isEmpty()) {
+                throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
+            } else if (inferenceResultsList.size() > 1) {
+                // TODO: How to handle multiple inference results?
+                throw new IllegalArgumentException(
+                    inferenceResultsList.size() + " inference results retrieved for field [" + fieldName + "]"
+                );
+            }
+
+            InferenceResults inferenceResults = inferenceResultsList.get(0);
+            return semanticTextFieldType.semanticQuery(inferenceResults, context);
+        } else {
             throw new IllegalArgumentException(
                 "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
             );
         }
-
-        List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
-        if (inferenceResultsList.isEmpty()) {
-            throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
-        } else if (inferenceResultsList.size() > 1) {
-            // TODO: How to handle multiple inference results?
-            throw new IllegalArgumentException(inferenceResultsList.size() + " inference results retrieved for field [" + fieldName + "]");
-        }
-
-        InferenceResults inferenceResults = inferenceResultsList.get(0);
-        return semanticQuery(inferenceResults, context);
     }
 
     private Map<String, Set<String>> computeInferenceIdsForFields(Collection<IndexMetadata> indexMetadataCollection) {
@@ -233,28 +224,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         return inferenceIdsForFields;
-    }
-
-    private Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) {
-        // Cant use QueryBuilders.boolQuery() because a mapper is not registered for <field>.inference, causing
-        // TermQueryBuilder#doToQuery to fail
-        String inferenceResultsFieldName = fieldName + "." + INFERENCE_CHUNKS_RESULTS;
-        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(1);
-
-        // TODO: Support dense vectors
-        if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
-            for (TextExpansionResults.WeightedToken weightedToken : textExpansionResults.getWeightedTokens()) {
-                queryBuilder.add(
-                    new BoostQuery(new TermQuery(new Term(inferenceResultsFieldName, weightedToken.token())), weightedToken.weight()),
-                    BooleanClause.Occur.SHOULD
-                );
-            }
-        } else {
-            throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
-        }
-
-        BitSetProducer parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
-        return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, fieldName);
     }
 
     @Override

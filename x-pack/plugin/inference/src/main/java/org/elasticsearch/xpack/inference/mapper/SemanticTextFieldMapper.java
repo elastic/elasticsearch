@@ -7,8 +7,16 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -21,9 +29,14 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_RESULTS;
 
 /**
  *  A {@link FieldMapper} for semantic text fields. These fields have a model id reference, that is used for performing inference
@@ -125,6 +138,28 @@ public class SemanticTextFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
+        }
+
+        public Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) {
+            // Cant use QueryBuilders.boolQuery() because a mapper is not registered for <field>.inference, causing
+            // TermQueryBuilder#doToQuery to fail
+            String inferenceResultsFieldName = name() + "." + INFERENCE_CHUNKS_RESULTS;
+            BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(1);
+
+            // TODO: Support dense vectors
+            if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
+                for (TextExpansionResults.WeightedToken weightedToken : textExpansionResults.getWeightedTokens()) {
+                    queryBuilder.add(
+                        new BoostQuery(new TermQuery(new Term(inferenceResultsFieldName, weightedToken.token())), weightedToken.weight()),
+                        BooleanClause.Occur.SHOULD
+                    );
+                }
+            } else {
+                throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
+            }
+
+            BitSetProducer parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+            return new ESToParentBlockJoinQuery(queryBuilder.build(), parentFilter, ScoreMode.Total, name());
         }
     }
 }

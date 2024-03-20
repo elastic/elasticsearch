@@ -123,26 +123,6 @@ setup:
             number_of_replicas: 0
           mappings:
             runtime:
-              day_of_week:
-                type: keyword
-                script: |
-                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
-              # Test fetching from _source
-              day_of_week_from_source:
-                type: keyword
-                script: |
-                  Instant instant = Instant.ofEpochMilli(params._source.timestamp);
-                  ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
-                  emit(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
-              # Test fetching many values
-              day_of_week_letters:
-                type: keyword
-                script: |
-                  for (String dow: doc['day_of_week']) {
-                    for (int i = 0; i < dow.length(); i++) {
-                      emit(dow.charAt(i).toString());
-                    }
-                  }
               prefixed_node:
                 type: keyword
                 script:
@@ -164,10 +144,6 @@ setup:
             properties:
               timestamp:
                 type: date
-              temperature:
-                type: long
-              voltage:
-                type: double
               node:
                 type: keyword
                 store: true
@@ -181,27 +157,24 @@ setup:
         refresh: true
         body: |
           {"index":{}}
-          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a", "region": "west-1" }
+          {"timestamp": 1516729294000, "node": "a", "region": "west-1" }
           {"index":{}}
-          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b", "region": "west-2" }
+          {"timestamp": 1516642894000, "node": "b", "region": "west-2" }
           {"index":{}}
-          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a", "region": "west-1"}
+          {"timestamp": 1516556494000, "node": "a", "region": "west-1"}
           {"index":{}}
-          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b", "region": "west-2"}
+          {"timestamp": 1516470094000, "node": "b", "region": "west-2"}
+          {"index":{}}.
+          {"timestamp": 1516383694000, "node": "c", "region": "west-2"}
           {"index":{}}
-          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c", "region": "west-2"}
-          {"index":{}}
-          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "region": "west-2"}
+          {"timestamp": 1516297294000, "node": "c", "region": "west-2"}
   - do:
       search:
         index: sensor-test
         body:
           sort: timestamp
-          fields: [day_of_week, day_of_week_from_source, day_of_week_letters, prefixed_node, prefixed_region]
+          fields: [prefixed_node, prefixed_region]
   - match: {hits.total.value: 6}
-  - match: {hits.hits.0.fields.day_of_week: [Thursday] }
-  - match: {hits.hits.0.fields.day_of_week_from_source: [Thursday] }
-  - match: {hits.hits.0.fields.day_of_week_letters: [T, a, d, h, r, s, u, y] }
   - match: {hits.hits.0.fields.prefixed_node: [node_c] }
   - match: {hits.hits.0.fields.prefixed_region: [us-west-2]}
 

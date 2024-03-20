@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,8 +33,14 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
 
     protected IndicesAliasesResponse(StreamInput in) throws IOException {
         super(in);
-        this.errors = in.readBoolean();
-        this.actionResults = in.readCollectionAsList(AliasActionResult::new);
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ALIAS_ACTION_RESULTS)) {
+            this.errors = in.readBoolean();
+            this.actionResults = in.readCollectionAsList(AliasActionResult::new);
+        } else {
+            this.errors = false;
+            this.actionResults = List.of();
+        }
     }
 
     private IndicesAliasesResponse(boolean acknowledged, boolean errors, final List<AliasActionResult> actionResults) {
@@ -50,8 +57,10 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(errors);
-        out.writeCollection(actionResults);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ALIAS_ACTION_RESULTS)) {
+            out.writeBoolean(errors);
+            out.writeCollection(actionResults);
+        }
     }
 
     @Override

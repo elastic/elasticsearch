@@ -214,10 +214,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                     responseBuilder.getExpandedModelIdsWithAliases(),
                     request.isAllowNoResources(),
                     parentTaskId,
-                    l.map(modelSizeStatsByModelId -> {
-                        responseBuilder.setModelSizeStatsByModelId(modelSizeStatsByModelId);
-                        return null;
-                    }),
+                    l,
                     numberOfAllocations
                 )
             )

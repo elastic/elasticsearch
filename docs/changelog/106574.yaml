@@ -1,0 +1,6 @@
+pr: 106574
+summary: Fix `_reset` API when called with `force=true`
+area: Transform
+type: bug
+issues:
+ - 106573

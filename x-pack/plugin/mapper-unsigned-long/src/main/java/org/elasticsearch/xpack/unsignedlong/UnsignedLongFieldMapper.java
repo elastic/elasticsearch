@@ -195,7 +195,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public UnsignedLongFieldMapper build(MapperBuilderContext context) {
-            if (super.inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions()) {
+            if (inheritDimensionParameterFromParentObject(context)) {
                 dimension.setValue(true);
             }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(

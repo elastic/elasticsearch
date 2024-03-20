@@ -1430,7 +1430,7 @@ public abstract class FieldMapper extends Mapper {
             this.inheritDimensionParameterFromParentObject = true;
         }
 
-        boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
+        protected boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
             return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
         }
     }

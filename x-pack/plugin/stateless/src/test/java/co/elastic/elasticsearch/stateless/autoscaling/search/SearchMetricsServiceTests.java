@@ -162,8 +162,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
         assertThat(
             metrics.getStorageMetrics(),
             anyOf(
-                equalTo(new StorageMetrics(2 * 1024, 2 * 1024, 2 * 2048, MetricQuality.EXACT)),
-                equalTo(new StorageMetrics(2 * 1025, 2 * 1025, 2 * 2050, MetricQuality.EXACT))
+                equalTo(new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT)),
+                equalTo(new StorageMetrics(1025, 1025, 2050, MetricQuality.EXACT))
             )
         );
     }
@@ -503,15 +503,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
             new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
 
+        StorageMetrics storageMetrics = new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT);
+
         assertThat(
             service.getSearchTierMetrics(),
-            equalTo(
-                new SearchTierMetrics(
-                    FIXED_MEMORY_METRICS,
-                    new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT)
-                )
-            )
+            equalTo(new SearchTierMetrics(FIXED_MEMORY_METRICS, new MaxShardCopies(1, MetricQuality.EXACT), storageMetrics))
         );
 
         indexMetadata = IndexMetadata.builder(indexMetadata)
@@ -522,17 +518,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         assertThat(
             service.getSearchTierMetrics(),
-            equalTo(
-                new SearchTierMetrics(
-                    FIXED_MEMORY_METRICS,
-                    new MaxShardCopies(2, MetricQuality.EXACT),
-                    new StorageMetrics(2048, 2048, 4096, MetricQuality.EXACT)
-                )
-            )
+            equalTo(new SearchTierMetrics(FIXED_MEMORY_METRICS, new MaxShardCopies(2, MetricQuality.EXACT), storageMetrics))
         );
     }
 
-    public void testRelocateShardDOesNotAffectMetrics() {
+    public void testRelocateShardDoesNotAffectMetrics() {
 
         var indexMetadata = createIndex(1, 1);
         var index = indexMetadata.getIndex();

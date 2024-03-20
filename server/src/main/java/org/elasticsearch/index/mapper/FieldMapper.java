@@ -1420,7 +1420,7 @@ public abstract class FieldMapper extends Mapper {
      */
     public abstract static class DimensionBuilder extends Builder {
 
-        protected boolean inheritDimensionParameterFromParentObject = false;
+        private boolean inheritDimensionParameterFromParentObject = false;
 
         public DimensionBuilder(String name) {
             super(name);
@@ -1428,6 +1428,10 @@ public abstract class FieldMapper extends Mapper {
 
         void setInheritDimensionParameterFromParentObject() {
             this.inheritDimensionParameterFromParentObject = true;
+        }
+
+        boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
+            return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
         }
     }
 

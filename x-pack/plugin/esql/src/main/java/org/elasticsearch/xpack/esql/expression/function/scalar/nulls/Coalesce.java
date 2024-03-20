@@ -50,14 +50,15 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     public Coalesce(
         Source source,
         @Param(
-            name = "expression",
+            name = "first",
             type = { "boolean", "text", "integer", "keyword", "long" },
             description = "Expression to evaluate"
         ) Expression first,
         @Param(
-            name = "expressionX",
+            name = "rest",
             type = { "boolean", "text", "integer", "keyword", "long" },
-            description = "Other expression to evaluate"
+            description = "Other expression to evaluate",
+            optional = true
         ) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());

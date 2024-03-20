@@ -48,10 +48,7 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
 
-    @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(AGG_VALUES);
-    }
+    public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query");
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
@@ -63,5 +60,10 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(POW_DOUBLE, Version.V_8_12_0)
             // Map.entry(GEO_SHAPE_SUPPORT, Version.V_8_13_0)
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(ASYNC_QUERY, AGG_VALUES);
     }
 }

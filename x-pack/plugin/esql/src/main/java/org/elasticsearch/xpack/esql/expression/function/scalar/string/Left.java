@@ -44,12 +44,12 @@ public class Left extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Returns the substring that extracts 'length' chars from 'str' starting from the left.",
+        description = "Returns the substring that extracts 'length' chars from 'string' starting from the left.",
         examples = { @Example(file = "string", tag = "left") }
     )
     public Left(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }, description = "The string from which to return a substring.") Expression str,
+        @Param(name = "string", type = { "keyword", "text" }, description = "The string from which to return a substring.") Expression str,
         @Param(name = "length", type = { "integer" }, description = "The number of characters to return.") Expression length
     ) {
         super(source, Arrays.asList(str, length));

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -17,12 +18,14 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.datastreams.lifecycle.UpdateDataStreamGlobalRetentionService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -90,6 +93,7 @@ public class DeleteDataStreamGlobalRetentionAction {
         UpdateDataStreamGlobalRetentionResponse> {
 
         private final UpdateDataStreamGlobalRetentionService globalRetentionService;
+        private final FeatureService featureService;
 
         @Inject
         public TransportDeleteDataStreamGlobalRetentionAction(
@@ -98,7 +102,8 @@ public class DeleteDataStreamGlobalRetentionAction {
             ThreadPool threadPool,
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            UpdateDataStreamGlobalRetentionService globalRetentionService
+            UpdateDataStreamGlobalRetentionService globalRetentionService,
+            FeatureService featureService
         ) {
             super(
                 INSTANCE.name(),
@@ -112,6 +117,7 @@ public class DeleteDataStreamGlobalRetentionAction {
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.globalRetentionService = globalRetentionService;
+            this.featureService = featureService;
         }
 
         @Override
@@ -121,6 +127,15 @@ public class DeleteDataStreamGlobalRetentionAction {
             ClusterState state,
             ActionListener<UpdateDataStreamGlobalRetentionResponse> listener
         ) throws Exception {
+            if (featureService.clusterHasFeature(state, DataStreamGlobalRetention.GLOBAL_RETENTION)) {
+                listener.onFailure(
+                    new ResourceNotFoundException(
+                        "Data stream global retention feature not found, please ensure all nodes have the feature "
+                            + DataStreamGlobalRetention.GLOBAL_RETENTION.id()
+                    )
+                );
+                return;
+            }
             List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = globalRetentionService
                 .determineAffectedDataStreams(null, state);
             if (request.dryRun()) {

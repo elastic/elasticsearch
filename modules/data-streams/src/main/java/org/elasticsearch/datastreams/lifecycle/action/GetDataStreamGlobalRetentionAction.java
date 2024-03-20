@@ -8,6 +8,7 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -118,13 +120,16 @@ public class GetDataStreamGlobalRetentionAction {
 
     public static class TransportGetDataStreamGlobalSettingsAction extends TransportMasterNodeReadAction<Request, Response> {
 
+        private final FeatureService featureService;
+
         @Inject
         public TransportGetDataStreamGlobalSettingsAction(
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            FeatureService featureService
         ) {
             super(
                 INSTANCE.name(),
@@ -137,10 +142,20 @@ public class GetDataStreamGlobalRetentionAction {
                 Response::new,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
+            this.featureService = featureService;
         }
 
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            if (featureService.clusterHasFeature(state, DataStreamGlobalRetention.GLOBAL_RETENTION)) {
+                listener.onFailure(
+                    new ResourceNotFoundException(
+                        "Data stream global retention feature not found, please ensure all nodes have the feature "
+                            + DataStreamGlobalRetention.GLOBAL_RETENTION.id()
+                    )
+                );
+                return;
+            }
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetention.getFromClusterState(state);
             listener.onResponse(new Response(globalRetention == null ? DataStreamGlobalRetention.EMPTY : globalRetention));
         }

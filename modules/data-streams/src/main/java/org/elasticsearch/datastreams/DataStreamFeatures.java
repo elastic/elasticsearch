@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
@@ -24,9 +25,10 @@ public class DataStreamFeatures implements FeatureSpecification {
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
-            DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE, // Added in 8.12
+            DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE,  // Added in 8.12
             LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER,                    // Added in 8.13
-            DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE
+            DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE,
+            DataStreamGlobalRetention.GLOBAL_RETENTION                      // Added in 8.14
         );
     }
 }

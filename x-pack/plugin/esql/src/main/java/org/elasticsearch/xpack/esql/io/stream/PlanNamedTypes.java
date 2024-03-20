@@ -621,16 +621,12 @@ public final class PlanNamedTypes {
     }
 
     static FragmentExec readFragmentExec(PlanStreamInput in) throws IOException {
-        PhysicalPlan reducerNode = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REDUCER_NODE_FRAGMENT)) {
-            reducerNode = in.readOptionalPhysicalPlanNode();
-        }
         return new FragmentExec(
             in.readSource(),
             in.readLogicalPlanNode(),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalVInt(),
-            reducerNode
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REDUCER_NODE_FRAGMENT) ? in.readOptionalPhysicalPlanNode() : null
         );
     }
 

@@ -16,8 +16,6 @@ Numeric expression. If `null`, the function returns `null`.
 
 {wikipedia}/Hyperbolic_functions[Sine] hyperbolic function.
 
-*Supported types*
-
 include::types/sinh.asciidoc[]
 
 *Example*

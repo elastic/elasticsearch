@@ -17,8 +17,6 @@ Expression of type `geo_point` or `cartesian_point`. If `null`, the function ret
 Extracts the `y` coordinate from the supplied point.
 If the points is of type `geo_point` this is equivalent to extracting the `latitude` value.
 
-*Supported types*
-
 include::types/st_y.asciidoc[]
 
 *Example*

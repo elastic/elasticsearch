@@ -33,7 +33,7 @@ public class RepositoriesHealthTracker extends HealthTracker<RepositoriesHealthI
      * @return the current repositories health on this node.
      */
     @Override
-    public RepositoriesHealthInfo checkCurrentHealth() {
+    protected RepositoriesHealthInfo determineCurrentHealth() {
         var repositories = repositoriesService.getRepositories();
         if (repositories.isEmpty()) {
             return new RepositoriesHealthInfo(List.of(), List.of());
@@ -52,7 +52,7 @@ public class RepositoriesHealthTracker extends HealthTracker<RepositoriesHealthI
     }
 
     @Override
-    public void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, RepositoriesHealthInfo healthInfo) {
+    protected void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, RepositoriesHealthInfo healthInfo) {
         builder.repositoriesHealthInfo(healthInfo);
     }
 }

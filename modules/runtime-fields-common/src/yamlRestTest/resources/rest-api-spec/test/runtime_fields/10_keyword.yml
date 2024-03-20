@@ -164,7 +164,7 @@ setup:
           {"timestamp": 1516556494000, "node": "a", "region": "west-1"}
           {"index":{}}
           {"timestamp": 1516470094000, "node": "b", "region": "west-2"}
-          {"index":{}}.
+          {"index":{}}
           {"timestamp": 1516383694000, "node": "c", "region": "west-2"}
           {"index":{}}
           {"timestamp": 1516297294000, "node": "c", "region": "west-2"}

@@ -42,7 +42,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final NodeFeature STACK_TEMPLATES_FEATURE = new NodeFeature("stack.templates_supported");
 
     // Current version of the registry requires all nodes to know of kibana reporting being managed by data stream lifecycle (a feature
-    // that was released only in 8.11)
+    // that was released starting in 8.11)
     public static final NodeFeature KIBANA_REPORTING_MANAGED_BY_LIFECYCLE = new NodeFeature("kibana-reporting-managed-by-dsl");
 
     // The stack template registry version. This number must be incremented when we make changes

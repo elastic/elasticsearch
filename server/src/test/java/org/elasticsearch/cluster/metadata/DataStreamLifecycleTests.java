@@ -113,11 +113,8 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionSerializationTests.randomGlobalRetention();
-            ToXContent.Params withEffectiveRetentionParams = new ToXContent.DelegatingMapParams(
-                DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS,
-                ToXContent.EMPTY_PARAMS
-            );
-            lifecycle.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+            ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
+            lifecycle.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))

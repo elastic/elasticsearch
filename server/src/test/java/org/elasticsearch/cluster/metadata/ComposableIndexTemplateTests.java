@@ -239,7 +239,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionSerializationTests.randomGlobalRetention();
-            template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration, globalRetention);
+            ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
+            template.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))

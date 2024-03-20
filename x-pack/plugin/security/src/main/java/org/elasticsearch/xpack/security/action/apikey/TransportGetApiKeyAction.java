@@ -78,7 +78,7 @@ public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyReq
                         )
                     );
                 } else {
-                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
+                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos, null));
                 }
             }, listener::onFailure)
         );

@@ -36,8 +36,13 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
 
     private final List<Item> foundApiKeyInfoList;
 
-    public GetApiKeyResponse(Collection<ApiKey> foundApiKeyInfos) {
-        this(foundApiKeyInfos, null);
+    public GetApiKeyResponse(Collection<Item> foundApiKeysInfos) {
+        Objects.requireNonNull(foundApiKeysInfos, "found_api_keys_info must be provided");
+        if (foundApiKeysInfos instanceof List<Item>) {
+            this.foundApiKeyInfoList = (List<Item>) foundApiKeysInfos;
+        } else {
+            this.foundApiKeyInfoList = new ArrayList<>(foundApiKeysInfos);
+        }
     }
 
     public GetApiKeyResponse(Collection<ApiKey> foundApiKeysInfos, @Nullable Collection<String> ownerProfileUids) {
@@ -119,16 +124,33 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
         }
     }
 
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GetApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "get_api_key_response",
-        args -> (args[0] == null) ? GetApiKeyResponse.EMPTY : new GetApiKeyResponse((List<ApiKey>) args[0])
-    );
+    static final ConstructingObjectParser<Item, Void> KEY_INFO_PARSER;
+    static final ConstructingObjectParser<GetApiKeyResponse, Void> RESPONSE_PARSER;
     static {
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ApiKey.fromXContent(p), new ParseField("api_keys"));
+        int nFieldsForParsingApiKeyInfo = 13; // this must be changed whenever ApiKey#initializeParser is changed for the number of parsers
+        KEY_INFO_PARSER = new ConstructingObjectParser<>(
+            "api_key_with_profile_uid",
+            true,
+            args -> new Item(new ApiKey(args), (String) args[nFieldsForParsingApiKeyInfo])
+        );
+        int nParsedFields = ApiKey.initializeParser(KEY_INFO_PARSER);
+        if (nFieldsForParsingApiKeyInfo != nParsedFields) {
+            throw new IllegalStateException("Unexpected fields for parsing API Keys");
+        }
+        KEY_INFO_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("profile_uid"));
+        RESPONSE_PARSER = new ConstructingObjectParser<>("get_api_key_response", args -> {
+            if (args[0] == null) {
+                return GetApiKeyResponse.EMPTY;
+            } else {
+                @SuppressWarnings("unchecked")
+                List<Item> apiKeysWithProfileUids = (List<Item>) args[0];
+                return new GetApiKeyResponse(apiKeysWithProfileUids);
+            }
+        });
+        RESPONSE_PARSER.declareObjectArray(optionalConstructorArg(), KEY_INFO_PARSER, new ParseField("api_keys"));
     }
 
     public static GetApiKeyResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        return RESPONSE_PARSER.parse(parser, null);
     }
 }

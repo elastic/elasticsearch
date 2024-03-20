@@ -119,7 +119,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             crossClusterAccessRoleDescriptors,
             null
         );
-        GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3, apiKeyInfo4));
+        GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3, apiKeyInfo4), null);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace(Strings.format("""

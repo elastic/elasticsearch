@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,7 +106,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             ? randomUniquelyNamedRoleDescriptors(1, 3)
             : null;
         final GetApiKeyResponse getApiKeyResponseExpected = new GetApiKeyResponse(
-            Collections.singletonList(
+            List.of(
                 new ApiKey(
                     "api-key-name-1",
                     "api-key-id-1",
@@ -123,7 +122,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     roleDescriptors,
                     limitedByRoleDescriptors
                 )
-            )
+            ),
+            null
         );
 
         final var client = new NodeClient(Settings.EMPTY, threadPool) {
@@ -255,8 +255,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 : randomUniquelyNamedRoleDescriptors(0, 3),
             withLimitedBy && type != ApiKey.Type.CROSS_CLUSTER ? randomUniquelyNamedRoleDescriptors(1, 3) : null
         );
-        final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
-        final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));
+        final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(List.of(apiKey1), null);
+        final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2), null);
 
         final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")

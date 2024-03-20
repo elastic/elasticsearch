@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -138,6 +139,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
             @Override
             public InternalAggregation get() {
                 return aggregatorReducer == null ? current : aggregatorReducer.get();
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(aggregatorReducer);
             }
         };
     }

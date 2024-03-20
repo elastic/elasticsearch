@@ -20,8 +20,6 @@ Numeric expression. If `null`, the function returns `null`.
 The {wikipedia}/Atan2[angle] between the positive x-axis and the ray from the
 origin to the point (x , y) in the Cartesian plane, expressed in radians.
 
-*Supported types*
-
 include::types/atan2.asciidoc[]
 
 *Example*

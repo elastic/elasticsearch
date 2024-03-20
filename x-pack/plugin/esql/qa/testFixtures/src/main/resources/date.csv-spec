@@ -1165,3 +1165,20 @@ row a = ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:
 datetime:date                                                                       | sa:date                                                                              | sd:date
 ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"]| ["1985-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1987-01-01T00:00:00.000Z"] | ["1987-01-01T00:00:00.000Z", "1986-01-01T00:00:00.000Z", "1985-01-01T00:00:00.000Z"]
 ;
+
+calculateAges
+FROM employees
+| WHERE birth_date > NOW() - 100 years
+| EVAL age = 2024 - DATE_EXTRACT("year", birth_date)
+| STATS count=count(age) BY age
+| SORT count DESC, age DESC
+| LIMIT 5
+;
+
+count:long | age:long
+11         | 71
+9          | 65
+8          | 72
+8          | 70
+8          | 64
+;

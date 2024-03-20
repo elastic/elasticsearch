@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -118,6 +119,32 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle
     ) {
         return newInstance(name, indices, generation, metadata, replicated, lifecycle, List.of());
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            false,
+            replicated,
+            false,
+            false,
+            null,
+            lifecycle,
+            false,
+            List.of(),
+            autoShardingEvent
+        );
     }
 
     public static DataStream newInstance(
@@ -343,6 +370,18 @@ public final class DataStreamTestHelper {
             dataStreams,
             randomBoolean() ? randomFrom(dataStreams) : null,
             randomBoolean() ? randomMap(1, 4, () -> new Tuple<>("term", Map.of("year", "2022"))) : null
+        );
+    }
+
+    @Nullable
+    public static DataStreamGlobalRetention randomGlobalRetention() {
+        if (randomBoolean()) {
+            return null;
+        }
+        boolean withDefault = randomBoolean();
+        return new DataStreamGlobalRetention(
+            withDefault ? TimeValue.timeValueDays(randomIntBetween(1, 30)) : null,
+            withDefault == false || randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(31, 100)) : null
         );
     }
 

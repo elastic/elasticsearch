@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -109,6 +111,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         mdIndexAliasesService,
         EmptySystemIndices.INSTANCE,
         WriteLoadForecaster.DEFAULT
+    );
+
+    final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
+        Settings.EMPTY,
+        mockClusterService,
+        new FeatureService(List.of()),
+        System::currentTimeMillis
     );
 
     @Before
@@ -374,7 +383,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             rolloverService,
             mockClient,
             mockAllocationService,
-            mockMetadataDataStreamService
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
         );
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
@@ -449,7 +459,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             rolloverService,
             mockClient,
             mockAllocationService,
-            mockMetadataDataStreamService
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
         );
         final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
         RolloverRequest rolloverRequest = new RolloverRequest("logs-ds", null);
@@ -501,7 +512,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             rolloverService,
             mockClient,
             mockAllocationService,
-            mockMetadataDataStreamService
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
         );
 
         // Lazy rollover fails on a concrete index

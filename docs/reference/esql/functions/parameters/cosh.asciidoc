@@ -1,0 +1,4 @@
+*Parameters*
+
+`n`::
+The number who's hyperbolic cosine is to be returned

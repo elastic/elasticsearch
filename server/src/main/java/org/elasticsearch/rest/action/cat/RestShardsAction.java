@@ -326,7 +326,9 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(shard.unassignedInfo().getReason());
                 Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis());
                 table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.format(unassignedTime));
-                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()));
+                table.addCell(
+                    TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()))
+                );
                 table.addCell(shard.unassignedInfo().getDetails());
             } else {
                 table.addCell(null);

@@ -42,7 +42,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
     @FunctionInfo(returnType = "keyword", description = "Returns a string representation of a date, in the provided format.")
     public DateFormat(
         Source source,
-        @Param(optional = true, name = "format", type = { "keyword" }, description = "A valid date pattern") Expression format,
+        @Param(optional = true, name = "dateFormat", type = { "keyword" }, description = "A valid date pattern") Expression format,
         @Param(name = "date", type = { "date" }, description = "Date expression") Expression date,
         Configuration configuration
     ) {

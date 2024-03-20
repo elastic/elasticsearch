@@ -18,7 +18,7 @@ import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 
 import java.util.List;
 
-public class DataStreamGlobalRetentionSerializationTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
+public class DataStreamGlobalRetentionTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
 
     @Override
     protected ClusterState.Custom makeTestChanges(ClusterState.Custom testInstance) {
@@ -94,5 +94,9 @@ public class DataStreamGlobalRetentionSerializationTests extends SimpleDiffableW
                 TimeValue.timeValueDays(randomIntBetween(1, 1000))
             )
         );
+
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(TimeValue.ZERO, null));
+
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, TimeValue.ZERO));
     }
 }

@@ -42,6 +42,7 @@ public final class DataStreamGlobalRetention extends AbstractNamedDiffable<Clust
     public static final ParseField MAX_RETENTION_FIELD = new ParseField("max_retention");
 
     public static final DataStreamGlobalRetention EMPTY = new DataStreamGlobalRetention(null, null);
+    public static final TimeValue MIN_RETENTION_VALUE = TimeValue.timeValueSeconds(10);
 
     @Nullable
     private final TimeValue defaultRetention;
@@ -63,8 +64,15 @@ public final class DataStreamGlobalRetention extends AbstractNamedDiffable<Clust
                     + "]."
             );
         }
+        if (validateRetentionValue(defaultRetention) == false || validateRetentionValue(maxRetention) == false) {
+            throw new IllegalArgumentException("Global retention values should be greater than " + MIN_RETENTION_VALUE.getStringRep());
+        }
         this.defaultRetention = defaultRetention;
         this.maxRetention = maxRetention;
+    }
+
+    private boolean validateRetentionValue(@Nullable TimeValue retention) {
+        return retention == null || retention.getMillis() >= MIN_RETENTION_VALUE.getMillis();
     }
 
     public static DataStreamGlobalRetention read(StreamInput in) throws IOException {

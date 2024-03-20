@@ -32,7 +32,7 @@
       }
     },
     "body":{
-      "description":"The global retention configuration including optional values for default and max retention",
+      "description":"The global retention configuration including optional values for default and max retention.",
       "required":true
     }
   }

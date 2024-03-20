@@ -1128,10 +1128,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         long now = System.currentTimeMillis();
 
         List<DataStreamMetadata> creationAndRolloverTimes = List.of(
-            DataStreamMetadata.dataStreamMetadata(now - 5000, now - 4000),
-            DataStreamMetadata.dataStreamMetadata(now - 4000, now - 3000),
-            DataStreamMetadata.dataStreamMetadata(now - 3000, now - 2000),
-            DataStreamMetadata.dataStreamMetadata(now - 2000, now - 1000),
+            DataStreamMetadata.dataStreamMetadata(now - 5000_000, now - 4000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 4000_000, now - 3000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 3000_000, now - 2000_000),
+            DataStreamMetadata.dataStreamMetadata(now - 2000_000, now - 1000_000),
             DataStreamMetadata.dataStreamMetadata(now, null)
         );
 
@@ -1153,8 +1153,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // no retention configured but we have default retention
             DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
-                TimeValue.timeValueMillis(2500),
-                randomBoolean() ? TimeValue.timeValueMillis(randomIntBetween(2500, 5000)) : null
+                TimeValue.timeValueSeconds(2500),
+                randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(2500, 5000)) : null
             );
             Metadata.Builder builder = Metadata.builder();
             DataStream dataStream = createDataStream(
@@ -1174,7 +1174,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // no retention configured but we have max retention
-            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(null, TimeValue.timeValueMillis(2500));
+            DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(null, TimeValue.timeValueSeconds(2500));
             Metadata.Builder builder = Metadata.builder();
             DataStream dataStream = createDataStream(
                 builder,
@@ -1198,7 +1198,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(2500).build()
+                DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueSeconds(2500)).build()
             );
             Metadata metadata = builder.build();
 
@@ -1237,7 +1237,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(6000).build()
+                DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueSeconds(6000)).build()
             );
             Metadata metadata = builder.build();
 
@@ -1697,7 +1697,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
-            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionSerializationTests.randomGlobalRetention();
+            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
 
             ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
             dataStream.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);

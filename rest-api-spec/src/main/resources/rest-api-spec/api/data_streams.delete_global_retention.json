@@ -28,7 +28,7 @@
       },
       "master_timeout":{
         "type":"time",
-        "description":"Specify timeout for connection to master"
+        "description":"Specify timeout for connection to master."
       }
     }
   }

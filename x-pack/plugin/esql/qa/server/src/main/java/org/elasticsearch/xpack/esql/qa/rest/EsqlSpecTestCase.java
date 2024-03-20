@@ -54,6 +54,9 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
+    // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
+    protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
+
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
@@ -67,7 +70,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ASYNC
     }
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s %6$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
@@ -103,7 +106,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean supportsAsync() {
-        return Version.CURRENT.onOrAfter(Version.V_8_13_0); // the Async API was introduced in 8.13.0
+        return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
     }
 
     @AfterClass
@@ -132,6 +135,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) {
+        for (String feature : testCase.requiredFeatures) {
+            assumeTrue("Test " + testName + " requires " + feature, clusterHasFeature(feature));
+        }
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
     }
 
@@ -235,7 +241,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 Map<?, ?> node = (Map<?, ?>) n;
                 Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");
                 Map<?, ?> request = (Map<?, ?>) breakers.get("request");
-                assertMap(request, matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b"));
+                assertMap(
+                    "circuit breakers not reset to 0",
+                    request,
+                    matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b")
+                );
             }
         });
     }

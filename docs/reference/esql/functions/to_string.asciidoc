@@ -18,8 +18,6 @@ Input value. The input can be a single- or multi-valued column or an expression.
 
 Converts an input value into a string.
 
-*Supported types*
-
 include::types/to_string.asciidoc[]
 
 *Example*

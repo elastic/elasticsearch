@@ -58,6 +58,9 @@
             }
           }
         },
+        "unhealthy_reason": {
+          "type": "keyword"
+        },
         "components": {
           "type": "object",
           "enabled": false

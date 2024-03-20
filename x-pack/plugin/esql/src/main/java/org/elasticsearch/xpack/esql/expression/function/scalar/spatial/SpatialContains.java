@@ -40,6 +40,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
+/**
+ * This is the primary class for supporting the function ST_CONTAINS.
+ * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
+ * which supports all the relations in the ShapeField.QueryRelation enum.
+ * Here we simply wire the rules together specific to ST_CONTAINS and QueryRelation.CONTAINS.
+ */
 public class SpatialContains extends SpatialRelatesFunction {
     protected static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.CONTAINS,
@@ -112,7 +118,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Override
-    protected Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
+    Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
         return evaluatorMap;
     }
 
@@ -124,25 +130,25 @@ public class SpatialContains extends SpatialRelatesFunction {
             for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialIntersectsGeoSourceAndSourceEvaluator.Factory::new)
+                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialContainsGeoSourceAndSourceEvaluator.Factory::new)
                 );
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                        SpatialIntersectsGeoSourceAndConstantEvaluator.Factory::new
+                        SpatialContainsGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            SpatialIntersectsGeoPointDocValuesAndSourceEvaluator.Factory::new
+                            SpatialContainsGeoPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                            SpatialIntersectsGeoPointDocValuesAndConstantEvaluator.Factory::new
+                            SpatialContainsGeoPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
                 }
@@ -155,26 +161,26 @@ public class SpatialContains extends SpatialRelatesFunction {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                        SpatialIntersectsCartesianSourceAndSourceEvaluator.Factory::new
+                        SpatialContainsCartesianSourceAndSourceEvaluator.Factory::new
                     )
                 );
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                        SpatialIntersectsCartesianSourceAndConstantEvaluator.Factory::new
+                        SpatialContainsCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator.Factory::new
+                            SpatialContainsCartesianPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                            SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator.Factory::new
+                            SpatialContainsCartesianPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
                 }

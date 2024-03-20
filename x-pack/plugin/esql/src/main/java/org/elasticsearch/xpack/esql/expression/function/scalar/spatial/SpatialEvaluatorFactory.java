@@ -170,7 +170,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
 
     protected record SpatialEvaluatorFieldKey(DataType dataType, boolean isConstant) {}
 
-    protected record SpatialEvaluatorKey(
+    record SpatialEvaluatorKey(
         SpatialRelatesFunction.SpatialCrsType crsType,
         boolean leftDocValues,
         boolean rightDocValues,

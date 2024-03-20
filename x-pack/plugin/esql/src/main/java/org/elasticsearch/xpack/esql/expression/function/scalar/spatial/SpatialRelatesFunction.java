@@ -203,7 +203,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     /**
      * Produce a map of rules defining combinations of incoming types to the evaluator factory that should be used.
      */
-    protected abstract Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules();
+    abstract Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules();
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(

@@ -40,6 +40,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
+/**
+ * This is the primary class for supporting the function ST_INTERSECTS.
+ * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
+ * which supports all the relations in the ShapeField.QueryRelation enum.
+ * Here we simply wire the rules together specific to ST_INTERSECTS and QueryRelation.INTERSECTS.
+ */
 public class SpatialIntersects extends SpatialRelatesFunction {
     protected static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.INTERSECTS,
@@ -112,7 +118,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     }
 
     @Override
-    protected Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
+    Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
         return evaluatorMap;
     }
 

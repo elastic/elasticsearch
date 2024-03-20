@@ -132,7 +132,7 @@ public class SpatialContainsTests extends AbstractFunctionTestCase {
         if (typeCompatible(leftType, rightType) == false) {
             return null;
         }
-        // TODO cast objects to right type and check intersection
+        // TODO cast objects to right type and check relation
         BytesRef leftWKB = asGeometryWKB(left, leftType);
         BytesRef rightWKB = asGeometryWKB(right, rightType);
         SpatialRelatesFunction.SpatialRelations spatialContains = spatialRelations(left, leftType, right, rightType);

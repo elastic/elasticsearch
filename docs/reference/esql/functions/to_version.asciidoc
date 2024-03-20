@@ -20,8 +20,6 @@ Input value. The input can be a single- or multi-valued column or an expression.
 
 Converts an input string to a version value.
 
-*Supported types*
-
 include::types/to_version.asciidoc[]
 
 *Example*

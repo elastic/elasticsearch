@@ -53,14 +53,13 @@ final class CO2Calculator {
     }
 
     private double getKiloWattsPerCore(HostMetadata host) {
-        if ("aarch64".equals(host.profilingHostMachine)) {
-            // Assume that AARCH64 (aka ARM64) machines are more energy efficient than x86_64 machines.
-            return customKilowattsPerCoreARM64;
-        }
-        if ("x86_64".equals(host.profilingHostMachine)) {
-            return customKilowattsPerCoreX86;
-        }
-        return DEFAULT_KILOWATTS_PER_CORE;
+        return switch (host.profilingHostMachine) {
+            // For the OTEL donation of the profiling agent, we switch to OTEL semantic conventions,
+            // which require "arm64" and "amd64" to be reported as the host architecture.
+            case "arm64", "aarch64" -> customKilowattsPerCoreARM64;
+            case "amd64", "x86_64" -> customKilowattsPerCoreX86;
+            default -> DEFAULT_KILOWATTS_PER_CORE;
+        };
     }
 
     private double getCO2TonsPerKWH(HostMetadata host) {

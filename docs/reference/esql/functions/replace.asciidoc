@@ -25,8 +25,6 @@ The function substitutes in the string `str` any match of the regular expression
 
 If any of the arguments is `null`, the result is `null`.
 
-*Supported types*
-
 include::types/replace.asciidoc[]
 
 *Example*

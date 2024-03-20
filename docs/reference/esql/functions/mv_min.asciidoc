@@ -17,8 +17,6 @@ Multivalue expression.
 Converts a multivalued expression into a single valued column containing the
 minimum value.
 
-*Supported types*
-
 include::types/mv_min.asciidoc[]
 
 *Examples*

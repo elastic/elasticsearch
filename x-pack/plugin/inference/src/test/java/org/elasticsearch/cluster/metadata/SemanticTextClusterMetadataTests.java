@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+
 public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
 
     @Override
@@ -34,9 +36,9 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             "test",
             client().admin().indices().prepareCreate("test").setMapping("field", "type=semantic_text,model_id=test_model")
         );
-        assertEquals(
+        assertThat(
             indexService.getMetadata().getFieldInferenceMetadata().getFieldInferenceOptions().get("field").inferenceId(),
-            "test_model"
+            equalTo("test_model")
         );
     }
 
@@ -59,8 +61,8 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             .getFieldInferenceMetadata()
             .getFieldInferenceOptions()
             .get("field");
-        assertEquals(fieldInferenceOptions.inferenceId(), "test_model");
-        assertEquals(fieldInferenceOptions.sourceFields(), Set.of("field"));
+        assertThat(fieldInferenceOptions.inferenceId(), equalTo("test_model"));
+        assertThat(fieldInferenceOptions.sourceFields(), equalTo(Set.of("field")));
     }
 
     public void testMultiFieldsSemanticTextField() throws Exception {
@@ -94,8 +96,8 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
         FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
             .getFieldInferenceOptions()
             .get("top_field.semantic");
-        assertEquals(fieldInferenceOptions.inferenceId(), "test_model");
-        assertEquals(fieldInferenceOptions.sourceFields(), Set.of("top_field"));
+        assertThat(fieldInferenceOptions.inferenceId(), equalTo("test_model"));
+        assertThat(fieldInferenceOptions.sourceFields(), equalTo(Set.of("top_field")));
     }
 
     public void testCopyToSemanticTextField() throws Exception {
@@ -132,8 +134,8 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
         FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
             .getFieldInferenceOptions()
             .get("semantic");
-        assertEquals(fieldInferenceOptions.inferenceId(), "test_model");
-        assertEquals(fieldInferenceOptions.sourceFields(), Set.of("semantic", "copy_origin_1", "copy_origin_2"));
+        assertThat(fieldInferenceOptions.inferenceId(), equalTo("test_model"));
+        assertThat(fieldInferenceOptions.sourceFields(), equalTo(Set.of("semantic", "copy_origin_1", "copy_origin_2")));
     }
 
     public void testCopyToAndMultiFieldsSemanticTextField() throws Exception {
@@ -175,8 +177,8 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
         FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
             .getFieldInferenceOptions()
             .get("top_field.semantic");
-        assertEquals(fieldInferenceOptions.inferenceId(), "test_model");
-        assertEquals(fieldInferenceOptions.sourceFields(), Set.of("top_field", "copy_origin_1", "copy_origin_2"));
+        assertThat(fieldInferenceOptions.inferenceId(), equalTo("test_model"));
+        assertThat(fieldInferenceOptions.sourceFields(), equalTo(Set.of("top_field", "copy_origin_1", "copy_origin_2")));
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

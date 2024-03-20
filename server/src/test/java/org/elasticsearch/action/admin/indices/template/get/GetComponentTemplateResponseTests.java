@@ -9,16 +9,32 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComponentTemplateTests;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSerializationTests;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomAliases;
+import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomMappings;
+import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomSettings;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class GetComponentTemplateResponseTests extends AbstractWireSerializingTestCase<GetComponentTemplateAction.Response> {
     @Override
@@ -49,6 +65,51 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
             );
         }
         return new GetComponentTemplateAction.Response(templates, rolloverConditions, globalRetention);
+    }
+
+    public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
+        Settings settings = null;
+        CompressedXContent mappings = null;
+        Map<String, AliasMetadata> aliases = null;
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        if (randomBoolean()) {
+            settings = randomSettings();
+        }
+        if (randomBoolean()) {
+            mappings = randomMappings();
+        }
+        if (randomBoolean()) {
+            aliases = randomAliases();
+        }
+
+        var template = new ComponentTemplate(
+            new Template(settings, mappings, aliases, lifecycle),
+            randomBoolean() ? null : randomNonNegativeLong(),
+            null,
+            false
+        );
+        var globalRetention = DataStreamGlobalRetentionSerializationTests.randomGlobalRetention();
+        var rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+        var response = new GetComponentTemplateAction.Response(
+            Map.of(randomAlphaOfLength(10), template),
+            rolloverConfiguration,
+            globalRetention
+        );
+
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.humanReadable(true);
+            response.toXContent(builder, EMPTY_PARAMS);
+            String serialized = Strings.toString(builder);
+            assertThat(serialized, containsString("rollover"));
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
+                .getConditions()
+                .keySet()) {
+                assertThat(serialized, containsString(label));
+            }
+            // We check that even if there was no retention provided by the user, the global retention applies
+            assertThat(serialized, not(containsString("data_retention")));
+            assertThat(serialized, containsString("effective_retention"));
+        }
     }
 
     @Override

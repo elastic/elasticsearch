@@ -36,6 +36,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -53,6 +54,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_10_X;
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
+    // The following XContent params are used to enrich the DataStreamLifecycle json with effective retention information
+    // This should be set only when the lifecycle is used in a response to the user and NEVER when we expect the json to
+    // be deserialized.
+    public static final String INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME = "include_effective_retention";
+    public static final Map<String, String> INCLUDE_EFFECTIVE_RETENTION_PARAMS = Map.of(
+        DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME,
+        "true"
+    );
 
     /**
      * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
@@ -86,7 +95,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public static final ConstructingObjectParser<DataStreamLifecycle, Void> PARSER = new ConstructingObjectParser<>(
         "lifecycle",
-        true,
+        false,
         (args, unused) -> new DataStreamLifecycle((Retention) args[0], (Downsampling) args[1], (Boolean) args[2])
     );
 
@@ -266,7 +275,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * Converts the data stream lifecycle to XContent and injects the RolloverConditions if they exist.
+     * Converts the data stream lifecycle to XContent, enriches it with effective retention information when requested
+     * and injects the RolloverConditions if they exist.
+     * In order to request the effective retention you need to set {@link #INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME} to true
+     * in the XContent params.
      */
     public XContentBuilder toXContent(
         XContentBuilder builder,
@@ -283,10 +295,12 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 builder.field(DATA_RETENTION_FIELD.getPreferredName(), dataRetention.value().getStringRep());
             }
         }
-        Tuple<TimeValue, RetentionSource> effectiveRetention = getEffectiveDataRetentionWithSource(globalRetention);
-        if (effectiveRetention.v1() != null) {
-            builder.field(EFFECTIVE_RETENTION_FIELD.getPreferredName(), effectiveRetention.v1().getStringRep());
-            builder.field(RETENTION_SOURCE_FIELD.getPreferredName(), effectiveRetention.v2().displayName());
+        if (params.paramAsBoolean(INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false)) {
+            Tuple<TimeValue, RetentionSource> effectiveRetention = getEffectiveDataRetentionWithSource(globalRetention);
+            if (effectiveRetention.v1() != null) {
+                builder.field(EFFECTIVE_RETENTION_FIELD.getPreferredName(), effectiveRetention.v1().getStringRep());
+                builder.field(RETENTION_SOURCE_FIELD.getPreferredName(), effectiveRetention.v2().displayName());
+            }
         }
 
         if (downsampling != null) {

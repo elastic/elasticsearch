@@ -106,7 +106,7 @@ The result will look like this:
 --------------------------------------------------
 <1> The name of your data stream.
 <2> Shows if the data stream lifecycle is enabled for this data stream.
-<3> The desired retention period of the data indexed in this data stream, this means that if there are no other limitation
+<3> The desired retention period of the data indexed in this data stream, this means that if there are no other limitations
 the data for this data stream will be preserved for at least 7 days.
 <4> The effective retention, this means that the data in this data stream will
 be kept at least for 7 days. After that {es} can delete it at its own discretion.

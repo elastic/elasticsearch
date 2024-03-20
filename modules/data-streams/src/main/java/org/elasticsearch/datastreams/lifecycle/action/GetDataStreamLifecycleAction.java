@@ -237,22 +237,17 @@ public class GetDataStreamLifecycleAction {
                 builder.startObject();
                 builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
                 return builder;
-            }),
-                Iterators.map(
-                    dataStreamLifecycles.iterator(),
-                    dataStreamLifecycle -> (builder, params) -> dataStreamLifecycle.toXContent(
-                        builder,
-                        params,
-                        rolloverConfiguration,
-                        globalRetention
-                    )
-                ),
-                Iterators.single((builder, params) -> {
-                    builder.endArray();
-                    builder.endObject();
-                    return builder;
-                })
-            );
+            }), Iterators.map(dataStreamLifecycles.iterator(), dataStreamLifecycle -> (builder, params) -> {
+                ToXContent.Params withEffectiveRetentionParams = new ToXContent.DelegatingMapParams(
+                    org.elasticsearch.cluster.metadata.DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS,
+                    params
+                );
+                return dataStreamLifecycle.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+            }), Iterators.single((builder, params) -> {
+                builder.endArray();
+                builder.endObject();
+                return builder;
+            }));
         }
 
         @Override

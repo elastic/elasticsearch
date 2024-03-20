@@ -113,7 +113,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return Collections.singletonMap(aliasName, aliasMeta);
     }
 
-    private static CompressedXContent randomMappings() {
+    public static CompressedXContent randomMappings() {
         try {
             return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
         } catch (IOException e) {
@@ -122,7 +122,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         }
     }
 
-    private static Settings randomSettings() {
+    public static Settings randomSettings() {
         return indexSettings(randomIntBetween(1, 10), randomIntBetween(0, 5)).put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
@@ -266,7 +266,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         }
     }
 
-    public void testXContentSerializationWithRollover() throws IOException {
+    public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
@@ -290,7 +290,11 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionSerializationTests.randomGlobalRetention();
-            template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration, globalRetention);
+            ToXContent.Params withEffectiveRetention = new ToXContent.DelegatingMapParams(
+                DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS,
+                ToXContent.EMPTY_PARAMS
+            );
+            template.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
@@ -298,7 +302,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
-            // We check that even if there was not retention provided by the user, the global retention applies
+            // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
             assertThat(serialized, containsString("effective_retention"));
         }

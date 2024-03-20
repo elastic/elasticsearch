@@ -44,19 +44,12 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
 
     private static SpatialRelatesFunction.SpatialRelations getRelationsField(String name) {
         try {
-            Field field = getSpatialRelatesFunctionClass().getDeclaredField(name);
+            Field field = getSpatialRelatesFunctionClass().getField(name);
             Object value = field.get(null);
             return (SpatialRelatesFunction.SpatialRelations) value;
         } catch (NoSuchFieldException | ClassNotFoundException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static SpatialRelatesFunction.SpatialRelations getCartesianRelations() throws IllegalAccessException, ClassNotFoundException,
-        NoSuchFieldException {
-        Field field = getSpatialRelatesFunctionClass().getDeclaredField("CARTESIAN");
-        Object value = field.get(null);
-        return (SpatialRelatesFunction.SpatialRelations) value;
     }
 
     protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers, DataType[] dataTypes) {

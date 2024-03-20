@@ -47,13 +47,13 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
  * Here we simply wire the rules together specific to ST_INTERSECTS and QueryRelation.INTERSECTS.
  */
 public class SpatialIntersects extends SpatialRelatesFunction {
-    protected static final SpatialRelations GEO = new SpatialRelations(
+    public static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.INTERSECTS,
         SpatialCoordinateTypes.GEO,
         CoordinateEncoder.GEO,
         new GeoShapeIndexer(Orientation.CCW, "ST_Intersects")
     );
-    protected static final SpatialRelations CARTESIAN = new SpatialRelations(
+    public static final SpatialRelations CARTESIAN = new SpatialRelations(
         ShapeField.QueryRelation.INTERSECTS,
         SpatialCoordinateTypes.CARTESIAN,
         CoordinateEncoder.CARTESIAN,

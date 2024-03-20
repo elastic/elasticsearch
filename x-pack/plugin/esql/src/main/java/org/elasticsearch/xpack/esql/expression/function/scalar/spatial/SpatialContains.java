@@ -49,12 +49,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
  * Here we simply wire the rules together specific to ST_CONTAINS and QueryRelation.CONTAINS.
  */
 public class SpatialContains extends SpatialRelatesFunction {
-    static final SpatialRelationsContains GEO = new SpatialRelationsContains(
+    public static final SpatialRelationsContains GEO = new SpatialRelationsContains(
         SpatialCoordinateTypes.GEO,
         CoordinateEncoder.GEO,
         new GeoShapeIndexer(Orientation.CCW, "ST_Contains")
     );
-    static final SpatialRelationsContains CARTESIAN = new SpatialRelationsContains(
+    public static final SpatialRelationsContains CARTESIAN = new SpatialRelationsContains(
         SpatialCoordinateTypes.CARTESIAN,
         CoordinateEncoder.CARTESIAN,
         new CartesianShapeIndexer("ST_Contains")

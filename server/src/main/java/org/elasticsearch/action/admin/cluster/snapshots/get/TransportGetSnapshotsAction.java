@@ -271,7 +271,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                             delegate.onFailure(e);
                                         }
                                     }
-                                }, executor, threadPool.getThreadContext());
+                                });
                         }
                     }
                 })
@@ -295,7 +295,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         totalCount.get(),
                         finalRemaining
                     );
-                }));
+                }), executor, threadPool.getThreadContext());
         }
 
         private boolean skipRepository(String repositoryName) {
@@ -388,56 +388,68 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 }
             }
             // then, look in the repository if there's any matching snapshots left
-            try (
-                var listeners = new RefCountingListener(
+            SubscribableListener
+
+                .<Void>newForked(l -> {
+                    try (var listeners = new RefCountingListener(l)) {
+                        if (snapshotIdsToIterate.isEmpty()) {
+                            return;
+                        }
+
+                        final Repository repository;
+                        try {
+                            repository = repositoriesService.repository(repositoryName);
+                        } catch (RepositoryMissingException e) {
+                            listeners.acquire().onFailure(e);
+                            return;
+                        }
+
+                        // only need to synchronize accesses related to reading SnapshotInfo from the repo
+                        final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
+
+                        ThrottledIterator.run(
+                            Iterators.failFast(
+                                snapshotIdsToIterate.iterator(),
+                                () -> cancellableTask.isCancelled() || listeners.isFailing()
+                            ),
+                            (ref, snapshotId) -> {
+                                final var refListener = ActionListener.runBefore(listeners.acquire(), ref::close);
+                                getSnapshotInfoExecutor.getSnapshotInfo(repository, snapshotId, new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(SnapshotInfo snapshotInfo) {
+                                        if (matchesPredicates(snapshotInfo)) {
+                                            syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
+                                        }
+                                        refListener.onResponse(null);
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        if (ignoreUnavailable) {
+                                            logger.warn(
+                                                Strings.format("failed to fetch snapshot info for [%s:%s]", repository, snapshotId),
+                                                e
+                                            );
+                                            refListener.onResponse(null);
+                                        } else {
+                                            refListener.onFailure(e);
+                                        }
+                                    }
+                                });
+                            },
+                            getSnapshotInfoExecutor.getMaxRunningTasks(),
+                            () -> {},
+                            () -> {}
+                        );
+                    }
+                })
+
+                .addListener(
                     // no need to synchronize access to snapshots: Repository#getSnapshotInfo fails fast but we're on the success path here
-                    listener.safeMap(v -> sortSnapshotsWithNoOffsetOrLimit(snapshots))
-                )
-            ) {
-                if (snapshotIdsToIterate.isEmpty()) {
-                    return;
-                }
-
-                final Repository repository;
-                try {
-                    repository = repositoriesService.repository(repositoryName);
-                } catch (RepositoryMissingException e) {
-                    listeners.acquire().onFailure(e);
-                    return;
-                }
-
-                // only need to synchronize accesses related to reading SnapshotInfo from the repo
-                final List<SnapshotInfo> syncSnapshots = Collections.synchronizedList(snapshots);
-
-                ThrottledIterator.run(
-                    Iterators.failFast(snapshotIdsToIterate.iterator(), () -> cancellableTask.isCancelled() || listeners.isFailing()),
-                    (ref, snapshotId) -> {
-                        final var refListener = ActionListener.runBefore(listeners.acquire(), ref::close);
-                        getSnapshotInfoExecutor.getSnapshotInfo(repository, snapshotId, new ActionListener<>() {
-                            @Override
-                            public void onResponse(SnapshotInfo snapshotInfo) {
-                                if (matchesPredicates(snapshotInfo)) {
-                                    syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
-                                }
-                                refListener.onResponse(null);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (ignoreUnavailable) {
-                                    logger.warn(Strings.format("failed to fetch snapshot info for [%s:%s]", repository, snapshotId), e);
-                                    refListener.onResponse(null);
-                                } else {
-                                    refListener.onFailure(e);
-                                }
-                            }
-                        });
-                    },
-                    getSnapshotInfoExecutor.getMaxRunningTasks(),
-                    () -> {},
-                    () -> {}
+                    listener.safeMap(v -> sortSnapshotsWithNoOffsetOrLimit(snapshots)),
+                    executor,
+                    threadPool.getThreadContext()
                 );
-            }
         }
 
         private SnapshotsInRepo buildSimpleSnapshotInfos(

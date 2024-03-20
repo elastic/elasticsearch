@@ -247,7 +247,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Opens one or more indices based on their index name.
      *
-     * @param indices The name of the indices to open
+     * @param indices The name of the indices to  open
      */
     OpenIndexRequestBuilder prepareOpen(String... indices);
 

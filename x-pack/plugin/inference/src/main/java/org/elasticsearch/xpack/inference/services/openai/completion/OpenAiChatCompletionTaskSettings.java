@@ -83,7 +83,7 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersions.ML_COMPLETION_INFERENCE_SERVICE_ADDED;
     }
 
     @Override

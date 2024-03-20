@@ -27,7 +27,8 @@ setup:
             "service_settings": {
               "model": "my_model",
               "dimensions": 10,
-              "api_key": "abc64"
+              "api_key": "abc64",
+              "similarity": "cosine"
             },
             "task_settings": {
             }
@@ -55,25 +56,7 @@ setup:
           index: test-index
           id: doc_1
           body:
-            non_inference_field: "you know, for testing"
-            _inference:
-              sparse_field:
-                model_settings:
-                  inference_id: sparse-inference-id
-                  task_type: sparse_embedding
-                results:
-                  - text: "inference test"
-                    inference:
-                      feature_1: 0.1
-                      feature_2: 0.2
-                      feature_3: 0.3
-                      feature_4: 0.4
-                  - text: "another inference test"
-                    inference:
-                      feature_1: 0.1
-                      feature_2: 0.2
-                      feature_3: 0.3
-                      feature_4: 0.4
+            sparse_field: "you know, for testing"
 
 ---
 "Dense vector results format":
@@ -82,72 +65,4 @@ setup:
           index: test-index
           id: doc_1
           body:
-            non_inference_field: "you know, for testing"
-            _inference:
-              dense_field:
-                model_settings:
-                  inference_id: dense-inference-id
-                  task_type: text_embedding
-                  dimensions: 5
-                  similarity: cosine
-                results:
-                  - text: "inference test"
-                    inference: [0.1, 0.2, 0.3, 0.4, 0.5]
-                  - text: "another inference test"
-                    inference: [-0.1, -0.2, -0.3, -0.4, -0.5]
-
----
-"Model settings inference id not included":
-    - do:
-        catch: /Required \[inference_id\]/
-        index:
-          index: test-index
-          id: doc_1
-          body:
-            non_inference_field: "you know, for testing"
-            _inference:
-              sparse_field:
-                model_settings:
-                  task_type: sparse_embedding
-                results:
-                  - text: "inference test"
-                    inference:
-                      feature_1: 0.1
-
----
-"Model settings task type not included":
-    - do:
-        catch: /Required \[task_type\]/
-        index:
-          index: test-index
-          id: doc_1
-          body:
-            non_inference_field: "you know, for testing"
-            _inference:
-              sparse_field:
-                model_settings:
-                  inference_id: sparse-inference-id
-                results:
-                  - text: "inference test"
-                    inference:
-                      feature_1: 0.1
-
----
-"Model settings dense vector dimensions not included":
-  - do:
-      catch: /Model settings for field \[dense_field\] must contain dimensions/
-      index:
-        index: test-index
-        id: doc_1
-        body:
-          non_inference_field: "you know, for testing"
-          _inference:
-            dense_field:
-              model_settings:
-                inference_id: dense-inference-id
-                task_type: text_embedding
-              results:
-                - text: "inference test"
-                  inference: [0.1, 0.2, 0.3, 0.4, 0.5]
-                - text: "another inference test"
-                  inference: [-0.1, -0.2, -0.3, -0.4, -0.5]
+            dense_field: "you know, for testing"

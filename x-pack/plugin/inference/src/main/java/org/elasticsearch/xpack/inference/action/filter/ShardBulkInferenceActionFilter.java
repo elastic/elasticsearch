@@ -295,6 +295,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     continue;
                 }
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
+                boolean hasInput = false;
                 for (var entry : fieldInferenceMetadata.getFieldInferenceOptions().entrySet()) {
                     String field = entry.getKey();
                     String inferenceId = entry.getValue().inferenceId();
@@ -315,6 +316,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     if (value instanceof String valueStr) {
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                         fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
+                        hasInput = true;
                     } else {
                         inferenceResults.get(item.id()).failures.add(
                             new ElasticsearchStatusException(
@@ -324,6 +326,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 value.getClass().getSimpleName()
                             )
                         );
+                    }
+                }
+                if (hasInput == false) {
+                    // remove the existing _inference field (if present) since none of the content require inference.
+                    if (docMap.remove(InferenceMetadataFieldMapper.NAME) != null) {
+                        indexRequest.source(docMap);
                     }
                 }
             }

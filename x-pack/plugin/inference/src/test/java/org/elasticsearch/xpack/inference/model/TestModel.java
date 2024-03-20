@@ -16,6 +16,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -120,6 +121,16 @@ public class TestModel extends Model {
         @Override
         public ToXContentObject getFilteredXContentObject() {
             return this;
+        }
+
+        @Override
+        public SimilarityMeasure similarity() {
+            return SimilarityMeasure.COSINE;
+        }
+
+        @Override
+        public Integer dimensions() {
+            return 100;
         }
     }
 

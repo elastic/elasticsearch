@@ -166,7 +166,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                             .field("type", "semantic_text")
                             .field("inference_id", "test_model")
                             .startObject("model_settings")
-                            .field("inference_id", "test_model")
                             .field("task_type", "sparse_embedding")
                             .endObject()
                             .endObject()
@@ -186,10 +185,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 );
                 assertThat(
                     exc.getMessage(),
-                    containsString(
-                        "Cannot update parameter [model_settings] "
-                            + "from [{\"task_type\":\"sparse_embedding\",\"inference_id\":\"test_model\"}] to [null]"
-                    )
+                    containsString("Cannot update parameter [model_settings] " + "from [{\"task_type\":\"sparse_embedding\"}] to [null]")
                 );
             }
             {
@@ -202,9 +198,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                                 .field("type", "semantic_text")
                                 .field("inference_id", "test_model")
                                 .startObject("model_settings")
-                                .field("inference_id", "test_model")
                                 .field("task_type", "text_embedding")
                                 .field("dimensions", 10)
+                                .field("similarity", "cosine")
                                 .endObject()
                                 .endObject()
                         )
@@ -214,8 +210,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     exc.getMessage(),
                     containsString(
                         "Cannot update parameter [model_settings] "
-                            + "from [{\"task_type\":\"sparse_embedding\",\"inference_id\":\"test_model\"}] "
-                            + "to [{\"task_type\":\"text_embedding\",\"inference_id\":\"test_model\",\"dimensions\":10}]"
+                            + "from [{\"task_type\":\"sparse_embedding\"}] "
+                            + "to [{\"task_type\":\"text_embedding\",\"dimensions\":10,\"similarity\":\"cosine\"}]"
                     )
                 );
             }

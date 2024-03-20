@@ -11,7 +11,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -37,7 +36,6 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
@@ -67,8 +65,8 @@ import java.util.stream.Collectors;
  *         "my_semantic_text_field": "these are not the droids you're looking for",
  *         "_inference": {
  *             "my_semantic_text_field": {
+ *                  "inference_id": "my_inference_id",
  *                  "model_settings": {
- *                      "inference_id": "my_inference_id",
  *                      "task_type": "SPARSE_EMBEDDING"
  *                  },
  *                  "results" [
@@ -118,6 +116,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_inference";
     public static final String CONTENT_TYPE = "_inference";
 
+    private static final String INFERENCE_ID = "inference_id";
     public static final String RESULTS = "results";
     public static final String INFERENCE_CHUNKS_RESULTS = "inference";
     public static final String INFERENCE_CHUNKS_TEXT = "text";
@@ -178,19 +177,20 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         MapperBuilderContext mapperBuilderContext,
         ObjectMapper parent,
         SemanticTextFieldMapper original,
+        String inferenceId,
         SemanticTextModelSettings modelSettings,
         XContentLocation xContentLocation
     ) {
-        if (modelSettings.inferenceId().equals(original.fieldType().getInferenceId()) == false) {
+        if (inferenceId.equals(original.fieldType().getInferenceId()) == false) {
             throw new DocumentParsingException(
                 xContentLocation,
                 Strings.format(
                     "The configured %s [%s] for field [%s] doesn't match the %s [%s] reported in the document.",
-                    SemanticTextModelSettings.INFERENCE_ID_FIELD.getPreferredName(),
-                    modelSettings.inferenceId(),
+                    INFERENCE_ID,
+                    inferenceId,
                     original.name(),
-                    SemanticTextModelSettings.INFERENCE_ID_FIELD.getPreferredName(),
-                    modelSettings.inferenceId()
+                    INFERENCE_ID,
+                    original.fieldType().getInferenceId()
                 )
             );
         }
@@ -208,7 +208,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
                 original.simpleName(),
                 docContext.indexSettings().getIndexVersionCreated(),
                 docContext.indexAnalyzers()
-            ).setInferenceId(modelSettings.inferenceId()).setModelSettings(modelSettings).build(mapperBuilderContext);
+            ).setInferenceId(original.fieldType().getInferenceId()).setModelSettings(modelSettings).build(mapperBuilderContext);
             docContext.addDynamicMapper(newMapper);
             return newMapper.getSubMappers();
         } else {
@@ -238,8 +238,18 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
 
         // record the location of the inference field in the original source
         XContentLocation xContentLocation = parser.getTokenLocation();
-        // parse eagerly to extract the model settings first
+        // parse eagerly to extract the inference id and the model settings first
         Map<String, Object> map = parser.mapOrdered();
+        logger.info("map=" + map.toString());
+
+        // inference_id
+        Object inferenceIdObj = map.remove(INFERENCE_ID);
+        final String inferenceId = XContentMapValues.nodeStringValue(inferenceIdObj, null);
+        if (inferenceId == null) {
+            throw new IllegalArgumentException("required [" + INFERENCE_ID + "] is missing");
+        }
+
+        // model_settings
         Object modelSettingsObj = map.remove(SemanticTextModelSettings.NAME);
         if (modelSettingsObj == null) {
             throw new DocumentParsingException(
@@ -252,12 +262,9 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
                 )
             );
         }
-        Map<String, Object> modelSettingsMap = XContentMapValues.nodeMapValue(modelSettingsObj, "model_settings");
         final SemanticTextModelSettings modelSettings;
         try {
-            modelSettings = SemanticTextModelSettings.parse(
-                XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, modelSettingsMap)
-            );
+            modelSettings = SemanticTextModelSettings.fromMap(modelSettingsObj);
         } catch (Exception exc) {
             throw new DocumentParsingException(
                 xContentLocation,
@@ -270,11 +277,13 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
                 exc
             );
         }
+
         var nestedObjectMapper = updateSemanticTextFieldMapper(
             context,
             mapperBuilderContext,
             res.parent,
             (SemanticTextFieldMapper) res.mapper,
+            inferenceId,
             modelSettings,
             xContentLocation
         );
@@ -406,8 +415,9 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
             );
         }
         Map<String, Object> fieldMap = new LinkedHashMap<>();
+        fieldMap.put(INFERENCE_ID, model.getInferenceEntityId());
         fieldMap.putAll(new SemanticTextModelSettings(model).asMap());
-        fieldMap.put(InferenceMetadataFieldMapper.RESULTS, chunks);
+        fieldMap.put(RESULTS, chunks);
         inferenceMap.put(field, fieldMap);
     }
 

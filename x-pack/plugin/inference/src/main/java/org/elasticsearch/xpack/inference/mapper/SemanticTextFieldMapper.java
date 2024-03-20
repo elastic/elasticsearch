@@ -277,32 +277,13 @@ public class SemanticTextFieldMapper extends FieldMapper {
                         );
                     }
                 }
-                Integer dimensions = modelSettings.dimensions();
-                denseVectorMapperBuilder.dimensions(dimensions);
+                denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
                 yield denseVectorMapperBuilder;
             }
             default -> throw new IllegalArgumentException(
                 "Invalid [task_type] for [" + fieldName + "] in model settings: " + modelSettings.taskType().name()
             );
         };
-    }
-
-    @Override
-    protected void checkIncomingMergeType(FieldMapper mergeWith) {
-        if (mergeWith instanceof SemanticTextFieldMapper other) {
-            if (other.modelSettings != null && other.modelSettings.inferenceId().equals(other.fieldType().getInferenceId()) == false) {
-                throw new IllegalArgumentException(
-                    "mapper ["
-                        + name()
-                        + "] refers to different model ids ["
-                        + other.modelSettings.inferenceId()
-                        + "] and ["
-                        + other.fieldType().getInferenceId()
-                        + "]"
-                );
-            }
-        }
-        super.checkIncomingMergeType(mergeWith);
     }
 
     static boolean canMergeModelSettings(

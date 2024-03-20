@@ -27,6 +27,7 @@ setup:
             "service_settings": {
               "model": "my_model",
               "dimensions": 10,
+              "similarity": "cosine",
               "api_key": "abc64"
             },
             "task_settings": {

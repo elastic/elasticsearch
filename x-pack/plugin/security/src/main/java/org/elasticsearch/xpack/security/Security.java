@@ -288,6 +288,7 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
@@ -583,6 +584,7 @@ public class Security extends Plugin
     private final SetOnce<Client> client = new SetOnce<>();
     private final SetOnce<List<ReloadableSecurityComponent>> reloadableComponents = new SetOnce<>();
     private final SetOnce<AuthorizationDenialMessages> authorizationDenialMessages = new SetOnce<>();
+    private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -1071,7 +1073,8 @@ public class Security extends Plugin
                 getLicenseState(),
                 threadPool,
                 securityContext.get(),
-                destructiveOperations
+                destructiveOperations,
+                secondaryAuthActions.get() == null ? Set::of : secondaryAuthActions.get()
             )
         );
 
@@ -2105,6 +2108,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, createApiKeyRequestBuilderFactory, CreateApiKeyRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, hasPrivilegesRequestBuilderFactory, HasPrivilegesRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, authorizationDenialMessages, AuthorizationDenialMessages.class);
+        loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class); // TODO: move this xpack core
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

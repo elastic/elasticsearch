@@ -27,6 +27,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
+
 /**
  * Serialization class for specifying the settings of a model from semantic_text inference to field mapper.
  */
@@ -58,6 +61,7 @@ public class SemanticTextModelSettings implements ToXContentObject {
             model.getServiceSettings().dimensions(),
             model.getServiceSettings().similarity()
         );
+        validate();
     }
 
     public static SemanticTextModelSettings parse(XContentParser parser) throws IOException {
@@ -147,6 +151,18 @@ public class SemanticTextModelSettings implements ToXContentObject {
             builder.field(SIMILARITY_FIELD.getPreferredName(), similarity);
         }
         return builder.endObject();
+    }
+
+    public void validate() {
+        switch (taskType) {
+            case TEXT_EMBEDDING:
+            case SPARSE_EMBEDDING:
+                break;
+
+            default:
+                throw new IllegalArgumentException("Wrong [" + TASK_TYPE_FIELD.getPreferredName() + "], expected " +
+                        TEXT_EMBEDDING + "or " + SPARSE_EMBEDDING + ", got " + taskType.name());
+        }
     }
 
     @Override

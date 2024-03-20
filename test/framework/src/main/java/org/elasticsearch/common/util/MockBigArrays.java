@@ -148,7 +148,7 @@ public class MockBigArrays extends BigArrays {
         this(recycler, breakerService, false);
     }
 
-    private MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
+    public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
         super(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.recycler = recycler;
         this.breakerService = breakerService;

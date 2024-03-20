@@ -107,11 +107,13 @@ public class MrjarPlugin implements Plugin<Project> {
         });
     }
 
-    private void addSourceset(Project project,
-                              JavaPluginExtension javaExtension,
-                              String sourcesetName,
-                              List<String> parentSourceSets,
-                              int javaVersion) {
+    private void addSourceset(
+        Project project,
+        JavaPluginExtension javaExtension,
+        String sourcesetName,
+        List<String> parentSourceSets,
+        int javaVersion
+    ) {
         SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourcesetName);
         for (String parentSourceSetName : parentSourceSets) {
             GradleUtils.extendSourceSet(project, parentSourceSetName, sourcesetName);

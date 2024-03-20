@@ -30,7 +30,7 @@ import java.util.Map;
  * at ingestion and query time.
  * For now, it is compatible with text expansion models only, but will be extended to support dense vector models as well.
  * This field mapper performs no indexing, as inference results will be included as a different field in the document source, and will
- * be indexed using {@link SemanticTextInferenceResultFieldMapper}.
+ * be indexed using {@link InferenceResultFieldMapper}.
  */
 public class SemanticTextFieldMapper extends FieldMapper {
 

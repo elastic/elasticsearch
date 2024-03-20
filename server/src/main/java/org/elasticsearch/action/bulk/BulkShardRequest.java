@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -33,6 +34,8 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     private final BulkItemRequest[] items;
 
+    private transient FieldInferenceMetadata fieldsInferenceMetadataMap = null;
+
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
@@ -42,6 +45,30 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
+    }
+
+    /**
+     * Public for test
+     * Set the transient metadata indicating that this request requires running inference before proceeding.
+     */
+    public void setFieldInferenceMetadata(FieldInferenceMetadata fieldsInferenceMetadata) {
+        this.fieldsInferenceMetadataMap = fieldsInferenceMetadata;
+    }
+
+    /**
+     * Consumes the inference metadata to execute inference on the bulk items just once.
+     */
+    public FieldInferenceMetadata consumeFieldInferenceMetadata() {
+        FieldInferenceMetadata ret = fieldsInferenceMetadataMap;
+        fieldsInferenceMetadataMap = null;
+        return ret;
+    }
+
+    /**
+     * Public for test
+     */
+    public FieldInferenceMetadata getFieldsInferenceMetadataMap() {
+        return fieldsInferenceMetadataMap;
     }
 
     public long totalSizeInBytes() {

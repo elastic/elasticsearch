@@ -621,12 +621,16 @@ public final class PlanNamedTypes {
     }
 
     static FragmentExec readFragmentExec(PlanStreamInput in) throws IOException {
+        PhysicalPlan reducerNode = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REDUCER_NODE_FRAGMENT)) {
+            reducerNode = in.readOptionalPhysicalPlanNode();
+        }
         return new FragmentExec(
             in.readSource(),
             in.readLogicalPlanNode(),
             in.readOptionalNamedWriteable(QueryBuilder.class),
             in.readOptionalVInt(),
-            in.readOptionalPhysicalPlanNode()
+            reducerNode
         );
     }
 
@@ -635,7 +639,9 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(fragmentExec.fragment());
         out.writeOptionalNamedWriteable(fragmentExec.esFilter());
         out.writeOptionalVInt(fragmentExec.estimatedRowSize());
-        out.writeOptionalPhysicalPlanNode(fragmentExec.reducer());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REDUCER_NODE_FRAGMENT)) {
+            out.writeOptionalPhysicalPlanNode(fragmentExec.reducer());
+        }
     }
 
     static GrokExec readGrokExec(PlanStreamInput in) throws IOException {

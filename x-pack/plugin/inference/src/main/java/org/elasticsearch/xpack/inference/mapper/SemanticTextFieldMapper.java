@@ -87,11 +87,6 @@ public class SemanticTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    public String name() {
-        return super.name();
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         List<Mapper> subIterators = new ArrayList<>();
         subIterators.add(subMappers);

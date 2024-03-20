@@ -87,7 +87,7 @@ public class PlannerUtils {
         if (pipelineBreakers.isEmpty() == false) {
             UnaryPlan pipelineBreaker = (UnaryPlan) pipelineBreakers.get(0);
             if (pipelineBreaker instanceof TopN topN) {
-                return new TopNExec(topN.source(), unused, topN.order(), topN.limit(), 0);
+                return new TopNExec(topN.source(), unused, topN.order(), topN.limit(), 1000);
             } else if (pipelineBreaker instanceof Limit limit) {
                 return new LimitExec(limit.source(), unused, limit.limit());
             } else if (pipelineBreaker instanceof OrderBy order) {

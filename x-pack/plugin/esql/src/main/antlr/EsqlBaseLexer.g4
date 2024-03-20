@@ -10,6 +10,7 @@ GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
+META : 'meta'                 -> pushMode(META_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
@@ -364,13 +365,12 @@ MVEXPAND_WS
     ;
 
 //
-// SHOW INFO
+// SHOW commands
 //
 mode SHOW_MODE;
 SHOW_PIPE : PIPE -> type(PIPE), popMode;
 
 INFO : 'info';
-FUNCTIONS : 'functions';
 
 SHOW_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -381,6 +381,26 @@ SHOW_MULTILINE_COMMENT
     ;
 
 SHOW_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+//
+// META commands
+//
+mode META_MODE;
+META_PIPE : PIPE -> type(PIPE), popMode;
+
+FUNCTIONS : 'functions';
+
+META_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+META_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+META_WS
     : WS -> channel(HIDDEN)
     ;
 

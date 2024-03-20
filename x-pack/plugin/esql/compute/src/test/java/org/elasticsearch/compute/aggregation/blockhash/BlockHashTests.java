@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1156,11 +1155,10 @@ public class BlockHashTests extends ESTestCase {
             for (int c = 0; c < values.length; c++) {
                 specs.add(new HashAggregationOperator.GroupSpec(c, values[c].elementType()));
             }
-            DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
             try (
                 BlockHash blockHash = forcePackedHash
-                    ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
-                    : BlockHash.build(specs, driverContext, emitBatchSize, true)
+                    ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
+                    : BlockHash.build(specs, blockFactory, emitBatchSize, true)
             ) {
                 hash(true, blockHash, callback, values);
             }

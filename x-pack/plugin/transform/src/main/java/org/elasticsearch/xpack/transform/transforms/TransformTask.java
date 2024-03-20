@@ -240,9 +240,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         logger.debug("[{}] start called with state [{}].", getTransformId(), getState());
         if (context.getTaskState() == TransformTaskState.FAILED) {
             listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
-                    RestStatus.CONFLICT
+                new CannotStartFailedTransformException(
+                    TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason())
                 )
             );
             return;

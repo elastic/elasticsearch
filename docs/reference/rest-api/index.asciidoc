@@ -44,6 +44,7 @@ not be included yet.
 * <<indices-reload-analyzers,Reload search analyzers API>>
 * <<repositories-metering-apis,Repositories metering APIs>>
 * <<rollup-apis,Rollup APIs>>
+* <<rest-api-root,Root API>>
 * <<script-apis,Script APIs>>
 * <<search, Search APIs>>
 * <<search-application-apis, Search Application APIs>>
@@ -93,6 +94,7 @@ include::{es-repo-dir}/query-rules/apis/index.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::{es-repo-dir}/repositories-metering-api/repositories-metering-apis.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-apis.asciidoc[]
+include::{es-repo-dir}/rest-api/root.asciidoc[]
 include::{es-repo-dir}/scripting/apis/script-apis.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
 include::{es-repo-dir}/search-application/apis/index.asciidoc[]

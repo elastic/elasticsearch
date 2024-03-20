@@ -146,9 +146,8 @@ public class MrjarPlugin implements Plugin<Project> {
             FileCollection testRuntime = sourceSet.getRuntimeClasspath();
             testTask.setClasspath(testRuntime.minus(mainRuntime).plus(project.files(jarTask)));
 
-            testTask.getJavaLauncher().set(
-                javaToolchains.launcherFor(spec -> { spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion)); })
-            );
+            testTask.getJavaLauncher()
+                .set(javaToolchains.launcherFor(spec -> { spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion)); }));
         });
     }
 

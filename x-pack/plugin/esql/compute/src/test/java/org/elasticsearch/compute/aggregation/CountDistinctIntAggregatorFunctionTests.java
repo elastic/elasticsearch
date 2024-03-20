@@ -34,7 +34,7 @@ public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+    protected AggregatorFunctionSupplier aggregatorFunction(AggregatorMode mode, List<Integer> inputChannels) {
         return new CountDistinctIntAggregatorFunctionSupplier(inputChannels, 40000);
     }
 

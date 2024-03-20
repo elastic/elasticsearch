@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link SumDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SumDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class SumDoubleAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   public SumDoubleAggregatorFunctionSupplier(List<Integer> channels) {
@@ -22,12 +22,12 @@ public final class SumDoubleAggregatorFunctionSupplier implements AggregatorFunc
   }
 
   @Override
-  public SumDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+  protected SumDoubleAggregatorFunction aggregator(DriverContext driverContext) {
     return SumDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SumDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  protected SumDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
     return SumDoubleGroupingAggregatorFunction.create(channels, driverContext);
   }
 

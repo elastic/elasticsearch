@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link SpatialCentroidCartesianPointDocValuesAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   public SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(List<Integer> channels) {
@@ -23,13 +23,13 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunctionSuppl
   }
 
   @Override
-  public SpatialCentroidCartesianPointDocValuesAggregatorFunction aggregator(
+  protected SpatialCentroidCartesianPointDocValuesAggregatorFunction aggregator(
       DriverContext driverContext) {
     return SpatialCentroidCartesianPointDocValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction groupingAggregator(
+  protected SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
     return SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction.create(channels, driverContext);
   }

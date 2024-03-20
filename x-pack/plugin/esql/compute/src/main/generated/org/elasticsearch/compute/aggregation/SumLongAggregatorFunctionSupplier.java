@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link SumLongAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SumLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class SumLongAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   public SumLongAggregatorFunctionSupplier(List<Integer> channels) {
@@ -22,12 +22,12 @@ public final class SumLongAggregatorFunctionSupplier implements AggregatorFuncti
   }
 
   @Override
-  public SumLongAggregatorFunction aggregator(DriverContext driverContext) {
+  protected SumLongAggregatorFunction aggregator(DriverContext driverContext) {
     return SumLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SumLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  protected SumLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
     return SumLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 

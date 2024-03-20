@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link MinLongAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MinLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class MinLongAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   public MinLongAggregatorFunctionSupplier(List<Integer> channels) {
@@ -22,12 +22,12 @@ public final class MinLongAggregatorFunctionSupplier implements AggregatorFuncti
   }
 
   @Override
-  public MinLongAggregatorFunction aggregator(DriverContext driverContext) {
+  protected MinLongAggregatorFunction aggregator(DriverContext driverContext) {
     return MinLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MinLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  protected MinLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
     return MinLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 

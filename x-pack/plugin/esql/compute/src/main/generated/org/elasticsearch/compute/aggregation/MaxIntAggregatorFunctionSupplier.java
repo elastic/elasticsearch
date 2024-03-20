@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link MaxIntAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MaxIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class MaxIntAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   public MaxIntAggregatorFunctionSupplier(List<Integer> channels) {
@@ -22,12 +22,12 @@ public final class MaxIntAggregatorFunctionSupplier implements AggregatorFunctio
   }
 
   @Override
-  public MaxIntAggregatorFunction aggregator(DriverContext driverContext) {
+  protected MaxIntAggregatorFunction aggregator(DriverContext driverContext) {
     return MaxIntAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MaxIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  protected MaxIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
     return MaxIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 

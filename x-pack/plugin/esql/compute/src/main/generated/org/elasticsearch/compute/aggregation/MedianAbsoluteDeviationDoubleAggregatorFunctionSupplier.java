@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   public MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(List<Integer> channels) {
@@ -22,12 +22,13 @@ public final class MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier imple
   }
 
   @Override
-  public MedianAbsoluteDeviationDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+  protected MedianAbsoluteDeviationDoubleAggregatorFunction aggregator(
+      DriverContext driverContext) {
     return MedianAbsoluteDeviationDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MedianAbsoluteDeviationDoubleGroupingAggregatorFunction groupingAggregator(
+  protected MedianAbsoluteDeviationDoubleGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
     return MedianAbsoluteDeviationDoubleGroupingAggregatorFunction.create(channels, driverContext);
   }

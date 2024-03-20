@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctBooleanAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class CountDistinctBooleanAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class CountDistinctBooleanAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   public CountDistinctBooleanAggregatorFunctionSupplier(List<Integer> channels) {
@@ -22,12 +22,12 @@ public final class CountDistinctBooleanAggregatorFunctionSupplier implements Agg
   }
 
   @Override
-  public CountDistinctBooleanAggregatorFunction aggregator(DriverContext driverContext) {
+  protected CountDistinctBooleanAggregatorFunction aggregator(DriverContext driverContext) {
     return CountDistinctBooleanAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public CountDistinctBooleanGroupingAggregatorFunction groupingAggregator(
+  protected CountDistinctBooleanGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
     return CountDistinctBooleanGroupingAggregatorFunction.create(channels, driverContext);
   }

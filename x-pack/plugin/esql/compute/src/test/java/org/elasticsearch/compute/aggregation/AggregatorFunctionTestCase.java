@@ -42,10 +42,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase {
-    protected abstract AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier aggregatorFunction(AggregatorMode mode, List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
+        AggregatorMode mode = randomFrom(AggregatorMode.values());
+        try (var agg = aggregatorFunction(mode, List.of()).aggregator(driverContext())) {
             return agg.intermediateBlockCount();
         }
     }
@@ -57,7 +58,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     @Override
     protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
         List<Integer> channels = mode.isInputPartial() ? range(0, aggregatorIntermediateBlockCount()).boxed().toList() : List.of(0);
-        return new AggregationOperator.AggregationOperatorFactory(List.of(aggregatorFunction(channels).aggregatorFactory(mode)), mode);
+        return new AggregationOperator.AggregationOperatorFactory(List.of(aggregatorFunction(mode, channels).aggregatorFactory(mode)), mode);
     }
 
     @Override
@@ -161,7 +162,8 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     // Returns an intermediate state that is equivalent to what the local execution planner will emit
     // if it determines that certain shards have no relevant data.
     final List<Page> nullIntermediateState(BlockFactory blockFactory) {
-        try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
+        AggregatorMode mode = randomFrom(AggregatorMode.values());
+        try (var agg = aggregatorFunction(mode, List.of()).aggregator(driverContext())) {
             var method = agg.getClass().getMethod("intermediateStateDesc");
             @SuppressWarnings("unchecked")
             List<IntermediateStateDesc> intermediateStateDescs = (List<IntermediateStateDesc>) method.invoke(null);

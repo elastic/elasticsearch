@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctLongAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class CountDistinctLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class CountDistinctLongAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   private final int precision;
@@ -25,12 +25,12 @@ public final class CountDistinctLongAggregatorFunctionSupplier implements Aggreg
   }
 
   @Override
-  public CountDistinctLongAggregatorFunction aggregator(DriverContext driverContext) {
+  protected CountDistinctLongAggregatorFunction aggregator(DriverContext driverContext) {
     return CountDistinctLongAggregatorFunction.create(driverContext, channels, precision);
   }
 
   @Override
-  public CountDistinctLongGroupingAggregatorFunction groupingAggregator(
+  protected CountDistinctLongGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
     return CountDistinctLongGroupingAggregatorFunction.create(channels, driverContext, precision);
   }

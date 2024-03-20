@@ -80,7 +80,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addJavadoc("{@link $T} implementation for {@link $T}.\n", AGGREGATOR_FUNCTION_SUPPLIER, declarationType);
         builder.addJavadoc("This class is generated. Do not edit it.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
-        builder.addSuperinterface(AGGREGATOR_FUNCTION_SUPPLIER);
+        builder.superclass(AGGREGATOR_FUNCTION_SUPPLIER);
 
         createParameters.stream().forEach(p -> p.declareField(builder));
         builder.addMethod(ctor());
@@ -100,7 +100,7 @@ public class AggregatorFunctionSupplierImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator")
             .addParameter(DRIVER_CONTEXT, "driverContext")
             .returns(aggregatorImplementer.implementation());
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PROTECTED);
         builder.addStatement(
             "return $T.create($L)",
             aggregatorImplementer.implementation(),
@@ -115,7 +115,7 @@ public class AggregatorFunctionSupplierImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator")
             .addParameter(DRIVER_CONTEXT, "driverContext")
             .returns(groupingAggregatorImplementer.implementation());
-        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PROTECTED);
         builder.addStatement(
             "return $T.create($L)",
             groupingAggregatorImplementer.implementation(),

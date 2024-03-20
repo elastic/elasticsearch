@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctBytesRefAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class CountDistinctBytesRefAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class CountDistinctBytesRefAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   private final int precision;
@@ -25,12 +25,12 @@ public final class CountDistinctBytesRefAggregatorFunctionSupplier implements Ag
   }
 
   @Override
-  public CountDistinctBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
+  protected CountDistinctBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
     return CountDistinctBytesRefAggregatorFunction.create(driverContext, channels, precision);
   }
 
   @Override
-  public CountDistinctBytesRefGroupingAggregatorFunction groupingAggregator(
+  protected CountDistinctBytesRefGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
     return CountDistinctBytesRefGroupingAggregatorFunction.create(channels, driverContext, precision);
   }

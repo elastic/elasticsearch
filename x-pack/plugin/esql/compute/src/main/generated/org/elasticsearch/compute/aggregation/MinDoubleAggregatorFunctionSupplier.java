@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * {@link AggregatorFunctionSupplier} implementation for {@link MinDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class MinDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class MinDoubleAggregatorFunctionSupplier extends AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
   public MinDoubleAggregatorFunctionSupplier(List<Integer> channels) {
@@ -22,12 +22,12 @@ public final class MinDoubleAggregatorFunctionSupplier implements AggregatorFunc
   }
 
   @Override
-  public MinDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+  protected MinDoubleAggregatorFunction aggregator(DriverContext driverContext) {
     return MinDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MinDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  protected MinDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
     return MinDoubleGroupingAggregatorFunction.create(channels, driverContext);
   }
 

@@ -13,12 +13,13 @@ import org.elasticsearch.compute.operator.DriverContext;
 /**
  * Builds aggregation implementations, closing over any state required to do so.
  */
-public interface AggregatorFunctionSupplier extends Describable {
-    AggregatorFunction aggregator(DriverContext driverContext);
+public abstract class AggregatorFunctionSupplier implements Describable {
+    
+    protected abstract AggregatorFunction aggregator(DriverContext driverContext);
 
-    GroupingAggregatorFunction groupingAggregator(DriverContext driverContext);
+    protected abstract GroupingAggregatorFunction groupingAggregator(DriverContext driverContext);
 
-    default Aggregator.Factory aggregatorFactory(AggregatorMode mode) {
+    public Aggregator.Factory aggregatorFactory(AggregatorMode mode) {
         return new Aggregator.Factory() {
             @Override
             public Aggregator apply(DriverContext driverContext) {
@@ -32,7 +33,7 @@ public interface AggregatorFunctionSupplier extends Describable {
         };
     }
 
-    default GroupingAggregator.Factory groupingAggregatorFactory(AggregatorMode mode) {
+    public GroupingAggregator.Factory groupingAggregatorFactory(AggregatorMode mode) {
         return new GroupingAggregator.Factory() {
             @Override
             public GroupingAggregator apply(DriverContext driverContext) {

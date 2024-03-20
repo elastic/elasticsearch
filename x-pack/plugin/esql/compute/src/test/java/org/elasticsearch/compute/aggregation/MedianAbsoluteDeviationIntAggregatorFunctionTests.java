@@ -29,7 +29,7 @@ public class MedianAbsoluteDeviationIntAggregatorFunctionTests extends Aggregato
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+    protected AggregatorFunctionSupplier aggregatorFunction(AggregatorMode mode, List<Integer> inputChannels) {
         return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(inputChannels);
     }
 

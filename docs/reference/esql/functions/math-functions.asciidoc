@@ -33,9 +33,9 @@
 
 include::layout/abs.asciidoc[]
 include::layout/acos.asciidoc[]
-include::asin.asciidoc[]
-include::atan.asciidoc[]
-include::atan2.asciidoc[]
+include::layout/asin.asciidoc[]
+include::layout/atan.asciidoc[]
+include::layout/atan2.asciidoc[]
 include::ceil.asciidoc[]
 include::cos.asciidoc[]
 include::cosh.asciidoc[]

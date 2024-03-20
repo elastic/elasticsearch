@@ -252,11 +252,6 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean supportsDimension() {
-            return true;
-        }
-
-        @Override
         public boolean hasScriptValues() {
             return scriptValues != null;
         }

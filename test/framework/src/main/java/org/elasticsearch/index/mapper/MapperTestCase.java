@@ -1032,7 +1032,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     private String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
         if (mapper instanceof FieldMapper fieldMapper
-            && fieldMapper.fieldType().supportsDimension()
             && fieldMapper.fieldType().isDimension() == false) {
             return "All fields that match routing_path must be configured with [time_series_dimension: true] "
                 + "or flattened fields with a list of dimensions in [time_series_dimensions] and "

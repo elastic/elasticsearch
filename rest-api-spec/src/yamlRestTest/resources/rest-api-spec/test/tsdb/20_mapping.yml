@@ -158,7 +158,7 @@ non keyword matches routing_path:
       reason: routing_path error message updated in 8.14.0
 
   - do:
-      catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[@timestamp\] was \[date\]./'
+      catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[@timestamp\] was not a dimension./'
       indices.create:
           index: test_index
           body:

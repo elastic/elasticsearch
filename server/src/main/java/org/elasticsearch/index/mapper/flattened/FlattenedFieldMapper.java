@@ -236,11 +236,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return isDimension;
         }
 
-        @Override
-        public boolean supportsDimension() {
-            return true;
-        }
-
         KeyedFlattenedFieldType(
             String rootName,
             boolean indexed,
@@ -720,11 +715,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public boolean isDimension() {
             return isDimension;
-        }
-
-        @Override
-        public boolean supportsDimension() {
-            return true;
         }
 
         @Override

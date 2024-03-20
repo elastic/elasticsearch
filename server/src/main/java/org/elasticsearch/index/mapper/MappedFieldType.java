@@ -196,13 +196,6 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * @return true if field can be marked as a dimension field
-     */
-    public boolean supportsDimension() {
-        return false;
-    }
-
-    /**
      * @return true if field has script values.
      */
     public boolean hasScriptValues() {
@@ -635,19 +628,6 @@ public abstract class MappedFieldType {
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
     public void validateMatchedRoutingPath(String routingPath) {
-        if (supportsDimension() == false) {
-            throw new IllegalArgumentException(
-                "All fields that match routing_path "
-                    + "must be configured with [time_series_dimension: true] "
-                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                    + "without the [script] parameter. ["
-                    + name()
-                    + "] was ["
-                    + typeName()
-                    + "]."
-            );
-        }
-
         if (hasScriptValues()) {
             throw new IllegalArgumentException(
                 "All fields that match routing_path must be configured with [time_series_dimension: true] "

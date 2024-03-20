@@ -1,0 +1,5 @@
+pr: 106563
+summary: Improve short-circuiting downsample execution
+area: TSDB
+type: enhancement
+issues: []

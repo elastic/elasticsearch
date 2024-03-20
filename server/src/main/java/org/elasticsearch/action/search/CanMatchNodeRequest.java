@@ -171,7 +171,9 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         // or one of the background queries can match the shard. Therefore, we take the union of
         // the queries to determine whether a request can match.
         List<QueryBuilder> backgroundFilters = new ArrayList<>();
-        collectSignificantTermsBackgroundFilters(searchRequest.source().aggregations().getAggregatorFactories(), backgroundFilters);
+        if (searchRequest.source() != null && searchRequest.source().aggregations() != null) {
+            collectSignificantTermsBackgroundFilters(searchRequest.source().aggregations().getAggregatorFactories(), backgroundFilters);
+        }
         if (backgroundFilters.isEmpty()) {
             return searchRequest.source();
         } else {

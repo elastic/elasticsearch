@@ -1,5 +1,5 @@
 pr: 106574
-summary: Fix `_reset` API when called with `force=true`
+summary: Fix `_reset` API when called with `force=true` on a failed transform
 area: Transform
 type: bug
 issues:

@@ -154,7 +154,14 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             stopTransformActionListener.onResponse(null);
             return;
         }
-        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(request.getId(), true, false, null, true, false);
+        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(
+            request.getId(),
+            true,
+            request.isForce(),
+            null,
+            true,
+            false
+        );
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, StopTransformAction.INSTANCE, stopTransformRequest, stopTransformActionListener);
     }
 

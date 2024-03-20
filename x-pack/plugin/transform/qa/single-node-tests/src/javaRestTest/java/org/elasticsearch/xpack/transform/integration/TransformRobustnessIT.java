@@ -15,10 +15,8 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
@@ -148,28 +146,6 @@ public class TransformRobustnessIT extends TransformRestTestCase {
 
         // Verify that there is no transform task left.
         assertThat(getTransformTasks(), is(empty()));
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<String> getTransformTasks() throws IOException {
-        final Request tasksRequest = new Request("GET", "/_tasks");
-        tasksRequest.addParameter("actions", TransformField.TASK_NAME + "*");
-        Map<String, Object> tasksResponse = entityAsMap(client().performRequest(tasksRequest));
-
-        Map<String, Object> nodes = (Map<String, Object>) tasksResponse.get("nodes");
-        if (nodes == null) {
-            return List.of();
-        }
-
-        List<String> foundTasks = new ArrayList<>();
-        for (Entry<String, Object> node : nodes.entrySet()) {
-            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
-            Map<String, Object> tasks = (Map<String, Object>) nodeInfo.get("tasks");
-            if (tasks != null) {
-                foundTasks.addAll(tasks.keySet());
-            }
-        }
-        return foundTasks;
     }
 
     private void beEvilAndDeleteTheTransformIndex() throws IOException {

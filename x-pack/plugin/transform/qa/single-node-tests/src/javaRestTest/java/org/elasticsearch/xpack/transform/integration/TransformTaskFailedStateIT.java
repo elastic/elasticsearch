@@ -24,10 +24,12 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
@@ -61,6 +63,9 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
+
+        assertThat(getTransformTasks(), is(empty()));
+
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
@@ -71,6 +76,8 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
             + "incompatible with the transform configuration.;.*";
         // Verify we have failed for the expected reason
         assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
+
+        assertThat(getTransformTasks(), hasSize(1));
 
         // verify that we cannot stop a failed transform
         ResponseException ex = expectThrows(ResponseException.class, () -> stopTransform(transformId, false));
@@ -90,14 +97,19 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         awaitState(transformId, TransformStats.State.STOPPED);
         fullState = getTransformStateAndStats(transformId);
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
+
+        assertThat(getTransformTasks(), is(empty()));
     }
 
-    public void testStartFailedTransform() throws Exception {
-        String transformId = "test-force-start-failed-transform";
+    public void testForceResetFailedTransform() throws Exception {
+        String transformId = "test-force-reset-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10, 27, "date", false, -1, null);
         String transformIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(transformIndex);
         createContinuousPivotReviewsTransform(transformId, transformIndex, null);
+
+        assertThat(getTransformTasks(), is(empty()));
+
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
@@ -108,6 +120,44 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
             + "incompatible with the transform configuration.;.*";
         // Verify we have failed for the expected reason
         assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
+
+        assertThat(getTransformTasks(), hasSize(1));
+
+        // verify that we cannot reset a failed transform
+        ResponseException ex = expectThrows(ResponseException.class, () -> resetTransform(transformId, false));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
+        assertThat(
+            (String) XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
+            is(equalTo("Cannot reset transform [test-force-reset-failed-transform] as the task is running. Stop the task first"))
+        );
+
+        // Verify that we can force reset a failed transform
+        resetTransform(transformId, true);
+
+        assertThat(getTransformTasks(), is(empty()));
+    }
+
+    public void testStartFailedTransform() throws Exception {
+        String transformId = "test-force-start-failed-transform";
+        createReviewsIndex(REVIEWS_INDEX_NAME, 10, 27, "date", false, -1, null);
+        String transformIndex = "failure_pivot_reviews";
+        createDestinationIndexWithBadMapping(transformIndex);
+        createContinuousPivotReviewsTransform(transformId, transformIndex, null);
+
+        assertThat(getTransformTasks(), is(empty()));
+
+        startTransform(transformId);
+        awaitState(transformId, TransformStats.State.FAILED);
+        Map<?, ?> fullState = getTransformStateAndStats(transformId);
+        final String failureReason = "Failed to index documents into destination index due to permanent error: "
+            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+            + "failures and at least 1 irrecoverable "
+            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
+            + "incompatible with the transform configuration.;.*";
+        // Verify we have failed for the expected reason
+        assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
+
+        assertThat(getTransformTasks(), hasSize(1));
 
         final String expectedFailure = "Unable to start transform \\[test-force-start-failed-transform\\] "
             + "as it is in a failed state with failure: \\["
@@ -124,6 +174,8 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         }, 60, TimeUnit.SECONDS);
 
         stopTransform(transformId, true);
+
+        assertThat(getTransformTasks(), is(empty()));
     }
 
     private void awaitState(String transformId, TransformStats.State state) throws Exception {

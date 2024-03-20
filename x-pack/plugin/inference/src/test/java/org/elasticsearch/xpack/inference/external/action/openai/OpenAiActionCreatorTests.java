@@ -342,10 +342,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertThat(request.getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("n"), is(1));
         }
     }
 
@@ -404,9 +405,10 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertThat(request.getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(2));
+            assertThat(requestMap.size(), is(3));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("n"), is(1));
         }
     }
 
@@ -465,10 +467,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertNull(request.getHeader(ORGANIZATION_HEADER));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("n"), is(1));
         }
     }
 
@@ -536,10 +539,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("n"), is(1));
         }
     }
 

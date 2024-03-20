@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the logarithm of a number to a base.
+Returns whether the two geometries or geometry columns intersect.

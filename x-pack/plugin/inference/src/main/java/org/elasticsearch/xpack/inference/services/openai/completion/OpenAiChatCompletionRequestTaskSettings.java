@@ -14,7 +14,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings.USER;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 /**
  * This class handles extracting OpenAI task settings from a request. The difference between this class and

@@ -46,8 +46,7 @@ import static org.objectweb.asm.Opcodes.V_PREVIEW;
 
 public class MrjarPlugin implements Plugin<Project> {
 
-    private static final Pattern MRJAR_MAIN_SOURCESET_PATTERN = Pattern.compile("main(\\d{2})");
-    private static final Pattern MRJAR_TEST_SOURCESET_PATTERN = Pattern.compile("test(\\d{2})");
+    private static final Pattern MRJAR_SOURCESET_PATTERN = Pattern.compile("main(\\d{2})");
 
     private final JavaToolchainService javaToolchains;
 
@@ -61,37 +60,31 @@ public class MrjarPlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
 
-        List<Integer> mainVersions = findSourceVersions(project, MRJAR_MAIN_SOURCESET_PATTERN);
+        List<Integer> mainVersions = findSourceVersions(project);
         List<String> mainSourceSets = new ArrayList<>();
         mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
-        for (int javaVersion : mainVersions) {
-            String sourcesetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
-            addSourceset(project, javaExtension, sourcesetName, mainSourceSets, javaVersion);
-            mainSourceSets.add(sourcesetName);
-        }
-
-        List<Integer> testVersions = findSourceVersions(project, MRJAR_TEST_SOURCESET_PATTERN);
-        List<String> testSourceSets = new ArrayList<>();
-        testSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
+        List<String> testSourceSets = new ArrayList<>(mainSourceSets);
         testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME);
-        for (int javaVersion : testVersions) {
-            String sourcesetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
-            if (mainVersions.contains(javaVersion)) {
-                // tests extend both their parent test source sets, and all of main sourcesets up to that version
-                testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME + javaVersion);
-            }
-            addSourceset(project, javaExtension, sourcesetName, testSourceSets, javaVersion);
-            testSourceSets.add(sourcesetName);
+        for (int javaVersion : mainVersions) {
+            String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
+            addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
+            mainSourceSets.add(mainSourceSetName);
+            testSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME + javaVersion);
+
+            String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
+            SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
+            testSourceSets.add(testSourceSetName);
+            createTestTask(project, testSourceSet, javaVersion);
         }
 
         configureMrjar(project, javaExtension, mainVersions, "main");
     }
 
-    private void configureMrjar(Project project, JavaPluginExtension javaExtension, List<Integer> versions, String baseSourcesetName) {
+    private void configureMrjar(Project project, JavaPluginExtension javaExtension, List<Integer> versions, String baseSourceSetName) {
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
         jarTask.configure(task -> {
             for (var version : versions) {
-                SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(baseSourcesetName + version);
+                SourceSet sourceSet = javaExtension.getSourceSets().getByName(baseSourceSetName + version);
                 task.into("META-INF/versions/" + version, copySpec -> copySpec.from(sourceSet.getOutput()));
             }
             task.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); });
@@ -107,16 +100,16 @@ public class MrjarPlugin implements Plugin<Project> {
         });
     }
 
-    private void addSourceset(
+    private SourceSet addSourceSet(
         Project project,
         JavaPluginExtension javaExtension,
-        String sourcesetName,
+        String sourceSetName,
         List<String> parentSourceSets,
         int javaVersion
     ) {
-        SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourcesetName);
+        SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourceSetName);
         for (String parentSourceSetName : parentSourceSets) {
-            GradleUtils.extendSourceSet(project, parentSourceSetName, sourcesetName);
+            GradleUtils.extendSourceSet(project, parentSourceSetName, sourceSetName);
         }
 
         project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {
@@ -139,16 +132,34 @@ public class MrjarPlugin implements Plugin<Project> {
         project.getTasks().withType(CheckForbiddenApisTask.class).named(forbiddenApisTaskName).configure(forbiddenApisTask -> {
             forbiddenApisTask.setIgnoreMissingClasses(true);
         });
+
+        return sourceSet;
     }
 
-    private static List<Integer> findSourceVersions(Project project, Pattern sourcesetPattern) {
+    private void createTestTask(Project project, SourceSet sourceSet, int javaVersion) {
+        var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
+        project.getTasks().register(JavaPlugin.TEST_TASK_NAME + javaVersion, Test.class).configure(testTask -> {
+            testTask.dependsOn(jarTask);
+
+            SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(project);
+            FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME + javaVersion).getOutput();
+            FileCollection testRuntime = sourceSet.getRuntimeClasspath();
+            testTask.setClasspath(testRuntime.minus(mainRuntime).plus(project.files(jarTask)));
+
+            testTask.getJavaLauncher().set(
+                javaToolchains.launcherFor(spec -> { spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion)); })
+            );
+        });
+    }
+
+    private static List<Integer> findSourceVersions(Project project) {
         var srcDir = project.getProjectDir().toPath().resolve("src");
         List<Integer> versions = new ArrayList<>();
         try (var subdirStream = Files.list(srcDir)) {
-            for (Path sourceset : subdirStream.toList()) {
-                assert Files.isDirectory(sourceset);
-                String sourcesetName = sourceset.getFileName().toString();
-                Matcher sourcesetMatcher = sourcesetPattern.matcher(sourcesetName);
+            for (Path sourceSetPath : subdirStream.toList()) {
+                assert Files.isDirectory(sourceSetPath);
+                String sourcesetName = sourceSetPath.getFileName().toString();
+                Matcher sourcesetMatcher = MRJAR_SOURCESET_PATTERN.matcher(sourcesetName);
                 if (sourcesetMatcher.matches()) {
                     versions.add(Integer.parseInt(sourcesetMatcher.group(1)));
                 }

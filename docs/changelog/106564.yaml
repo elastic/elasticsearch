@@ -1,0 +1,5 @@
+pr: 106564
+summary: Add background filters of significant terms aggregations to can match query
+area: Search
+type: bug
+issues: []

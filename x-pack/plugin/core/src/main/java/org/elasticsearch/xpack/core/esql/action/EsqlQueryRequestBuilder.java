@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, Response extends EsqlQueryResponse> extends
     ActionRequestBuilder<Request, Response> {
 
+    private final ActionType<Response> action;
+
     /** Creates a new ES|QL query request builder. */
     public static EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> newRequestBuilder(
         ElasticsearchClient client
@@ -26,6 +28,11 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
     // not for direct use
     protected EsqlQueryRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
+        this.action = action;
+    }
+
+    public final ActionType<Response> action() {
+        return action;
     }
 
     public abstract EsqlQueryRequestBuilder<Request, Response> query(String query);

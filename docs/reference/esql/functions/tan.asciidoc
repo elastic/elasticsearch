@@ -17,8 +17,6 @@ Numeric expression. If `null`, the function returns `null`.
 {wikipedia}/Sine_and_cosine[Tangent] trigonometric function. Input expected in
 radians.
 
-*Supported types*
-
 include::types/tan.asciidoc[]
 
 *Example*

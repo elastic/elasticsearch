@@ -34,7 +34,7 @@ public class MvSum extends AbstractMultivalueFunction {
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Converts a multivalued field into a single valued field containing the sum of all of the values."
     )
-    public MvSum(Source source, @Param(name = "v", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public MvSum(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 

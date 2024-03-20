@@ -1,5 +1,5 @@
 [[update-connector-api-key-id-api]]
-=== Update connector API key id API
+=== Update connector API key ID API
 ++++
 <titleabbrev>Update connector API key id</titleabbrev>
 ++++
@@ -8,8 +8,12 @@ preview::[]
 
 Updates the `api_key_id` and/or `api_key_secret_id` field(s) of a connector, specifying:
 
-. The id of the API key used for authorization
-. The id of the Connector Secret where the API key is stored
+. The ID of the API key used for authorization
+. The ID of the Connector Secret where the API key is stored
+
+The Connector Secret ID is only required for native connectors.
+Connector clients do not use this field.
+See the documentation for {enterprise-search-ref}/native-connectors.html#native-connectors-manage-API-keys-programmatically[managing native connector API keys programmatically^] for more details.
 
 [[update-connector-api-key-id-api-request]]
 ==== {api-request-title}
@@ -35,10 +39,10 @@ Updates the `api_key_id` and/or `api_key_secret_id` field(s) of a connector, spe
 ==== {api-request-body-title}
 
 `api_key_id`::
-(Optional, string) Id of the API key that the connector will use to authorize access to required indices. Each connector can be associated with at most one API key.
+(Optional, string) ID of the API key that the connector will use to authorize access to required indices. Each connector can be associated with at most one API key.
 
 `api_key_secret_id`::
-(Optional, string) Id of the Connector Secret that contains the encoded API key. This should be the same API key as `api_key_id` references. This is only required for native connectors.
+(Optional, string) ID of the Connector Secret that contains the encoded API key. This should be the same API key as `api_key_id` references. This is only required for native connectors.
 
 [[update-connector-api-key-id-api-response-codes]]
 ==== {api-response-codes-title}

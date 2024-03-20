@@ -455,7 +455,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                             "fake_node_ephemeral_id",
                             commitFiles,
                             commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum()
-                        )
+                        ),
+                        indexCommitRef.getIndexCommit().getGeneration(),
+                        new PrimaryTermAndGeneration(primaryTerm, indexCommitRef.getIndexCommit().getGeneration())
                     )
                 );
             } catch (Exception e) {

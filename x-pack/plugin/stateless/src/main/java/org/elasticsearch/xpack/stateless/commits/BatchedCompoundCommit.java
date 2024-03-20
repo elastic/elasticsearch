@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,10 +46,20 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
             throw new IllegalArgumentException("Batched compound commits must have a non-empty list of compound commits");
         }
 
+        assert compoundCommits.stream().map(StatelessCompoundCommit::primaryTerm).distinct().count() == 1
+            : "all compound commits must have the same primary term";
+
         assert IntStream.range(0, compoundCommits.size() - 1)
             .allMatch(
                 i -> compoundCommits.get(i).primaryTermAndGeneration().compareTo(compoundCommits.get(i + 1).primaryTermAndGeneration()) < 0
             ) : "the list of compound commits must be sorted by their primary terms and generations";
+
+        assert compoundCommits.stream().map(StatelessCompoundCommit::shardId).distinct().count() == 1
+            : "all compound commits must be for the same shard";
+    }
+
+    public ShardId shardId() {
+        return compoundCommits.get(0).shardId();
     }
 
     public StatelessCompoundCommit getLast() {

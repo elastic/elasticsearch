@@ -366,7 +366,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
-    public class CommitUpload extends RetryableAction<StatelessCompoundCommit> {
+    public class CommitUpload extends RetryableAction<BatchedCompoundCommit> {
 
         private final StatelessCommitRef reference;
         private final ShardCommitState shardCommitState;
@@ -380,7 +380,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         public CommitUpload(
             ShardCommitState shardCommitState,
-            ActionListener<StatelessCompoundCommit> listener,
+            ActionListener<BatchedCompoundCommit> listener,
             StatelessCommitRef reference,
             TimeValue initialDelay
         ) {
@@ -401,7 +401,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         @Override
-        public void tryAction(ActionListener<StatelessCompoundCommit> listener) {
+        public void tryAction(ActionListener<BatchedCompoundCommit> listener) {
             ++uploadTryNumber;
             try {
                 // Only do this once across multiple retries since file lengths should not change
@@ -462,7 +462,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        private void executeUpload(ActionListener<StatelessCompoundCommit> listener) {
+        private void executeUpload(ActionListener<BatchedCompoundCommit> listener) {
             try {
                 ActionListener<Void> uploadReadyListener = listener.delegateFailure((l, v) -> uploadStatelessCommitFile(l));
                 checkReadyToUpload(uploadReadyListener, listener);
@@ -471,7 +471,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        private void checkReadyToUpload(ActionListener<Void> readyListener, ActionListener<StatelessCompoundCommit> notReadyListener) {
+        private void checkReadyToUpload(ActionListener<Void> readyListener, ActionListener<BatchedCompoundCommit> notReadyListener) {
             OptionalLong missing = shardCommitState.pendingUploadGenerations.stream().mapToLong(l -> l).filter(g -> g < generation).max();
             if (missing.isPresent()) {
                 long missingGeneration = missing.getAsLong();
@@ -486,7 +486,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        private void uploadStatelessCommitFile(ActionListener<StatelessCompoundCommit> listener) {
+        private void uploadStatelessCommitFile(ActionListener<BatchedCompoundCommit> listener) {
             VirtualBatchedCompoundCommit virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
                 shardId,
                 ephemeralNodeIdSupplier.get(),
@@ -513,7 +513,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         // TODO: Adapt to BCC reference handling
                         shardCommitState.markFileUploaded(internalFile, virtualBatchedCompoundCommit.getBlobLocation(internalFile));
                     }
-                    shardCommitState.markCommitUploaded(commit);
+                    // TODO: remove the following assertion when BCC can contain multiple CCs
+                    assert commit.compoundCommits().size() == 1;
+                    shardCommitState.markCommitUploaded(commit.getLast());
                     final long end = threadPool.relativeTimeInNanos();
                     logger.debug(
                         () -> format(
@@ -984,7 +986,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * Broadcasts notification of a new compound commit to all the search nodes hosting a replica shard for the given shard commit.
          */
-        private void sendNewCommitNotification(BlobReference blobReference, StatelessCompoundCommit commit) {
+        private void sendNewCommitNotification(BlobReference blobReference, BatchedCompoundCommit commit) {
             assert commit != null;
 
             var shardRoutingTable = shardRoutingFinder.apply(commit.shardId());
@@ -996,31 +998,40 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             trackOutstandingUnpromotableShardCommitRef(nodesWithAssignedSearchShards, blobReference);
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
 
-            NewCommitNotificationRequest request = new NewCommitNotificationRequest(shardRoutingTable, commit);
+            NewCommitNotificationRequest request = new NewCommitNotificationRequest(
+                shardRoutingTable,
+                commit.getLast(),
+                commit.primaryTermAndGeneration().generation(),
+                commit.primaryTermAndGeneration()
+            );
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 onNewCommitNotificationResponse(
-                    commit.generation(),
+                    commit.primaryTermAndGeneration().generation(),
                     nodesWithAssignedSearchShards,
                     response.getPrimaryTermAndGenerationsInUse()
                 );
                 var consumer = commitNotificationSuccessListeners.get(shardId);
                 if (consumer != null) {
-                    consumer.accept(commit.generation());
+                    consumer.accept(commit.primaryTermAndGeneration().generation());
                 }
             }, e -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof ConnectTransportException) {
                     logger.debug(
                         () -> format(
-                            "%s failed to notify search shards after upload of commit [%s] due to connection issues",
+                            "%s failed to notify search shards after upload of batched compound commit [%s] due to connection issues",
                             shardId,
-                            commit.generation()
+                            commit.primaryTermAndGeneration().generation()
                         ),
                         e
                     );
                 } else {
                     logger.warn(
-                        () -> format("%s failed to notify search shards after upload of commit [%s]", shardId, commit.generation()),
+                        () -> format(
+                            "%s failed to notify search shards after upload of batched compound commit [%s]",
+                            shardId,
+                            commit.primaryTermAndGeneration().generation()
+                        ),
                         e
                     );
                 }
@@ -1053,7 +1064,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             logger.debug("sending new commit notifications for inactive shard [{}]", shardId);
-            sendNewCommitNotification(latestBlobReference, latestStatelessCompoundCommitUploaded);
+            sendNewCommitNotification(
+                latestBlobReference,
+                // TODO: hack to create a singleton BCC for now, we need to record uploaded BCC instead of CC in future
+                new BatchedCompoundCommit(
+                    latestStatelessCompoundCommitUploaded.primaryTermAndGeneration(),
+                    List.of(latestStatelessCompoundCommitUploaded)
+                )
+            );
         }
 
         /**

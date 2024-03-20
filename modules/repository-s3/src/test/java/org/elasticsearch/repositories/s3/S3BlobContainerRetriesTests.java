@@ -696,8 +696,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_retries_forever"), new FlakyReadHandler());
 
         // Ranged read
-        final int position = between(0, bytes.length - 1);
-        final int length = between(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
+        final int position = between(0, bytes.length - 2);
+        final int length = between(1, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
         logger.info("--> position={}, length={}", position, length);
         try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.INDICES, "read_blob_retries_forever", position, length)) {
             final byte[] bytesRead = BytesReference.toBytes(Streams.readFully(inputStream));

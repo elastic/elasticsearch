@@ -488,15 +488,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     @Override
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        return new ReschedulingRunnable(command, interval, executor, this, (e) -> {
-            if (logger.isDebugEnabled()) {
-                logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", command, executor), e);
-            }
-        },
-            (e) -> logger.warn(
-                () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", command, executor),
-                e
-            )
+        return new ReschedulingRunnable(
+            command,
+            interval,
+            executor,
+            this,
+            e -> logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", command, executor), e),
+            e -> logger.warn(() -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", command, executor), e)
         );
     }
 

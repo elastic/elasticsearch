@@ -11,9 +11,13 @@ package org.elasticsearch.threadpool;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -21,6 +25,7 @@ import org.elasticsearch.test.MockLogAppender;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
@@ -302,6 +307,148 @@ public class ThreadPoolTests extends ESTestCase {
             Loggers.removeAppender(logger, appender);
             appender.stop();
             assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledOneShotRejection() {
+        final String name = "fixed-bounded";
+        final ThreadPool threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), "prefix")
+        );
+
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+            threadPool.schedule(
+                ActionRunnable.run(future, () -> fail("should not execute")),
+                TimeValue.timeValueMillis(between(1, 100)),
+                name
+            );
+
+            expectThrows(EsRejectedExecutionException.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS));
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledOneShotForceExecution() {
+        final String name = "fixed-bounded";
+        final ThreadPool threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), "prefix")
+        );
+
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+            threadPool.schedule(forceExecution(ActionRunnable.run(future, () -> {})), TimeValue.timeValueMillis(between(1, 100)), name);
+
+            Thread.yield();
+            assertFalse(future.isDone());
+
+            latch.countDown();
+            FutureUtils.get(future, 10, TimeUnit.SECONDS); // shouldn't throw
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledFixedDelayRejection() {
+        final String name = "fixed-bounded";
+        final ThreadPool threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), "prefix")
+        );
+
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        try {
+            threadPool.scheduleWithFixedDelay(
+                ActionRunnable.wrap(future, ignored -> Thread.yield()),
+                TimeValue.timeValueMillis(between(1, 100)),
+                name
+            );
+
+            while (future.isDone() == false) {
+                // might not block all threads the first time round if the scheduled runnable is running, so must keep trying
+                blockExecution(threadPool.executor(name), latch);
+            }
+            expectThrows(EsRejectedExecutionException.class, () -> FutureUtils.get(future));
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledFixedDelayForceExecution() {
+        final String name = "fixed-bounded";
+        final ThreadPool threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), "prefix")
+        );
+
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+
+            threadPool.scheduleWithFixedDelay(
+                forceExecution(ActionRunnable.run(future, Thread::yield)),
+                TimeValue.timeValueMillis(between(1, 100)),
+                name
+            );
+
+            assertFalse(future.isDone());
+
+            latch.countDown();
+            FutureUtils.get(future, 10, TimeUnit.SECONDS); // shouldn't throw
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    private static AbstractRunnable forceExecution(AbstractRunnable delegate) {
+        return new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                delegate.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() {
+                delegate.run();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                delegate.onRejection(e);
+            }
+
+            @Override
+            public void onAfter() {
+                delegate.onAfter();
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        };
+    }
+
+    private static void blockExecution(ExecutorService executor, CountDownLatch latch) {
+        while (true) {
+            try {
+                executor.execute(() -> safeAwait(latch));
+            } catch (EsRejectedExecutionException e) {
+                break;
+            }
         }
     }
 }

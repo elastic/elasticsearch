@@ -41,9 +41,9 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     // Historical node feature kept here as LegacyStackTemplateRegistry is deprecated
     public static final NodeFeature STACK_TEMPLATES_FEATURE = new NodeFeature("stack.templates_supported");
 
-    // Current version of the registry requires all nodes to know of kibana reporting being managed by data stream lifecycle (a feature
-    // that was released starting in 8.11)
-    public static final NodeFeature KIBANA_REPORTING_MANAGED_BY_LIFECYCLE = new NodeFeature("kibana-reporting-managed-by-dsl");
+    // this node feature is a redefinition of {@link DataStreamFeatures#SUPPORTS_DATA_STREAM_LIFECYCLE} and it's meant to avoid adding a
+    // dependency to the data-streams module just for this
+    public static final NodeFeature SUPPORTS_DATA_STREAM_LIFECYCLE = new NodeFeature("supports_data_stream_lifecycle");
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
@@ -330,9 +330,8 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected boolean isClusterReady(ClusterChangedEvent event) {
-        // Ensure current version of the components are installed only once all nodes are aware of kibana reporting being managed by DSL.
-        // Data stream lifecycle has been available only after 8.11 so installing `.kibana-reporting` with the `lifecycle: {}`
-        // configuration in 8.10 would be problematic
-        return featureService.clusterHasFeature(event.state(), KIBANA_REPORTING_MANAGED_BY_LIFECYCLE);
+        // Ensure current version of the components are installed only after versions that support data stream lifecycle
+        // due to .kibana-reporting making use of the feature
+        return featureService.clusterHasFeature(event.state(), SUPPORTS_DATA_STREAM_LIFECYCLE);
     }
 }

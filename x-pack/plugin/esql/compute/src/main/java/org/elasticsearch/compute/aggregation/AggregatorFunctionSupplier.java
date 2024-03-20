@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * Builds aggregation implementations, closing over any state required to do so.
  */
 public abstract class AggregatorFunctionSupplier implements Describable {
-    
+
     protected abstract AggregatorFunction aggregator(DriverContext driverContext);
 
     protected abstract GroupingAggregatorFunction groupingAggregator(DriverContext driverContext);

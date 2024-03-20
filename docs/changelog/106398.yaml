@@ -1,0 +1,6 @@
+pr: 106398
+summary: Release `TranslogSnapshot` buffer after iteration
+area: Engine
+type: bug
+issues:
+ - 106390

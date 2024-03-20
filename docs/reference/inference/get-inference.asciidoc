@@ -28,7 +28,8 @@ own model, use the <<ml-df-trained-models-apis>>.
 [[get-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+* Requires the `monitor_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` and `inference_user` roles grant this privilege)
 
 [discrete]
 [[get-inference-api-desc]]

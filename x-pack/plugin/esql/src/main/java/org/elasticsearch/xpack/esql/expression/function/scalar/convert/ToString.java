@@ -64,7 +64,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     public ToString(
         Source source,
         @Param(
-            name = "v",
+            name = "field",
             type = {
                 "boolean",
                 "cartesian_point",

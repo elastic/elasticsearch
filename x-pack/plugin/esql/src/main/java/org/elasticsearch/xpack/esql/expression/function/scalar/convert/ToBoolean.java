@@ -44,7 +44,7 @@ public class ToBoolean extends AbstractConvertFunction {
     @FunctionInfo(returnType = "boolean", description = "Converts an input value to a boolean value.")
     public ToBoolean(
         Source source,
-        @Param(name = "v", type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(name = "field", type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
     ) {
         super(source, field);
     }

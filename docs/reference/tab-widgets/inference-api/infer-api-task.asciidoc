@@ -22,6 +22,13 @@ key.
 <3> The name of the embedding model to use. You can find the list of Cohere
 embedding models https://docs.cohere.com/reference/embed[here].
 
+NOTE: The default `similarity` for the service is `dot_product` while the
+default `similarity` of a `dense_vector` field of an index is `cosine`. In the
+case of the Cohere service models, you can use the two `symilarity` types
+interchangeably.
+
+
+
 // end::cohere[]
 
 
@@ -50,5 +57,10 @@ key.
 <3> The name of the embedding model to use. You can find the list of OpenAI
 embedding models
 https://platform.openai.com/docs/guides/embeddings/embedding-models[here].
+
+NOTE: The default `similarity` for the service is `dot_product` while the
+default `similarity` of a `dense_vector` field of an index is `cosine`. In the
+case of the OpenAI service models, you can use the two `symilarity` types
+interchangeably.
 
 // end::openai[]

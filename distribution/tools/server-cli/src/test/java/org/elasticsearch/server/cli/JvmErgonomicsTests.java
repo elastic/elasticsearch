@@ -9,6 +9,10 @@
 package org.elasticsearch.server.cli;
 
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 
@@ -26,6 +30,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
@@ -106,7 +111,7 @@ public class JvmErgonomicsTests extends ESTestCase {
     }
 
     public void testG1GOptionsForSmallHeap() throws Exception {
-        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC"));
+        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC"), Settings.EMPTY);
         assertThat(jvmErgonomics, hasItem("-XX:G1HeapRegionSize=4m"));
         assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=15"));
@@ -114,7 +119,8 @@ public class JvmErgonomicsTests extends ESTestCase {
 
     public void testG1GOptionsForSmallHeapWhenTuningSet() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(
-            Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:G1HeapRegionSize=4m", "-XX:InitiatingHeapOccupancyPercent=45")
+            Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseG1GC", "-XX:G1HeapRegionSize=4m", "-XX:InitiatingHeapOccupancyPercent=45"),
+            Settings.EMPTY
         );
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
@@ -122,14 +128,14 @@ public class JvmErgonomicsTests extends ESTestCase {
     }
 
     public void testG1GOptionsForLargeHeap() throws Exception {
-        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC"));
+        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC"), Settings.EMPTY);
         assertThat(jvmErgonomics, hasItem("-XX:InitiatingHeapOccupancyPercent=30"));
         assertThat(jvmErgonomics, hasItem("-XX:G1ReservePercent=25"));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
     }
 
     public void testG1GOptionsForSmallHeapWhenOtherGCSet() throws Exception {
-        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseParallelGC"));
+        List<String> jvmErgonomics = JvmErgonomics.choose(Arrays.asList("-Xms6g", "-Xmx6g", "-XX:+UseParallelGC"), Settings.EMPTY);
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1HeapRegionSize="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
@@ -137,7 +143,8 @@ public class JvmErgonomicsTests extends ESTestCase {
 
     public void testG1GOptionsForLargeHeapWhenTuningSet() throws Exception {
         List<String> jvmErgonomics = JvmErgonomics.choose(
-            Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60", "-XX:G1ReservePercent=10")
+            Arrays.asList("-Xms8g", "-Xmx8g", "-XX:+UseG1GC", "-XX:InitiatingHeapOccupancyPercent=60", "-XX:G1ReservePercent=10"),
+            Settings.EMPTY
         );
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:InitiatingHeapOccupancyPercent="))));
         assertThat(jvmErgonomics, everyItem(not(startsWith("-XX:G1ReservePercent="))));
@@ -168,16 +175,77 @@ public class JvmErgonomicsTests extends ESTestCase {
         );
         final String heapSize = randomFrom(heapMaxDirectMemorySize.keySet().toArray(String[]::new));
         assertThat(
-            JvmErgonomics.choose(Arrays.asList("-Xms" + heapSize, "-Xmx" + heapSize)),
+            JvmErgonomics.choose(Arrays.asList("-Xms" + heapSize, "-Xmx" + heapSize), Settings.EMPTY),
             hasItem("-XX:MaxDirectMemorySize=" + heapMaxDirectMemorySize.get(heapSize))
         );
     }
 
     public void testMaxDirectMemorySizeChoiceWhenSet() throws Exception {
         assertThat(
-            JvmErgonomics.choose(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:MaxDirectMemorySize=1g")),
+            JvmErgonomics.choose(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:MaxDirectMemorySize=1g"), Settings.EMPTY),
             everyItem(not(startsWith("-XX:MaxDirectMemorySize=")))
         );
+    }
+
+    public void testConcGCThreadsNotSetBasedOnProcessors() throws Exception {
+        Settings.Builder nodeSettingsBuilder = Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName());
+        if (randomBoolean()) {
+            nodeSettingsBuilder.put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), randomBoolean() ? between(1, 3) : between(6, 100));
+        }
+        assertThat(JvmErgonomics.choose(List.of(), nodeSettingsBuilder.build()), everyItem(not(startsWith("-XX:ConcGCThreads="))));
+    }
+
+    public void testConcGCThreadsNotSetBasedOnRoles() throws Exception {
+        Settings.Builder nodeSettingsBuilder = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), between(4, 5));
+        if (randomBoolean()) {
+            nodeSettingsBuilder.put(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                randomValueOtherThan(DiscoveryNodeRole.SEARCH_ROLE, () -> randomFrom(DiscoveryNodeRole.roles())).roleName()
+            );
+        }
+        assertThat(JvmErgonomics.choose(List.of(), nodeSettingsBuilder.build()), everyItem(not(startsWith("-XX:ConcGCThreads="))));
+
+    }
+
+    public void testConcGCThreadsSet() throws Exception {
+        Settings nodeSettings = Settings.builder()
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), between(4, 5))
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .build();
+        assertThat(JvmErgonomics.choose(List.of(), nodeSettings), hasItem("-XX:ConcGCThreads=2"));
+    }
+
+    public void testMinimumNewSizeNotSetBasedOnHeap() throws Exception {
+        Settings nodeSettings = Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .build();
+        List<String> chosen = JvmErgonomics.choose(List.of("-Xmx" + between(5, 31) + "g"), nodeSettings);
+        assertThat(chosen, everyItem(not(is("-XX:+UnlockExperimentalVMOptions"))));
+        assertThat(chosen, everyItem(not(startsWith("-XX:G1NewSizePercent="))));
+    }
+
+    public void testMinimumNewSizeNotSetBasedOnRoles() throws Exception {
+        Settings nodeSettings = randomBoolean()
+            ? Settings.EMPTY
+            : Settings.builder()
+                .put(
+                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                    randomValueOtherThan(DiscoveryNodeRole.SEARCH_ROLE, () -> randomFrom(DiscoveryNodeRole.roles())).roleName()
+                )
+                .build();
+        List<String> chosen = JvmErgonomics.choose(List.of("-Xmx" + between(1, 4) + "g"), nodeSettings);
+        assertThat(chosen, everyItem(not(is("-XX:+UnlockExperimentalVMOptions"))));
+        assertThat(chosen, everyItem(not(startsWith("-XX:G1NewSizePercent="))));
+    }
+
+    public void testMinimumNewSizeSet() throws Exception {
+        Settings nodeSettings = Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            .build();
+        List<String> chosen = JvmErgonomics.choose(List.of("-Xmx" + between(1, 4) + "g"), nodeSettings);
+        assertThat(chosen, hasItem("-XX:+UnlockExperimentalVMOptions"));
+        assertThat(chosen, hasItem("-XX:G1NewSizePercent=10"));
     }
 
     @SuppressWarnings("ConstantConditions")

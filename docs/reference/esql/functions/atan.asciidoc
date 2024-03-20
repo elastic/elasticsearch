@@ -17,8 +17,6 @@ Numeric expression. If `null`, the function returns `null`.
 Returns the {wikipedia}/Inverse_trigonometric_functions[arctangent] of the input
 numeric expression as an angle, expressed in radians.
 
-*Supported types*
-
 include::types/atan.asciidoc[]
 
 *Example*

@@ -58,7 +58,7 @@ class JdkSystemdLibrary implements SystemdLibrary {
     @Override
     public int sd_notify(int unset_environment, String state) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativeState = arena.allocateUtf8String(state);
+            MemorySegment nativeState = MemorySegmentUtil.allocateString(arena, state);
             return (int) sd_notify$mh.invokeExact(unset_environment, nativeState);
         } catch (Throwable t) {
             throw new AssertionError(t);

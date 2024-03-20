@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
  */
 public class RTrim extends UnaryScalarFunction {
     @FunctionInfo(returnType = { "keyword", "text" }, description = "Removes trailing whitespaces from a string.")
-    public RTrim(Source source, @Param(name = "str", type = { "keyword", "text" }) Expression str) {
+    public RTrim(Source source, @Param(name = "string", type = { "keyword", "text" }) Expression str) {
         super(source, str);
     }
 

@@ -98,7 +98,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
 
     public record Item(ApiKey apiKeyInfo, @Nullable String ownerProfileUid) implements ToXContentObject {
 
-        Item(ApiKey apiKeyInfo) {
+        public Item(ApiKey apiKeyInfo) {
             this(apiKeyInfo, null);
         }
 

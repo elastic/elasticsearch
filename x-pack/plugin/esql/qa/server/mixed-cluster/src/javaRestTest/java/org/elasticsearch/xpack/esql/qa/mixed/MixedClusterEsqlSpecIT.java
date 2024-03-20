@@ -74,6 +74,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsAsync() {
-        return oldClusterHasFeature(ASYNC_API_SUPPORTED_FEATURE_ID);
+        return oldClusterHasFeature(ASYNC_QUERY_FEATURE_ID);
     }
 }

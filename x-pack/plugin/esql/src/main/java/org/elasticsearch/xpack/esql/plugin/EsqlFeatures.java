@@ -43,7 +43,7 @@ public class EsqlFeatures implements FeatureSpecification {
     // */
     // private static final NodeFeature GEO_SHAPE_SUPPORT = new NodeFeature("esql.geo_shape");
 
-    public static final NodeFeature ASYNC_API_SUPPORTED = new NodeFeature("esql.async_api_supported");
+    public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query");
 
     private static final NodeFeature MV_LOAD = new NodeFeature("esql.mv_load");
 
@@ -61,6 +61,6 @@ public class EsqlFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(ASYNC_API_SUPPORTED);
+        return Set.of(ASYNC_QUERY);
     }
 }

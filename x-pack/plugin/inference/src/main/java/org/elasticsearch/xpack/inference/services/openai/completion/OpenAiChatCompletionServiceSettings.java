@@ -155,7 +155,7 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
 
     @Override
     public ToXContentObject getFilteredXContentObject() {
-        return (this::toXContent);
+        return this;
     }
 
     @Override

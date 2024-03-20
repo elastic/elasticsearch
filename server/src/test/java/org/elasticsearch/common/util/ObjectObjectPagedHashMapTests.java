@@ -29,7 +29,7 @@ public class ObjectObjectPagedHashMapTests extends ESTestCase {
     }
 
     public void testDuel() {
-        // first with crancky
+        // first with cranky
         try {
             doTestDuel(mockBigArrays(new CrankyCircuitBreakerService()));
         } catch (CircuitBreakingException ex) {

@@ -1,4 +1,4 @@
 *Parameters*
 
-`n`::
+`number`::
 The number to return the hyperbolic sine of

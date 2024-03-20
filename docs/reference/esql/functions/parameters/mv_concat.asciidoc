@@ -1,6 +1,6 @@
 *Parameters*
 
-`v`::
+`string`::
 values to join
 
 `delim`::

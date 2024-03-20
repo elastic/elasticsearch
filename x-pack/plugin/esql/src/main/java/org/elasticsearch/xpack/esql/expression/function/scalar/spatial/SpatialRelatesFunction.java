@@ -262,7 +262,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
             return geometryRelatesGeometry(left, rightComponent2D);
         }
 
-        private Geometry fromBytesRef(BytesRef bytesRef) {
+        protected Geometry fromBytesRef(BytesRef bytesRef) {
             return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
         }
 

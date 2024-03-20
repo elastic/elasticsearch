@@ -113,7 +113,7 @@ teardown:
 "Redirect shard failure in data stream to failure store":
   - skip:
       version: " - 8.13.99"
-      reason: "data stream failure stores only redirect ingest failures in 8.14+"
+      reason: "data stream failure stores only redirect shard failures in 8.14+"
       features: [allowed_warnings, contains]
 
   - do:

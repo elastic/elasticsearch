@@ -166,7 +166,7 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
-            if (super.isDimension || context.parentObjectContainsDimensions()) {
+            if (super.inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions()) {
                 dimension.setValue(true);
             }
             return new IpFieldMapper(

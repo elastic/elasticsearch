@@ -1415,16 +1415,19 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
+    /**
+     * Creates mappers for fields that can act as time-series dimensions.
+     */
     public abstract static class DimensionBuilder extends Builder {
 
-        protected boolean isDimension = false;
+        protected boolean inheritDimensionParameterFromParentObject = false;
 
         public DimensionBuilder(String name) {
             super(name);
         }
 
-        void setDimension() {
-            this.isDimension = true;
+        void setInheritDimensionParameterFromParentObject() {
+            this.inheritDimensionParameterFromParentObject = true;
         }
     }
 

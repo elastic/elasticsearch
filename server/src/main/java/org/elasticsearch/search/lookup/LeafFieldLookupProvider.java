@@ -42,19 +42,17 @@ public interface LeafFieldLookupProvider {
                 if (storedFields == null) {
                     storedFields = ctx.reader().storedFields();
                 }
-                if (doc == currentDoc) {
-                    fieldLookup.setValues(currentValues);
-                } else {
+                currentValues.clear();
+                // TODO can we remember which fields have been loaded here and get them eagerly next time?
+                // likelihood is if a script is loading several fields on one doc they will load the same
+                // set of fields next time round
+                storedFields.document(doc, new SingleFieldsVisitor(fieldLookup.fieldType(), currentValues));
+                fieldLookup.setValues(currentValues);
+                if (doc != currentDoc) {
                     currentDoc = doc;
-                    currentValues.clear();
-                    // TODO can we remember which fields have been loaded here and get them eagerly next time?
-                    // likelihood is if a script is loading several fields on one doc they will load the same
-                    // set of fields next time round
-                    SingleFieldsVisitor visitor = new SingleFieldsVisitor(fieldLookup.fieldType(), currentValues);
-                    storedFields.document(doc, visitor);
-                    fieldLookup.setValues(currentValues);
                 }
             }
+
         };
     }
 

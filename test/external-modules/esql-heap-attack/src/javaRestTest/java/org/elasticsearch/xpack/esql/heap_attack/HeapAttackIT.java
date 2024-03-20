@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.heap_attack;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -58,7 +57,6 @@ import static org.hamcrest.Matchers.hasSize;
  * Tests that run ESQL queries that have, in the past, used so much memory they
  * crash Elasticsearch.
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105814")
 public class HeapAttackIT extends ESRestTestCase {
 
     @ClassRule

@@ -12,7 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             new OpenAiEmbeddingsTaskSettings("user"),
             OpenAiEmbeddingsTaskSettings.fromMap(
                 new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")),
-                OpenAiParseContext.REQUEST
+                ConfigurationParseContext.REQUEST
             )
         );
     }
@@ -50,7 +50,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
             ValidationException.class,
             () -> OpenAiEmbeddingsTaskSettings.fromMap(
                 new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "")),
-                OpenAiParseContext.REQUEST
+                ConfigurationParseContext.REQUEST
             )
         );
 
@@ -61,14 +61,14 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()), OpenAiParseContext.PERSISTENT);
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
         assertNull(taskSettings.user());
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")),
-            OpenAiParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT
         );
 
         var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, OpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS);
@@ -78,7 +78,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testOverrideWith_UsesOverriddenSettings() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")),
-            OpenAiParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT
         );
 
         var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(

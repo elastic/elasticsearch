@@ -11,6 +11,14 @@ setup:
           language: de
           is_native: false
           service_type: super-connector
+  - do:
+      connector.put:
+        connector_id: test-connector-detached-index
+        body:
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
 
 ---
 'Create connector sync job':
@@ -288,6 +296,16 @@ setup:
           trigger_method: invalid_trigger_method
       catch: bad_request
 
+
+---
+'Create connector sync job with no index attached':
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector-detached-index
+          job_type: full
+          trigger_method: full
+      catch: bad_request
 
 ---
 "Create connector sync job fails for unprivileged user":

@@ -147,7 +147,13 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                 String cluster = remoteIndex.getKey();
                 getCheckpointsFromOneCluster(
                     threadContext,
-                    CheckpointClient.remote(client.getRemoteClusterClient(cluster, EsExecutors.DIRECT_EXECUTOR_SERVICE)),
+                    CheckpointClient.remote(
+                        client.getRemoteClusterClient(
+                            cluster,
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                        )
+                    ),
                     timeout,
                     transformConfig.getHeaders(),
                     remoteIndex.getValue().toArray(new String[0]),

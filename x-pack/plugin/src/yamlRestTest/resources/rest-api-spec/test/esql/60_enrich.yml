@@ -94,7 +94,7 @@ teardown:
 "Enrich on keyword":
   - skip:
       version: " - 8.12.99"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106507"
+      reason: "Enriching with text field in the enrich fields list involves reading text from source, not supported before 8.13.0"
       features: allowed_warnings_regex
 
   - do:

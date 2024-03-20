@@ -71,11 +71,11 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         super(in);
         this.fieldName = in.readString();
         this.query = in.readString();
-        if (in.readBoolean()) {
-            inferenceResults = in.readNamedWriteable(InferenceServiceResults.class);
+        this.inferenceResults = in.readOptionalNamedWriteable(InferenceServiceResults.class);
+        if (this.inferenceResults != null) {
             // The supplier is generally not used after the results are set, but set the supplier to maintain equality when serializing
             // & deserializing
-            inferenceResultsSupplier = new SetOnce<>(inferenceResults);
+            this.inferenceResultsSupplier = new SetOnce<>(this.inferenceResults);
         }
     }
 
@@ -104,12 +104,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         out.writeString(fieldName);
         out.writeString(query);
-        if (inferenceResults != null) {
-            out.writeBoolean(true);
-            out.writeNamedWriteable(inferenceResults);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalNamedWriteable(inferenceResults);
     }
 
     @Override

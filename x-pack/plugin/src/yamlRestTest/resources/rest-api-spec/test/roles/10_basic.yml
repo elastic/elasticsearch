@@ -52,6 +52,8 @@ teardown:
   - match: { role: { created: true } }
 
   - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       security.put_role:
         name: "backwards_role"
         body:  >
@@ -69,10 +71,11 @@ teardown:
   - do:
       headers:
         Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
-      cluster.health: {}
-  - match: { timed_out: false }
+      info: {}
 
   - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       security.get_role:
         name: "admin_role"
   - match: { admin_role.cluster.0:  "all" }

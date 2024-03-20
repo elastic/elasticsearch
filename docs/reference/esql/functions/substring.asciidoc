@@ -24,8 +24,6 @@ positions after `start` are returned.
 Returns a substring of a string, specified by a start position and an optional
 length.
 
-*Supported types*
-
 include::types/substring.asciidoc[]
 
 *Examples*

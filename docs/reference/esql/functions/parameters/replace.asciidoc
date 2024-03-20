@@ -1,0 +1,10 @@
+*Parameters*
+
+`str`::
+
+
+`regex`::
+
+
+`newStr`::
+

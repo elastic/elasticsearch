@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -537,6 +538,11 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
             .map(PipelineConfiguration::getConfigAsMap)
             .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
+    }
+
+    public void testDataStreamLifecycleNodeFeatureId() {
+        // let's make sure these ids remain in-sync
+        assertThat(StackTemplateRegistry.SUPPORTS_DATA_STREAM_LIFECYCLE.id(), is(DataStreamFeatures.SUPPORTS_DATA_STREAM_LIFECYCLE.id()));
     }
 
     // -------------

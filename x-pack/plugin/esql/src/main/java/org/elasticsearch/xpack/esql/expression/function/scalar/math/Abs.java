@@ -31,7 +31,7 @@ public class Abs extends UnaryScalarFunction {
     public Abs(
         Source source,
         @Param(
-            name = "n",
+            name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
             description = "Numeric expression. If `null`, the function returns `null`."
         ) Expression n

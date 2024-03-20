@@ -30,7 +30,7 @@ public class Acos extends AbstractTrigonometricFunction {
     public Acos(
         Source source,
         @Param(
-            name = "n",
+            name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
             description = "Number between -1 and 1. If `null`, the function returns `null`."
         ) Expression n

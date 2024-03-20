@@ -29,16 +29,15 @@ import static org.mockito.Mockito.when;
 
 public class AuthorizationDenialMessagesTests extends ESTestCase {
 
+    private final AuthorizationDenialMessages.Default denialMessages = new AuthorizationDenialMessages.Default();
+
     public void testNoRolesDescriptionIfSubjectIsNotAUser() {
         final Authentication authentication = randomFrom(
             AuthenticationTestHelper.builder().apiKey().build(),
             AuthenticationTestHelper.builder().serviceAccount().build()
         );
 
-        assertThat(
-            AuthorizationDenialMessages.rolesDescription(authentication.getEffectiveSubject(), mock(AuthorizationInfo.class)),
-            equalTo("")
-        );
+        assertThat(denialMessages.rolesDescription(authentication.getEffectiveSubject(), mock(AuthorizationInfo.class)), equalTo(""));
     }
 
     public void testRolesDescriptionWithNullAuthorizationInfo() {
@@ -51,7 +50,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             .user(new User(randomAlphaOfLengthBetween(3, 8), assignedRoleNames.toArray(String[]::new)))
             .build(false)
             .getEffectiveSubject();
-        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, null);
+        final String rolesDescription = denialMessages.rolesDescription(subject, null);
 
         assertThat(
             rolesDescription,
@@ -71,7 +70,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             .getEffectiveSubject();
         final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
         when(authorizationInfo.asMap()).thenReturn(Map.of());
-        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, authorizationInfo);
+        final String rolesDescription = denialMessages.rolesDescription(subject, authorizationInfo);
 
         assertThat(
             rolesDescription,
@@ -102,7 +101,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
                 )
             )
         );
-        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, authorizationInfo);
+        final String rolesDescription = denialMessages.rolesDescription(subject, authorizationInfo);
 
         assertThat(
             rolesDescription,
@@ -123,7 +122,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
         when(authorizationInfo.asMap()).thenReturn(Map.of("user.roles", Strings.EMPTY_ARRAY));
-        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, authorizationInfo);
+        final String rolesDescription = denialMessages.rolesDescription(subject, authorizationInfo);
 
         if (assignedRoleNames.isEmpty()) {
             assertThat(rolesDescription, equalTo(" with effective roles []"));
@@ -160,7 +159,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
         when(authorizationInfo.asMap()).thenReturn(Map.of("user.roles", effectiveRoleNames.toArray(String[]::new)));
 
-        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, authorizationInfo);
+        final String rolesDescription = denialMessages.rolesDescription(subject, authorizationInfo);
 
         assertThat(
             rolesDescription,
@@ -195,7 +194,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         final AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
         when(authorizationInfo.asMap()).thenReturn(Map.of("user.roles", effectiveRoleNames.toArray(String[]::new)));
 
-        final String rolesDescription = AuthorizationDenialMessages.rolesDescription(subject, authorizationInfo);
+        final String rolesDescription = denialMessages.rolesDescription(subject, authorizationInfo);
 
         assertThat(
             rolesDescription,
@@ -220,13 +219,13 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
         assertThat(
-            AuthorizationDenialMessages.actionDenied(authentication, null, action, mock(), null),
+            denialMessages.actionDenied(authentication, null, action, mock(), null),
             equalTo(
                 Strings.format(
                     "action [%s] towards remote cluster is unauthorized for %s authenticated by API key id [%s] of user [%s], "
                         + "this action is granted by the index privileges [all]",
                     action,
-                    AuthorizationDenialMessages.successfulAuthenticationDescription(innerAuthentication, null),
+                    denialMessages.successfulAuthenticationDescription(innerAuthentication, null),
                     authentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
                     authentication.getEffectiveSubject().getUser().principal()
                 )
@@ -237,7 +236,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
     public void testSuccessfulAuthenticationDescription() {
         final Authentication authentication1 = AuthenticationTestHelper.builder().realm().build(false);
         assertThat(
-            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication1, null),
+            denialMessages.successfulAuthenticationDescription(authentication1, null),
             equalTo(
                 Strings.format(
                     "user [%s] with assigned roles [%s]",
@@ -249,7 +248,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         final Authentication authentication2 = AuthenticationTestHelper.builder().realm().runAs().build();
         assertThat(
-            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication2, null),
+            denialMessages.successfulAuthenticationDescription(authentication2, null),
             equalTo(
                 Strings.format(
                     "user [%s] run as [%s] with assigned roles [%s]",
@@ -262,7 +261,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         final Authentication authentication3 = AuthenticationTestHelper.builder().apiKey().build();
         assertThat(
-            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication3, null),
+            denialMessages.successfulAuthenticationDescription(authentication3, null),
             equalTo(
                 Strings.format(
                     "API key id [%s] of user [%s]",
@@ -274,7 +273,7 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
 
         final Authentication authentication4 = AuthenticationTestHelper.builder().serviceAccount().build();
         assertThat(
-            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication4, null),
+            denialMessages.successfulAuthenticationDescription(authentication4, null),
             equalTo(Strings.format("service account [%s]", authentication4.getEffectiveSubject().getUser().principal()))
         );
 
@@ -286,11 +285,11 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
             .getMetadata()
             .get(AuthenticationField.CROSS_CLUSTER_ACCESS_AUTHENTICATION_KEY);
         assertThat(
-            AuthorizationDenialMessages.successfulAuthenticationDescription(authentication5, null),
+            denialMessages.successfulAuthenticationDescription(authentication5, null),
             equalTo(
                 Strings.format(
                     "%s authenticated by API key id [%s] of user [%s]",
-                    AuthorizationDenialMessages.successfulAuthenticationDescription(innerAuthentication, null),
+                    denialMessages.successfulAuthenticationDescription(innerAuthentication, null),
                     authentication5.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY),
                     authentication5.getEffectiveSubject().getUser().principal()
                 )
@@ -303,14 +302,14 @@ public class AuthorizationDenialMessagesTests extends ESTestCase {
         final String action = "indices:/some/action/" + randomAlphaOfLengthBetween(0, 8);
         final String clusterAlias = randomAlphaOfLengthBetween(5, 12);
         assertThat(
-            AuthorizationDenialMessages.remoteActionDenied(authentication, null, action, clusterAlias),
+            denialMessages.remoteActionDenied(authentication, null, action, clusterAlias),
             equalTo(
                 Strings.format(
                     "action [%s] towards remote cluster [%s] is unauthorized for %s"
                         + " because no remote indices privileges apply for the target cluster",
                     action,
                     clusterAlias,
-                    AuthorizationDenialMessages.successfulAuthenticationDescription(authentication, null)
+                    denialMessages.successfulAuthenticationDescription(authentication, null)
                 )
             )
         );

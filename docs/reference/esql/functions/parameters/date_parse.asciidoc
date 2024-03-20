@@ -1,0 +1,7 @@
+*Parameters*
+
+`datePattern`::
+A valid date pattern
+
+`dateString`::
+A string representing a date

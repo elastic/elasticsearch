@@ -247,10 +247,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             boolean masterElected = clusterState.nodes().getMasterNodeId() != null;
             boolean fileSettingsApplied = areFileSettingsApplied(clusterState);
             logger.info("readiness: masterElected={}, fileSettingsApplied={}", masterElected, fileSettingsApplied);
-            boolean nowReady = masterElected && fileSettingsApplied;
-            if (nowReady && ready() == false) {
-                setReady(true);
-            }
+            setReady(masterElected && fileSettingsApplied);
         }
     }
 

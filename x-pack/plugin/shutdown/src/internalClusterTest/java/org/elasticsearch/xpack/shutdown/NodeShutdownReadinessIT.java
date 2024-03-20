@@ -17,7 +17,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.readiness.MockReadinessService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Before;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,6 +35,30 @@ import static org.hamcrest.Matchers.empty;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeShutdownReadinessIT extends ESIntegTestCase {
+
+    Path masterConfigDir;
+
+    @Before
+    public void setupMasterConfigDir() throws IOException {
+        masterConfigDir = createTempDir();
+        Path settingsFile = masterConfigDir.resolve("operator").resolve("settings.json");
+        Files.createDirectories(settingsFile.getParent());
+        Files.writeString(settingsFile, """
+        {
+             "metadata": {
+                 "version": "1",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+                 "cluster_settings": {}
+             }
+        }""");
+    }
+
+    @Override
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        return nodeOrdinal == 0 ? masterConfigDir : null;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {

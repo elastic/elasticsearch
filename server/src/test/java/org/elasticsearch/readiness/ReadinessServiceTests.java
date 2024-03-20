@@ -53,6 +53,12 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
     private Environment env;
     private FakeHttpTransport httpTransport;
 
+    private static Metadata emptyReservedStateMetadata;
+    static {
+        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(-1L);
+        emptyReservedStateMetadata = new Metadata.Builder().put(fileSettingsState.build()).build();
+    }
+
     static class FakeHttpTransport extends AbstractLifecycleComponent implements HttpServerTransport {
         final DiscoveryNode node;
 
@@ -194,61 +200,51 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         // initially the service isn't ready
         assertFalse(readinessService.ready());
 
-        ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))
+        ClusterState emptyState = ClusterState.builder(new ClusterName("cluster"))
             .nodes(
                 DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
             )
             .build();
 
-        ClusterState newState = ClusterState.builder(previousState)
+        ClusterState noFileSettingsState = ClusterState.builder(emptyState)
             .nodes(
-                DiscoveryNodes.builder(previousState.nodes())
+                DiscoveryNodes.builder(emptyState.nodes())
                     .add(httpTransport.node)
                     .masterNodeId(httpTransport.node.getId())
                     .localNodeId(httpTransport.node.getId())
             )
             .build();
-        ClusterChangedEvent event = new ClusterChangedEvent("test", newState, previousState);
+        ClusterChangedEvent event = new ClusterChangedEvent("test", noFileSettingsState, emptyState);
         readinessService.clusterChanged(event);
 
         // sending a cluster state with active master should not yet bring up the service, file settings still are not applied
         assertFalse(readinessService.ready());
 
-        previousState = newState;
-        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(1L);
-        var metadataBuilder = new Metadata.Builder().put(fileSettingsState.build());
-        newState = ClusterState.builder(previousState)
-            .nodes(
-                DiscoveryNodes.builder(previousState.nodes())
-                    .add(httpTransport.node)
-                    .masterNodeId(httpTransport.node.getId())
-                    .localNodeId(httpTransport.node.getId())
-            )
-            .metadata(metadataBuilder)
+        ClusterState completeState = ClusterState.builder(noFileSettingsState)
+            .metadata(emptyReservedStateMetadata)
             .build();
-        event = new ClusterChangedEvent("test", newState, previousState);
+        event = new ClusterChangedEvent("test", completeState, noFileSettingsState);
         readinessService.clusterChanged(event);
 
         // sending a cluster state with active master and file settings applied should bring up the service
         assertTrue(readinessService.ready());
-
-        previousState = newState;
         tcpReadinessProbeTrue(readinessService);
 
-        ClusterState noMasterState = ClusterState.builder(previousState).nodes(previousState.nodes().withMasterNodeId(null)).build();
-        event = new ClusterChangedEvent("test", noMasterState, previousState);
+        ClusterState noMasterState = ClusterState.builder(completeState).nodes(completeState.nodes().withMasterNodeId(null)).build();
+        event = new ClusterChangedEvent("test", noMasterState, completeState);
         readinessService.clusterChanged(event);
         assertFalse(readinessService.ready());
         tcpReadinessProbeFalse(readinessService);
 
-        event = new ClusterChangedEvent("test", previousState, noMasterState);
+        event = new ClusterChangedEvent("test", completeState, noMasterState);
         readinessService.clusterChanged(event);
         assertTrue(readinessService.ready());
         tcpReadinessProbeTrue(readinessService);
 
-        newState = ClusterState.builder(previousState)
+        // shutting down flips back to not ready
+        ClusterState nodeShuttingDownState = ClusterState.builder(completeState)
             .metadata(
-                Metadata.builder(previousState.metadata())
+                Metadata.builder(completeState.metadata())
                     .putCustom(
                         NodesShutdownMetadata.TYPE,
                         new NodesShutdownMetadata(
@@ -266,8 +262,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                     .build()
             )
             .build();
-
-        event = new ClusterChangedEvent("test", newState, previousState);
+        event = new ClusterChangedEvent("test", nodeShuttingDownState, completeState);
         var mockAppender = new MockLogAppender();
         try (var ignored = mockAppender.capturing(ReadinessService.class)) {
             mockAppender.addExpectation(

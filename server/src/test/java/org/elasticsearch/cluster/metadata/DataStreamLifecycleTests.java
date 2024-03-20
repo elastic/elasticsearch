@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
@@ -107,6 +108,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         return DataStreamLifecycle.fromXContent(parser);
     }
 
+    @Seed("9DBA90D744F26E49")
     public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
         DataStreamLifecycle lifecycle = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -127,7 +129,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 assertThat(serialized, containsString("[automatic]"));
             }
             // We check that even if there was no retention provided by the user, the global retention applies
-            assertThat(serialized, not(containsString("data_retention")));
+            if (lifecycle.getDataRetention() == null) {
+                assertThat(serialized, not(containsString("data_retention")));
+            } else {
+                assertThat(serialized, containsString("data_retention"));
+            }
             assertThat(serialized, containsString("effective_retention"));
         }
     }

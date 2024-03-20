@@ -24,7 +24,11 @@ public class Acos extends AbstractTrigonometricFunction {
     @FunctionInfo(returnType = "double", description = "The arccosine of an angle, expressed in radians.")
     public Acos(
         Source source,
-        @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }, description = "Number between -1 and 1") Expression n
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Number between -1 and 1"
+        ) Expression n
     ) {
         super(source, n);
     }

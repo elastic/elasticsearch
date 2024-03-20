@@ -45,7 +45,10 @@ public class ToDouble extends AbstractConvertFunction {
     @FunctionInfo(returnType = "double", description = "Converts an input value to a double value.")
     public ToDouble(
         Source source,
-        @Param(name = "v", type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(
+            name = "field",
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+        ) Expression field
     ) {
         super(source, field);
     }

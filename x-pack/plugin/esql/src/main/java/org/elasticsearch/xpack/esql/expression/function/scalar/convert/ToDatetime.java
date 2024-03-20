@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -43,7 +43,7 @@ public class ToDatetime extends AbstractConvertFunction {
     @FunctionInfo(returnType = "date", description = "Converts an input value to a date value.")
     public ToDatetime(
         Source source,
-        @Param(name = "v", type = { "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(name = "field", type = { "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
     ) {
         super(source, field);
     }
@@ -70,6 +70,6 @@ public class ToDatetime extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
-        return DateParse.process(in, DateParse.DEFAULT_FORMATTER);
+        return dateTimeToLong(in.utf8ToString());
     }
 }

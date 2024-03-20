@@ -75,9 +75,10 @@ public class DataStreamGlobalRetentionSerializationTests extends SimpleDiffableW
     }
 
     public static DataStreamGlobalRetention randomGlobalRetention() {
+        boolean withDefault = randomBoolean();
         return new DataStreamGlobalRetention(
-            randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000)),
-            randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000))
+            withDefault == false ? null : TimeValue.timeValueDays(randomIntBetween(1, 1000)),
+            withDefault && randomBoolean() ? null : TimeValue.timeValueDays(randomIntBetween(1000, 2000))
         );
     }
 

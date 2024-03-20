@@ -25,7 +25,7 @@ public class Cosh extends AbstractTrigonometricFunction {
     public Cosh(
         Source source,
         @Param(
-            name = "n",
+            name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
             description = "The number who's hyperbolic cosine is to be returned"
         ) Expression n

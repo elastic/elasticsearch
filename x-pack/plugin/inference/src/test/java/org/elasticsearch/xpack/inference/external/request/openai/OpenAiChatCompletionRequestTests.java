@@ -44,10 +44,11 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("user"), is("user"));
+        assertThat(requestMap.get("n"), is(1));
     }
 
     public void testCreateRequest_WithDefaultUrl() throws URISyntaxException, IOException {
@@ -63,10 +64,11 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("user"), is("user"));
+        assertThat(requestMap.get("n"), is(1));
     }
 
     public void testCreateRequest_WithDefaultUrlAndWithoutUserOrganization() throws URISyntaxException, IOException {
@@ -82,9 +84,10 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         assertNull(httpPost.getLastHeader(ORGANIZATION_HEADER));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(2));
+        assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
         assertThat(requestMap.get("model"), is("model"));
+        assertThat(requestMap.get("n"), is(1));
     }
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
@@ -97,9 +100,10 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(2));
+        assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "ab"))));
         assertThat(requestMap.get("model"), is("model"));
+        assertThat(requestMap.get("n"), is(1));
     }
 
     public void testIsTruncated_ReturnsTrue() {

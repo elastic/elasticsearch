@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -352,7 +352,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
      */
     public static class TestObjectStoreService extends ObjectStoreService {
 
-        private final List<BlockedListener<StatelessCompoundCommit>> blockedListeners = new ArrayList<>();
+        private final List<BlockedListener<BatchedCompoundCommit>> blockedListeners = new ArrayList<>();
         private boolean blocked;
 
         @Inject
@@ -388,7 +388,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
             Directory directory,
             long commitStartNanos,
             VirtualBatchedCompoundCommit pendingCommit,
-            ActionListener<StatelessCompoundCommit> listener
+            ActionListener<BatchedCompoundCommit> listener
         ) {
             synchronized (this) {
                 if (blocked) {

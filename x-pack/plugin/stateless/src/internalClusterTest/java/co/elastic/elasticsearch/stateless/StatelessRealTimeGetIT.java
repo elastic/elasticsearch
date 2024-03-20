@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteResponse;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -439,7 +441,10 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1369")
+    @TestLogging(
+        value = "org.elasticsearch.action.get.TransportGetAction:debug",
+        reason = "https://github.com/elastic/elasticsearch-serverless/pull/1426"
+    )
     public void testStress() throws Exception {
         int numOfShards = randomIntBetween(1, 3);
         int numOfReplicas = randomIntBetween(1, 2);
@@ -460,17 +465,21 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 for (var engine : indexEngines) {
                     if (randomBoolean()) {
                         engine.refresh("local");
+                        logger.info("Engine has been refreshed");
                     }
                 }
             }
+            logger.info("Local refresher thread has finished");
         };
         Runnable flusher = () -> {
             while (run.get()) {
                 safeSleep(randomLongBetween(0, 100));
                 if (randomBoolean()) {
                     indicesAdmin().prepareRefresh(indexName).execute();
+                    logger.info("Index has been refreshed");
                 }
             }
+            logger.info("Flusher thread has finished");
         };
         BlockingQueue<String> ids = new LinkedBlockingQueue<>();
         var writersCount = randomIntBetween(1, 5);
@@ -486,13 +495,28 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                     for (int i = 0; i < docs; i++) {
                         bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
                     }
-                    var response = bulkRequest.get(timeValueSeconds(30));
+                    logger.info("Inserting {} documents. Iteration number: {}, Number of shards: {}", docs, bulk, numOfShards);
+                    BulkResponse response;
+                    try {
+                        response = bulkRequest.get(timeValueSeconds(30));
+                    } catch (ElasticsearchTimeoutException e) {
+                        throw new AssertionError(
+                            Strings.format(
+                                "Unable to bulk insert %d documents. Aborted due to a timeout. Iteration number: %d, Number of shards: %d",
+                                docs,
+                                bulk,
+                                numOfShards
+                            ),
+                            e
+                        );
+                    }
                     assertNoFailures(response);
                     ids.add(randomFrom(Arrays.stream(response.getItems()).map(BulkItemResponse::getId).toList()));
                     safeSleep(randomLongBetween(0, 100));
                 }
             } finally {
                 writersBusy.countDown();
+                logger.info("Writer thread has finished");
             }
         };
 
@@ -502,14 +526,18 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                 try {
                     var id = randomBoolean() ? ids.poll(1, TimeUnit.SECONDS) : ids.peek();
                     if (id != null) {
+                        logger.info("Getting a document by id '{}'", id);
                         var getResponse = client().prepareGet(indexName, id).get(timeValueSeconds(30));
                         assertTrue(Strings.format("could not GET id '%s'", id), getResponse.isExists());
                         safeSleep(randomLongBetween(1, 100));
                     }
+                } catch (ElasticsearchTimeoutException e) {
+                    throw new AssertionError(Strings.format("Unable to GET id '%s' due to timeout", numOfShards), e);
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
             }
+            logger.info("Reader thread has finished");
         };
         threads.add(new Thread(flusher));
         threads.add(new Thread(localRefresher));

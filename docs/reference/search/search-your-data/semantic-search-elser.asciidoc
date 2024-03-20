@@ -184,10 +184,10 @@ follow the progress.
 [[text-expansion-query]]
 ==== Semantic search by using the `text_expansion` query
 
-To perform semantic search, use the `text_expansion` query, and provide the
-query text and the ELSER model ID. The example below uses the query text "How to
-avoid muscle soreness after running?", the `content_embedding` field contains
-the generated ELSER output:
+To perform semantic search, use the <<query-dsl-text-expansion-query, `text_expansion` query>>,
+and provide the query text and the ELSER model ID. The example below uses the
+query text "How to avoid muscle soreness after running?", the `content_embedding`
+field contains the generated ELSER output:
 
 [source,console]
 ----
@@ -258,9 +258,9 @@ tokens from source, refer to <<save-space,this section>> to learn more.
 [[text-expansion-compound-query]]
 ==== Combining semantic search with other queries
 
-You can combine `text_expansion` with other queries in a
-<<compound-queries,compound query>>. For example using a filter clause in a
-<<query-dsl-bool-query>> or a full text query which may or may not use the same
+You can combine <<query-dsl-text-expansion-query, `text_expansion`>> with other
+queries in a <<compound-queries,compound query>>. For example, use a filter clause
+in a <<query-dsl-bool-query>> or a full text query with the same (or different)
 query text as the `text_expansion` query. This enables you to combine the search
 results from both queries.
 

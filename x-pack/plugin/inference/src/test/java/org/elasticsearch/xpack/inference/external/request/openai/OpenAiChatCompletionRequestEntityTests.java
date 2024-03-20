@@ -28,7 +28,7 @@ public class OpenAiChatCompletionRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"messages":[{"role":"user","content":"abc"}],"model":"model","user":"user"}"""));
+            {"messages":[{"role":"user","content":"abc"}],"model":"model","n":1,"user":"user"}"""));
 
     }
 
@@ -40,7 +40,7 @@ public class OpenAiChatCompletionRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"messages":[{"role":"user","content":"abc"}],"model":"model"}"""));
+            {"messages":[{"role":"user","content":"abc"}],"model":"model","n":1}"""));
     }
 
     public void testXContent_ThrowsIfModelIsNull() {

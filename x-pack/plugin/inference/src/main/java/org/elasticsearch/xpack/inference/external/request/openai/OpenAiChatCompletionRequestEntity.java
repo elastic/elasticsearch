@@ -20,6 +20,8 @@ public class OpenAiChatCompletionRequestEntity implements ToXContentObject {
     private static final String MESSAGES_FIELD = "messages";
     private static final String MODEL_FIELD = "model";
 
+    private static final String NUMBER_OF_RETURNED_CHOICES_FIELD = "n";
+
     private static final String ROLE_FIELD = "role";
     private static final String USER_FIELD = "user";
     private static final String CONTENT_FIELD = "content";
@@ -57,6 +59,7 @@ public class OpenAiChatCompletionRequestEntity implements ToXContentObject {
         builder.endArray();
 
         builder.field(MODEL_FIELD, model);
+        builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, 1);
 
         if (Strings.isNullOrEmpty(user) == false) {
             builder.field(USER_FIELD, user);

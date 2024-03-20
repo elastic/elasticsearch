@@ -174,3 +174,38 @@ stream aliases don't support this parameter.
 Only the `add` action supports this parameter.
 =====
 ====
+
+
+
+[role="child_attributes"]
+[[indices-aliases-api-response-body]]
+==== {api-response-body-title}
+
+`acknowledged`::
+(Boolean)
+If `true`, the request received a response from the master node within the
+`timeout` period.
+
+`errors`::
+(Boolean)
+If `true`, at least one of the requested actions failed.
+
+`action_results`::
+(array of objects) Results for each requested action.
++
+.Properties of `action_results` objects
+[%collapsible%open]
+====
+
+`action`::
+(string)
+The type of the associated action, the values will be one of `add`, `remove`, or `remove_index`.
+
+`success`::
+(boolean)
+If true, the requested action was successfully applied at least once.
+
+`error`::
+(Optional, string)
+Only present if `success` is `false`. Consists of a message describing why the action failed
+====

@@ -122,12 +122,11 @@ POST _aliases
 // end::alias-multiple-actions-example[]
 
 [discrete]
-[[Multiple action results]]
+[[multiple-action-results]]
 === Multiple action results
 
 When using multiple actions, if some succeed and some fail, a list of per-action results will be returned.
 
-// tag::alias-multiple-actions-result-example[]
 Consider a similar action list to the previous example, but now with an alias `log-non-existing`, which does not yet exist.
 In this case, the `remove` action will fail, but the `add` action will succeed.
 The response will contain the list `action_results`, with a result for every requested action.
@@ -176,10 +175,9 @@ The API returns the following result:
 --------------------------------------------------
 
 Allowing the action list to succeed partially may not provide the desired result.
-It may be more appropriate to use set `must_exist` to `true`, which will cause the entire action
+It may be more appropriate to set `must_exist` to `true`, which will cause the entire action
 list to fail if a single action fails.
 
-// end::alias-multiple-actions-example[]
 
 [discrete]
 [[add-alias-at-creation]]

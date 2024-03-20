@@ -688,9 +688,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     /**
      * Validates a request to join the new cluster. Runs on the candidate node running for election to master.
-     *
-     * @param joinRequest
-     * @param validateListener
      */
     private void validateJoinRequest(JoinRequest joinRequest, ActionListener<Void> validateListener) {
 

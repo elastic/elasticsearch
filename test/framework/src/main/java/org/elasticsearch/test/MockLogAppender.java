@@ -251,8 +251,6 @@ public class MockLogAppender extends AbstractAppender {
 
     /**
      * Same as above except takes string class names of each logger.
-     * @param names
-     * @return
      */
     public Releasable capturing(String... names) {
         return appendToLoggers(Arrays.stream(names).map(LogManager::getLogger).toList());

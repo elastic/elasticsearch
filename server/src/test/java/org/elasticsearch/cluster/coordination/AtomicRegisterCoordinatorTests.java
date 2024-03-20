@@ -106,6 +106,13 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
     }
 
     @Override
+    @AwaitsFix(bugUrl = "ES-8099")
+    public void testCannotJoinClusterWithDifferentUUID() {
+        // Placeholder to implement a test wherein the blob store cluster state is suddenly swapped out with a different cluster's state
+        // with a different UUID. The cluster nodes should recognize the UUID change and refuse to load the foreign cluster state.
+    }
+
+    @Override
     public void testUnhealthyNodesGetsRemoved() {
         // the test still applies with an atomic register, except for the assertions about the voting configuration
         testUnhealthyNodesGetsRemoved(false);

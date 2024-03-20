@@ -8,8 +8,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
@@ -95,8 +93,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
-    private final Logger logger = LogManager.getLogger(CoordinatorTests.class);
-
     public void testCanUpdateClusterStateAfterStabilisation() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
@@ -1302,8 +1298,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             List<ClusterNode> clusterNodesToFailJoin;
             if (failJoinOnAllNodes) {
-                // The AtomicRegister strategy succeeds if a master candidate votes for itself, so we must disable all nodes from voting so
-                // that none of them can self-elect.
+                // The AtomicRegister strategy succeeds if a master candidate votes for itself, so we must disable all nodes from passing
+                // join validation so that none of them can self-elect.
                 clusterNodesToFailJoin = cluster.clusterNodes;
             } else {
                 // Fetch a random subset of cluster nodes that form a quorum (majority subset).
@@ -1323,12 +1319,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.bootstrapIfNecessary();
 
             // Run the cluster for 10 seconds to give the cluster some time to elect a master.
-            // It's possible stabilisation takes longer, but very unlikely.
+            // It's possible stabilisation takes longer, but that's unlikely.
             cluster.runFor(10000, "failing join validation");
 
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
 
-            // Now clear the validation failures and allow the cluster to stabilize.
+            // Now clear the validation failures and verify that the cluster stabilizes.
             for (ClusterNode clusterNode : cluster.clusterNodes) {
                 clusterNode.extraJoinValidators.clear();
             }

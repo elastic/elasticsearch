@@ -33,7 +33,7 @@ public class ToIP extends AbstractConvertFunction {
     );
 
     @FunctionInfo(returnType = "ip", description = "Converts an input string to an IP value.")
-    public ToIP(Source source, @Param(name = "v", type = { "ip", "keyword", "text" }) Expression field) {
+    public ToIP(Source source, @Param(name = "field", type = { "ip", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 

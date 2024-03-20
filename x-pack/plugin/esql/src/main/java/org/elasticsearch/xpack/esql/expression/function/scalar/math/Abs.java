@@ -23,7 +23,7 @@ import java.util.function.Function;
 
 public class Abs extends UnaryScalarFunction {
     @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = "Returns the absolute value.")
-    public Abs(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
+    public Abs(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 

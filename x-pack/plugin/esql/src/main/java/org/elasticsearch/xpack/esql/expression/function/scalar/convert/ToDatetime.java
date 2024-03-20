@@ -43,7 +43,7 @@ public class ToDatetime extends AbstractConvertFunction {
     @FunctionInfo(returnType = "date", description = "Converts an input value to a date value.")
     public ToDatetime(
         Source source,
-        @Param(name = "v", type = { "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(name = "field", type = { "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
     ) {
         super(source, field);
     }

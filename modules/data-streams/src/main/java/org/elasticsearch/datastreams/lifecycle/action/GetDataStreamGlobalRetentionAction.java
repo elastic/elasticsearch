@@ -147,7 +147,7 @@ public class GetDataStreamGlobalRetentionAction {
 
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            if (featureService.clusterHasFeature(state, DataStreamGlobalRetention.GLOBAL_RETENTION)) {
+            if (featureService.clusterHasFeature(state, DataStreamGlobalRetention.GLOBAL_RETENTION) == false) {
                 listener.onFailure(
                     new ResourceNotFoundException(
                         "Data stream global retention feature not found, please ensure all nodes have the feature "

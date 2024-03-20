@@ -176,7 +176,7 @@ public class PutDataStreamGlobalRetentionAction {
             ClusterState state,
             ActionListener<UpdateDataStreamGlobalRetentionResponse> listener
         ) throws Exception {
-            if (featureService.clusterHasFeature(state, DataStreamGlobalRetention.GLOBAL_RETENTION)) {
+            if (featureService.clusterHasFeature(state, DataStreamGlobalRetention.GLOBAL_RETENTION) == false) {
                 listener.onFailure(
                     new ResourceNotFoundException(
                         "Data stream global retention feature not found, please ensure all nodes have the feature "

@@ -1,5 +1,5 @@
 pr: 106564
-summary: Add background filters of significant terms aggregations to can match query
+summary: Fix the background set of significant terms aggregations in case the data is in different shards than the foreground set
 area: Search
 type: bug
 issues: []

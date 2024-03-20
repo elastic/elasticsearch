@@ -40,7 +40,7 @@ public class OpenAiCompletionExecutableRequestCreator implements ExecutableReque
     private final OpenAiAccount account;
 
     private static ResponseHandler createCompletionHandler() {
-        return new OpenAiResponseHandler("open completion", OpenAiChatCompletionResponseEntity::fromResponse);
+        return new OpenAiResponseHandler("openai completion", OpenAiChatCompletionResponseEntity::fromResponse);
     }
 
     public OpenAiCompletionExecutableRequestCreator(OpenAiChatCompletionModel model, Truncator truncator) {

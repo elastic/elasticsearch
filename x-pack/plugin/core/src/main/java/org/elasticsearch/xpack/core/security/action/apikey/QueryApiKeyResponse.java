@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -28,16 +29,44 @@ import java.util.Objects;
  */
 public final class QueryApiKeyResponse extends ActionResponse implements ToXContentObject {
 
-    public static final QueryApiKeyResponse EMPTY = new QueryApiKeyResponse(0, List.of(), null);
+    public static final QueryApiKeyResponse EMPTY = new QueryApiKeyResponse(0, List.of(), List.of(), null, null);
 
     private final long total;
     private final List<Item> foundApiKeyInfoList;
     private final @Nullable InternalAggregations aggregations;
 
-    public QueryApiKeyResponse(long total, Collection<Item> items, @Nullable InternalAggregations aggregations) {
+    public QueryApiKeyResponse(
+        long total,
+        Collection<ApiKey> foundApiKeysInfos,
+        Collection<Object[]> sortValues,
+        @Nullable Collection<String> ownerProfileUids,
+        @Nullable InternalAggregations aggregations
+    ) {
         this.total = total;
-        Objects.requireNonNull(items, "items must be provided");
-        this.foundApiKeyInfoList = items instanceof List<Item> ? (List<Item>) items : new ArrayList<>(items);
+        Objects.requireNonNull(foundApiKeysInfos, "found_api_keys_infos must be provided");
+        Objects.requireNonNull(sortValues, "sort_values must be provided");
+        if (foundApiKeysInfos.size() != sortValues.size()) {
+            throw new IllegalArgumentException("Each api key info must be associated to a (nullable) sort value");
+        }
+        if (ownerProfileUids != null && foundApiKeysInfos.size() != ownerProfileUids.size()) {
+            throw new IllegalArgumentException("Each api key info must be associated to a (nullable) owner profile uid");
+        }
+        int size = foundApiKeysInfos.size();
+        this.foundApiKeyInfoList = new ArrayList<>(size);
+        Iterator<ApiKey> apiKeyIterator = foundApiKeysInfos.iterator();
+        Iterator<Object[]> sortValueIterator = sortValues.iterator();
+        Iterator<String> profileUidIterator = ownerProfileUids != null ? ownerProfileUids.iterator() : null;
+        while (apiKeyIterator.hasNext()) {
+            if (false == sortValueIterator.hasNext()) {
+                throw new IllegalArgumentException("Each api key info must be associated to a (nullable) sort value");
+            }
+            if (profileUidIterator != null && false == profileUidIterator.hasNext()) {
+                throw new IllegalArgumentException("Each api key info must be associated to a (nullable) owner profile uid");
+            }
+            this.foundApiKeyInfoList.add(
+                new Item(apiKeyIterator.next(), sortValueIterator.next(), profileUidIterator != null ? profileUidIterator.next() : null)
+            );
+        }
         this.aggregations = aggregations;
     }
 
@@ -92,7 +121,7 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         return "QueryApiKeyResponse{total=" + total + ", items=" + foundApiKeyInfoList + ", aggs=" + aggregations + "}";
     }
 
-    public record Item(ApiKey apiKeyInfo, @Nullable Object[] sortValues) implements ToXContentObject {
+    public record Item(ApiKey apiKeyInfo, @Nullable Object[] sortValues, @Nullable String ownerProfileUid) implements ToXContentObject {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -101,13 +130,22 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
             if (sortValues != null && sortValues.length > 0) {
                 builder.array("_sort", sortValues);
             }
+            if (ownerProfileUid != null) {
+                builder.field("profile_uid", ownerProfileUid);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public String toString() {
-            return "Item{apiKeyInfo=" + apiKeyInfo + ", sortValues=" + Arrays.toString(sortValues) + '}';
+            return "Item{apiKeyInfo="
+                + apiKeyInfo
+                + ", sortValues="
+                + Arrays.toString(sortValues)
+                + ", ownerProfileUid="
+                + ownerProfileUid
+                + '}';
         }
     }
 }

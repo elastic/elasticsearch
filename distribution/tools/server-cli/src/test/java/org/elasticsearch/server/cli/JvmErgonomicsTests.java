@@ -8,6 +8,7 @@
 
 package org.elasticsearch.server.cli;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +41,7 @@ import static org.junit.Assert.fail;
 
 @WithoutSecurityManager
 @SuppressFileSystems("*")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106554")
 public class JvmErgonomicsTests extends ESTestCase {
 
     public void testExtractValidHeapSizeUsingXmx() throws Exception {

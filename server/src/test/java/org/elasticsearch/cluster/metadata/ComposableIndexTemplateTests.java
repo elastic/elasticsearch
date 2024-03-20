@@ -247,7 +247,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
-            // We check that even if there was not retention provided by the user, the global retention applies
+            // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
             assertThat(serialized, containsString("effective_retention"));
         }

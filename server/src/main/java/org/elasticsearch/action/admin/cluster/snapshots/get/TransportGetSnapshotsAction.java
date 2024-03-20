@@ -295,7 +295,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         totalCount.get(),
                         finalRemaining
                     );
-                }), executor, threadPool.getThreadContext());
+                }));
         }
 
         private boolean skipRepository(String repositoryName) {
@@ -444,12 +444,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     }
                 })
 
-                .addListener(
-                    // no need to synchronize access to snapshots: Repository#getSnapshotInfo fails fast but we're on the success path here
-                    listener.safeMap(v -> sortSnapshotsWithNoOffsetOrLimit(snapshots)),
-                    executor,
-                    threadPool.getThreadContext()
-                );
+                .addListener(listener.safeMap(v ->
+                // no need to synchronize access to snapshots: Repository#getSnapshotInfo fails fast but we're on the success path here
+                sortSnapshotsWithNoOffsetOrLimit(snapshots)), executor, threadPool.getThreadContext());
         }
 
         private SnapshotsInRepo buildSimpleSnapshotInfos(

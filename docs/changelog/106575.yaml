@@ -1,5 +1,5 @@
 pr: 106575
-summary: Unable to retrieve multiple stored fields values
-area: "Search, Logs"
+summary: Unable to retrieve multiple stored field values
+area: "Search"
 type: bug
 issues: []

@@ -1,0 +1,6 @@
+pr: 106544
+summary: Force execution of `SearchService.Reaper`
+area: Search
+type: bug
+issues:
+ - 106543

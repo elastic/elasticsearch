@@ -75,14 +75,20 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndM
 public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
 
-    private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
+    private static final Automaton ALL_AUTOMATON = patterns(
+        "indices:*",
+        "internal:transport/proxy/indices:*",
+        "cluster:monitor/async_search/status"
+    );
     private static final Automaton READ_AUTOMATON = patterns(
         "indices:data/read/*",
+        "cluster:monitor/async_search/status",
         ResolveIndexAction.NAME,
         TransportResolveClusterAction.NAME
     );
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
+        "cluster:monitor/async_search/status",
         ClusterSearchShardsAction.NAME,
         TransportSearchShardsAction.TYPE.name(),
         TransportResolveClusterAction.NAME,

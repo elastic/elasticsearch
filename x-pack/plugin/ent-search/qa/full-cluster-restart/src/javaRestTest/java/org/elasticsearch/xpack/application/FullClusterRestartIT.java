@@ -172,7 +172,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertOK(response);
 
             assertNotNull(ObjectPath.createFromResponse(response).evaluate(policyName));
-        }  catch (ResponseException e) {
+        } catch (ResponseException e) {
             int status = e.getResponse().getStatusLine().getStatusCode();
             if (status == 404) {
                 throw new AssertionError("Waiting for the policy to be created");

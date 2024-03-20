@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -27,31 +28,25 @@ import java.util.Objects;
  */
 public final class QueryApiKeyResponse extends ActionResponse implements ToXContentObject {
 
+    public static final QueryApiKeyResponse EMPTY = new QueryApiKeyResponse(0, List.of(), null);
+
     private final long total;
-    private final Item[] items;
+    private final List<Item> foundApiKeyInfoList;
     private final @Nullable InternalAggregations aggregations;
 
     public QueryApiKeyResponse(long total, Collection<Item> items, @Nullable InternalAggregations aggregations) {
         this.total = total;
         Objects.requireNonNull(items, "items must be provided");
-        this.items = items.toArray(new Item[0]);
+        this.foundApiKeyInfoList = items instanceof List<Item> ? (List<Item>) items : new ArrayList<>(items);
         this.aggregations = aggregations;
-    }
-
-    public static QueryApiKeyResponse emptyResponse() {
-        return new QueryApiKeyResponse(0, List.of(), null);
     }
 
     public long getTotal() {
         return total;
     }
 
-    public Item[] getItems() {
-        return items;
-    }
-
-    public int getCount() {
-        return items.length;
+    public List<Item> getApiKeyInfoList() {
+        return foundApiKeyInfoList;
     }
 
     public InternalAggregations getAggregations() {
@@ -60,11 +55,13 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().field("total", total).field("count", items.length).array("api_keys", (Object[]) items);
+        builder.startObject();
+        builder.field("total", total).field("count", foundApiKeyInfoList.size()).field("api_keys", foundApiKeyInfoList);
         if (aggregations != null) {
             aggregations.toXContent(builder, params);
         }
-        return builder.endObject();
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -77,44 +74,30 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         QueryApiKeyResponse that = (QueryApiKeyResponse) o;
-        return total == that.total && Arrays.equals(items, that.items) && Objects.equals(aggregations, that.aggregations);
+        return total == that.total
+            && Objects.equals(foundApiKeyInfoList, that.foundApiKeyInfoList)
+            && Objects.equals(aggregations, that.aggregations);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(total);
-        result = 31 * result + Arrays.hashCode(items);
+        result = 31 * result + Objects.hash(foundApiKeyInfoList);
         result = 31 * result + Objects.hash(aggregations);
         return result;
     }
 
     @Override
     public String toString() {
-        return "QueryApiKeyResponse{total=" + total + ", items=" + Arrays.toString(items) + ", aggs=" + aggregations + "}";
+        return "QueryApiKeyResponse{total=" + total + ", items=" + foundApiKeyInfoList + ", aggs=" + aggregations + "}";
     }
 
-    public static class Item implements ToXContentObject {
-        private final ApiKey apiKey;
-        @Nullable
-        private final Object[] sortValues;
-
-        public Item(ApiKey apiKey, @Nullable Object[] sortValues) {
-            this.apiKey = apiKey;
-            this.sortValues = sortValues;
-        }
-
-        public ApiKey getApiKey() {
-            return apiKey;
-        }
-
-        public Object[] getSortValues() {
-            return sortValues;
-        }
+    public record Item(ApiKey apiKeyInfo, @Nullable Object[] sortValues) implements ToXContentObject {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            apiKey.innerToXContent(builder, params);
+            apiKeyInfo.innerToXContent(builder, params);
             if (sortValues != null && sortValues.length > 0) {
                 builder.array("_sort", sortValues);
             }
@@ -123,23 +106,8 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Item item = (Item) o;
-            return Objects.equals(apiKey, item.apiKey) && Arrays.equals(sortValues, item.sortValues);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hash(apiKey);
-            result = 31 * result + Arrays.hashCode(sortValues);
-            return result;
-        }
-
-        @Override
         public String toString() {
-            return "Item{" + "apiKey=" + apiKey + ", sortValues=" + Arrays.toString(sortValues) + '}';
+            return "Item{apiKeyInfo=" + apiKeyInfo + ", sortValues=" + Arrays.toString(sortValues) + '}';
         }
     }
 }

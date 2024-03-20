@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: "- 8.12.99"
-      reason: _tsid hashing introduced in 8.13
+      version: "- 8.13.99"
+      reason: _tsid hashing introduced in 8.13 and tsid routing changed in 8.14
 
   - do:
       indices.create:
@@ -65,10 +65,6 @@ setup:
 
 ---
 generates a consistent id:
-  - skip:
-      version: "- 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       bulk:
         refresh: true
@@ -135,10 +131,6 @@ generates a consistent id:
 
 ---
 index a new document on top of an old one:
-  - skip:
-      version: " - 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       search:
         index: id_generation_test
@@ -189,10 +181,6 @@ index a new document on top of an old one:
 
 ---
 index a new document on top of an old one over bulk:
-  - skip:
-      version: "- 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       search:
         index: id_generation_test
@@ -234,10 +222,6 @@ index a new document on top of an old one over bulk:
 
 ---
 create operation on top of old document fails:
-  - skip:
-      version: "- 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       catch: "/\\[cn4excfoxSs_KdA5AAABeRnR_mY\\]\\[.*@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
       index:
@@ -257,10 +241,6 @@ create operation on top of old document fails:
 
 ---
 create operation on top of old document fails over bulk:
-  - skip:
-      version: " - 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       bulk:
         refresh: true
@@ -272,10 +252,6 @@ create operation on top of old document fails over bulk:
 
 ---
 ids query:
-  - skip:
-      version: "- 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       search:
         index: id_generation_test
@@ -294,10 +270,6 @@ ids query:
 
 ---
 get:
-  - skip:
-      version: " - 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       get:
         index:   id_generation_test
@@ -319,10 +291,6 @@ get:
 
 ---
 get not found:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       catch: missing
       get:
@@ -331,10 +299,6 @@ get not found:
 
 ---
 get with routing:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       catch: bad_request
       get:
@@ -344,10 +308,6 @@ get with routing:
 
 ---
 delete:
-  - skip:
-      version: " - 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       delete:
         index:   id_generation_test
@@ -356,10 +316,6 @@ delete:
 
 ---
 delete not found:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       catch: missing
       delete:
@@ -368,10 +324,6 @@ delete not found:
 
 ---
 delete with routing:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   - do:
       catch: bad_request
       delete:
@@ -381,10 +333,6 @@ delete with routing:
 
 ---
 delete over _bulk:
-  - skip:
-      version: " - 8.1.99"
-      reason: ids generation changed in 8.2
-
   # mget call added to investigate test failure: https://github.com/elastic/elasticsearch/issues/93852
   # (should be removed when test issue is resolved)
   - do:
@@ -413,10 +361,6 @@ delete over _bulk:
 
 ---
 routing_path matches deep object:
-  - skip:
-      version: " - 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       indices.create:
           index: routing_path_test
@@ -458,10 +402,6 @@ routing_path matches deep object:
 
 ---
 routing_path matches object:
-  - skip:
-      version: " - 8.12.99"
-      reason: _tsid hashing introduced in 8.13
-
   - do:
       indices.create:
           index: routing_path_test_2

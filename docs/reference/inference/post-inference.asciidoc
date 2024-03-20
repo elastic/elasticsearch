@@ -17,6 +17,7 @@ own model, use the <<ml-df-trained-models-apis>>.
 ==== {api-request-title}
 
 `POST /_inference/<model_id>`
+
 `POST /_inference/<task_type>/<model_id>`
 
 
@@ -24,8 +25,8 @@ own model, use the <<ml-df-trained-models-apis>>.
 [[post-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
-
+* Requires the `monitor_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` and `inference_user` roles grant this privilege)
 
 [discrete]
 [[post-inference-api-desc]]

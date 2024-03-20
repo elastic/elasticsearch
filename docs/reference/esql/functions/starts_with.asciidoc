@@ -20,8 +20,6 @@ String expression. If `null`, the function returns `null`.
 Returns a boolean that indicates whether a keyword string starts with another
 string.
 
-*Supported types*
-
 include::types/starts_with.asciidoc[]
 
 *Example*

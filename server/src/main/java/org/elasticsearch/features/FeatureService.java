@@ -20,7 +20,8 @@ import java.util.NavigableMap;
 import java.util.Set;
 
 /**
- * Manages information on the features supported by nodes in the cluster
+ * Manages information on the features supported by nodes in the cluster.
+ * For more information, see {@link FeatureSpecification}.
  */
 public class FeatureService {
 
@@ -36,6 +37,10 @@ public class FeatureService {
     private final NavigableMap<Version, Set<String>> historicalFeatures;
     private final Map<String, NodeFeature> nodeFeatures;
 
+    /**
+     * Creates a new {@code FeatureService}, reporting all the features declared in {@code specs}
+     * as the local node's supported feature set
+     */
     public FeatureService(List<? extends FeatureSpecification> specs) {
 
         var featureData = FeatureData.createFromSpecifications(specs);
@@ -47,6 +52,7 @@ public class FeatureService {
 
     /**
      * The non-historical features supported by this node.
+     * @return Map of {@code feature-id} to its declaring {@code NodeFeature} object.
      */
     public Map<String, NodeFeature> getNodeFeatures() {
         return nodeFeatures;

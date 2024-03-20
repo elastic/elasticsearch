@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -124,7 +125,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.isSingleRepositoryRequest() == false,
             request.snapshots(),
             request.ignoreUnavailable(),
-            SnapshotPredicates.fromRequest(request),
+            request.policies(),
             request.sort(),
             request.order(),
             request.fromSortValue(),
@@ -152,9 +153,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final boolean isMultiRepoRequest;
 
         // snapshots selection
-        private final String[] snapshots;
-        private final boolean ignoreUnavailable;
-        private final SnapshotPredicates predicates;
+        private final SnapshotNamePredicate snapshotNamePredicate;
+        private final SnapshotPredicates fromSortValuePredicates;
+        private final Predicate<String> slmPolicyPredicate;
 
         // snapshot ordering/pagination
         private final SnapshotSortKey sortBy;
@@ -170,6 +171,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SnapshotsInProgress snapshotsInProgress;
 
         // output detail
+        private final boolean ignoreUnavailable;
         private final boolean verbose;
         private final boolean indices;
 
@@ -188,7 +190,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             boolean isMultiRepoRequest,
             String[] snapshots,
             boolean ignoreUnavailable,
-            SnapshotPredicates predicates,
+            String[] policies,
             SnapshotSortKey sortBy,
             SortOrder order,
             String fromSortValue,
@@ -202,9 +204,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.cancellableTask = cancellableTask;
             this.repositories = resolvedRepositories.repositoryMetadata();
             this.isMultiRepoRequest = isMultiRepoRequest;
-            this.snapshots = snapshots;
             this.ignoreUnavailable = ignoreUnavailable;
-            this.predicates = predicates;
             this.sortBy = sortBy;
             this.order = order;
             this.fromSortValue = fromSortValue;
@@ -214,6 +214,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.snapshotsInProgress = snapshotsInProgress;
             this.verbose = verbose;
             this.indices = indices;
+
+            this.snapshotNamePredicate = SnapshotNamePredicate.forSnapshots(ignoreUnavailable, snapshots);
+            this.fromSortValuePredicates = SnapshotPredicates.forFromSortValue(fromSortValue, sortBy, order);
+            this.slmPolicyPredicate = SlmPolicyPredicate.forPolicies(policies);
 
             this.getSnapshotInfoExecutor = new GetSnapshotInfoExecutor(
                 threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(),
@@ -278,126 +282,65 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         private void getSingleRepoSnapshotInfo(String repo, ActionListener<SnapshotsInRepo> listener) {
-            final Map<String, Snapshot> allSnapshotIds = new HashMap<>();
-            final List<SnapshotInfo> currentSnapshots = new ArrayList<>();
-            for (final SnapshotInfo snapshotInfo : currentSnapshots(repo)) {
-                Snapshot snapshot = snapshotInfo.snapshot();
-                allSnapshotIds.put(snapshot.getSnapshotId().getName(), snapshot);
-                currentSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
-            }
-
             final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-            if (isCurrentSnapshotsOnly()) {
+            if (snapshotNamePredicate == SnapshotNamePredicate.MATCH_CURRENT_ONLY) {
                 repositoryDataListener.onResponse(null);
             } else {
                 repositoriesService.getRepositoryData(repo, repositoryDataListener);
             }
 
             repositoryDataListener.addListener(
-                listener.delegateFailureAndWrap(
-                    (l, repositoryData) -> loadSnapshotInfos(repo, allSnapshotIds, currentSnapshots, repositoryData, l)
-                )
+                listener.delegateFailureAndWrap((l, repositoryData) -> loadSnapshotInfos(repo, repositoryData, l))
             );
         }
 
-        /**
-         * Returns a list of currently running snapshots from repository sorted by snapshot creation date
-         *
-         * @param repositoryName      repository name
-         * @return list of snapshots
-         */
-        private List<SnapshotInfo> currentSnapshots(String repositoryName) {
-            List<SnapshotInfo> snapshotList = new ArrayList<>();
-            List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
-                snapshotsInProgress,
-                repositoryName,
-                Collections.emptyList()
-            );
-            for (SnapshotsInProgress.Entry entry : entries) {
-                snapshotList.add(SnapshotInfo.inProgress(entry));
-            }
-            return snapshotList;
-        }
-
-        private void loadSnapshotInfos(
-            String repo,
-            Map<String, Snapshot> allSnapshotIds,
-            List<SnapshotInfo> currentSnapshots,
-            @Nullable RepositoryData repositoryData,
-            ActionListener<SnapshotsInRepo> listener
-        ) {
+        private void loadSnapshotInfos(String repo, @Nullable RepositoryData repositoryData, ActionListener<SnapshotsInRepo> listener) {
             if (cancellableTask.notifyIfCancelled(listener)) {
                 return;
             }
 
+            final Set<String> unmatchedRequiredNames = new HashSet<>(snapshotNamePredicate.requiredNames());
+            final Set<Snapshot> toResolve = new HashSet<>();
+
+            for (final var snapshotInProgress : snapshotsInProgress.forRepo(repo)) {
+                final var snapshotName = snapshotInProgress.snapshot().getSnapshotId().getName();
+                unmatchedRequiredNames.remove(snapshotName);
+                if (snapshotNamePredicate.test(snapshotName, true)) {
+                    toResolve.add(snapshotInProgress.snapshot());
+                }
+            }
+
             if (repositoryData != null) {
-                for (SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
-                    if (predicates.test(snapshotId, repositoryData)) {
-                        allSnapshotIds.put(snapshotId.getName(), new Snapshot(repo, snapshotId));
+                for (final var snapshotId : repositoryData.getSnapshotIds()) {
+                    final var snapshotName = snapshotId.getName();
+                    unmatchedRequiredNames.remove(snapshotName);
+                    if (snapshotNamePredicate.test(snapshotName, false) && matchesPredicates(snapshotId, repositoryData)) {
+                        toResolve.add(new Snapshot(repo, snapshotId));
                     }
                 }
             }
 
-            final Set<Snapshot> toResolve = new HashSet<>();
-            if (ResolvedRepositories.isMatchAll(snapshots)) {
-                toResolve.addAll(allSnapshotIds.values());
-            } else {
-                final List<String> includePatterns = new ArrayList<>();
-                final List<String> excludePatterns = new ArrayList<>();
-                boolean hasCurrent = false;
-                boolean seenWildcard = false;
-                for (String snapshotOrPattern : snapshots) {
-                    if (seenWildcard && snapshotOrPattern.length() > 1 && snapshotOrPattern.startsWith("-")) {
-                        excludePatterns.add(snapshotOrPattern.substring(1));
-                    } else {
-                        if (Regex.isSimpleMatchPattern(snapshotOrPattern)) {
-                            seenWildcard = true;
-                            includePatterns.add(snapshotOrPattern);
-                        } else if (GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshotOrPattern)) {
-                            hasCurrent = true;
-                            seenWildcard = true;
-                        } else {
-                            if (ignoreUnavailable == false && allSnapshotIds.containsKey(snapshotOrPattern) == false) {
-                                throw new SnapshotMissingException(repo, snapshotOrPattern);
-                            }
-                            includePatterns.add(snapshotOrPattern);
-                        }
-                    }
-                }
-                final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
-                final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
-                for (Map.Entry<String, Snapshot> entry : allSnapshotIds.entrySet()) {
-                    final Snapshot snapshot = entry.getValue();
-                    if (toResolve.contains(snapshot) == false
-                        && Regex.simpleMatch(includes, entry.getKey())
-                        && Regex.simpleMatch(excludes, entry.getKey()) == false) {
-                        toResolve.add(snapshot);
-                    }
-                }
-                if (hasCurrent) {
-                    for (SnapshotInfo snapshotInfo : currentSnapshots) {
-                        final Snapshot snapshot = snapshotInfo.snapshot();
-                        if (Regex.simpleMatch(excludes, snapshot.getSnapshotId().getName()) == false) {
-                            toResolve.add(snapshot);
-                        }
-                    }
-                }
-                if (toResolve.isEmpty() && ignoreUnavailable == false && isCurrentSnapshotsOnly() == false) {
-                    throw new SnapshotMissingException(repo, snapshots[0]);
-                }
+            if (unmatchedRequiredNames.isEmpty() == false) {
+                throw new SnapshotMissingException(repo, unmatchedRequiredNames.iterator().next());
             }
 
             if (verbose) {
                 snapshots(repo, toResolve.stream().map(Snapshot::getSnapshotId).toList(), listener);
             } else {
-                assert predicates.isMatchAll() : "filtering is not supported in non-verbose mode";
+                assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
+                assert slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES : "filtering is not supported in non-verbose mode";
+                final var currentSnapshots = snapshotsInProgress.forRepo(repo)
+                    .stream()
+                    .map(entry -> SnapshotInfo.inProgress(entry).basic())
+                    .toList();
+
                 final SnapshotsInRepo snapshotInfos;
                 if (repositoryData != null) {
                     // want non-current snapshots as well, which are found in the repository data
                     snapshotInfos = buildSimpleSnapshotInfos(toResolve, repo, repositoryData, currentSnapshots);
                 } else {
                     // only want current snapshots
-                    snapshotInfos = sortSnapshotsWithNoOffsetOrLimit(currentSnapshots.stream().map(SnapshotInfo::basic).toList());
+                    snapshotInfos = sortSnapshotsWithNoOffsetOrLimit(currentSnapshots);
                 }
                 listener.onResponse(snapshotInfos);
             }
@@ -424,7 +367,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             for (SnapshotsInProgress.Entry entry : entries) {
                 if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
                     final SnapshotInfo snapshotInfo = SnapshotInfo.inProgress(entry);
-                    if (predicates.test(snapshotInfo)) {
+                    if (matchesPredicates(snapshotInfo)) {
                         snapshots.add(snapshotInfo.maybeWithoutIndices(indices));
                     }
                 }
@@ -458,7 +401,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         getSnapshotInfoExecutor.getSnapshotInfo(repository, snapshotId, new ActionListener<>() {
                             @Override
                             public void onResponse(SnapshotInfo snapshotInfo) {
-                                if (predicates.test(snapshotInfo)) {
+                                if (matchesPredicates(snapshotInfo)) {
                                     syncSnapshots.add(snapshotInfo.maybeWithoutIndices(indices));
                                 }
                                 refListener.onResponse(null);
@@ -482,10 +425,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
         }
 
-        private boolean isCurrentSnapshotsOnly() {
-            return snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]);
-        }
-
         private SnapshotsInRepo buildSimpleSnapshotInfos(
             final Set<Snapshot> toResolve,
             final String repoName,
@@ -494,8 +433,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         ) {
             List<SnapshotInfo> snapshotInfos = new ArrayList<>();
             for (SnapshotInfo snapshotInfo : currentSnapshots) {
+                assert snapshotInfo.startTime() == 0L && snapshotInfo.endTime() == 0L && snapshotInfo.totalShards() == 0L : snapshotInfo;
                 if (toResolve.remove(snapshotInfo.snapshot())) {
-                    snapshotInfos.add(snapshotInfo.basic());
+                    snapshotInfos.add(snapshotInfo);
                 }
             }
             Map<SnapshotId, List<String>> snapshotsToIndices = new HashMap<>();
@@ -547,6 +487,34 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return new SnapshotsInRepo(results, totalCount, remaining);
             }
         }
+
+        private boolean matchesPredicates(SnapshotId snapshotId, RepositoryData repositoryData) {
+            if (fromSortValuePredicates.test(snapshotId, repositoryData) == false) {
+                return false;
+            }
+
+            if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
+                return true;
+            }
+
+            final var details = repositoryData.getSnapshotDetails(snapshotId);
+            return details == null || details.getSlmPolicy() == null || slmPolicyPredicate.test(details.getSlmPolicy());
+        }
+
+        private boolean matchesPredicates(SnapshotInfo snapshotInfo) {
+            if (fromSortValuePredicates.test(snapshotInfo) == false) {
+                return false;
+            }
+
+            if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
+                return true;
+            }
+
+            final var metadata = snapshotInfo.userMetadata();
+            return slmPolicyPredicate.test(
+                metadata != null && metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String s ? s : ""
+            );
+        }
     }
 
     /**
@@ -587,81 +555,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return snapshotPredicate == null || snapshotPredicate.test(snapshotInfo);
         }
 
-        private SnapshotPredicates and(SnapshotPredicates other) {
-            return this == MATCH_ALL ? other
-                : other == MATCH_ALL ? this
-                : new SnapshotPredicates(
-                    preflightPredicate == null ? other.preflightPredicate : other.preflightPredicate == null ? preflightPredicate : null,
-                    snapshotPredicate == null ? other.snapshotPredicate : other.snapshotPredicate == null ? snapshotPredicate : null
-                );
-        }
-
-        static SnapshotPredicates fromRequest(GetSnapshotsRequest request) {
-            return getSortValuePredicate(request.fromSortValue(), request.sort(), request.order()).and(
-                getSlmPredicates(request.policies())
-            );
-        }
-
-        private static SnapshotPredicates getSlmPredicates(String[] slmPolicies) {
-            if (slmPolicies.length == 0) {
-                return MATCH_ALL;
-            }
-
-            final List<String> includePatterns = new ArrayList<>();
-            final List<String> excludePatterns = new ArrayList<>();
-            boolean seenWildcard = false;
-            boolean matchNoPolicy = false;
-            for (String slmPolicy : slmPolicies) {
-                if (seenWildcard && slmPolicy.length() > 1 && slmPolicy.startsWith("-")) {
-                    excludePatterns.add(slmPolicy.substring(1));
-                } else {
-                    if (Regex.isSimpleMatchPattern(slmPolicy)) {
-                        seenWildcard = true;
-                    } else if (GetSnapshotsRequest.NO_POLICY_PATTERN.equals(slmPolicy)) {
-                        matchNoPolicy = true;
-                    }
-                    includePatterns.add(slmPolicy);
-                }
-            }
-            final String[] includes = includePatterns.toArray(Strings.EMPTY_ARRAY);
-            final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
-            final boolean matchWithoutPolicy = matchNoPolicy;
-            return new SnapshotPredicates(((snapshotId, repositoryData) -> {
-                final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-                final String policy;
-                if (details == null || (details.getSlmPolicy() == null)) {
-                    // no SLM policy recorded
-                    return true;
-                } else {
-                    final String policyFound = details.getSlmPolicy();
-                    // empty string means that snapshot was not created by an SLM policy
-                    policy = policyFound.isEmpty() ? null : policyFound;
-                }
-                return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
-            }), snapshotInfo -> {
-                final Map<String, Object> metadata = snapshotInfo.userMetadata();
-                final String policy;
-                if (metadata == null) {
-                    policy = null;
-                } else {
-                    final Object policyFound = metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD);
-                    policy = policyFound instanceof String ? (String) policyFound : null;
-                }
-                return matchPolicy(includes, excludes, matchWithoutPolicy, policy);
-            });
-        }
-
-        private static boolean matchPolicy(String[] includes, String[] excludes, boolean matchWithoutPolicy, @Nullable String policy) {
-            if (policy == null) {
-                return matchWithoutPolicy;
-            }
-            if (Regex.simpleMatch(includes, policy) == false) {
-                return false;
-            }
-            return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
-        }
-
-        private static SnapshotPredicates getSortValuePredicate(String fromSortValue, SnapshotSortKey sortBy, SortOrder order) {
+        static SnapshotPredicates forFromSortValue(String fromSortValue, SnapshotSortKey sortBy, SortOrder order) {
             if (fromSortValue == null) {
                 return MATCH_ALL;
             }
@@ -791,6 +685,55 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     repository.getSnapshotInfo(snapshotId, ActionListener.releaseAfter(l, ref));
                 }
             }));
+        }
+    }
+
+    /**
+     * Encapsulates a filter on snapshots according to SLM policy, for the {@code ?slm_policy_filter} query parameter.
+     */
+    private record SlmPolicyPredicate(String[] includes, String[] excludes, boolean matchWithoutPolicy) implements Predicate<String> {
+
+        static final Predicate<String> MATCH_ALL_POLICIES = Predicates.always();
+
+        @Override
+        public boolean test(String policy) {
+            if (policy.equals("")) {
+                // empty string means that snapshot was not created by an SLM policy
+                return matchWithoutPolicy;
+            }
+            if (Regex.simpleMatch(includes, policy) == false) {
+                return false;
+            }
+            return excludes.length == 0 || Regex.simpleMatch(excludes, policy) == false;
+        }
+
+        static Predicate<String> forPolicies(String[] slmPolicies) {
+            if (slmPolicies.length == 0) {
+                return MATCH_ALL_POLICIES;
+            }
+
+            final List<String> includePatterns = new ArrayList<>(slmPolicies.length);
+            final List<String> excludePatterns = new ArrayList<>(slmPolicies.length);
+            boolean seenWildcard = false;
+            boolean matchNoPolicy = false;
+            for (final var slmPolicy : slmPolicies) {
+                if (seenWildcard && slmPolicy.length() > 1 && slmPolicy.startsWith("-")) {
+                    excludePatterns.add(slmPolicy.substring(1));
+                } else {
+                    if (Regex.isSimpleMatchPattern(slmPolicy)) {
+                        seenWildcard = true;
+                    } else if (GetSnapshotsRequest.NO_POLICY_PATTERN.equals(slmPolicy)) {
+                        matchNoPolicy = true;
+                    }
+                    includePatterns.add(slmPolicy);
+                }
+            }
+
+            return new SlmPolicyPredicate(
+                includePatterns.toArray(Strings.EMPTY_ARRAY),
+                excludePatterns.toArray(Strings.EMPTY_ARRAY),
+                matchNoPolicy
+            );
         }
     }
 }

@@ -1,0 +1,5 @@
+pr: 106526
+summary: Enhance search tier GC options
+area: Infra/CLI
+type: enhancement
+issues: []

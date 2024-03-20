@@ -542,7 +542,8 @@ public abstract class TransportBroadcastByNodeAction<
         }
     }
 
-    class NodeResponse extends TransportResponse {
+    // visible for testing
+    public class NodeResponse extends TransportResponse {
         protected String nodeId;
         protected int totalShards;
         protected List<BroadcastShardOperationFailedException> exceptions;
@@ -560,7 +561,8 @@ public abstract class TransportBroadcastByNodeAction<
             }
         }
 
-        NodeResponse(
+        // visible for testing
+        public NodeResponse(
             String nodeId,
             int totalShards,
             List<ShardOperationResult> results,

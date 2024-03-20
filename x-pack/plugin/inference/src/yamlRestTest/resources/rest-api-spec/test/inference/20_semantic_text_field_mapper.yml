@@ -56,12 +56,12 @@ setup:
           id: doc_1
           body:
             non_inference_field: "you know, for testing"
-            _semantic_text_inference:
+            _inference:
               sparse_field:
                 model_settings:
                   inference_id: sparse-inference-id
                   task_type: sparse_embedding
-                inference_results:
+                results:
                   - text: "inference test"
                     inference:
                       feature_1: 0.1
@@ -83,14 +83,14 @@ setup:
           id: doc_1
           body:
             non_inference_field: "you know, for testing"
-            _semantic_text_inference:
+            _inference:
               dense_field:
                 model_settings:
                   inference_id: sparse-inference-id
                   task_type: text_embedding
                   dimensions: 5
                   similarity: cosine
-                inference_results:
+                results:
                   - text: "inference test"
                     inference: [0.1, 0.2, 0.3, 0.4, 0.5]
                   - text: "another inference test"
@@ -105,11 +105,11 @@ setup:
           id: doc_1
           body:
             non_inference_field: "you know, for testing"
-            _semantic_text_inference:
+            _inference:
               sparse_field:
                 model_settings:
                   task_type: sparse_embedding
-                inference_results:
+                results:
                   - text: "inference test"
                     inference:
                       feature_1: 0.1
@@ -123,11 +123,11 @@ setup:
           id: doc_1
           body:
             non_inference_field: "you know, for testing"
-            _semantic_text_inference:
+            _inference:
               sparse_field:
                 model_settings:
                   inference_id: sparse-inference-id
-                inference_results:
+                results:
                   - text: "inference test"
                     inference:
                       feature_1: 0.1
@@ -141,12 +141,12 @@ setup:
         id: doc_1
         body:
           non_inference_field: "you know, for testing"
-          _semantic_text_inference:
+          _inference:
             dense_field:
               model_settings:
                 inference_id: sparse-inference-id
                 task_type: text_embedding
-              inference_results:
+              results:
                 - text: "inference test"
                   inference: [0.1, 0.2, 0.3, 0.4, 0.5]
                 - text: "another inference test"

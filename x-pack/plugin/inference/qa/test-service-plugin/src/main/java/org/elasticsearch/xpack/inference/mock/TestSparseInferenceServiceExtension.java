@@ -123,15 +123,17 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
 
         private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
-            var chunks = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
+            List<ChunkedInferenceServiceResults> results = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
                     tokens.add(new TextExpansionResults.WeightedToken("feature_" + j, j + 1.0F));
                 }
-                chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens));
+                results.add(
+                    new ChunkedSparseEmbeddingResults(List.of(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens)))
+                );
             }
-            return List.of(new ChunkedSparseEmbeddingResults(chunks));
+            return results;
         }
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {

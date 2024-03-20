@@ -36,14 +36,14 @@ import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.action.bulk.BulkShardRequestInferenceProvider.INFERENCE_CHUNKS_RESULTS;
+import static org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper.INFERENCE_CHUNKS_RESULTS;
 
 /**
  *  A {@link FieldMapper} for semantic text fields. These fields have a model id reference, that is used for performing inference
  * at ingestion and query time.
  * For now, it is compatible with text expansion models only, but will be extended to support dense vector models as well.
  * This field mapper performs no indexing, as inference results will be included as a different field in the document source, and will
- * be indexed using {@link SemanticTextInferenceResultFieldMapper}.
+ * be indexed using {@link InferenceResultFieldMapper}.
  */
 public class SemanticTextFieldMapper extends FieldMapper {
 

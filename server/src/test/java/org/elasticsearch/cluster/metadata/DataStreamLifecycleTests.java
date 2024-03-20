@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
@@ -108,7 +107,6 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         return DataStreamLifecycle.fromXContent(parser);
     }
 
-    @Seed("9DBA90D744F26E49")
     public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
         DataStreamLifecycle lifecycle = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {

@@ -62,11 +62,9 @@ public class EsqlFeatures implements FeatureSpecification {
 
     public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query");
 
-    private static final NodeFeature MV_LOAD = new NodeFeature("esql.mv_load");
-
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y);
+        return Set.of(ASYNC_QUERY, MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y);
     }
 
     @Override
@@ -79,10 +77,5 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(POW_DOUBLE, Version.V_8_12_0)
             // Map.entry(GEO_SHAPE_SUPPORT, Version.V_8_13_0)
         );
-    }
-
-    @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(ASYNC_QUERY);
     }
 }

@@ -257,6 +257,10 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return this;
     }
 
+    public QueryBuilder backgroundFilter() {
+        return backgroundFilter;
+    }
+
     /**
      * Set terms to include and exclude from the aggregation results
      */

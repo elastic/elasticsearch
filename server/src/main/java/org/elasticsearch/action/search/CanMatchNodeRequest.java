@@ -18,8 +18,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -31,6 +36,7 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -129,7 +135,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         long nowInMillis,
         @Nullable String clusterAlias
     ) {
-        this.source = searchRequest.source();
+        this.source = getCanMatchSource(searchRequest);
         this.indicesOptions = indicesOptions;
         this.shards = new ArrayList<>(shards);
         this.searchType = searchRequest.searchType();
@@ -144,6 +150,38 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         this.clusterAlias = clusterAlias;
         this.waitForCheckpointsTimeout = searchRequest.getWaitForCheckpointsTimeout();
         indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct().toArray(String[]::new);
+    }
+
+    private static void collectSignificantTermsBackgroundFilters(
+        Collection<AggregationBuilder> aggregations,
+        List<QueryBuilder> backgroundFilters
+    ) {
+        for (AggregationBuilder aggregation : aggregations) {
+            if (aggregation instanceof SignificantTermsAggregationBuilder) {
+                QueryBuilder backgroundFilter = ((SignificantTermsAggregationBuilder) aggregation).backgroundFilter();
+                backgroundFilters.add(backgroundFilter != null ? backgroundFilter : QueryBuilders.matchAllQuery());
+            }
+            collectSignificantTermsBackgroundFilters(aggregation.getSubAggregations(), backgroundFilters);
+        }
+    }
+
+    private SearchSourceBuilder getCanMatchSource(SearchRequest searchRequest) {
+        // A significant terms aggregation contains a background query next to the top-level search
+        // query. To check whether a request can match a shard, either the top-level search query
+        // or one of the background queries can match the shard. Therefore, we take the union of
+        // the queries to determine whether a request can match.
+        List<QueryBuilder> backgroundFilters = new ArrayList<>();
+        collectSignificantTermsBackgroundFilters(searchRequest.source().aggregations().getAggregatorFactories(), backgroundFilters);
+        if (backgroundFilters.isEmpty()) {
+            return searchRequest.source();
+        } else {
+            BoolQueryBuilder query = QueryBuilders.boolQuery();
+            query.should(searchRequest.source().query());
+            for (QueryBuilder backgroundFilter : backgroundFilters) {
+                query.should(backgroundFilter);
+            }
+            return SearchSourceBuilder.searchSource().query(query);
+        }
     }
 
     public CanMatchNodeRequest(StreamInput in) throws IOException {

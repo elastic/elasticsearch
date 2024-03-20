@@ -208,12 +208,9 @@ public class SearchMetricsService implements ClusterStateListener {
                         logger.warn("Storage metrics are stale for shard: {}, {}", shardId, metrics);
                     }
                     dataSizeExact &= metrics.sourceNode != null && isOutdated == false;
-                    maxInteractiveDataSizeInBytes = Math.max(
-                        maxInteractiveDataSizeInBytes,
-                        metrics.shardSize.interactiveSizeInBytes() * settings.replicas
-                    );
-                    totalInteractiveDataSizeInBytes += metrics.shardSize.interactiveSizeInBytes() * settings.replicas;
-                    totalDataSizeInBytes += metrics.shardSize.totalSizeInBytes() * settings.replicas;
+                    maxInteractiveDataSizeInBytes = Math.max(maxInteractiveDataSizeInBytes, metrics.shardSize.interactiveSizeInBytes());
+                    totalInteractiveDataSizeInBytes += metrics.shardSize.interactiveSizeInBytes();
+                    totalDataSizeInBytes += metrics.shardSize.totalSizeInBytes();
                 }
             }
         }

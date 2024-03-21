@@ -1,5 +1,5 @@
 pr: 106338
-summary: Text fields are stored by default with synthetic source
+summary: Text fields are stored by default in TSDB indices
 area: TSDB
 type: enhancement
 issues:

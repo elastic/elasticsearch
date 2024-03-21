@@ -36,7 +36,7 @@ public final class LogicalVerifier {
             }
         });
 
-        if (dependencyFailures.failures().isEmpty() == false) {
+        if (dependencyFailures.hasFailures()) {
             throw new IllegalStateException(dependencyFailures.toString());
         }
 

@@ -1660,7 +1660,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle);
     }
 
-    public void testXContentSerializationWithRollover() throws IOException {
+    public void testXContentSerializationWithRolloverAndEffectiveRetention() throws IOException {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
@@ -1675,7 +1675,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             failureIndices = randomNonEmptyIndexInstances();
         }
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         DataStream dataStream = new DataStream(
             dataStreamName,
             indices,
@@ -1698,7 +1698,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
             DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionSerializationTests.randomGlobalRetention();
-            dataStream.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration, globalRetention);
+
+            ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
+            dataStream.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention(globalRetention))
@@ -1706,6 +1708,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
+            // We check that even if there was no retention provided by the user, the global retention applies
+            assertThat(serialized, not(containsString("data_retention")));
+            assertThat(serialized, containsString("effective_retention"));
         }
     }
 

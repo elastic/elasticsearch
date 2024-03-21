@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-str | start | length | result
+string | start | length | result
 keyword | integer | integer | keyword
 text | integer | integer | keyword
 |===

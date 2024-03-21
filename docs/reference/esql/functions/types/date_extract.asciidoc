@@ -4,6 +4,6 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-date_part | field | result
+datePart | date | result
 keyword | datetime | long
 |===

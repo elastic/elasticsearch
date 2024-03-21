@@ -1,7 +1,7 @@
 setup:
-  - skip:
-      version: ' - 8.12.99'
-      reason: 'rrf retriever added in 8.13'
+  - requires:
+      cluster_features: 'rrf_retriever_supported'
+      reason: 'test requires rrf retriever implementation'
 
   - do:
       indices.create:

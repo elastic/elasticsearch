@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -40,6 +41,7 @@ import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
+import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
 import static org.objectweb.asm.Opcodes.V_PREVIEW;
 
 public class MrjarPlugin implements Plugin<Project> {
@@ -105,7 +107,7 @@ public class MrjarPlugin implements Plugin<Project> {
             testTask.dependsOn(jarTask);
 
             SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(project);
-            FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
+            FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput();
             FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
             testTask.setClasspath(testRuntime.minus(mainRuntime).plus(project.files(jarTask)));
         });
@@ -120,6 +122,15 @@ public class MrjarPlugin implements Plugin<Project> {
             compileOptions.getCompilerArgs().add("-Xlint:-preview");
 
             compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
+        });
+
+        // Since we configure MRJAR sourcesets to allow preview apis, class signatures for those
+        // apis are not known by forbidden apis, so we must ignore all missing classes. We could, in theory,
+        // run forbidden apis in a separate jvm matching the sourceset jvm, but it's not worth
+        // the complexity (according to forbidden apis author!)
+        String forbiddenApisTaskName = sourceSet.getTaskName(FORBIDDEN_APIS_TASK_NAME, null);
+        project.getTasks().withType(CheckForbiddenApisTask.class).named(forbiddenApisTaskName).configure(forbiddenApisTask -> {
+            forbiddenApisTask.setIgnoreMissingClasses(true);
         });
     }
 

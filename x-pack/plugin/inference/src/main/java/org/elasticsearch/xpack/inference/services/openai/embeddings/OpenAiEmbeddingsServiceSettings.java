@@ -18,8 +18,8 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
 
 import java.io.IOException;
 import java.net.URI;
@@ -48,7 +48,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
     static final String ORGANIZATION = "organization_id";
     static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
 
-    public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {
+    public static OpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         return switch (context) {
             case REQUEST -> fromRequestMap(map);
             case PERSISTENT -> fromPersistentMap(map);

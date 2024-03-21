@@ -1,0 +1,7 @@
+*Parameters*
+
+`number`::
+The numeric value to round
+
+`decimals`::
+The number of decimal places to round to. Defaults to 0.

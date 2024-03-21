@@ -1,0 +1,10 @@
+*Parameters*
+
+`string1`::
+A multivalued field
+
+`string2`::
+A multivalued field
+
+`delim`::
+delimiter

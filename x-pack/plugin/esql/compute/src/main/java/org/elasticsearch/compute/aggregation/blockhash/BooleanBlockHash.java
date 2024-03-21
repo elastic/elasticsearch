@@ -10,12 +10,12 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
 
 import static org.elasticsearch.compute.operator.MultivalueDedupeBoolean.FALSE_ORD;
@@ -30,8 +30,8 @@ final class BooleanBlockHash extends BlockHash {
     private final int channel;
     private final boolean[] everSeen = new boolean[TRUE_ORD + 1];
 
-    BooleanBlockHash(int channel, DriverContext driverContext) {
-        super(driverContext);
+    BooleanBlockHash(int channel, BlockFactory blockFactory) {
+        super(blockFactory);
         this.channel = channel;
     }
 

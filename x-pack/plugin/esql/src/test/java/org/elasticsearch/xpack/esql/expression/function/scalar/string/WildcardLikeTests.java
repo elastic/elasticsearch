@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
@@ -31,7 +33,12 @@ public class WildcardLikeTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return RLikeTests.parameters(() -> "*");
+        return RLikeTests.parameters(str -> {
+            for (String syntax : new String[] { "\\", ".", "*" }) {
+                str = str.replace(syntax, "\\" + syntax);
+            }
+            return str;
+        }, () -> "*");
     }
 
     @Override

@@ -80,6 +80,7 @@ import static org.elasticsearch.http.DefaultRestChannel.CLOSE;
 import static org.elasticsearch.http.DefaultRestChannel.CONNECTION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_POLL_PERIOD;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -931,6 +932,19 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
+    public void testStopLogsProgress() {
+        try (var wait = LogExpectation.expectUpdate(1); var transport = new TestHttpServerTransport(gracePeriod(SHORT_GRACE_PERIOD_MS))) {
+            TestHttpChannel httpChannel = new TestHttpChannel();
+            transport.serverAcceptedChannel(httpChannel);
+            transport.incomingRequest(testHttpRequest(), httpChannel);
+
+            transport.doStop();
+            assertFalse(transport.testHttpServerChannel.isOpen());
+            assertFalse(httpChannel.isOpen());
+            wait.assertExpectationsMatched();
+        }
+    }
+
     public void testStopWorksWithNoOpenRequests() {
         var grace = SHORT_GRACE_PERIOD_MS;
         try (var noWait = LogExpectation.unexpectedTimeout(grace); var transport = new TestHttpServerTransport(gracePeriod(grace))) {
@@ -1356,9 +1370,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             return new LogExpectation(0).wait(true);
         }
 
+        public static LogExpectation expectUpdate(int connections) {
+            return new LogExpectation(0).update(connections);
+        }
+
         private LogExpectation timedOut(boolean expected) {
             var message = "timed out while waiting [" + grace + "]ms for clients to close connections";
-            var name = "message";
+            var name = "timed out message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.WARN;
             if (expected) {
@@ -1371,7 +1389,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         private LogExpectation wait(boolean expected) {
             var message = "waiting indefinitely for clients to close connections";
-            var name = "message";
+            var name = "wait message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.DEBUG;
             if (expected) {
@@ -1379,6 +1397,15 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             } else {
                 appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
             }
+            return this;
+        }
+
+        private LogExpectation update(int connections) {
+            var message = "still waiting on " + connections + " client connections to close";
+            var name = "update message";
+            var logger = AbstractHttpServerTransport.class.getName();
+            var level = Level.INFO;
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
             return this;
         }
 

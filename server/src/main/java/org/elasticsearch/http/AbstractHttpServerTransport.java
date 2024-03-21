@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -70,6 +71,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_POLL_PERIOD;
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
@@ -95,6 +97,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final RefCounted refCounted = AbstractRefCounted.of(() -> allClientsClosedListener.onResponse(null));
     private final Set<HttpServerChannel> httpServerChannels = ConcurrentCollections.newConcurrentSet();
     private final long shutdownGracePeriodMillis;
+    private final long shutdownPollPeriodMillis;
     private final HttpClientStatsTracker httpClientStatsTracker;
 
     private final HttpTracer httpLogger;
@@ -146,6 +149,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
         httpClientStatsTracker = new HttpClientStatsTracker(settings, clusterSettings, threadPool);
         shutdownGracePeriodMillis = SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD.get(settings).getMillis();
+        shutdownPollPeriodMillis = SETTING_HTTP_SERVER_SHUTDOWN_POLL_PERIOD.get(settings).getMillis();
     }
 
     public Recycler<BytesRef> recycler() {
@@ -272,18 +276,39 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         boolean closed = false;
 
+        long pollTimeMillis = shutdownPollPeriodMillis;
         if (shutdownGracePeriodMillis > 0) {
-            try {
-                logger.debug(format("waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
-                FutureUtils.get(allClientsClosedListener, shutdownGracePeriodMillis, TimeUnit.MILLISECONDS);
-                closed = true;
-            } catch (ElasticsearchTimeoutException t) {
-                logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+            if (shutdownGracePeriodMillis < pollTimeMillis) {
+                pollTimeMillis = shutdownGracePeriodMillis;
             }
+            logger.debug(format("waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
         } else {
             logger.debug("waiting indefinitely for clients to close connections");
-            FutureUtils.get(allClientsClosedListener);
         }
+
+        // use a fixed time of 5 minutes for when to report how many connections remain
+        long startPollTimeMillis = System.currentTimeMillis();
+        do {
+            try {
+                logger.info("waiting");
+                FutureUtils.get(allClientsClosedListener, pollTimeMillis, TimeUnit.MILLISECONDS);
+                logger.info("done waiting");
+                closed = true;
+            } catch (ElasticsearchTimeoutException t) {
+                logger.info(format("still waiting on %d client connections to close", httpChannels.size()));
+                if (shutdownGracePeriodMillis > 0) {
+                    long endPollTimeMillis = System.currentTimeMillis();
+                    long remainingGracePeriodMillis = shutdownGracePeriodMillis - (endPollTimeMillis - startPollTimeMillis);
+                    if (remainingGracePeriodMillis <= 0) {
+                        logger.warn(format("timed out while waiting [%d]ms for clients to close connections", shutdownGracePeriodMillis));
+                        break;
+                    } else if (remainingGracePeriodMillis < pollTimeMillis) {
+                        pollTimeMillis = remainingGracePeriodMillis;
+                    }
+                }
+            }
+        } while (closed == false);
+
         if (closed == false) {
             try {
                 CloseableChannel.closeChannels(new ArrayList<>(httpChannels.values()), true);

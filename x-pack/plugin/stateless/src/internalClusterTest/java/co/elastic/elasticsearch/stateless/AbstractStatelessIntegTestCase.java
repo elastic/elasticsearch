@@ -32,6 +32,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -440,6 +441,15 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             ObjectStoreService objectStoreService = internalCluster().getDataNodeInstance(ObjectStoreService.class);
             var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
 
+            // Wait for the latest commit on the index shard is processed on the search engine
+            var listener = new SubscribableListener<Long>();
+            searchShard.getEngineOrNull()
+                .addPrimaryTermAndGenerationListener(
+                    indexShard.getOperationPrimaryTerm(),
+                    indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(),
+                    listener
+                );
+            safeAwait(listener);
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(indexStore.directory());
 
             String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());

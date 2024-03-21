@@ -19,8 +19,6 @@ Sort order. The valid options are ASC and DESC, the default is ASC.
 
 Sorts a multivalue expression in lexicographical order.
 
-*Supported types*
-
 include::types/mv_sort.asciidoc[]
 
 *Example*

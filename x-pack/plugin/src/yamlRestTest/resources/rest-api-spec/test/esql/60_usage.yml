@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.11.99"
-      reason: "Latest, more complete, telemetry available in 8.12+"
+      version: " - 8.13.99"
+      reason: "Introduction of META tracking in 8.14+"
 
   - do:
       indices.create:
@@ -23,7 +23,7 @@ setup:
   - do: {xpack.usage: {}}
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 15 }
+  - length: { esql.features: 16 }
   - set: {esql.features.dissect: dissect_counter}
   - set: {esql.features.drop: drop_counter}
   - set: {esql.features.eval: eval_counter}
@@ -32,6 +32,7 @@ setup:
   - set: {esql.features.grok: grok_counter}
   - set: {esql.features.keep: keep_counter}
   - set: {esql.features.limit: limit_counter}
+  - set: {esql.features.meta: meta_counter}
   - set: {esql.features.mv_expand: mv_expand_counter}
   - set: {esql.features.rename: rename_counter}
   - set: {esql.features.row: row_counter}

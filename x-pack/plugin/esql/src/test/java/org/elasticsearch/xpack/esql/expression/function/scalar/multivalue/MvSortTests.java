@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -47,30 +46,6 @@ public class MvSortTests extends AbstractFunctionTestCase {
         return new MvSort(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
 
-    /**
-     * Override to create the second argument as a Literal instead of a FieldAttribute.
-     */
-    @Override
-    protected Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
-        List<Expression> args = new ArrayList<>(2);
-        List<TestCaseSupplier.TypedData> data = testCase.getData();
-        args.add(AbstractFunctionTestCase.field(data.get(0).name(), data.get(0).type()));
-        args.add(new Literal(Source.synthetic(data.get(1).name()), data.get(1).data(), data.get(1).type()));
-        return build(testCase.getSource(), args);
-    }
-
-    /**
-     * Override to create the second argument as a Literal instead of a FieldAttribute.
-     */
-    @Override
-    protected Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
-        List<Expression> args = new ArrayList<>(2);
-        List<TestCaseSupplier.TypedData> data = testCase.getData();
-        args.add(AbstractFunctionTestCase.deepCopyOfField(data.get(0).name(), data.get(0).type()));
-        args.add(new Literal(Source.synthetic(data.get(1).name()), data.get(1).data(), data.get(1).type()));
-        return build(testCase.getSource(), args);
-    }
-
     private static void booleans(List<TestCaseSupplier> suppliers) {
         suppliers.add(new TestCaseSupplier(List.of(DataTypes.BOOLEAN, DataTypes.KEYWORD), () -> {
             List<Boolean> field = randomList(1, 10, () -> randomBoolean());
@@ -78,7 +53,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.BOOLEAN, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
                 ),
                 "MvSort" + ElementType.BOOLEAN + "[field=Attribute[channel=0], order=true]",
                 DataTypes.BOOLEAN,
@@ -95,7 +70,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.INTEGER, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
                 ),
                 "MvSort" + ElementType.INT + "[field=Attribute[channel=0], order=false]",
                 DataTypes.INTEGER,
@@ -111,7 +86,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.LONG, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
                 ),
                 "MvSort" + ElementType.LONG + "[field=Attribute[channel=0], order=true]",
                 DataTypes.LONG,
@@ -125,7 +100,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.DATETIME, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
                 ),
                 "MvSort" + ElementType.LONG + "[field=Attribute[channel=0], order=false]",
                 DataTypes.DATETIME,
@@ -141,7 +116,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.DOUBLE, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
                 ),
                 "MvSort" + ElementType.DOUBLE + "[field=Attribute[channel=0], order=true]",
                 DataTypes.DOUBLE,
@@ -157,7 +132,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.KEYWORD, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
                 ),
                 "MvSort" + ElementType.BYTES_REF + "[field=Attribute[channel=0], order=false]",
                 DataTypes.KEYWORD,
@@ -171,7 +146,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.TEXT, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
                 ),
                 "MvSort" + ElementType.BYTES_REF + "[field=Attribute[channel=0], order=true]",
                 DataTypes.TEXT,
@@ -185,7 +160,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.IP, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
                 ),
                 "MvSort" + ElementType.BYTES_REF + "[field=Attribute[channel=0], order=false]",
                 DataTypes.IP,
@@ -199,7 +174,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field, DataTypes.VERSION, "field"),
-                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order")
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
                 ),
                 "MvSort" + ElementType.BYTES_REF + "[field=Attribute[channel=0], order=true]",
                 DataTypes.VERSION,

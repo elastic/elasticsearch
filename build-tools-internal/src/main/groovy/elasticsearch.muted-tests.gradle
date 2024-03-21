@@ -19,6 +19,7 @@ allprojects {
 
 def applyTestSkipping(project, mutedTests) {
   project.tasks.withType(Test) {
+    // TODO remove after testing
     testLogging {
       events "SKIPPED", "FAILED", "PASSED"
     }

@@ -74,7 +74,6 @@ public class TransportGetAsyncMyStatusAction extends HandledTransportAction<GetA
         );
     }
 
-    /// MP TODO: this code is exactly the same as TransportGetAsyncStatusAction - can we just call it directly? (or move it shared code)
     @Override
     protected void doExecute(Task task, GetAsyncStatusRequest request, ActionListener<AsyncStatusResponse> listener) {
         AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());

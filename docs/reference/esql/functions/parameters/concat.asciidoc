@@ -1,7 +1,7 @@
 *Parameters*
 
-`first`::
+`string1`::
 
 
-`rest`::
+`string2`::
 

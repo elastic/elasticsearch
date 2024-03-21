@@ -4,6 +4,6 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-condition | value | result
+condition | trueValue | result
 
 |===

@@ -35,7 +35,7 @@ public class ToGeoShape extends AbstractConvertFunction {
     );
 
     @FunctionInfo(returnType = "geo_shape", description = "Converts an input value to a geo_shape value.")
-    public ToGeoShape(Source source, @Param(name = "v", type = { "geo_point", "geo_shape", "keyword", "text" }) Expression field) {
+    public ToGeoShape(Source source, @Param(name = "field", type = { "geo_point", "geo_shape", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 

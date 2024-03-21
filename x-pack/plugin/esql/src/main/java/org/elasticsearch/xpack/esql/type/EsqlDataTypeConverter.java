@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -19,8 +22,12 @@ import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
+import java.time.ZoneId;
+import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAmount;
+import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
@@ -28,8 +35,13 @@ import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
+import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 public class EsqlDataTypeConverter {
+
+    public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+
+    public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
     /**
      * Returns true if the from type can be converted to the to type, false - otherwise
@@ -44,6 +56,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static Converter converterFor(DataType from, DataType to) {
+        // TODO move EXPRESSION_TO_LONG here if there is no regression
         Converter converter = DataTypeConverter.converterFor(from, to);
         if (converter != null) {
             return converter;
@@ -148,10 +161,52 @@ public class EsqlDataTypeConverter {
         };
     }
 
+    private static ChronoField stringToChrono(Object value) {
+        ChronoField chronoField = null;
+        try {
+            BytesRef br = BytesRefs.toBytesRef(value);
+            chronoField = ChronoField.valueOf(br.utf8ToString().toUpperCase(Locale.ROOT));
+        } catch (Exception e) {
+            return null;
+        }
+        return chronoField;
+    }
+
+    private static BytesRef stringToIP(BytesRef value) {
+        return parseIP(value.utf8ToString());
+    }
+
+    public static long chronoToLong(long dateTime, BytesRef chronoField, ZoneId zone) {
+        ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
+        return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chrono);
+    }
+
+    public static long chronoToLong(long dateTime, ChronoField chronoField, ZoneId zone) {
+        return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chronoField);
+    }
+
+    public static long dateTimeToLong(String dateTime) {
+        return DEFAULT_DATE_TIME_FORMATTER.parseMillis(dateTime);
+    }
+
+    public static long dateTimeToLong(String dateTime, DateFormatter formatter) {
+        return formatter == null ? dateTimeToLong(dateTime) : formatter.parseMillis(dateTime);
+    }
+
+    public static String dateTimeToString(long dateTime) {
+        return DEFAULT_DATE_TIME_FORMATTER.formatMillis(dateTime);
+    }
+
+    public static String dateTimeToString(long dateTime, DateFormatter formatter) {
+        return formatter == null ? dateTimeToString(dateTime) : formatter.formatMillis(dateTime);
+    }
+
     public enum EsqlConverter implements Converter {
 
         STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.DATE_PERIOD)),
-        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.TIME_DURATION));
+        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.TIME_DURATION)),
+        STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
+        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((BytesRef) x));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

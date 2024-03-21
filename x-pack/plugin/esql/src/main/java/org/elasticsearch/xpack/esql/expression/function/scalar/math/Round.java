@@ -47,7 +47,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     @FunctionInfo(returnType = "double", description = "Rounds a number to the closest number with the specified number of digits.")
     public Round(
         Source source,
-        @Param(name = "value", type = "double", description = "The numeric value to round") Expression field,
+        @Param(name = "number", type = "double", description = "The numeric value to round") Expression field,
         @Param(
             optional = true,
             name = "decimals",

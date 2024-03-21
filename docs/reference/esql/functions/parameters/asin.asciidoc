@@ -1,4 +1,4 @@
 *Parameters*
 
-`n`::
+`number`::
 Number between -1 and 1

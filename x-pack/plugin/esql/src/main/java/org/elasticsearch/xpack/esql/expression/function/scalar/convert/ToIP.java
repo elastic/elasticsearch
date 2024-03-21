@@ -19,10 +19,10 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 public class ToIP extends AbstractConvertFunction {
 
@@ -33,7 +33,7 @@ public class ToIP extends AbstractConvertFunction {
     );
 
     @FunctionInfo(returnType = "ip", description = "Converts an input string to an IP value.")
-    public ToIP(Source source, @Param(name = "v", type = { "ip", "keyword", "text" }) Expression field) {
+    public ToIP(Source source, @Param(name = "field", type = { "ip", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 
@@ -59,6 +59,6 @@ public class ToIP extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef asString) {
-        return parseIP(asString.utf8ToString());
+        return (BytesRef) STRING_TO_IP.convert(asString);
     }
 }

@@ -122,16 +122,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         return evaluatorMap;
     }
 
-    @Override
-    public boolean isCommutative() {
-        return true;
-    }
-
-    @Override
-    public SpatialRelatesFunction invert() {
-        return new SpatialIntersects(source(), right(), left(), rightDocValues, leftDocValues);
-    }
-
     private static final Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorMap = new HashMap<>();
 
     static {

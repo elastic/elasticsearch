@@ -156,14 +156,16 @@ public class SpatialContains extends SpatialRelatesFunction {
         return evaluatorMap;
     }
 
+    /**
+     * To keep the number of evaluators to a minimum, we swap the arguments to get the WITHIN relation.
+     * This also makes other optimizations, like lucene-pushdown, simpler to develop.
+     */
     @Override
-    public boolean isCommutative() {
-        return false;
-    }
-
-    @Override
-    public SpatialRelatesFunction invert() {
-        return new SpatialWithin(source(), right(), left(), rightDocValues, leftDocValues);
+    public SpatialRelatesFunction surrogate() {
+        if (left().foldable() && right().foldable() == false) {
+            return new SpatialWithin(source(), right(), left(), rightDocValues, leftDocValues);
+        }
+        return this;
     }
 
     private static final Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorMap = new HashMap<>();

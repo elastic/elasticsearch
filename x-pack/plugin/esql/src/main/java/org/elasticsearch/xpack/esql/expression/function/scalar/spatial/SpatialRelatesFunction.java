@@ -205,15 +205,18 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
      */
     abstract Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules();
 
-    public abstract boolean isCommutative();
-
-    public abstract SpatialRelatesFunction invert();
+    /**
+     * Some spatial functions can replace themselves with alternatives that are more efficient for certain cases.
+     */
+    public SpatialRelatesFunction surrogate() {
+        return this;
+    }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        return SpatialEvaluatorFactory.makeSpatialEvaluator(this, evaluatorRules(), toEvaluator, isCommutative());
+        return SpatialEvaluatorFactory.makeSpatialEvaluator(this, evaluatorRules(), toEvaluator);
     }
 
     /**

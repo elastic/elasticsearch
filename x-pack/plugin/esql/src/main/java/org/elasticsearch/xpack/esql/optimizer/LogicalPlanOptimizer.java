@@ -122,7 +122,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceRegexMatch(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
-            new InvertSpatialFunctions()
+            new SubstituteSpatialSurrogates()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }
@@ -177,42 +177,15 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return asList(substitutions(), operators(), skip, cleanup(), defaultTopN, label);
     }
 
-    static class InvertSpatialFunctions extends OptimizerRules.OptimizerRule<UnaryPlan> {
+    static class SubstituteSpatialSurrogates extends OptimizerRules.OptimizerExpressionRule<SpatialRelatesFunction> {
 
-        InvertSpatialFunctions() {
+        SubstituteSpatialSurrogates() {
             super(TransformDirection.UP);
         }
 
         @Override
-        protected LogicalPlan rule(UnaryPlan plan) {
-            if (plan instanceof Filter filter) {
-                var condition = filter.condition().transformDown(SpatialRelatesFunction.class, this::invertIfNecessary);
-                if (filter.condition().equals(condition) == false) {
-                    plan = new Filter(filter.source(), filter.child(), condition);
-                }
-            }
-            if (plan instanceof Eval eval) {
-                List<Alias> fields = eval.fields();
-                List<Alias> changed = fields.stream()
-                    .map(f -> (Alias) f.transformDown(SpatialRelatesFunction.class, this::invertIfNecessary))
-                    .toList();
-                if (changed.equals(fields) == false) {
-                    plan = new Eval(eval.source(), eval.child(), changed);
-                }
-            }
-            return plan;
-        }
-
-        private SpatialRelatesFunction invertIfNecessary(SpatialRelatesFunction srf) {
-            if (srf.isCommutative()) {
-                // Never bother to invert commutative functions
-                return srf;
-            }
-            if (srf.left().foldable() && srf.right().foldable() == false) {
-                // If we have a constant on the left, and a field on the right, invert the function
-                return srf.invert();
-            }
-            return srf;
+        protected SpatialRelatesFunction rule(SpatialRelatesFunction function) {
+            return function.surrogate();
         }
     }
 

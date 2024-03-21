@@ -80,7 +80,6 @@ import static org.elasticsearch.http.DefaultRestChannel.CLOSE;
 import static org.elasticsearch.http.DefaultRestChannel.CONNECTION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_GRACE_PERIOD;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_SERVER_SHUTDOWN_POLL_PERIOD;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;

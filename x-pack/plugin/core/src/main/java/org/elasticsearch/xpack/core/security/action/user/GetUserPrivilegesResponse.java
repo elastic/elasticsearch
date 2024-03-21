@@ -151,7 +151,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             indices.innerToXContent(builder);
-            builder.field(RoleDescriptor.Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
+            builder.field(RoleDescriptor.Fields.CLUSTERS.getPreferredName(), remoteClusters);
             return builder.endObject();
         }
 

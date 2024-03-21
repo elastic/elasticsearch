@@ -519,7 +519,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         }
                     } else if (Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
                         remoteIndicesPrivileges = parseRemoteIndices(name, parser);
-                    } else if (Fields.REMOTE_CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
+                    } else if (Fields.REMOTE_CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
                         remoteClusterPrivileges = parseRemoteCluster(name, parser);
                     } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
                         restriction = Restriction.parse(name, parser);
@@ -693,7 +693,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             throw new ElasticsearchParseException(
                 "failed to parse remote indices privileges for role [{}]. missing required [{}] field",
                 roleName,
-                Fields.REMOTE_CLUSTERS
+                Fields.CLUSTERS
             );
         }
         return new RemoteIndicesPrivileges(parsed.indicesPrivileges(), parsed.remoteClusters());
@@ -703,7 +703,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
-                "failed to parse remote cluster privileges for role [{}]. expected field [{}] value "
+                "failed to parse remote_cluster for role [{}]. expected field [{}] value "
                     + "to be an array, but found [{}] instead",
                 roleName,
                 parser.currentName(),
@@ -721,20 +721,20 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     currentFieldName = parser.currentName();
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                     privileges = readStringArray(roleName, parser, false);
-                    if (privileges.length != 1 && "monitor_enrich".equals(privileges[0]) == false) {
+                    if (privileges.length != 1 || "monitor_enrich".equals(privileges[0].trim()) == false) {
                         throw new ElasticsearchParseException(
-                            "failed to parse remote cluster privileges for role [{}]. "
-                                + "[\"monitor_enrich\"] is the only value is allowed for [{}]",
+                            "failed to parse remote_cluster for role [{}]. "
+                                + "[monitor_enrich] is the only value allowed for [{}]",
                             roleName,
                             currentFieldName
                         );
                     }
-                } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
+                } else if (Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                     clusters = readStringArray(roleName, parser, false);
 
                 } else {
                     throw new ElasticsearchParseException(
-                        "failed to parse remote cluster privileges for role [{}]. unexpected field [{}]",
+                        "failed to parse remote_cluster for role [{}]. unexpected field [{}]",
                         roleName,
                         currentFieldName
                     );
@@ -947,7 +947,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         Fields.TRANSIENT_METADATA
                     );
                 }
-            } else if (allowRemoteClusters && Fields.REMOTE_CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
+            } else if (allowRemoteClusters && Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                 remoteClusters = readStringArray(roleName, parser, false);
             } else {
                 throw new ElasticsearchParseException(
@@ -1108,7 +1108,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             indicesPrivileges.innerToXContent(builder, true);
-            builder.array(Fields.REMOTE_CLUSTERS.getPreferredName(), remoteClusters);
+            builder.array(Fields.CLUSTERS.getPreferredName(), remoteClusters);
             return builder.endObject();
         }
 
@@ -1210,7 +1210,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         "the ["
                             + Fields.REMOTE_INDICES
                             + "] sub-field ["
-                            + Fields.REMOTE_CLUSTERS
+                            + Fields.CLUSTERS
                             + "] must refer to at least one cluster alias or cluster alias pattern"
                     );
                 }
@@ -1773,7 +1773,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField RESOURCES = new ParseField("resources");
         ParseField QUERY = new ParseField("query");
         ParseField PRIVILEGES = new ParseField("privileges");
-        ParseField REMOTE_CLUSTERS = new ParseField("clusters");
+        ParseField CLUSTERS = new ParseField("clusters");
         ParseField APPLICATION = new ParseField("application");
         ParseField FIELD_PERMISSIONS = new ParseField("field_security");
         ParseField FIELD_PERMISSIONS_2X = new ParseField("fields");

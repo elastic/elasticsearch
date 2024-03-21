@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -92,6 +93,7 @@ class S3Service implements Closeable {
 
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
+    final boolean isStateless;
 
     S3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
@@ -103,6 +105,7 @@ class S3Service implements Closeable {
         );
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
+        isStateless = DiscoveryNode.isStateless(nodeSettings);
     }
 
     /**

@@ -6,7 +6,7 @@
 
 preview::[]
 
-Deletes the global retention settings that apply on every data stream managed by <<data-stream-lifecycle,data stream lifecycle>>.
+Deletes the global retention configuration that applies on every data stream managed by <<data-stream-lifecycle,data stream lifecycle>>.
 
 [[delete-global-retention-api-prereqs]]
 ==== {api-prereq-title}
@@ -21,15 +21,15 @@ Deletes the global retention settings that apply on every data stream managed by
 [[data-streams-delete-global-retention-desc]]
 ==== {api-description-title}
 
-Deletes the global retention settings that are applied on data streams managed by data stream lifecycle.
+Deletes the global retention configuration that is applied on data streams managed by data stream lifecycle.
 
 [role="child_attributes"]
 [[delete-global-retention-api-query-parms]]
 ==== {api-query-parms-title}
 
 `dry_run`::
-(Boolean) Signals that the request should determine the effect of the removal of the existing without updating the
-global retention settings. The default value is `false`, which means the removal will happen.
+(Boolean) Signals that the request should determine the effect of the removal of the existing without updating
+the global retention. The default value is `false`, which means the removal will happen.
 
 [[delete-global-retention-api-response-body]]
 ==== {api-response-body-title}

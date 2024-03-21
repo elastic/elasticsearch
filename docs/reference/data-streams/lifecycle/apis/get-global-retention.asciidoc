@@ -6,7 +6,7 @@
 
 preview::[]
 
-Gets the global retention settings that apply on every data streams managed by <<data-stream-lifecycle,data stream lifecycle>>.
+Gets the global retention that applies on every data streams managed by <<data-stream-lifecycle,data stream lifecycle>>.
 
 [[get-global-retention-api-prereqs]]
 ==== {api-prereq-title}
@@ -22,7 +22,7 @@ Gets the global retention settings that apply on every data streams managed by <
 [[data-streams-get-global-retention-desc]]
 ==== {api-description-title}
 
-Gets the global retention settings that applied on data streams managed by data stream lifecycle.
+Gets the global retention configuration that is applied on data streams managed by data stream lifecycle.
 
 [role="child_attributes"]
 [[get-global-retention-api-query-parms]]
@@ -86,4 +86,5 @@ The response will look like the following:
 }
 --------------------------------------------------
 <1> 7 days retention will be applied to any data stream that does not have retention set in its lifecycle.
-<2> 90 days retention will be applied to all data streams that have retention that exceeds the 90 days.
+<2> 90 days retention will be applied to all data streams that have retention that exceeds the 90 days, this
+applies to data streams that have infinite retention too.

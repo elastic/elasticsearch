@@ -6,7 +6,7 @@
 
 preview::[]
 
-Updates the global retention settings that apply on every data stream managed by <<data-stream-lifecycle,data stream lifecycle>>.
+Updates the global retention configuration that applies on every data stream managed by <<data-stream-lifecycle,data stream lifecycle>>.
 
 [[put-global-retention-api-prereqs]]
 ==== {api-prereq-title}
@@ -21,7 +21,7 @@ Updates the global retention settings that apply on every data stream managed by
 [[data-streams-put-global-retention-desc]]
 ==== {api-description-title}
 
-Updates the global retention settings that applied on data streams managed by data stream lifecycle.
+Updates the global retention configuration that is applied on data streams managed by data stream lifecycle.
 
 [role="child_attributes"]
 [[put-global-retention-api-query-parms]]

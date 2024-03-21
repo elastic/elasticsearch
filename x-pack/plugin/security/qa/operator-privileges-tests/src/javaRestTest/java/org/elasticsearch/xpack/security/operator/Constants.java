@@ -528,6 +528,7 @@ public class Constants {
         "indices:data/read/downsample_delegate",
         "indices:data/read/async_search/delete",
         "indices:data/read/async_search/get",
+        "indices:data/read/async_search_status",
         "indices:data/read/async_search/submit",
         "indices:data/read/close_point_in_time",
         "indices:data/read/eql",

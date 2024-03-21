@@ -57,6 +57,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -80,6 +81,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -162,7 +165,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             Downsample.class,
             AggregateMetricMapperPlugin.class,
             DataStreamsPlugin.class,
-            IndexLifecycle.class
+            IndexLifecycle.class,
+            TestTelemetryPlugin.class
         );
     }
 
@@ -810,6 +814,17 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
 
             assertDownsampleIndexer(indexService, shardNum, task, executeResponse, task.getTotalShardDocCount());
         }
+
+        // Check that metrics get collected as expected.
+        final TestTelemetryPlugin plugin = getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        List<Measurement> measurements = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_SHARD);
+        assertFalse(measurements.isEmpty());
+        Measurement measurement = measurements.get(0);
+        assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
+        assertEquals(1, measurement.attributes().size());
+        assertEquals("success", measurement.attributes().get("status"));
     }
 
     public void testResumeDownsample() throws IOException {

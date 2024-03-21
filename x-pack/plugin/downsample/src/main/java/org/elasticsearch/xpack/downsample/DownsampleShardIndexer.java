@@ -164,6 +164,7 @@ class DownsampleShardIndexer {
             timeSeriesSearcher.search(initialStateQuery, bucketCollector);
         }
 
+        TimeValue duration = TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime);
         logger.info(
             "Shard [{}] successfully sent [{}], received source doc [{}], indexed downsampled doc [{}], failed [{}], took [{}]",
             indexShard.shardId(),
@@ -171,7 +172,7 @@ class DownsampleShardIndexer {
             task.getNumSent(),
             task.getNumIndexed(),
             task.getNumFailed(),
-            TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime)
+            duration
         );
 
         if (task.getNumIndexed() != task.getNumSent()) {
@@ -187,6 +188,7 @@ class DownsampleShardIndexer {
                 + task.getNumSent()
                 + "]";
             logger.info(error);
+            DownsampleMetrics.INSTANCE.recordLatencyShard(duration.millis(), DownsampleMetrics.ShardActionStatus.MISSING_DOCS);
             throw new DownsampleShardIndexerException(error, false);
         }
 
@@ -199,6 +201,7 @@ class DownsampleShardIndexer {
                 + task.getNumFailed()
                 + "]";
             logger.info(error);
+            DownsampleMetrics.INSTANCE.recordLatencyShard(duration.millis(), DownsampleMetrics.ShardActionStatus.FAILED);
             throw new DownsampleShardIndexerException(error, false);
         }
 
@@ -208,6 +211,7 @@ class DownsampleShardIndexer {
             ActionListener.noop()
         );
         logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " completed");
+        DownsampleMetrics.INSTANCE.recordLatencyShard(duration.millis(), DownsampleMetrics.ShardActionStatus.SUCCESS);
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
 

@@ -310,8 +310,8 @@
 ---
 "Action Results with multiple matching aliases":
   - skip:
-      version: " - 7.13.99"
-      reason: "data streams aliases are available from 7.14.0"
+      version: " - 8.13.99"
+      reason: "alias action results do not work until 8.14"
       features: allowed_warnings
   - do:
       allowed_warnings:
@@ -349,8 +349,8 @@
 ---
 "Single action result per action":
   - skip:
-      version: " - 7.13.99"
-      reason: "data streams aliases are available from 7.14.0"
+      version: " - 8.13.99"
+      reason: "alias action results do not work until 8.14"
       features: allowed_warnings
   - do:
       allowed_warnings:

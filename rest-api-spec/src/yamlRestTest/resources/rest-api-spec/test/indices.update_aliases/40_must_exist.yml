@@ -84,6 +84,9 @@
                 must_exist: true
 ---
 "Partial success with must_exist == false":
+  - skip:
+      version: " - 8.13.99"
+      reason: "alias action results do not work until 8.14"
   - do:
       indices.create:
         index: test_index
@@ -106,6 +109,9 @@
   - match: { action_results.1.error: aliases_not_found_exception }
 ---
 "Partial success with must_exist == null (default)":
+  - skip:
+      version: " - 8.13.99"
+      reason: "alias action results do not work until 8.14"
   - do:
       indices.create:
         index: test_index
@@ -127,6 +133,9 @@
   - match: { action_results.1.error: aliases_not_found_exception }
 ---
 "No action_results field if all actions successful":
+  - skip:
+      version: " - 8.13.99"
+      reason: "alias action results do not work until 8.14"
   - do:
       indices.create:
         index: test_index
@@ -141,6 +150,9 @@
   - match: { action_results: null }
 ---
 "Single result per input action":
+  - skip:
+      version: " - 8.13.99"
+      reason: "alias action results do not work until 8.14"
   - do:
       indices.create:
         index: test_index1

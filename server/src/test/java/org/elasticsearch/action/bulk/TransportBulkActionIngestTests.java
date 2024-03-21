@@ -148,9 +148,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
-                EmptySystemIndices.INSTANCE,
-                null,
-                null
+                EmptySystemIndices.INSTANCE
             );
         }
 
@@ -159,10 +157,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             Task task,
             BulkRequest bulkRequest,
             long startTimeNanos,
+            ActionListener<BulkResponse> listener,
             String executorName,
             AtomicArray<BulkItemResponse> responses,
-            Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
-            ActionListener<BulkResponse> listener
+            Map<String, IndexNotFoundException> indicesThatCannotBeCreated
         ) {
             assertTrue(indexCreated);
             isExecuted = true;

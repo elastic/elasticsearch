@@ -501,7 +501,7 @@
   #
   # Plugins (which may or may not be loaded depending on the context in which this test is executed) may add additional
   # field mappers:
-  # 27. _semantic_text_inference (from ML plugin)
+  # 27. _inference (from ML plugin)
 
   - gte: { nodes.$node_id.indices.mappings.total_count: 26 }
   - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead

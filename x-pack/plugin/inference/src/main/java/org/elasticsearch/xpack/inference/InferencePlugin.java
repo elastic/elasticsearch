@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,11 +28,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.InferenceServiceRegistryImpl;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
-import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -51,6 +49,7 @@ import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
@@ -58,10 +57,10 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextInferenceResultFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
@@ -83,14 +82,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin
-    implements
-        ActionPlugin,
-        ExtensiblePlugin,
-        SystemIndexPlugin,
-        InferenceRegistryPlugin,
-        MapperPlugin,
-        SearchPlugin {
+import static java.util.Collections.singletonList;
+
+public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -115,8 +109,7 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
-    private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
-
+    private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -167,7 +160,7 @@ public class InferencePlugin extends Plugin
         );
         httpFactory.set(httpRequestSenderFactory);
 
-        ModelRegistry modelReg = new ModelRegistryImpl(services.client());
+        ModelRegistry modelRegistry = new ModelRegistry(services.client());
 
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();
@@ -178,13 +171,14 @@ public class InferencePlugin extends Plugin
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(services.client());
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
-        var inferenceRegistry = new InferenceServiceRegistryImpl(inferenceServices, factoryContext);
-        inferenceRegistry.init(services.client());
-        inferenceServiceRegistry.set(inferenceRegistry);
-        modelRegistry.set(modelReg);
+        var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
+        registry.init(services.client());
+        inferenceServiceRegistry.set(registry);
 
-        // Don't return components as they will be registered using InferenceRegistryPlugin methods to retrieve them
-        return List.of();
+        var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
+        shardBulkInferenceActionFilter.set(actionFilter);
+
+        return List.of(modelRegistry, registry);
     }
 
     @Override
@@ -284,16 +278,6 @@ public class InferencePlugin extends Plugin
     }
 
     @Override
-    public InferenceServiceRegistry getInferenceServiceRegistry() {
-        return inferenceServiceRegistry.get();
-    }
-
-    @Override
-    public ModelRegistry getModelRegistry() {
-        return modelRegistry.get();
-    }
-
-    @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         if (SemanticTextFeature.isEnabled()) {
             return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
@@ -303,7 +287,12 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Map.of(SemanticTextInferenceResultFieldMapper.NAME, SemanticTextInferenceResultFieldMapper.PARSER);
+        return Map.of(InferenceResultFieldMapper.NAME, InferenceResultFieldMapper.PARSER);
+    }
+
+    @Override
+    public Collection<ActionFilter> getActionFilters() {
+        return singletonList(shardBulkInferenceActionFilter.get());
     }
 
     @Override

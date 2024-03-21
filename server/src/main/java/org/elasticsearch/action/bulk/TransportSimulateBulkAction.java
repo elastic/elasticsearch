@@ -58,9 +58,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            System::nanoTime,
-            null,
-            null
+            System::nanoTime
         );
     }
 

@@ -129,19 +129,17 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             mock(ActionFilters.class),
             indexNameExpressionResolver,
             new IndexingPressure(Settings.EMPTY),
-            EmptySystemIndices.INSTANCE,
-            null,
-            null
+            EmptySystemIndices.INSTANCE
         ) {
             @Override
             void executeBulk(
                 Task task,
                 BulkRequest bulkRequest,
                 long startTimeNanos,
+                ActionListener<BulkResponse> listener,
                 String executorName,
                 AtomicArray<BulkItemResponse> responses,
-                Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
-                ActionListener<BulkResponse> listener
+                Map<String, IndexNotFoundException> indicesThatCannotBeCreated
             ) {
                 assertEquals(expected, indicesThatCannotBeCreated.keySet());
             }

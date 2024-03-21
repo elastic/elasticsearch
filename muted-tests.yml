@@ -1,0 +1,25 @@
+tests:
+  - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+    method: test {yaml=analysis-common/30_tokenizers/letter}
+    issue: https://github.com/elastic/elasticsearch/...
+
+  - class: org.elasticsearch.common.CharArraysTests
+    methods:
+      - testCharsBeginsWith
+      - testCharsToBytes
+      - testConstantTimeEquals
+    issue: https://github.com/elastic/elasticsearch/...
+
+  - class: org.elasticsearch.common.unit.TimeValueTests
+    issue: https://github.com/elastic/elasticsearch/...
+
+  - class: org.elasticsearch.core.internal.provider.EmbeddedImplClassLoaderTests
+    issue: https://github.com/elastic/elasticsearch/...
+
+  - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIPTests
+    method: testCrankyEvaluateBlockWithoutNulls
+    issue: https://github.com/elastic/elasticsearch/...
+
+  - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIPTests
+    method: "testEvaluate {TestCase=<ipv4> #2}"
+    issue: https://github.com/elastic/elasticsearch/...

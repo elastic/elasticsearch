@@ -13,7 +13,6 @@ import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -34,7 +33,7 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
     @Override
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
         if (storedFields == null) {
-            storedFields = Collections.emptyMap();
+            loadDirect(fieldLookup, doc);
         }
         final String field = fieldLookup.fieldType().name();
         if (storedFields.containsKey(field)) {
@@ -42,6 +41,16 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
             return;
         }
         // stored field not preloaded, go and get it directly
+        loadDirect(fieldLookup, doc);
+    }
+
+    /**
+     * If stored fields are not pre-loaded load directly
+     * @param fieldLookup a {@link FieldLookup} object with the field and its values
+     * @param doc the doc id of the document for which we are loading fields
+     * @throws IOException throws if the loading fails
+     */
+    private void loadDirect(final FieldLookup fieldLookup, int doc) throws IOException {
         if (backUpLoader == null) {
             backUpLoader = loaderSupplier.get();
         }

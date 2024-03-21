@@ -445,7 +445,7 @@ setup:
 
 ---
 values:
-  - skip:
+  - requires:
       cluster_features: esql.value_agg
       reason: "values is available in 8.14+"
 

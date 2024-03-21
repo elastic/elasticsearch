@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-str | regex | newStr | result
+string | regex | newString | result
 keyword | keyword | keyword | keyword
 keyword | keyword | text | keyword
 keyword | text | keyword | keyword

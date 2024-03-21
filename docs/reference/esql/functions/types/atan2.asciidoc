@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-y | x | result
+y_coordinate | x_coordinate | result
 double | double | double
 double | integer | double
 double | long | double

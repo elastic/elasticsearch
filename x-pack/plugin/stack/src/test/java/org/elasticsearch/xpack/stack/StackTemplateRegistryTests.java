@@ -542,7 +542,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
     public void testDataStreamLifecycleNodeFeatureId() {
         // let's make sure these ids remain in-sync
-        assertThat(StackTemplateRegistry.SUPPORTS_DATA_STREAM_LIFECYCLE.id(), is(DataStreamFeatures.SUPPORTS_DATA_STREAM_LIFECYCLE.id()));
+        assertThat(StackTemplateRegistry.DATA_STREAM_LIFECYCLE.id(), is(DataStreamFeatures.DATA_STREAM_LIFECYCLE.id()));
     }
 
     // -------------

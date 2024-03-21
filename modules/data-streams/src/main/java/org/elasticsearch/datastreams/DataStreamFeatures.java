@@ -23,7 +23,7 @@ import java.util.Set;
  */
 public class DataStreamFeatures implements FeatureSpecification {
 
-    public static final NodeFeature SUPPORTS_DATA_STREAM_LIFECYCLE = new NodeFeature("supports_data_stream_lifecycle");
+    public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {

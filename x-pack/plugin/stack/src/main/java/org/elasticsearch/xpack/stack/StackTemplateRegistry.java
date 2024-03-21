@@ -43,7 +43,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     // this node feature is a redefinition of {@link DataStreamFeatures#SUPPORTS_DATA_STREAM_LIFECYCLE} and it's meant to avoid adding a
     // dependency to the data-streams module just for this
-    public static final NodeFeature SUPPORTS_DATA_STREAM_LIFECYCLE = new NodeFeature("supports_data_stream_lifecycle");
+    public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.

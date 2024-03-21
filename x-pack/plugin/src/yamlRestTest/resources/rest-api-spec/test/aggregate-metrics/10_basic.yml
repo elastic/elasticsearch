@@ -350,3 +350,20 @@
   - match: { hits.hits.1.fields.metric.0.max: 1000 }
   - match: { hits.hits.1.fields.metric.0.sum: 5000 }
   - match: { hits.hits.1.fields.metric.0.value_count: 10 }
+---
+"deprecated use of multi-fields":
+  - skip:
+      version: " - 8.13.99"
+      reason: "deprecation added in 8.14"
+      features: warnings
+
+  - do:
+      warnings:
+        - "Adding multifields to [aggregate_metric_double] mappers has no effect and will be forbidden in future"
+      indices.create:
+        index: aggregate_metric_double-multi-field
+        body:
+          mappings:
+            properties:
+              aggregated: { "type": "aggregate_metric_double", "metrics": ["max"], "default_metric": "max", "fields": {"keyword": {"type": "keyword"}} }
+

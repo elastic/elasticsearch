@@ -195,11 +195,11 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.setParentTask(parentTaskId);
 
-        client.search(searchRequest, ActionListener.wrap(response -> {
+        client.search(searchRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             SearchHit[] hits = response.getHits().getHits();
             if (hits.length == 0) {
                 // no buckets found
-                listener.onResponse(null);
+                delegate.onResponse(null);
             } else {
 
                 try (
@@ -210,12 +210,12 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
                     )
                 ) {
                     Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
-                    listener.onResponse(bucket.getTimestamp().getTime());
+                    delegate.onResponse(bucket.getTimestamp().getTime());
                 } catch (IOException e) {
-                    listener.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
+                    delegate.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void auditResultsWereDeleted(String jobId, long cutoffEpochMs) {

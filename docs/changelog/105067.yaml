@@ -1,0 +1,5 @@
+pr: 105067
+summary: "ESQL: Use faster field caps"
+area: ES|QL
+type: enhancement
+issues: []

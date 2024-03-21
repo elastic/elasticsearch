@@ -65,6 +65,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
@@ -589,6 +590,28 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
             );
             assertEquals("[track_total_hits] parameter must be positive or equals to -1, got " + randomNegativeValue, ex.getMessage());
+        }
+    }
+
+    public void testStoredFieldsUsage() throws IOException {
+        Set<String> storedFieldRestVariations = Set.of(
+            "{\"stored_fields\" : [\"_none_\"]}",
+            "{\"stored_fields\" : \"_none_\"}",
+            "{\"stored_fields\" : [\"field\"]}",
+            "{\"stored_fields\" : \"field\"}"
+        );
+        for (String storedFieldRest : storedFieldRestVariations) {
+            SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, storedFieldRest)) {
+                new SearchSourceBuilder().parseXContent(parser, true, searchUsageHolder, nf -> false);
+                SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+                Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
+                assertEquals(
+                    "Failed to correctly parse and record usage of '" + storedFieldRest + "'",
+                    1L,
+                    sectionsUsage.get("stored_fields").longValue()
+                );
+            }
         }
     }
 

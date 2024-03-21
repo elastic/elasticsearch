@@ -61,6 +61,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "realm-x",
             null,
             null,
+            null,
             List.of() // empty limited-by role descriptor to simulate derived keys
         );
         ApiKey apiKeyInfo2 = createApiKeyInfo(
@@ -73,6 +74,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000000L),
             "user-b",
             "realm-y",
+            "realm-type-y",
             Map.of(),
             List.of(),
             limitedByRoleDescriptors
@@ -87,6 +89,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000000L),
             "user-c",
             "realm-z",
+            "realm-type-z",
             Map.of("foo", "bar"),
             roleDescriptors,
             limitedByRoleDescriptors
@@ -111,6 +114,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             Instant.ofEpochMilli(100000000L),
             "user-c",
             "realm-z",
+            "realm-type-z",
             Map.of("foo", "bar"),
             crossClusterAccessRoleDescriptors,
             null
@@ -145,6 +149,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "invalidation": 100000000,
                   "username": "user-b",
                   "realm": "realm-y",
+                  "realm_type": "realm-type-y",
                   "metadata": {},
                   "role_descriptors": {},
                   "limited_by": [
@@ -185,6 +190,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "invalidation": 100000000,
                   "username": "user-c",
                   "realm": "realm-z",
+                  "realm_type": "realm-type-z",
                   "metadata": {
                     "foo": "bar"
                   },
@@ -252,6 +258,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                   "invalidation": 100000000,
                   "username": "user-c",
                   "realm": "realm-z",
+                  "realm_type": "realm-type-z",
                   "metadata": {
                     "foo": "bar"
                   },
@@ -321,6 +328,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
         Instant invalidation,
         String username,
         String realm,
+        String realmType,
         Map<String, Object> metadata,
         List<RoleDescriptor> roleDescriptors,
         List<RoleDescriptor> limitedByRoleDescriptors
@@ -335,6 +343,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
             invalidation,
             username,
             realm,
+            realmType,
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors

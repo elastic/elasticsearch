@@ -1,0 +1,5 @@
+pr: 105847
+summary: (API+) CAT Nodes alias for shard header to match CAT Allocation
+area: Stats
+type: enhancement
+issues: []

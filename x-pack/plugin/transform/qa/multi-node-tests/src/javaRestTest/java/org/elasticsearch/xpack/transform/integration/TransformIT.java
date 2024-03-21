@@ -37,7 +37,9 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -375,7 +377,7 @@ public class TransformIT extends TransformRestTestCase {
 
         // wait until transform has been triggered and indexed at least 1 document
         assertBusy(() -> {
-            var stateAndStats = getBasicTransformStats(config.getId());
+            var stateAndStats = getBasicTransformStats(transformId);
             assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), greaterThan(1));
         });
 
@@ -384,39 +386,51 @@ public class TransformIT extends TransformRestTestCase {
 
         // Wait until the first checkpoint
         waitUntilCheckpoint(config.getId(), 1L);
+        var previousTriggerCount = new AtomicInteger(0);
 
         // Even though we are continuous, we should be stopped now as we needed to stop at the first checkpoint
         assertBusy(() -> {
-            var stateAndStats = getBasicTransformStats(config.getId());
+            var stateAndStats = getBasicTransformStats(transformId);
             assertThat(stateAndStats.get("state"), equalTo("stopped"));
             assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(1000));
+            previousTriggerCount.set((int) XContentMapValues.extractValue("stats.trigger_count", stateAndStats));
         });
 
+        // Create N additional runs of starting and stopping
         int additionalRuns = randomIntBetween(1, 10);
 
         for (int i = 0; i < additionalRuns; ++i) {
+            var testFailureMessage = format("Can't determine if Transform ran for iteration number [%d] out of [%d].", i, additionalRuns);
             // index some more docs using a new user
-            long timeStamp = Instant.now().toEpochMilli() - 1_000;
-            long user = 42 + i;
+            var timeStamp = Instant.now().toEpochMilli() - 1_000;
+            var user = 42 + i;
             indexMoreDocs(timeStamp, user, indexName);
-            startTransformWithRetryOnConflict(config.getId(), RequestOptions.DEFAULT);
-
-            boolean waitForCompletion = randomBoolean();
-            stopTransform(transformId, waitForCompletion, null, true);
+            startTransformWithRetryOnConflict(transformId, RequestOptions.DEFAULT);
 
             assertBusy(() -> {
-                var stateAndStats = getBasicTransformStats(config.getId());
+                var stateAndStats = getBasicTransformStats(transformId);
+                var currentTriggerCount = (int) XContentMapValues.extractValue("stats.trigger_count", stateAndStats);
+                // We should verify that we are retrieving the stats *after* this run had been started.
+                // If the trigger_count has increased, we know we have started this test iteration.
+                assertThat(testFailureMessage, previousTriggerCount.get(), lessThan(currentTriggerCount));
+            });
+
+            var waitForCompletion = randomBoolean();
+            stopTransform(transformId, waitForCompletion, null, true);
+            assertBusy(() -> {
+                var stateAndStats = getBasicTransformStats(transformId);
                 assertThat(stateAndStats.get("state"), equalTo("stopped"));
+                previousTriggerCount.set((int) XContentMapValues.extractValue("stats.trigger_count", stateAndStats));
             });
         }
 
-        var stateAndStats = getBasicTransformStats(config.getId());
+        var stateAndStats = getBasicTransformStats(transformId);
         assertThat(stateAndStats.get("state"), equalTo("stopped"));
         // Despite indexing new documents into the source index, the number of documents in the destination index stays the same.
         assertThat((Integer) XContentMapValues.extractValue("stats.documents_indexed", stateAndStats), equalTo(1000));
 
         stopTransform(transformId);
-        deleteTransform(config.getId());
+        deleteTransform(transformId);
     }
 
     public void testContinuousTransformRethrottle() throws Exception {

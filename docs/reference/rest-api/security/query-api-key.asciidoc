@@ -299,6 +299,7 @@ retrieved from one or more API keys:
       "invalidated": false,
       "username": "elastic",
       "realm": "reserved",
+      "realm_type": "reserved",
       "metadata": {
         "letter": "a"
       },
@@ -411,6 +412,7 @@ A successful call returns a JSON structure for API key information including its
       "invalidated": false,
       "username": "myuser",
       "realm": "native1",
+      "realm_type": "native",
       "metadata": {
         "application": "my-application"
       },

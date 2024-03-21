@@ -103,7 +103,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
-            persistentTasksService.sendRemoveRequest(datafeedTask.getId(), new ActionListener<>() {
+            persistentTasksService.sendRemoveRequest(datafeedTask.getId(), null, new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
                     listener.onResponse(Boolean.TRUE);

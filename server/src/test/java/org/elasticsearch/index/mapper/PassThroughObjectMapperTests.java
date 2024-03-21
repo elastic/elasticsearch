@@ -90,9 +90,9 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         );
     }
 
-    public void testAddSubobjectThrows() throws IOException {
-        MapperException exception = expectThrows(MapperException.class, () -> createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough");
+    public void testAddSubobjectAutoFlatten() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("labels").field("type", "passthrough").field("time_series_dimension", "true");
             {
                 b.startObject("properties");
                 {
@@ -107,12 +107,11 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        })));
+        }));
 
-        assertEquals(
-            "Failed to parse mapping: Tried to add subobject [subobj] to object [labels] which does not support subobjects",
-            exception.getMessage()
-        );
+        var dim = mapperService.mappingLookup().getMapper("labels.subobj.dim");
+        assertThat(dim, instanceOf(KeywordFieldMapper.class));
+        assertTrue(((KeywordFieldMapper) dim).fieldType().isDimension());
     }
 
     public void testWithoutMappers() throws IOException {

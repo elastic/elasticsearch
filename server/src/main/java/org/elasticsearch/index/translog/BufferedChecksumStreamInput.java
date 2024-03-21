@@ -49,6 +49,11 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        return doReadString(readArraySize()); // always use the unoptimized slow path
+    }
+
+    @Override
     public byte readByte() throws IOException {
         final byte b = delegate.readByte();
         digest.update(b);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -133,13 +134,13 @@ class ScrollDataExtractor implements DataExtractor {
         }
     }
 
-    protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
-        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.queryContext.headers,
-            ClientHelper.ML_ORIGIN,
-            client,
-            searchRequestBuilder::get
+    protected SearchResponse executeSearchRequest(ActionRequestBuilder<?, SearchResponse> searchRequestBuilder) {
+        return checkForSkippedClusters(
+            ClientHelper.executeWithHeaders(context.queryContext.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get)
         );
+    }
+
+    private SearchResponse checkForSkippedClusters(SearchResponse searchResponse) {
         boolean success = false;
         try {
             DataExtractorUtils.checkForSkippedClusters(searchResponse);
@@ -262,25 +263,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     @SuppressWarnings("HiddenField")
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
-        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.queryContext.headers,
-            ClientHelper.ML_ORIGIN,
-            client,
-            () -> new SearchScrollRequestBuilder(client).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId).get()
-        );
-        boolean success = false;
-        try {
-            DataExtractorUtils.checkForSkippedClusters(searchResponse);
-            success = true;
-        } catch (ResourceNotFoundException e) {
-            clearScrollLoggingExceptions(searchResponse.getScrollId());
-            throw e;
-        } finally {
-            if (success == false) {
-                searchResponse.decRef();
-            }
-        }
-        return searchResponse;
+        return executeSearchRequest(new SearchScrollRequestBuilder(client).setScroll(SCROLL_TIMEOUT).setScrollId(scrollId));
     }
 
     private void clearScroll() {

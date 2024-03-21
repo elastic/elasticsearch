@@ -47,4 +47,17 @@ public class ConnectorSyncJobStateMachine {
     public static boolean isValidTransition(ConnectorSyncStatus current, ConnectorSyncStatus next) {
         return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet()).contains(next);
     }
+
+    /**
+     * Throws {@link ConnectorSyncJobInvalidStatusTransitionException} if a
+     * transition from one {@link ConnectorSyncStatus} to another is invalid.
+     *
+     * @param current The current {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
+     * @param next The proposed next {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
+     */
+    public static void assertValidStateTransition(ConnectorSyncStatus current, ConnectorSyncStatus next)
+        throws ConnectorSyncJobInvalidStatusTransitionException {
+        if (isValidTransition(current, next)) return;
+        throw new ConnectorSyncJobInvalidStatusTransitionException(current, next);
+    }
 }

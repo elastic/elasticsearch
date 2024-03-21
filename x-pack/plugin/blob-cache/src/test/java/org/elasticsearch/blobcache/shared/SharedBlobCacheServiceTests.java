@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
@@ -1052,7 +1053,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
 
-        final AtomicLong relativeTimeInMillis = new AtomicLong(0L);
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
@@ -1136,4 +1136,47 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         assertThatNonPositiveRecoveryRangeSizeRejected(SharedBlobCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING);
     }
 
+    public void testUseFullRegionSize() throws IOException {
+        final long regionSize = size(randomIntBetween(1, 100));
+        final long cacheSize = regionSize * randomIntBetween(1, 10);
+
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ThreadPool.Names.GENERIC,
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP
+            ) {
+                @Override
+                protected int computeCacheFileRegionSize(long fileLength, int region) {
+                    // use full region
+                    return super.getRegionSize();
+                }
+            }
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var blobLength = randomLongBetween(1L, cacheSize);
+
+            int regions = Math.toIntExact(blobLength / regionSize);
+            regions += (blobLength % regionSize == 0L ? 0L : 1L);
+            assertThat(
+                cacheService.computeCacheFileRegionSize(blobLength, randomFrom(regions)),
+                equalTo(BlobCacheUtils.toIntBytes(regionSize))
+            );
+            for (int region = 0; region < regions; region++) {
+                var cacheFileRegion = cacheService.get(cacheKey, blobLength, region);
+                assertThat(cacheFileRegion.tracker.getLength(), equalTo(regionSize));
+            }
+        }
+    }
 }

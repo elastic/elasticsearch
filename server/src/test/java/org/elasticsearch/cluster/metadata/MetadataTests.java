@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -783,7 +784,7 @@ public class MetadataTests extends ESTestCase {
                         && field.equals("address.location") == false;
                 }
                 if (index.equals("index2")) {
-                    return field -> false;
+                    return Predicates.never();
                 }
                 return MapperPlugin.NOOP_FIELD_PREDICATE;
             }, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);

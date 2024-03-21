@@ -311,6 +311,24 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertEquals(4, mergedAdd1.getTotalFieldsCount());
     }
 
+    public void testMergeSubobjectsFalseWithObject() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_FALSE)
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
+            new ObjectMapper.Builder("parent", Explicit.IMPLICIT_TRUE).add(
+                new ObjectMapper.Builder("child", Explicit.IMPLICIT_TRUE).add(
+                    new KeywordFieldMapper.Builder("grandchild", IndexVersion.current())
+                )
+            )
+        ).build(MapperBuilderContext.root(false, false));
+
+        ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
+        ObjectMapper parentMapper = (ObjectMapper) merged.getMapper("parent");
+        assertNotNull(parentMapper);
+        assertNotNull(parentMapper.getMapper("child.grandchild"));
+    }
+
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
         FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false, false));

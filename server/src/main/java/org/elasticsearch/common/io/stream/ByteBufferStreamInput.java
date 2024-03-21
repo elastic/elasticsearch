@@ -121,6 +121,24 @@ public class ByteBufferStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        if (buffer.hasArray()) {
+            // attempt reading bytes directly into a string to minimize copying
+            final String string = tryReadStringFromBytes(
+                buffer.array(),
+                buffer.position() + buffer.arrayOffset(),
+                buffer.limit() + buffer.arrayOffset(),
+                chars
+            );
+            if (string != null) {
+                return string;
+            }
+        }
+        return doReadString(chars);
+    }
+
+    @Override
     public int read() throws IOException {
         if (buffer.hasRemaining() == false) {
             return -1;

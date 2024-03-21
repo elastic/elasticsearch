@@ -166,7 +166,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
                     + "current-data-node-with-0-tasks-transform-remote-disabled:"
-                    + "transform requires a remote connection but remote is disabled"
+                    + "transform requires a remote connection but the node does not have the remote_cluster_client role"
                     + "]"
             )
         );
@@ -195,7 +195,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             equalTo(
                 "Not starting transform [new-task-id], reasons ["
                     + "current-data-node-with-0-tasks-transform-remote-disabled:"
-                    + "transform requires a remote connection but remote is disabled"
+                    + "transform requires a remote connection but the node does not have the remote_cluster_client role"
                     + "|"
                     + "current-data-node-with-transform-disabled:not a transform node"
                     + "]"

@@ -9,14 +9,18 @@
 package org.elasticsearch.cluster;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodePrevalidateShardPathResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateShardPathAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -77,7 +81,31 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
                 assertThat(resp2.getNodes().size(), equalTo(1));
                 assertThat(resp2.getNodes().get(0).getNode().getId(), equalTo(node2Id));
                 assertTrue("There should be no failures in the response", resp.failures().isEmpty());
-                assertTrue("The relocation source node should have removed the shard(s)", resp2.getNodes().get(0).getShardIds().isEmpty());
+                Set<ShardId> node2ShardIds = resp2.getNodes().get(0).getShardIds();
+                if (node2ShardIds.size() > 0) {
+                    for (var node2Shard : clusterService().state()
+                        .routingTable()
+                        .allShards()
+                        .filter(s -> s.getIndexName().equals(indexName))
+                        .filter(s -> node2ShardIds.contains(s.shardId()))
+                        .filter(s -> s.currentNodeId().equals(node2Id))
+                        .toList()) {
+                        var explanation = client().execute(
+                            TransportClusterAllocationExplainAction.TYPE,
+                            new ClusterAllocationExplainRequest().setIndex(node2Shard.getIndexName())
+                                .setCurrentNode(node2Shard.currentNodeId())
+                                .setShard(node2Shard.id())
+                                .setPrimary(node2Shard.primary())
+                        ).get();
+                        logger.info(
+                            "Shard: {} is still located on relocation source node: {}. Allocation explanation: {}",
+                            node2Shard.shardId(),
+                            node2,
+                            Strings.toString(ChunkedToXContent.wrapAsToXContent(explanation), false, true)
+                        );
+                    }
+                    throw new AssertionError("The relocation source node should have removed the shard(s)");
+                }
             } catch (AssertionError e) {
                 // Removal of shards which are no longer allocated to the node is attempted on every cluster state change in IndicesStore.
                 // If for whatever reason the removal is not triggered (e.g. not enough nodes reported that the shards are active) or it

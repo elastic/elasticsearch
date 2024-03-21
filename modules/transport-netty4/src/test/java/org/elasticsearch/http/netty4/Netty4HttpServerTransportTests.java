@@ -78,6 +78,7 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
@@ -889,7 +890,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
     public void testMultipleValidationsOnTheSameChannel() throws InterruptedException {
         // ensure that there is a single channel active
-        final Settings settings = createBuilderWithPort().put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), 1).build();
+        final Settings settings = createBuilderWithPort().put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 1).build();
         final Set<String> okURIs = ConcurrentHashMap.newKeySet();
         final Set<String> nokURIs = ConcurrentHashMap.newKeySet();
         final SetOnce<Channel> channelSetOnce = new SetOnce<>();

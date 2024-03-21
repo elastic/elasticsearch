@@ -33,7 +33,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -84,7 +83,7 @@ class S3BlobStore implements BlobStore {
 
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
-    private final RepositoriesMetrics repositoriesMetrics;
+    private final S3RepositoriesMetrics s3RepositoriesMetrics;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
 
@@ -98,7 +97,7 @@ class S3BlobStore implements BlobStore {
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
-        RepositoriesMetrics repositoriesMetrics
+        S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -110,7 +109,7 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        this.repositoriesMetrics = repositoriesMetrics;
+        this.s3RepositoriesMetrics = s3RepositoriesMetrics;
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
@@ -174,19 +173,19 @@ class S3BlobStore implements BlobStore {
                 .map(List::size)
                 .orElse(0);
 
-            repositoriesMetrics.operationCounter().incrementBy(1, attributes);
+            s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
             if (numberOfAwsErrors == requestCount) {
-                repositoriesMetrics.unsuccessfulOperationCounter().incrementBy(1, attributes);
+                s3RepositoriesMetrics.common().unsuccessfulOperationCounter().incrementBy(1, attributes);
             }
 
-            repositoriesMetrics.requestCounter().incrementBy(requestCount, attributes);
+            s3RepositoriesMetrics.common().requestCounter().incrementBy(requestCount, attributes);
             if (exceptionCount > 0) {
-                repositoriesMetrics.exceptionCounter().incrementBy(exceptionCount, attributes);
-                repositoriesMetrics.exceptionHistogram().record(exceptionCount, attributes);
+                s3RepositoriesMetrics.common().exceptionCounter().incrementBy(exceptionCount, attributes);
+                s3RepositoriesMetrics.common().exceptionHistogram().record(exceptionCount, attributes);
             }
             if (throttleCount > 0) {
-                repositoriesMetrics.throttleCounter().incrementBy(throttleCount, attributes);
-                repositoriesMetrics.throttleHistogram().record(throttleCount, attributes);
+                s3RepositoriesMetrics.common().throttleCounter().incrementBy(throttleCount, attributes);
+                s3RepositoriesMetrics.common().throttleHistogram().record(throttleCount, attributes);
             }
             maybeRecordHttpRequestTime(request);
         }
@@ -207,7 +206,7 @@ class S3BlobStore implements BlobStore {
             if (totalTimeInMicros == 0) {
                 logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
             } else {
-                repositoriesMetrics.httpRequestTimeInMicroHistogram().record(totalTimeInMicros, attributes);
+                s3RepositoriesMetrics.common().httpRequestTimeInMicroHistogram().record(totalTimeInMicros, attributes);
             }
         }
 
@@ -291,6 +290,14 @@ class S3BlobStore implements BlobStore {
 
     public long bufferSizeInBytes() {
         return bufferSize.getBytes();
+    }
+
+    public RepositoryMetadata getRepositoryMetadata() {
+        return repositoryMetadata;
+    }
+
+    public S3RepositoriesMetrics getS3RepositoriesMetrics() {
+        return s3RepositoriesMetrics;
     }
 
     @Override

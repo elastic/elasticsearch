@@ -424,7 +424,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             // The channel may not be present if the close listener (set in serverAcceptedChannel) runs before this method because the
             // connection closed early
             if (trackingChannel == null) {
-                logger.warn("http channel [{}] missing tracking channel", httpChannel);
+                httpRequest.release();
+                logger.warn(
+                    "http channel [{}] closed before starting to handle [{}][{}][{}]",
+                    httpChannel,
+                    httpRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
+                    httpRequest.method(),
+                    httpRequest.uri()
+                );
                 return;
             }
             trackingChannel.incomingRequest();

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
@@ -88,6 +89,8 @@ public final class ApiKey implements ToXContentObject {
     private final Instant invalidation;
     private final String username;
     private final String realm;
+    @Nullable
+    private final String realmType;
     private final Map<String, Object> metadata;
     @Nullable
     private final List<RoleDescriptor> roleDescriptors;
@@ -104,6 +107,7 @@ public final class ApiKey implements ToXContentObject {
         @Nullable Instant invalidation,
         String username,
         String realm,
+        @Nullable String realmType,
         @Nullable Map<String, Object> metadata,
         @Nullable List<RoleDescriptor> roleDescriptors,
         @Nullable List<RoleDescriptor> limitedByRoleDescriptors
@@ -118,6 +122,7 @@ public final class ApiKey implements ToXContentObject {
             invalidation,
             username,
             realm,
+            realmType,
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors == null ? null : new RoleDescriptorsIntersection(List.of(Set.copyOf(limitedByRoleDescriptors)))
@@ -134,6 +139,7 @@ public final class ApiKey implements ToXContentObject {
         Instant invalidation,
         String username,
         String realm,
+        @Nullable String realmType,
         @Nullable Map<String, Object> metadata,
         @Nullable List<RoleDescriptor> roleDescriptors,
         @Nullable RoleDescriptorsIntersection limitedBy
@@ -150,6 +156,7 @@ public final class ApiKey implements ToXContentObject {
         this.invalidation = (invalidation != null) ? Instant.ofEpochMilli(invalidation.toEpochMilli()) : null;
         this.username = username;
         this.realm = realm;
+        this.realmType = realmType;
         this.metadata = metadata == null ? Map.of() : metadata;
         this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
         // This assertion will need to be changed (or removed) when derived keys are properly supported
@@ -193,6 +200,17 @@ public final class ApiKey implements ToXContentObject {
         return realm;
     }
 
+    public @Nullable String getRealmType() {
+        return realmType;
+    }
+
+    public @Nullable RealmConfig.RealmIdentifier getRealmIdentifier() {
+        if (realm != null && realmType != null) {
+            return new RealmConfig.RealmIdentifier(realmType, realm);
+        }
+        return null;
+    }
+
     public Map<String, Object> getMetadata() {
         return metadata;
     }
@@ -223,7 +241,11 @@ public final class ApiKey implements ToXContentObject {
         if (invalidation != null) {
             builder.field("invalidation", invalidation.toEpochMilli());
         }
-        builder.field("username", username).field("realm", realm).field("metadata", (metadata == null ? Map.of() : metadata));
+        builder.field("username", username).field("realm", realm);
+        if (realmType != null) {
+            builder.field("realm_type", realmType);
+        }
+        builder.field("metadata", (metadata == null ? Map.of() : metadata));
         if (roleDescriptors != null) {
             builder.startObject("role_descriptors");
             for (var roleDescriptor : roleDescriptors) {
@@ -287,6 +309,7 @@ public final class ApiKey implements ToXContentObject {
             invalidation,
             username,
             realm,
+            realmType,
             metadata,
             roleDescriptors,
             limitedBy
@@ -314,6 +337,7 @@ public final class ApiKey implements ToXContentObject {
             && Objects.equals(invalidation, other.invalidation)
             && Objects.equals(username, other.username)
             && Objects.equals(realm, other.realm)
+            && Objects.equals(realmType, other.realmType)
             && Objects.equals(metadata, other.metadata)
             && Objects.equals(roleDescriptors, other.roleDescriptors)
             && Objects.equals(limitedBy, other.limitedBy);
@@ -331,9 +355,10 @@ public final class ApiKey implements ToXContentObject {
             (args[6] == null) ? null : Instant.ofEpochMilli((Long) args[6]),
             (String) args[7],
             (String) args[8],
-            (args[9] == null) ? null : (Map<String, Object>) args[9],
-            (List<RoleDescriptor>) args[10],
-            (RoleDescriptorsIntersection) args[11]
+            (String) args[9],
+            (args[10] == null) ? null : (Map<String, Object>) args[10],
+            (List<RoleDescriptor>) args[11],
+            (RoleDescriptorsIntersection) args[12]
         );
     });
     static {
@@ -346,6 +371,7 @@ public final class ApiKey implements ToXContentObject {
         PARSER.declareLong(optionalConstructorArg(), new ParseField("invalidation"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
+        PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("realm_type"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
         PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
             p.nextToken();
@@ -383,6 +409,8 @@ public final class ApiKey implements ToXContentObject {
             + username
             + ", realm="
             + realm
+            + ", realm_type="
+            + realmType
             + ", metadata="
             + metadata
             + ", role_descriptors="

@@ -1885,31 +1885,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final Coordinator coordinator = cluster.getAnyLeader().coordinator;
             final ClusterState currentState = coordinator.getLastAcceptedState();
 
-            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion1 = new HashSet<>() {
-                {
-                    add(
-                        new CoordinationMetadata.VotingConfigExclusion(
-                            "resolvableNodeId",
-                            CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER
-                        )
-                    );
-                }
-            };
+            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion1 = Set.of(
+                new CoordinationMetadata.VotingConfigExclusion(
+                    "resolvableNodeId",
+                    CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER
+                )
+            );
 
             ClusterState newState1 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion1);
 
             assertFalse(Coordinator.validVotingConfigExclusionState(newState1));
 
-            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion2 = new HashSet<>() {
-                {
-                    add(
-                        new CoordinationMetadata.VotingConfigExclusion(
-                            CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER,
-                            "resolvableNodeName"
-                        )
-                    );
-                }
-            };
+            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion2 = Set.of(
+                new CoordinationMetadata.VotingConfigExclusion(
+                    CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER,
+                    "resolvableNodeName"
+                )
+            );
 
             ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 

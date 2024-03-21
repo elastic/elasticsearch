@@ -52,11 +52,7 @@ import java.lang.annotation.Annotation;
  *
  * Specifies that a request for a {@code Service} instance with no binding
  * annotations should be treated as if it were a request for a
- * {@code ServiceImpl} instance. This <i>overrides</i> the function of any
- * {@link ImplementedBy @ImplementedBy} or {@link ProvidedBy @ProvidedBy}
- * annotations found on {@code Service}, since Guice will have already
- * "moved on" to {@code ServiceImpl} before it reaches the point when it starts
- * looking for these annotations.
+ * {@code ServiceImpl} instance.
  *
  * <pre>
  *     bind(Service.class).toProvider(ServiceProvider.class);</pre>

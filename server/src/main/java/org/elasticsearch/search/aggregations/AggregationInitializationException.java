@@ -17,10 +17,6 @@ import java.io.IOException;
  */
 public class AggregationInitializationException extends ElasticsearchException {
 
-    public AggregationInitializationException(String msg) {
-        super(msg);
-    }
-
     public AggregationInitializationException(String msg, Throwable cause) {
         super(msg, cause);
     }

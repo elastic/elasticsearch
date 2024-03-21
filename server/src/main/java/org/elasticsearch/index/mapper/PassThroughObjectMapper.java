@@ -41,8 +41,8 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
         @Override
         public PassThroughObjectMapper.Builder add(Mapper.Builder builder) {
-            if (timeSeriesDimensionSubFields.value() && builder instanceof KeywordFieldMapper.Builder keywordBuilder) {
-                keywordBuilder.dimension(true);
+            if (timeSeriesDimensionSubFields.value() && builder instanceof FieldMapper.DimensionBuilder dimensionBuilder) {
+                dimensionBuilder.setInheritDimensionParameterFromParentObject();
             }
             super.add(builder);
             return this;
@@ -56,11 +56,11 @@ public class PassThroughObjectMapper extends ObjectMapper {
         @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
             return new PassThroughObjectMapper(
-                name,
-                context.buildFullName(name),
+                name(),
+                context.buildFullName(name()),
                 enabled,
                 dynamic,
-                buildMappers(context.createChildContext(name)),
+                buildMappers(context.createChildContext(name(), timeSeriesDimensionSubFields.value(), dynamic)),
                 timeSeriesDimensionSubFields
             );
         }

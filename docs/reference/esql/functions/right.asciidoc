@@ -20,8 +20,6 @@ The number of characters to return.
 Return the substring that extracts 'length' chars from 'str' starting
 from the right.
 
-*Supported types*
-
 include::types/right.asciidoc[]
 
 *Example*

@@ -73,6 +73,16 @@ public class RegexLimitTests extends ScriptTestCase {
         assertTrue(cbe.getMessage().contains(regexCircuitMessage));
     }
 
+    public void testInjectBinary() {
+        String script = "Pattern p = /.*a.*b.*c.*/; return 'abcxyz123abc' =~ p;";
+        Settings settings = Settings.builder()
+            .put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), 1)
+            .put(CompilerSettings.REGEX_ENABLED.getKey(), "true")
+            .build();
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        assertEquals(Boolean.TRUE, exec(script));
+    }
+
     public void testRegexInject_DefMethodRef_Matcher() {
         String script = "boolean isMatch(Function func) { func.apply("
             + charSequence

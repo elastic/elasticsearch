@@ -1014,10 +1014,10 @@ public class SearchModule {
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {
         registerFetchSubPhase(new ExplainPhase());
         registerFetchSubPhase(new StoredFieldsPhase());
+        registerFetchSubPhase(new FetchFieldsPhase());
         registerFetchSubPhase(new FetchDocValuesPhase());
         registerFetchSubPhase(new ScriptFieldsPhase());
         registerFetchSubPhase(new FetchSourcePhase());
-        registerFetchSubPhase(new FetchFieldsPhase());
         registerFetchSubPhase(new FetchVersionPhase());
         registerFetchSubPhase(new SeqNoPrimaryTermPhase());
         registerFetchSubPhase(new MatchedQueriesPhase());

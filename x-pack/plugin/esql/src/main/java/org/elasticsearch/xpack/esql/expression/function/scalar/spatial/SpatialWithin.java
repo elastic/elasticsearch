@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -34,6 +35,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
@@ -109,6 +112,19 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, SpatialWithin::new, left(), right());
+    }
+
+    @Override
+    public Object fold() {
+        try {
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
+            Component2D component2D = asLuceneComponent2D(crsType, right());
+            return (crsType == SpatialCrsType.GEO)
+                ? GEO.geometryRelatesGeometry(docValueReader, component2D)
+                : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
+        }
     }
 
     @Override

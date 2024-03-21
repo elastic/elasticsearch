@@ -158,17 +158,17 @@ setup:
         body: |
           {"index":{}}
 
-          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a", "region": "west-1" }
+          {"timestamp": 1516729294000, "node": "a", "region": "west-1" }
           {"index":{}}
-          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b", "region": "west-2" }
+          {"timestamp": 1516642894000, "node": "b", "region": "west-2" }
           {"index":{}}
-          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a", "region": "west-1"}
+          {"timestamp": 1516556494000, "node": "a", "region": "west-1"}
           {"index":{}}
-          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b", "region": "west-2"}
+          {"timestamp": 1516470094000, "node": "b", "region": "west-2"}
           {"index":{}}
-          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c", "region": "west-2"}
+          {"timestamp": 1516383694000, "node": "c", "region": "west-2"}
           {"index":{}}
-          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c", "region": "west-2"}
+          {"timestamp": 1516297294000, "node": "c", "region": "west-2"}
   - do:
       search:
         index: sensor-test

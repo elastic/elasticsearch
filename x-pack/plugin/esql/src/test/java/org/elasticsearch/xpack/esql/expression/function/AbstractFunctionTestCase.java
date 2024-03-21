@@ -1102,8 +1102,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
             renderTypes(description.argNames());
             renderParametersList(description.argNames(), description.argDescriptions());
-            renderDescription(description.description());
-            boolean hasExamples = renderExamples(EsqlFunctionRegistry.functionInfo(definition));
+            FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
+            renderDescription(description.description(), info.note());
+            boolean hasExamples = renderExamples(info);
             renderFullLayout(name, hasExamples);
             return;
         }
@@ -1155,11 +1156,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("parameters", rendered, "asciidoc");
     }
 
-    private static void renderDescription(String description) throws IOException {
+    private static void renderDescription(String description, String note) throws IOException {
         String rendered = DOCS_WARNING + """
             *Description*
 
             """ + description + "\n";
+        if (note != null) {
+            rendered += "\nNOTE: " + note + "\n";
+        }
         LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("description", rendered, "asciidoc");
     }

@@ -37,7 +37,7 @@ public class Atan2 extends EsqlScalarFunction {
         returnType = "double",
         description = "The {wikipedia}/Atan2[angle] between the positive x-axis and the ray from the\n"
             + "origin to the point (x , y) in the Cartesian plane, expressed in radians.",
-        examples = @Example(file="floats", tag="atan2")
+        examples = @Example(file = "floats", tag = "atan2")
     )
     public Atan2(
         Source source,

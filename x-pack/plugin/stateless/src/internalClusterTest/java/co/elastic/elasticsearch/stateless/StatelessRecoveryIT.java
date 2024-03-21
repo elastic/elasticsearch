@@ -1224,7 +1224,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var indexNode = startIndexNode();
         ensureStableCluster(2, masterNode);
 
-        final String indexName = getTestName().toLowerCase(Locale.ROOT);
+        final String indexName = randomIdentifier();
         createIndex(
             indexName,
             indexSettings(1, 0)

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
@@ -37,6 +39,8 @@ import java.util.Objects;
  * from the cluster state.
  */
 public class UpdateDataStreamGlobalRetentionService {
+
+    private static final Logger logger = LogManager.getLogger(UpdateDataStreamGlobalRetentionService.class);
 
     private final MasterServiceTaskQueue<UpsertGlobalDataStreamMetadataTask> taskQueue;
 
@@ -148,16 +152,18 @@ public class UpdateDataStreamGlobalRetentionService {
 
         @Override
         public void onAllNodesAcked() {
-            listener.onResponse(UpdateDataStreamGlobalRetentionResponse.FAILED);
+            listener.onResponse(new UpdateDataStreamGlobalRetentionResponse(true, affectedDataStreams));
         }
 
         @Override
         public void onAckFailure(Exception e) {
-            listener.onFailure(e);
+            logger.debug("Failed to update global retention [{}] with error [{}]", globalRetention, e.getMessage());
+            listener.onResponse(UpdateDataStreamGlobalRetentionResponse.FAILED);
         }
 
         @Override
         public void onAckTimeout() {
+            logger.debug("Failed to update global retention [{}] because timeout was reached", globalRetention);
             listener.onResponse(UpdateDataStreamGlobalRetentionResponse.FAILED);
         }
 

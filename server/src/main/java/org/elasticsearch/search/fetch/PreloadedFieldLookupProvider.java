@@ -42,9 +42,6 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
             return;
         }
         // stored field not preloaded, go and get it directly
-        if (backUpLoader == null && loaderSupplier == null) {
-            throw new IllegalStateException("unable to lookup field [" + fieldLookup.fieldType().name() + "]");
-        }
         if (backUpLoader == null) {
             backUpLoader = loaderSupplier.get();
         }

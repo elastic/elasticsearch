@@ -16,7 +16,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.List;
@@ -67,11 +66,7 @@ public class PreloadedFieldLookupProviderTests extends ESTestCase {
         final FieldLookup fieldLookup = new FieldLookup(fooField);
 
         // NOTE: we have no stored fields and we still have to call setNextReader so we don't have a LeafFieldLookupProvider
-        final IllegalStateException illegalStateException = expectThrows(
-            IllegalStateException.class,
-            () -> lookup.populateFieldLookup(fieldLookup, 0)
-        );
-        assertThat(illegalStateException.getMessage(), Matchers.equalTo("unable to lookup field [foo]"));
+        expectThrows(NullPointerException.class, () -> lookup.populateFieldLookup(fieldLookup, 0));
         assertNull(lookup.backUpLoader);
 
         final MappedFieldType barField = mock(MappedFieldType.class);

@@ -284,7 +284,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 XPackField.ENTERPRISE_SEARCH,
                 EnterpriseSearchFeatureSetUsage::new
             ),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new),
+            new NamedWriteableRegistry.Entry(
+                PersistentTaskParams.class,
+                MigrateSecurityIndexFieldTaskParams.TASK_NAME,
+                MigrateSecurityIndexFieldTaskParams::new
+            )
         ).filter(Objects::nonNull).toList();
     }
 

@@ -14,8 +14,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 import com.carrotsearch.hppc.procedures.ObjectProcedure;
 
-import org.elasticsearch.common.util.Maps;
-
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
@@ -146,7 +144,7 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
 
         @Override
         public Iterator<Map.Entry<KType, VType>> iterator() {
-            return Iterators.map(map.iterator(), c -> new Maps.ImmutableEntry<>(c.key, c.value));
+            return Iterators.map(map.iterator(), c -> Map.entry(c.key, c.value));
         }
 
         @Override
@@ -156,7 +154,7 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
 
         @Override
         public void forEach(Consumer<? super Map.Entry<KType, VType>> action) {
-            map.forEach((Consumer<ObjectObjectCursor<KType, VType>>) c -> action.accept(new Maps.ImmutableEntry<>(c.key, c.value)));
+            map.forEach((Consumer<ObjectObjectCursor<KType, VType>>) c -> action.accept(Map.entry(c.key, c.value)));
         }
 
         @SuppressWarnings("unchecked")

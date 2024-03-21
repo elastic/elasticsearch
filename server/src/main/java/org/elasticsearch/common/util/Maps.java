@@ -328,41 +328,4 @@ public class Maps {
         }
         return copy;
     }
-
-    /**
-     * An immutable implementation of {@link Map.Entry}.
-     * @param key key
-     * @param value value
-     */
-    public record ImmutableEntry<KType, VType>(KType key, VType value) implements Map.Entry<KType, VType> {
-
-        @Override
-        public KType getKey() {
-            return key;
-        }
-
-        @Override
-        public VType getValue() {
-            return value;
-        }
-
-        @Override
-        public VType setValue(VType value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Map.Entry) == false) return false;
-            Map.Entry that = (Map.Entry) o;
-            return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(key) ^ Objects.hashCode(value);
-        }
-    }
 }

@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -130,7 +129,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PropagateEquals(),
             new PropagateNullable(),
             new BooleanFunctionEqualsElimination(),
-            new CombineDisjunctionsToIn(),
+            new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.CombineDisjunctionsToIn(),
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
             new PruneFilters(),
@@ -1115,28 +1114,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return project.replaceChild(expressionsWithResolvedAliases.replaceChild(project.child()));
         } else {
             throw new EsqlIllegalArgumentException("Expected child to be instance of Project");
-        }
-    }
-
-    /**
-     * Combine disjunctions on the same field into an In expression.
-     * This rule looks for both simple equalities:
-     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
-     * and combinations of In
-     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
-     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
-     *
-     * This rule does NOT check for type compatibility as that phase has been
-     * already be verified in the analyzer.
-     */
-    public static class CombineDisjunctionsToIn extends OptimizerRules.CombineDisjunctionsToIn {
-
-        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
-            return new In(key.source(), key, values);
-        }
-
-        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
         }
     }
 

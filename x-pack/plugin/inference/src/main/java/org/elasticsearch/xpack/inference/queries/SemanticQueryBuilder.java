@@ -79,12 +79,17 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
     }
 
-    private SemanticQueryBuilder(SemanticQueryBuilder other, SetOnce<InferenceServiceResults> inferenceResultsSupplier) {
+    private SemanticQueryBuilder(
+        SemanticQueryBuilder other,
+        SetOnce<InferenceServiceResults> inferenceResultsSupplier,
+        InferenceServiceResults inferenceResults
+    ) {
         this.fieldName = other.fieldName;
         this.query = other.query;
         this.boost = other.boost;
         this.queryName = other.queryName;
         this.inferenceResultsSupplier = inferenceResultsSupplier;
+        this.inferenceResults = inferenceResults;
     }
 
     @Override
@@ -131,8 +136,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         if (inferenceResultsSupplier != null) {
-            inferenceResults = inferenceResultsSupplier.get();
-            return this;
+            InferenceServiceResults inferenceResults = inferenceResultsSupplier.get();
+            return inferenceResults != null ? new SemanticQueryBuilder(this, inferenceResultsSupplier, inferenceResults) : this;
         }
 
         Map<String, Set<String>> inferenceIdsForFields = computeInferenceIdsForFields(queryRewriteContext.getIndexMetadataMap().values());
@@ -174,7 +179,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             inferenceResultsSupplier = new SetOnce<>(new SparseEmbeddingResults(List.of()));
         }
 
-        return new SemanticQueryBuilder(this, inferenceResultsSupplier);
+        return new SemanticQueryBuilder(this, inferenceResultsSupplier, null);
     }
 
     @Override

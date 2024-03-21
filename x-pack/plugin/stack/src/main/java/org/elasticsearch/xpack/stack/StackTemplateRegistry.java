@@ -41,7 +41,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     // Historical node feature kept here as LegacyStackTemplateRegistry is deprecated
     public static final NodeFeature STACK_TEMPLATES_FEATURE = new NodeFeature("stack.templates_supported");
 
-    // this node feature is a redefinition of {@link DataStreamFeatures#SUPPORTS_DATA_STREAM_LIFECYCLE} and it's meant to avoid adding a
+    // this node feature is a redefinition of {@link DataStreamFeatures#DATA_STREAM_LIFECYCLE} and it's meant to avoid adding a
     // dependency to the data-streams module just for this
     public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
 

@@ -1,6 +1,6 @@
 *Parameters*
 
-`str`::
+`string`::
 
 
 `length`::

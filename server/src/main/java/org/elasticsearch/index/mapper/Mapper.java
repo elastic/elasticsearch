@@ -145,4 +145,12 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * Defines how this mapper counts towards {@link MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING}.
      */
     public abstract int getTotalFieldsCount();
+
+    /**
+     * Returns a submapper for this mapper, if it exists.
+     *
+     * @param field field name from which to obtain the mapper
+     * @return submapper
+     */
+    public abstract Mapper getMapper(String field);
 }

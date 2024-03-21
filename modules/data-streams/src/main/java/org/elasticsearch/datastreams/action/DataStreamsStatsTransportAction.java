@@ -11,6 +11,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -44,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.stream.Stream;
 
 public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAction<
     DataStreamsStatsAction.Request,
@@ -104,25 +104,12 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
 
     @Override
     protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
+        return DataStreamsActionUtil.resolveConcreteIndexNames(
+            indexNameExpressionResolver,
             clusterState,
-            request.indicesOptions(),
-            request.indices()
-        );
-        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
-
-        String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {
-            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
-            assert indexAbstraction != null;
-            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                DataStream dataStream = (DataStream) indexAbstraction;
-                List<Index> indices = dataStream.getIndices();
-                return indices.stream().map(Index::getName);
-            } else {
-                return Stream.empty();
-            }
-        }).toArray(String[]::new);
-        return concreteDatastreamIndices;
+            request.indices(),
+            request.indicesOptions()
+        ).toArray(String[]::new);
     }
 
     @Override

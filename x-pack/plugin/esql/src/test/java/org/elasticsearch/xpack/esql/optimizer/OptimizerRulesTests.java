@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 
-public class OptimizerRulesTest extends ESTestCase {
+public class OptimizerRulesTests extends ESTestCase {
     private static final Literal ONE = new Literal(Source.EMPTY, 1, DataTypes.INTEGER);
     private static final Literal TWO = new Literal(Source.EMPTY, 2, DataTypes.INTEGER);
     private static final Literal THREE = new Literal(Source.EMPTY, 3, DataTypes.INTEGER);

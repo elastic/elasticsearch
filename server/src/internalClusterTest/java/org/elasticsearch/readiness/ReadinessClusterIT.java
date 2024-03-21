@@ -85,11 +85,11 @@ public class ReadinessClusterIT extends ESIntegTestCase {
              }
         }""";
 
-    Path masterConfigDir;
+    Path configDir;
 
     @Before
     public void setupMasterConfigDir() throws IOException {
-        masterConfigDir = createTempDir();
+        configDir = createTempDir();
     }
 
     @Override
@@ -102,7 +102,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
     @Override
     protected Path nodeConfigPath(int nodeOrdinal) {
-        return nodeOrdinal == 0 ? masterConfigDir : null;
+        return configDir;
     }
 
     @Override
@@ -241,7 +241,7 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     private void writeFileSettings(String json) throws Exception {
         long version = versionCounter.incrementAndGet();
         Path tempFilePath = createTempFile();
-        Path fileSettings = masterConfigDir.resolve("operator").resolve("settings.json");
+        Path fileSettings = configDir.resolve("operator").resolve("settings.json");
         Files.createDirectories(fileSettings.getParent());
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));

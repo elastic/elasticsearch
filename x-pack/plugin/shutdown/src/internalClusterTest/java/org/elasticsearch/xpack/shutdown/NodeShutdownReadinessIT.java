@@ -36,12 +36,12 @@ import static org.hamcrest.Matchers.empty;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class NodeShutdownReadinessIT extends ESIntegTestCase {
 
-    Path masterConfigDir;
+    Path configDir;
 
     @Before
     public void setupMasterConfigDir() throws IOException {
-        masterConfigDir = createTempDir();
-        Path settingsFile = masterConfigDir.resolve("operator").resolve("settings.json");
+        configDir = createTempDir();
+        Path settingsFile = configDir.resolve("operator").resolve("settings.json");
         Files.createDirectories(settingsFile.getParent());
         Files.writeString(settingsFile, """
             {
@@ -57,7 +57,7 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
 
     @Override
     protected Path nodeConfigPath(int nodeOrdinal) {
-        return nodeOrdinal == 0 ? masterConfigDir : null;
+        return configDir;
     }
 
     @Override

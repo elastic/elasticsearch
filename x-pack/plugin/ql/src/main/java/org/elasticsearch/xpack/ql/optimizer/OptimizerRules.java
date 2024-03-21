@@ -325,7 +325,8 @@ public final class OptimizerRules {
      * {@link CombineBinaryComparisons} on purpose as the resulting Range might be foldable
      * (which is picked by the folding rule on the next run).
      */
-    public static final class PropagateEquals extends OptimizerExpressionRule<BinaryLogic> {
+    // NOCOMMIT - This should go back to being final once we finish copying it into ESQL
+    public static class PropagateEquals extends OptimizerExpressionRule<BinaryLogic> {
 
         public PropagateEquals() {
             super(TransformDirection.DOWN);

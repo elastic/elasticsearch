@@ -230,4 +230,8 @@ class OptimizerRules {
             return e;
         }
     }
+
+    static class PropagateEquals extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals {
+       // TODO: clone the QL version
+    }
 }

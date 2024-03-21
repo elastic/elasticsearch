@@ -13,6 +13,7 @@ import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -32,12 +33,18 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
 
     @Override
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
-        String field = fieldLookup.fieldType().name();
+        if (storedFields == null) {
+            storedFields = Collections.emptyMap();
+        }
+        final String field = fieldLookup.fieldType().name();
         if (storedFields.containsKey(field)) {
             fieldLookup.setValues(storedFields.get(field));
             return;
         }
         // stored field not preloaded, go and get it directly
+        if (backUpLoader == null && loaderSupplier == null) {
+            throw new IllegalStateException("unable to lookup field [" + fieldLookup.fieldType().name() + "]");
+        }
         if (backUpLoader == null) {
             backUpLoader = loaderSupplier.get();
         }

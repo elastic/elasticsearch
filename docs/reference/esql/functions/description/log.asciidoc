@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the logarithm of a value to a base.
+Returns the logarithm of a number to a base.

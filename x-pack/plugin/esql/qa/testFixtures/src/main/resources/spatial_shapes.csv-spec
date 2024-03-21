@@ -88,6 +88,36 @@ abbrev:keyword | airport:text         | region:text | city:keyword | city_locati
 SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(109.5036 18.2533)
 ;
 
+polygonContainsLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+// tag::st_contains-airport_city_boundaries[]
+FROM airport_city_boundaries
+| WHERE ST_CONTAINS(city_boundary, TO_GEOSHAPE("POLYGON((109.35 18.3, 109.45 18.3, 109.45 18.4, 109.35 18.4, 109.35 18.3))"))
+| KEEP abbrev, airport, region, city, city_location
+// end::st_contains-airport_city_boundaries[]
+| LIMIT 1
+;
+
+// tag::st_contains-airport_city_boundaries-results[]
+abbrev:keyword | airport:text         | region:text | city:keyword | city_location:geo_point
+SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(109.5036 18.2533)
+// end::st_contains-airport_city_boundaries-results[]
+;
+
+polygonWithinLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+// tag::st_within-airport_city_boundaries[]
+FROM airport_city_boundaries
+| WHERE ST_WITHIN(city_boundary, TO_GEOSHAPE("POLYGON((109.1 18.15, 109.6 18.15, 109.6 18.65, 109.1 18.65, 109.1 18.15))"))
+| KEEP abbrev, airport, region, city, city_location
+// end::st_within-airport_city_boundaries[]
+| LIMIT 1
+;
+
+// tag::st_within-airport_city_boundaries-results[]
+abbrev:keyword | airport:text         | region:text | city:keyword | city_location:geo_point
+SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(109.5036 18.2533)
+// end::st_within-airport_city_boundaries-results[]
+;
+
 pointIntersectsLiteralPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)

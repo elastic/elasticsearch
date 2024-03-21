@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @FunctionName("st_contains")
-
 public class SpatialContainsTests extends SpatialRelatesFunctionTestCase {
     public SpatialContainsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

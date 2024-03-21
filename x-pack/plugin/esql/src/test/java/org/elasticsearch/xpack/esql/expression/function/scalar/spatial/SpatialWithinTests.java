@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @FunctionName("st_within")
-
 public class SpatialWithinTests extends SpatialRelatesFunctionTestCase {
     public SpatialWithinTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

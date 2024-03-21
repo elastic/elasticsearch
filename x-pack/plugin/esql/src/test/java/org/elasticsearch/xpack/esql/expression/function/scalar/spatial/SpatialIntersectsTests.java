@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @FunctionName("st_intersects")
-
 public class SpatialIntersectsTests extends SpatialRelatesFunctionTestCase {
     public SpatialIntersectsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

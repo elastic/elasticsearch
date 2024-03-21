@@ -394,18 +394,9 @@ POINT (42.97109629958868 14.7552534006536)    | 1
 ;
 
 pointIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
-FROM airports
-| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
-;
-
-abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
-HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
-;
-
-pointIntersectsLiteralPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
 // tag::st_intersects-airports[]
 FROM airports
-| WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
 // end::st_intersects-airports[]
 ;
 
@@ -413,6 +404,15 @@ FROM airports
 abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
 HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
 // end::st_intersects-airports-results[]
+;
+
+pointIntersectsLiteralPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
+FROM airports
+| WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+;
+
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
 ;
 
 literalPointIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
@@ -531,6 +531,24 @@ contains:boolean
 false
 ;
 
+pointContainedInLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+FROM airports
+| WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+;
+
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+;
+
+pointContainedInLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+FROM airports
+| WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+;
+
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+;
+
 literalPolygonNotWithinLiteralPoint#[skip:-8.13.99, reason:st_within added in 8.14]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
@@ -567,6 +585,19 @@ ROW within = ST_WITHIN(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 
 
 within:boolean
 true
+;
+
+pointWithinLiteralPolygon#[skip:-8.13.99, reason:st_within added in 8.14]
+// tag::st_within-airports[]
+FROM airports
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+// end::st_within-airports[]
+;
+
+// tag::st_within-airports-results[]
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+// end::st_within-airports-results[]
 ;
 
 geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]

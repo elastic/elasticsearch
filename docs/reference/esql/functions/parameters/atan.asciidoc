@@ -1,4 +1,4 @@
 *Parameters*
 
 `number`::
-A number
+Numeric expression. If `null`, the function returns `null`.

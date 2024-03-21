@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.geo.XYGeometry;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This utilities class provides access to protected methods in Lucene using alternative APIs.
@@ -27,17 +31,38 @@ public class LuceneComponent2DUtils {
         } else if (latLonGeometries.length == 0) {
             throw new IllegalArgumentException("geometries must not be empty");
         } else {
-            Component2D[] components = new Component2D[latLonGeometries.length];
+            final List<Component2D> components = new ArrayList<>(latLonGeometries.length);
 
             for (int i = 0; i < latLonGeometries.length; ++i) {
                 if (latLonGeometries[i] == null) {
                     throw new IllegalArgumentException("geometries[" + i + "] must not be null");
                 }
 
-                components[i] = LatLonGeometry.create(latLonGeometries[i]);
+                if (latLonGeometries[i] instanceof Rectangle rectangle && rectangle.crossesDateline()) {
+                    addRectangle(components, rectangle);
+                } else {
+                    components.add(LatLonGeometry.create(latLonGeometries[i]));
+                }
             }
 
-            return components;
+            return components.toArray(new Component2D[0]);
+        }
+    }
+
+    private static void addRectangle(List<Component2D> components, Rectangle rectangle) {
+        double minLongitude = rectangle.minLon;
+        boolean crossesDateline = rectangle.minLon > rectangle.maxLon;
+        if (minLongitude == 180.0 && crossesDateline) {
+            minLongitude = -180.0;
+            crossesDateline = false;
+        }
+        if (crossesDateline) {
+            Rectangle left = new Rectangle(rectangle.minLat, rectangle.maxLat, -180.0, rectangle.maxLon);
+            Rectangle right = new Rectangle(rectangle.minLat, rectangle.maxLat, minLongitude, 180.0);
+            components.add(LatLonGeometry.create(left));
+            components.add(LatLonGeometry.create(right));
+        } else {
+            components.add(LatLonGeometry.create(rectangle));
         }
     }
 

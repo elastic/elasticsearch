@@ -306,7 +306,11 @@ public final class TextFieldMapper extends FieldMapper {
             this.store = Parameter.storeParam(
                 m -> ((TextFieldMapper) m).store,
                 () -> isSyntheticSourceEnabledViaIndexMode && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false
-            );
+            )
+                // we want to serialize 'true' value even if it is default
+                // since defaults differ for different index modes
+                // and can be interpreted differently is different context
+                .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
             this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,

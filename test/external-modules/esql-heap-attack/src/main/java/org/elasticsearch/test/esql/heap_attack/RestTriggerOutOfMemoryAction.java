@@ -20,12 +20,15 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestTriggerOutOfMemoryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestTriggerOutOfMemoryAction.class);
 

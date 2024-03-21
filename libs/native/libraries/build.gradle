@@ -57,6 +57,12 @@ def extractLibs = tasks.register('extractLibs', Copy) {
   filesMatching("win32*/*") {
     it.path = it.path.replace("win32", "windows")
   }
+  filePermissions {
+    unix("644")
+  }
+  dirPermissions {
+    unix("755")
+  }
 }
 
 artifacts {

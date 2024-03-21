@@ -13,6 +13,8 @@ setup:
             properties:
               location:
                 type: geo_point
+              id:
+                type: integer
 
   - do:
       bulk:
@@ -20,9 +22,9 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "location": "POINT(1 -1)" }
+          - { "id": 1, "location": "POINT(1 -1)" }
           - { "index": { } }
-          - { "location": "POINT(-1 1)" }
+          - { "id": 2, "location": "POINT(-1 1)" }
 
   - do:
       indices.create:
@@ -32,6 +34,8 @@ setup:
             properties:
               location:
                 type: point
+              id:
+                type: integer
 
   - do:
       bulk:
@@ -39,9 +43,9 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "location": "POINT(4321 -1234)" }
+          - { "id": 1, "location": "POINT(4321 -1234)" }
           - { "index": { } }
-          - { "location": "POINT(-4321 1234)" }
+          - { "id": 2, "location": "POINT(-4321 1234)" }
 
   - do:
       indices.create:
@@ -51,6 +55,8 @@ setup:
             properties:
               shape:
                 type: geo_shape
+              id:
+                type: integer
 
   - do:
       bulk:
@@ -58,9 +64,9 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "shape": "POINT(0 0)" }
+          - { "id": 1, "shape": "POINT(0 0)" }
           - { "index": { } }
-          - { "shape": "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
+          - { "id": 2, "shape": "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
 
   - do:
       indices.create:
@@ -70,6 +76,8 @@ setup:
             properties:
               shape:
                 type: shape
+              id:
+                type: integer
 
   - do:
       bulk:
@@ -77,9 +85,9 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "shape": "POINT(0 0)" }
+          - { "id": 1, "shape": "POINT(0 0)" }
           - { "index": { } }
-          - { "shape": "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
+          - { "id": 2, "shape": "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
 
 ---
 geo_point:
@@ -88,12 +96,16 @@ geo_point:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from geo_points'
-  - match: { columns.0.name: location }
-  - match: { columns.0.type: geo_point }
+          query: 'from geo_points | sort id'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: location }
+  - match: { columns.1.type: geo_point }
   - length: { values: 2 }
-  - match: { values.0.0: "POINT (1.0 -1.0)" }
-  - match: { values.1.0: "POINT (-1.0 1.0)" }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+  - match: { values.0.1: "POINT (1.0 -1.0)" }
+  - match: { values.1.1: "POINT (-1.0 1.0)" }
 
 ---
 geo_point unsortable:
@@ -126,12 +138,16 @@ cartesian_point:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from cartesian_points'
-  - match: { columns.0.name: location }
-  - match: { columns.0.type: cartesian_point }
+          query: 'from cartesian_points | sort id'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: location }
+  - match: { columns.1.type: cartesian_point }
   - length: { values: 2 }
-  - match: { values.0.0: "POINT (4321.0 -1234.0)" }
-  - match: { values.1.0: "POINT (-4321.0 1234.0)" }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+  - match: { values.0.1: "POINT (4321.0 -1234.0)" }
+  - match: { values.1.1: "POINT (-4321.0 1234.0)" }
 
 ---
 cartesian_point unsortable:
@@ -164,12 +180,16 @@ geo_shape:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from geo_shapes'
-  - match: { columns.0.name: shape }
-  - match: { columns.0.type: geo_shape }
+          query: 'from geo_shapes | sort id'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: shape }
+  - match: { columns.1.type: geo_shape }
   - length: { values: 2 }
-  - match: { values.0.0: "POINT (0.0 0.0)" }
-  - match: { values.1.0: "POLYGON ((-1.0 -1.0, 1.0 -1.0, 1.0 1.0, -1.0 1.0, -1.0 -1.0))" }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+  - match: { values.0.1: "POINT (0.0 0.0)" }
+  - match: { values.1.1: "POLYGON ((-1.0 -1.0, 1.0 -1.0, 1.0 1.0, -1.0 1.0, -1.0 -1.0))" }
 
 ---
 geo_shape unsortable:
@@ -202,12 +222,16 @@ cartesian_shape:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from cartesian_shapes'
-  - match: { columns.0.name: shape }
-  - match: { columns.0.type: cartesian_shape }
+          query: 'from cartesian_shapes | sort id'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: shape }
+  - match: { columns.1.type: cartesian_shape }
   - length: { values: 2 }
-  - match: { values.0.0: "POINT (0.0 0.0)" }
-  - match: { values.1.0: "POLYGON ((-1.0 -1.0, 1.0 -1.0, 1.0 1.0, -1.0 1.0, -1.0 -1.0))" }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+  - match: { values.0.1: "POINT (0.0 0.0)" }
+  - match: { values.1.1: "POLYGON ((-1.0 -1.0, 1.0 -1.0, 1.0 1.0, -1.0 1.0, -1.0 -1.0))" }
 
 ---
 cartesian_shape unsortable:

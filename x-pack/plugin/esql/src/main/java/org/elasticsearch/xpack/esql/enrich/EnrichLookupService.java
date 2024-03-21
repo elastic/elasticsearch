@@ -38,7 +38,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
-import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
@@ -265,13 +264,16 @@ public class EnrichLookupService {
             DriverContext driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
             SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             MappedFieldType fieldType = searchExecutionContext.getFieldType(matchField);
-            final SourceOperator queryOperator = switch (matchType) {
-                case "match", "range" -> {
-                    QueryList queryList = QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock);
-                    yield new EnrichQuerySourceOperator(driverContext.blockFactory(), queryList, searchExecutionContext.getIndexReader());
-                }
+            var queryList = switch (matchType) {
+                case "match", "range" -> QueryList.termQueryList(fieldType, searchExecutionContext, inputBlock, inputDataType);
+                case "geo_match" -> QueryList.geoShapeQuery(fieldType, searchExecutionContext, inputBlock, inputDataType);
                 default -> throw new EsqlIllegalArgumentException("illegal match type " + matchType);
             };
+            var queryOperator = new EnrichQuerySourceOperator(
+                driverContext.blockFactory(),
+                queryList,
+                searchExecutionContext.getIndexReader()
+            );
             List<Operator> intermediateOperators = new ArrayList<>(extractFields.size() + 2);
             final ElementType[] mergingTypes = new ElementType[extractFields.size()];
             // load the fields

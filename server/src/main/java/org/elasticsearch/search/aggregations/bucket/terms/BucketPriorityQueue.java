@@ -7,16 +7,17 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 
 import java.util.Comparator;
 
-public class BucketPriorityQueue<B> extends PriorityQueue<B> {
+public class BucketPriorityQueue<B> extends ObjectArrayPriorityQueue<B> {
 
     private final Comparator<? super B> comparator;
 
-    public BucketPriorityQueue(int size, Comparator<? super B> comparator) {
-        super(size);
+    public BucketPriorityQueue(int size, BigArrays bigArrays, Comparator<? super B> comparator) {
+        super(size, bigArrays);
         this.comparator = comparator;
     }
 

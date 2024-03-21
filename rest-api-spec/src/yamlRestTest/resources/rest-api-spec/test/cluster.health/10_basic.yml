@@ -132,9 +132,10 @@
 ---
 "cluster health with closed index (pre 7.2.0)":
   - skip:
-      version: "7.2.0 - "
+      cluster_features: ["indices_replicate_closed"]
       reason:  "closed indices are replicated starting version 7.2.0"
-      features: ["allowed_warnings"]
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -208,10 +209,10 @@
 
 ---
 "cluster health with closed index":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["indices_replicate_closed"]
       reason:  "closed indices are replicated starting version 7.2.0"
-      features: ["allowed_warnings", "default_shards"]
+      test_runner_features: ["allowed_warnings", "default_shards"]
 
   - do:
       indices.create:

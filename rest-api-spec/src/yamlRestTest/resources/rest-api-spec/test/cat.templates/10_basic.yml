@@ -1,7 +1,7 @@
 ---
 "Help":
     - requires:
-        cluster_features: ["cat_templates_v2"]
+        cluster_features: ["templates_v2"]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -32,7 +32,7 @@
 ---
 "Normal templates":
     - requires:
-        cluster_features: [ "cat_templates_v2" ]
+        cluster_features: [ "templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -83,7 +83,7 @@
 ---
 "Filtered templates":
     - requires:
-        cluster_features: [ "cat_templates_v2" ]
+        cluster_features: [ "templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -125,7 +125,7 @@
 ---
 "Column headers":
     - requires:
-        cluster_features: [ "cat_templates_v2" ]
+        cluster_features: [ "templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -163,7 +163,7 @@
 ---
 "Select columns":
     - requires:
-        cluster_features: [ "cat_templates_v2" ]
+        cluster_features: [ "templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -197,7 +197,7 @@
 ---
 "Sort templates":
     - requires:
-        cluster_features: [ "cat_templates_v2" ]
+        cluster_features: [ "templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
         test_runner_features: default_shards, no_xpack
 
@@ -250,7 +250,7 @@
 ---
 "Multiple template":
     - requires:
-        cluster_features: [ "cat_templates_v2" ]
+        cluster_features: [ "templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
         test_runner_features: default_shards, no_xpack
 
@@ -286,7 +286,7 @@
 ---
 "Mixture of legacy and composable templates":
     - requires:
-        cluster_features: [ "cat_templates_v2" ]
+        cluster_features: [ "templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
         test_runner_features: allowed_warnings
 

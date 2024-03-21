@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["cluster_desired_balance"]
       reason: "API added in in 8.6.0"
 
 ---
@@ -61,8 +61,8 @@ setup:
 ---
 "Test cluster_balance_stats":
 
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["cluster_desired_balance_stats"]
       reason: "cluster_balance_stats added in in 8.7.0"
 
   - do:
@@ -109,8 +109,8 @@ setup:
 ---
 "Test cluster_info":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["cluster_info"]
       reason: "cluster_info added in in 8.8.0"
 
   - do:
@@ -121,8 +121,8 @@ setup:
 ---
 "Test cluster_balance_stats contains node ID and roles":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["cluster_desired_balance_extended"]
       reason: "node_id and roles added in in 8.8.0"
 
   - do:
@@ -140,8 +140,8 @@ setup:
 ---
 "Test tier_preference":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["cluster_desired_balance_extended"]
       reason: "tier_preference added in in 8.8.0"
 
   - do:
@@ -165,8 +165,8 @@ setup:
 ---
 "Test computed_shard_movements":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["cluster_desired_balance_extended"]
       reason: "computed_shard_movements added in in 8.8.0"
 
   - do:
@@ -177,8 +177,8 @@ setup:
 ---
 "Test reset desired balance":
 
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["cluster_desired_balance_extended"]
       reason: "reset API added in in 8.8.0"
 
   - do:
@@ -187,8 +187,8 @@ setup:
 ---
 "Test undesired_shard_allocation_count":
 
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["cluster_desired_balance_stats_undesired_count"]
       reason: "undesired_shard_allocation_count added in in 8.12.0"
 
   - do:
@@ -225,8 +225,8 @@ setup:
 ---
 "Test unassigned_shards, total_allocations, undesired_allocations and undesired_allocations_fraction":
 
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: [ "cluster_desired_balance_stats_undesired_count" ]
       reason: "undesired_shard_allocation_count added in in 8.12.0"
 
   - do:

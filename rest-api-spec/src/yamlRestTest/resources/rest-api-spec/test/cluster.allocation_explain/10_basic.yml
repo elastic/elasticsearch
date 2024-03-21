@@ -49,10 +49,10 @@
 
 ---
 "Cluster shard allocation explanation test with a closed index":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["indices_replicate_closed"]
       reason: closed indices are replicated starting version 7.2.0
-      features: ["allowed_warnings"]
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -95,8 +95,8 @@
 
 ---
 "Cluster allocation explanation response includes node's roles":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["cluster_allocation_role"]
       reason: The roles field was introduced in 8.11.0
 
   - do:

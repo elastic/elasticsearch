@@ -72,7 +72,7 @@
 "Test cat indices output for closed index (pre 7.2.0)":
   - skip:
       reason:  "closed indices are replicated starting version 7.2.0"
-      cluster_features: ["cat_indices_replicate_closed"]
+      cluster_features: ["indices_replicate_closed"]
   - requires:
       test_runner_features: ["allowed_warnings"]
 
@@ -117,7 +117,7 @@
 "Test cat indices output for closed index":
   - skip:
       reason:  "closed indices are replicated starting version 7.2.0"
-      cluster_features: ["cat_indices_replicate_closed"]
+      cluster_features: ["indices_replicate_closed"]
   - requires:
       test_runner_features: ["allowed_warnings"]
 

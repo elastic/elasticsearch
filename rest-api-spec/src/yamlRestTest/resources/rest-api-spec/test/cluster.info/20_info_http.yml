@@ -1,7 +1,7 @@
 ---
 "Cluster HTTP Info":
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["cluster_info_extended"]
       reason: "/_info/http only available from v8.9"
 
   - do:

@@ -156,7 +156,7 @@ class ValuesBooleanAggregator {
         }
 
         void enableGroupIdTracking(SeenGroupIds seen) {
-            // we figure out seen values from their
+            // we don't need to track which values have been seen because we don't do anything special for groups without values
         }
 
         @Override

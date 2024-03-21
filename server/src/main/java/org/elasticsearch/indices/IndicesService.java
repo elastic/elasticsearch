@@ -1729,7 +1729,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest) {
         Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier = () -> {
             // Skip unavailable indices
-            // TODO: Support metadata lookups for indices on remote clusters
             IndicesOptions.Builder indicesOptionsBuilder = IndicesOptions.builder(indicesRequest.indicesOptions())
                 .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true));
             Index[] indices = indexNameExpressionResolver.concreteIndices(

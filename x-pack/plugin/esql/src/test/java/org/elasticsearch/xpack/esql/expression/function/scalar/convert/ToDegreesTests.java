@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -23,7 +22,6 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102987")
 public class ToDegreesTests extends AbstractFunctionTestCase {
     public ToDegreesTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -62,14 +60,33 @@ public class ToDegreesTests extends AbstractFunctionTestCase {
             UNSIGNED_LONG_MAX,
             List.of()
         );
-        TestCaseSupplier.forUnaryDouble(
+        TestCaseSupplier.forUnaryDouble(suppliers, "ToDegreesEvaluator[field=Attribute[channel=0]]", DataTypes.DOUBLE, d -> {
+            double deg = Math.toDegrees(d);
+            return Double.isNaN(deg) || Double.isInfinite(deg) ? null : deg;
+        }, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, d -> {
+            double deg = Math.toDegrees(d);
+            ArrayList<String> warnings = new ArrayList<>(2);
+            if (Double.isNaN(deg) || Double.isInfinite(deg)) {
+                warnings.add("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.");
+                warnings.add("Line -1:-1: java.lang.ArithmeticException: not a finite double number: " + deg);
+            }
+            return warnings;
+        });
+        TestCaseSupplier.unary(
             suppliers,
             "ToDegreesEvaluator[field=Attribute[channel=0]]",
+            List.of(
+                new TestCaseSupplier.TypedDataSupplier("Double.MAX_VALUE", () -> Double.MAX_VALUE, DataTypes.DOUBLE),
+                new TestCaseSupplier.TypedDataSupplier("-Double.MAX_VALUE", () -> -Double.MAX_VALUE, DataTypes.DOUBLE),
+                new TestCaseSupplier.TypedDataSupplier("Double.POSITIVE_INFINITY", () -> Double.POSITIVE_INFINITY, DataTypes.DOUBLE),
+                new TestCaseSupplier.TypedDataSupplier("Double.NEGATIVE_INFINITY", () -> Double.NEGATIVE_INFINITY, DataTypes.DOUBLE)
+            ),
             DataTypes.DOUBLE,
-            Math::toDegrees,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            List.of()
+            d -> null,
+            d -> List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.ArithmeticException: not a finite double number: " + ((double) d > 0 ? "Infinity" : "-Infinity")
+            )
         );
 
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));

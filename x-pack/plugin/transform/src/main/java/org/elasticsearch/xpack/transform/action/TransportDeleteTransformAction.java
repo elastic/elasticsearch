@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -158,7 +158,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
                     config.getHeaders(),
                     TRANSFORM_ORIGIN,
                     client,
-                    DeleteIndexAction.INSTANCE,
+                    TransportDeleteIndexAction.TYPE,
                     deleteDestIndexRequest,
                     deleteDestIndexListener
                 );

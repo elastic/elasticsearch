@@ -16,7 +16,6 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
@@ -97,20 +96,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     protected ClientYamlTestClient initClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
-        final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os
+        final List<HttpHost> hosts
     ) {
-        return new ClientYamlDocsTestClient(
-            restSpec,
-            restClient,
-            hosts,
-            esVersion,
-            masterVersion,
-            os,
-            this::getClientBuilderWithSniffedHosts
-        );
+        return new ClientYamlDocsTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts);
     }
 
     @Before

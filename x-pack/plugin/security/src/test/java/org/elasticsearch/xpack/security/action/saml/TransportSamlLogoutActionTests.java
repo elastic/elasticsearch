@@ -17,10 +17,10 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -99,6 +100,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     private List<BulkRequest> bulkRequests;
     private TransportSamlLogoutAction action;
     private Client client;
+    private ThreadPool threadPool;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -116,9 +118,8 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
 
-        final ThreadContext threadContext = new ThreadContext(settings);
-        final ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        this.threadPool = new TestThreadPool("saml logout test thread pool", settings);
+        final ThreadContext threadContext = this.threadPool.getThreadContext();
         AuthenticationTestHelper.builder()
             .user(new User("kibana"))
             .realmRef(new Authentication.RealmRef("realm", "type", "node"))
@@ -181,7 +182,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             final IndexResponse response = new IndexResponse(new ShardId("test", "test", 0), indexRequest.id(), 1, 1, 1, true);
             listener.onResponse(response);
             return Void.TYPE;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), any(ActionListener.class));
         doAnswer(invocationOnMock -> {
             BulkRequest bulkRequest = (BulkRequest) invocationOnMock.getArguments()[0];
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[1];
@@ -241,6 +242,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     @After
     public void cleanup() {
         samlRealm.close();
+        threadPool.shutdown();
     }
 
     public void testLogoutInvalidatesToken() throws Exception {

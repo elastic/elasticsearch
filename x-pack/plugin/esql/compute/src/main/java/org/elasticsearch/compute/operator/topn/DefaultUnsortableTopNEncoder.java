@@ -156,12 +156,21 @@ final class DefaultUnsortableTopNEncoder implements TopNEncoder {
 
     @Override
     public int encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        throw new UnsupportedOperationException();
+        final int offset = bytesRefBuilder.length();
+        encodeVInt(value.length, bytesRefBuilder);
+        bytesRefBuilder.append(value);
+        return bytesRefBuilder.length() - offset;
     }
 
     @Override
     public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        throw new UnsupportedOperationException();
+        final int len = decodeVInt(bytes);
+        scratch.bytes = bytes.bytes;
+        scratch.offset = bytes.offset;
+        scratch.length = len;
+        bytes.offset += len;
+        bytes.length -= len;
+        return scratch;
     }
 
     @Override

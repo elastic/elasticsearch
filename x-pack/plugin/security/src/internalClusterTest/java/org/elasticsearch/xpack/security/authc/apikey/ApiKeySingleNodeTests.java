@@ -9,15 +9,15 @@ package org.elasticsearch.xpack.security.authc.apikey;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
@@ -91,7 +92,6 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -100,6 +100,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -147,10 +148,10 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
                 .filter(QueryBuilders.rangeQuery("expiration").from(Instant.now().toEpochMilli()))
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getItems().length, equalTo(1));
-        assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getId(), equalTo(id2));
-        assertThat(queryApiKeyResponse.getItems()[0].getApiKey().getName(), equalTo("long-lived"));
-        assertThat(queryApiKeyResponse.getItems()[0].getSortValues(), emptyArray());
+        assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        assertThat(queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getId(), equalTo(id2));
+        assertThat(queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getName(), equalTo("long-lived"));
+        assertThat(queryApiKeyResponse.getApiKeyInfoList().get(0).sortValues(), emptyArray());
     }
 
     public void testCreatingApiKeyWithNoAccess() {
@@ -285,8 +286,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(apiKeyId).ownedByAuthenticatedUser(randomBoolean()).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos().length, equalTo(1));
-        assertThat(getApiKeyResponse.getApiKeyInfos()[0].getId(), equalTo(apiKeyId));
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        assertThat(getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo().getId(), is(apiKeyId));
 
         // Cannot get any other keys
         final ElasticsearchSecurityException e = expectThrows(
@@ -311,10 +312,13 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final String apiKeyId = createApiKeyResponse.getId();
         final String base64ApiKeyKeyValue = Base64.getEncoder()
             .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
-        assertThat(securityClient.getApiKey(apiKeyId).getUsername(), equalTo("user2"));
+        ApiKey apiKey = securityClient.getApiKey(apiKeyId);
+        assertThat(apiKey.getUsername(), equalTo("user2"));
+        assertThat(apiKey.getRealm(), equalTo("index"));
+        assertThat(apiKey.getRealmType(), equalTo("native"));
         final Client clientWithGrantedKey = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue));
         // The API key has privileges (inherited from user2) to check cluster health
-        clientWithGrantedKey.execute(ClusterHealthAction.INSTANCE, new ClusterHealthRequest()).actionGet();
+        clientWithGrantedKey.execute(TransportClusterHealthAction.TYPE, new ClusterHealthRequest()).actionGet();
         // If the API key is granted with limiting descriptors, it should not be able to read pipeline
         if (grantApiKeyRequest.getApiKeyRequest().getRoleDescriptors().isEmpty()) {
             clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest()).actionGet();
@@ -575,7 +579,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         );
 
         // Check the API key attributes with raw document
-        final Map<String, Object> document = client().execute(GetAction.INSTANCE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId))
+        final Map<String, Object> document = client().execute(TransportGetAction.TYPE, new GetRequest(SECURITY_MAIN_ALIAS, apiKeyId))
             .actionGet()
             .getSource();
         assertThat(document.get("type"), equalTo("cross_cluster"));
@@ -609,14 +613,15 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
-        final ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(getApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(getApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
         assertThat(getApiKeyInfo.getLimitedBy(), nullValue());
         assertThat(getApiKeyInfo.getMetadata(), anEmptyMap());
         assertThat(getApiKeyInfo.getUsername(), equalTo("test_user"));
         assertThat(getApiKeyInfo.getRealm(), equalTo("file"));
+        assertThat(getApiKeyInfo.getRealmType(), equalTo("file"));
 
         // Check the API key attributes with Query API
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest(
@@ -625,17 +630,19 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             null,
             null,
             null,
+            null,
             randomBoolean()
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
+        assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        ApiKey queryApiKeyInfo = queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(queryApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(queryApiKeyInfo.getRoleDescriptors(), contains(expectedRoleDescriptor));
         assertThat(queryApiKeyInfo.getLimitedBy(), nullValue());
         assertThat(queryApiKeyInfo.getMetadata(), anEmptyMap());
         assertThat(queryApiKeyInfo.getUsername(), equalTo("test_user"));
         assertThat(queryApiKeyInfo.getRealm(), equalTo("file"));
+        assertThat(queryApiKeyInfo.getRealmType(), equalTo("file"));
     }
 
     public void testUpdateCrossClusterApiKey() throws IOException {
@@ -662,14 +669,15 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             GetApiKeyAction.INSTANCE,
             GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(randomBoolean()).build()
         ).actionGet();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
-        final ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(getApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        ApiKey getApiKeyInfo = getApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(getApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(getApiKeyInfo.getRoleDescriptors(), contains(originalRoleDescriptor));
         assertThat(getApiKeyInfo.getLimitedBy(), nullValue());
         assertThat(getApiKeyInfo.getMetadata(), anEmptyMap());
         assertThat(getApiKeyInfo.getUsername(), equalTo("test_user"));
         assertThat(getApiKeyInfo.getRealm(), equalTo("file"));
+        assertThat(getApiKeyInfo.getRealmType(), equalTo("file"));
 
         final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
         final boolean shouldUpdateAccess = randomBoolean();
@@ -706,7 +714,13 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             updateMetadata = null;
         }
 
-        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(apiKeyId, roleDescriptorBuilder, updateMetadata);
+        final boolean shouldUpdateExpiration = randomBoolean();
+        TimeValue expiration = null;
+        if (shouldUpdateExpiration) {
+            ApiKeyTests.randomFutureExpirationTime();
+        }
+
+        final var updateApiKeyRequest = new UpdateCrossClusterApiKeyRequest(apiKeyId, roleDescriptorBuilder, updateMetadata, expiration);
         final UpdateApiKeyResponse updateApiKeyResponse = client().execute(UpdateCrossClusterApiKeyAction.INSTANCE, updateApiKeyRequest)
             .actionGet();
 
@@ -722,11 +736,12 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             null,
             null,
             null,
+            null,
             randomBoolean()
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
-        assertThat(queryApiKeyResponse.getItems(), arrayWithSize(1));
-        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getItems()[0].getApiKey();
+        assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
+        final ApiKey queryApiKeyInfo = queryApiKeyResponse.getApiKeyInfoList().get(0).apiKeyInfo();
         assertThat(queryApiKeyInfo.getType(), is(ApiKey.Type.CROSS_CLUSTER));
         assertThat(
             queryApiKeyInfo.getRoleDescriptors(),
@@ -736,6 +751,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(queryApiKeyInfo.getMetadata(), equalTo(updateMetadata == null ? Map.of() : updateMetadata));
         assertThat(queryApiKeyInfo.getUsername(), equalTo("test_user"));
         assertThat(queryApiKeyInfo.getRealm(), equalTo("file"));
+        assertThat(queryApiKeyInfo.getRealmType(), equalTo("file"));
     }
 
     // Cross-cluster API keys cannot be created by an API key even if it has manage_security privilege
@@ -804,7 +820,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     private Map<String, Object> getApiKeyDocument(String apiKeyId) {
-        final GetResponse getResponse = client().execute(GetAction.INSTANCE, new GetRequest(".security-7", apiKeyId)).actionGet();
+        final GetResponse getResponse = client().execute(TransportGetAction.TYPE, new GetRequest(".security-7", apiKeyId)).actionGet();
         return getResponse.getSource();
     }
 }

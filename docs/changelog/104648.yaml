@@ -1,0 +1,5 @@
+pr: 104648
+summary: "[Connector API] Implement update `index_name` action"
+area: Application
+type: enhancement
+issues: []

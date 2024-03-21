@@ -83,6 +83,10 @@
                         type: keyword
                         doc_values: false
   - do:
+        index:
+          index:  field_caps_index_1
+          body:   { number: "42", unmapped-bar: "bar" }
+  - do:
       indices.create:
         index: test_index
         body:

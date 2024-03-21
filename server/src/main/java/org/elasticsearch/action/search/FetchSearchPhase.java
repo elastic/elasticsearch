@@ -16,7 +16,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
@@ -31,7 +30,7 @@ import java.util.function.BiFunction;
 final class FetchSearchPhase extends SearchPhase {
     private final ArraySearchPhaseResults<FetchSearchResult> fetchResults;
     private final AtomicArray<SearchPhaseResult> queryResults;
-    private final BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
+    private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
     private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
@@ -45,7 +44,7 @@ final class FetchSearchPhase extends SearchPhase {
             context,
             (response, queryPhaseResults) -> new ExpandSearchPhase(
                 context,
-                response,
+                response.hits,
                 () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults)
             )
         );
@@ -55,7 +54,7 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
         SearchPhaseContext context,
-        BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
+        BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
         super("fetch");
         if (context.getNumShards() != resultConsumer.getNumShards()) {
@@ -67,7 +66,7 @@ final class FetchSearchPhase extends SearchPhase {
             );
         }
         this.fetchResults = new ArraySearchPhaseResults<>(resultConsumer.getNumShards());
-        context.addReleasable(fetchResults::decRef);
+        context.addReleasable(fetchResults);
         this.queryResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -230,11 +229,9 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr
     ) {
-        final InternalSearchResponse internalResponse = SearchPhaseController.merge(
-            context.getRequest().scroll() != null,
-            reducedQueryPhase,
-            fetchResultsArr
-        );
-        context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, queryResults));
+        var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
+        context.addReleasable(resp::decRef);
+        fetchResults.close();
+        context.executeNextPhase(this, nextPhaseFactory.apply(resp, queryResults));
     }
 }

@@ -32,6 +32,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -44,8 +46,10 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -65,13 +69,16 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
+import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -186,6 +193,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNam
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -316,16 +325,13 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
-import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerFeature;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -359,6 +365,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
+import org.elasticsearch.xpack.ml.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -370,6 +377,7 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder;
+import org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -459,6 +467,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -476,7 +485,8 @@ public class MachineLearning extends Plugin
         PersistentTaskPlugin,
         SearchPlugin,
         ShutdownAwarePlugin,
-        ExtensiblePlugin {
+        ExtensiblePlugin,
+        MapperPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
@@ -748,6 +758,7 @@ public class MachineLearning extends Plugin
     public static final int MAX_LOW_PRIORITY_MODELS_PER_NODE = 100;
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MachineLearning.class);
 
     private final Settings settings;
     private final boolean enabled;
@@ -818,13 +829,19 @@ public class MachineLearning extends Plugin
         String allocatedProcessorsAttrName = "node.attr." + ALLOCATED_PROCESSORS_NODE_ATTR;
         String mlConfigVersionAttrName = "node.attr." + ML_CONFIG_VERSION_NODE_ATTR;
 
-        if (enabled == false) {
-            disallowMlNodeAttributes(maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName, jvmSizeAttrName, mlConfigVersionAttrName);
-            return Settings.EMPTY;
-        }
-
         Settings.Builder additionalSettings = Settings.builder();
-        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE)) {
+
+        // The ML config version is needed for two related reasons even if ML is currently disabled on the node:
+        // 1. If ML is in use then decisions about minimum node versions need to include this node, and not
+        // having it available can cause exceptions during cluster state processing
+        // 2. It could be argued that reason 1 could be fixed by completely ignoring the node, however,
+        // then there would be a risk that ML is later enabled on an old node that was ignored, and
+        // some new ML feature that's been used is then incompatible with it
+        // The only safe approach is to consider which ML code _all_ nodes in the cluster are running, regardless
+        // of whether they currently have ML enabled.
+        addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.CURRENT.toString());
+
+        if (enabled && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE)) {
             addMlNodeAttribute(
                 additionalSettings,
                 machineMemoryAttrName,
@@ -848,7 +865,6 @@ public class MachineLearning extends Plugin
                 allocatedProcessorsAttrName
             );
         }
-        addMlNodeAttribute(additionalSettings, mlConfigVersionAttrName, MlConfigVersion.CURRENT.toString());
         return additionalSettings.build();
     }
 
@@ -886,7 +902,7 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RescorerSpec<?>> getRescorers() {
-        if (enabled && LearningToRankRescorerFeature.isEnabled()) {
+        if (enabled && machineLearningExtension.get().isLearningToRankEnabled()) {
             return List.of(
                 new RescorerSpec<>(
                     LearningToRankRescorerBuilder.NAME,
@@ -906,11 +922,21 @@ public class MachineLearning extends Plugin
         Environment environment = services.environment();
         NamedXContentRegistry xContentRegistry = services.xContentRegistry();
         IndexNameExpressionResolver indexNameExpressionResolver = services.indexNameExpressionResolver();
+        TelemetryProvider telemetryProvider = services.telemetryProvider();
 
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
             // both empty if ML is disabled
             return List.of(new JobManagerHolder(), new MachineLearningExtensionHolder());
+        }
+
+        if ("darwin-x86_64".equals(Platforms.PLATFORM_NAME)) {
+            String msg = "The machine learning plugin will be permanently disabled on macOS x86_64 in new minor versions released "
+                + "from December 2024 onwards. To continue to use machine learning functionality on macOS please switch to an arm64 "
+                + "machine (Apple silicon). Alternatively, it will still be possible to run Elasticsearch with machine learning "
+                + "enabled in a Docker container on macOS x86_64.";
+            logger.warn(msg);
+            deprecationLogger.warn(DeprecationCategory.PLUGINS, "ml-darwin-x86_64", msg);
         }
 
         machineLearningExtension.get().configure(environment.settings());
@@ -1047,7 +1073,7 @@ public class MachineLearning extends Plugin
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
             memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
-            pyTorchProcessFactory = (task, executorService, onProcessCrash) -> new BlackHolePyTorchProcess();
+            pyTorchProcessFactory = (task, executorService, afterInputStreamClose, onProcessCrash) -> new BlackHolePyTorchProcess();
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(
             normalizerProcessFactory,
@@ -1125,7 +1151,14 @@ public class MachineLearning extends Plugin
         );
 
         this.deploymentManager.set(
-            new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
+            new DeploymentManager(
+                client,
+                xContentRegistry,
+                threadPool,
+                pyTorchProcessFactory,
+                getMaxModelDeploymentsPerNode(),
+                inferenceAuditor
+            )
         );
 
         // Data frame analytics components
@@ -1247,6 +1280,14 @@ public class MachineLearning extends Plugin
             machineLearningExtension.get().isNlpEnabled()
         );
 
+        MlMetrics mlMetrics = new MlMetrics(
+            telemetryProvider.getMeterRegistry(),
+            clusterService,
+            settings,
+            autodetectProcessManager,
+            dataFrameAnalyticsManager
+        );
+
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),
@@ -1278,7 +1319,8 @@ public class MachineLearning extends Plugin
             trainedModelAllocationClusterServiceSetOnce.get(),
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
-            new MachineLearningExtensionHolder(machineLearningExtension.get())
+            new MachineLearningExtensionHolder(machineLearningExtension.get()),
+            mlMetrics
         );
     }
 
@@ -1306,7 +1348,7 @@ public class MachineLearning extends Plugin
                 getLicenseState(),
                 machineLearningExtension.get().includeNodeInfo()
             ),
-            new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver),
+            new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver, threadPool),
             new TransportStartDataFrameAnalyticsAction.TaskExecutor(
                 settings,
                 client,
@@ -1333,12 +1375,14 @@ public class MachineLearning extends Plugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings unused,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         if (false == enabled) {
             return List.of();
@@ -1716,6 +1760,11 @@ public class MachineLearning extends Plugin
                 TextExpansionQueryBuilder.NAME,
                 TextExpansionQueryBuilder::new,
                 TextExpansionQueryBuilder::fromXContent
+            ),
+            new QuerySpec<QueryBuilder>(
+                WeightedTokensQueryBuilder.NAME,
+                WeightedTokensQueryBuilder::new,
+                WeightedTokensQueryBuilder::fromXContent
             )
         );
     }
@@ -1797,7 +1846,7 @@ public class MachineLearning extends Plugin
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
         // LTR Combine with Inference named content provider when feature flag is removed
-        if (LearningToRankRescorerFeature.isEnabled()) {
+        if (machineLearningExtension.get().isLearningToRankEnabled()) {
             namedXContent.addAll(new MlLTRNamedXContentProvider().getNamedXContentParsers());
         }
         return namedXContent;
@@ -1885,7 +1934,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
         // LTR Combine with Inference named content provider when feature flag is removed
-        if (LearningToRankRescorerFeature.isEnabled()) {
+        if (machineLearningExtension.get().isLearningToRankEnabled()) {
             namedWriteables.addAll(new MlLTRNamedXContentProvider().getNamedWriteables());
         }
         return namedWriteables;
@@ -1942,7 +1991,7 @@ public class MachineLearning extends Plugin
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
             new SetUpgradeModeAction.Request(true),
-            ActionListener.wrap(r -> listener.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)))
         );
     }
 
@@ -1964,7 +2013,7 @@ public class MachineLearning extends Plugin
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
             new SetUpgradeModeAction.Request(false),
-            ActionListener.wrap(r -> listener.onResponse(r.isAcknowledged()), listener::onFailure)
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.isAcknowledged()))
         );
     }
 
@@ -2065,40 +2114,39 @@ public class MachineLearning extends Plugin
             }
         );
 
-        ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(listTasksResponse -> {
-            listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
-            if (results.values().stream().allMatch(b -> b)) {
-                if (memoryTracker.get() != null) {
-                    memoryTracker.get()
-                        .awaitAndClear(
-                            ActionListener.wrap(
-                                cacheCleared -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener),
-                                clearFailed -> {
-                                    logger.error(
-                                        "failed to clear memory tracker cache via machine learning reset feature API",
-                                        clearFailed
-                                    );
-                                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
-                                }
-                            )
-                        );
-                    return;
+        // Stop all model deployments
+        ActionListener<AcknowledgedResponse> pipelineValidation = unsetResetModeListener.<ListTasksResponse>delegateFailureAndWrap(
+            (delegate, listTasksResponse) -> {
+                listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
+                if (results.values().stream().allMatch(b -> b)) {
+                    if (memoryTracker.get() != null) {
+                        memoryTracker.get()
+                            .awaitAndClear(
+                                ActionListener.wrap(
+                                    cacheCleared -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, delegate),
+                                    clearFailed -> {
+                                        logger.error(
+                                            "failed to clear memory tracker cache via machine learning reset feature API",
+                                            clearFailed
+                                        );
+                                        SystemIndexPlugin.super.cleanUpFeature(clusterService, client, delegate);
+                                    }
+                                )
+                            );
+                        return;
+                    }
+                    // Call into the original listener to clean up the indices and then clear ml memory cache
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, delegate);
+                } else {
+                    final List<String> failedComponents = results.entrySet()
+                        .stream()
+                        .filter(result -> result.getValue() == false)
+                        .map(Map.Entry::getKey)
+                        .toList();
+                    delegate.onFailure(new RuntimeException("Some machine learning components failed to reset: " + failedComponents));
                 }
-                // Call into the original listener to clean up the indices and then clear ml memory cache
-                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
-            } else {
-                final List<String> failedComponents = results.entrySet()
-                    .stream()
-                    .filter(result -> result.getValue() == false)
-                    .map(Map.Entry::getKey)
-                    .toList();
-                unsetResetModeListener.onFailure(
-                    new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
-                );
             }
-        }, unsetResetModeListener::onFailure);
-
-        ActionListener<StopDataFrameAnalyticsAction.Response> afterDataframesStopped = ActionListener.wrap(dataFrameStopResponse -> {
+        ).<StopDataFrameAnalyticsAction.Response>delegateFailureAndWrap((delegate, dataFrameStopResponse) -> {
             // Handle the response
             results.put("data_frame/analytics", dataFrameStopResponse.isStopped());
             if (results.values().stream().allMatch(b -> b)) {
@@ -2108,7 +2156,7 @@ public class MachineLearning extends Plugin
                     // This waits for all xpack actions including: allocations, anomaly detections, analytics
                     .setActions("xpack/ml/*")
                     .setWaitForCompletion(true)
-                    .execute(ActionListener.wrap(listMlTasks -> {
+                    .execute(delegate.delegateFailureAndWrap((l, listMlTasks) -> {
                         listMlTasks.rethrowFailures("Waiting for machine learning tasks");
                         client.admin()
                             .cluster()
@@ -2117,48 +2165,37 @@ public class MachineLearning extends Plugin
                             .setDetailed(true)
                             .setWaitForCompletion(true)
                             .setDescriptions("*.ml-*")
-                            .execute(afterWaitingForTasks);
-                    }, unsetResetModeListener::onFailure));
+                            .execute(l);
+                    }));
             } else {
                 final List<String> failedComponents = results.entrySet()
                     .stream()
                     .filter(result -> result.getValue() == false)
                     .map(Map.Entry::getKey)
                     .toList();
-                unsetResetModeListener.onFailure(
-                    new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
-                );
+                delegate.onFailure(new RuntimeException("Some machine learning components failed to reset: " + failedComponents));
             }
-        }, unsetResetModeListener::onFailure);
-
-        ActionListener<CloseJobAction.Response> afterAnomalyDetectionClosed = ActionListener.wrap(closeJobResponse -> {
+        }).<CloseJobAction.Response>delegateFailureAndWrap((delegate, closeJobResponse) -> {
             // Handle the response
             results.put("anomaly_detectors", closeJobResponse.isClosed());
             if (machineLearningExtension.get().isDataFrameAnalyticsEnabled() == false) {
-                afterDataframesStopped.onResponse(new StopDataFrameAnalyticsAction.Response(true));
+                delegate.onResponse(new StopDataFrameAnalyticsAction.Response(true));
                 return;
             }
             // Stop data frame analytics
             StopDataFrameAnalyticsAction.Request stopDataFramesReq = new StopDataFrameAnalyticsAction.Request("_all").setAllowNoMatch(true);
-            client.execute(
-                StopDataFrameAnalyticsAction.INSTANCE,
-                stopDataFramesReq,
-                ActionListener.wrap(afterDataframesStopped::onResponse, failure -> {
-                    logger.warn(
-                        "failed stopping data frame analytics jobs for machine learning feature reset. Attempting with force=true",
-                        failure
-                    );
-                    client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq.setForce(true), afterDataframesStopped);
-                })
-            );
-        }, unsetResetModeListener::onFailure);
-
-        // Close anomaly detection jobs
-        ActionListener<StopDatafeedAction.Response> afterDataFeedsStopped = ActionListener.wrap(datafeedResponse -> {
+            client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq, ActionListener.wrap(delegate::onResponse, failure -> {
+                logger.warn(
+                    "failed stopping data frame analytics jobs for machine learning feature reset. Attempting with force=true",
+                    failure
+                );
+                client.execute(StopDataFrameAnalyticsAction.INSTANCE, stopDataFramesReq.setForce(true), delegate);
+            }));
+        }).<StopDatafeedAction.Response>delegateFailureAndWrap((delegate, datafeedResponse) -> {
             // Handle the response
             results.put("datafeeds", datafeedResponse.isStopped());
             if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
-                afterAnomalyDetectionClosed.onResponse(new CloseJobAction.Response(true));
+                delegate.onResponse(new CloseJobAction.Response(true));
                 return;
             }
             CloseJobAction.Request closeJobsRequest = new CloseJobAction.Request().setAllowNoMatch(true).setJobId("_all");
@@ -2166,65 +2203,48 @@ public class MachineLearning extends Plugin
             client.execute(
                 KillProcessAction.INSTANCE,
                 new KillProcessAction.Request("*"),
-                ActionListener.wrap(
+                delegate.delegateFailureAndWrap(
                     // If successful, close and wait for jobs
-                    success -> client.execute(
+                    (l, success) -> client.execute(
                         CloseJobAction.INSTANCE,
                         closeJobsRequest,
-                        ActionListener.wrap(afterAnomalyDetectionClosed::onResponse, failure -> {
+                        ActionListener.wrap(l::onResponse, failure -> {
                             logger.warn(
                                 "failed closing anomaly jobs for machine learning feature reset. Attempting with force=true",
                                 failure
                             );
-                            client.execute(CloseJobAction.INSTANCE, closeJobsRequest.setForce(true), afterAnomalyDetectionClosed);
+                            client.execute(CloseJobAction.INSTANCE, closeJobsRequest.setForce(true), l);
                         })
-                    ),
-                    unsetResetModeListener::onFailure
+                    )
                 )
             );
-        }, unsetResetModeListener::onFailure);
-
-        // Stop data feeds
-        ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelSnapshotUpgradesListener = ActionListener.wrap(
-            cancelUpgradesResponse -> {
-                if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
-                    afterDataFeedsStopped.onResponse(new StopDatafeedAction.Response(true));
-                    return;
-                }
-                StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all").setAllowNoMatch(true);
-                client.execute(
-                    StopDatafeedAction.INSTANCE,
-                    stopDatafeedsReq,
-                    ActionListener.wrap(afterDataFeedsStopped::onResponse, failure -> {
-                        logger.warn("failed stopping datafeeds for machine learning feature reset. Attempting with force=true", failure);
-                        client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq.setForce(true), afterDataFeedsStopped);
-                    })
-                );
-            },
-            unsetResetModeListener::onFailure
-        );
-
-        // Cancel model snapshot upgrades
-        ActionListener<AcknowledgedResponse> stopDeploymentsListener = ActionListener.wrap(acknowledgedResponse -> {
+        }).<CancelJobModelSnapshotUpgradeAction.Response>delegateFailureAndWrap((delegate, cancelUpgradesResponse) -> {
             if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
-                cancelSnapshotUpgradesListener.onResponse(new CancelJobModelSnapshotUpgradeAction.Response(true));
+                delegate.onResponse(new StopDatafeedAction.Response(true));
+                return;
+            }
+            StopDatafeedAction.Request stopDatafeedsReq = new StopDatafeedAction.Request("_all").setAllowNoMatch(true);
+            client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq, ActionListener.wrap(delegate::onResponse, failure -> {
+                logger.warn("failed stopping datafeeds for machine learning feature reset. Attempting with force=true", failure);
+                client.execute(StopDatafeedAction.INSTANCE, stopDatafeedsReq.setForce(true), delegate);
+            }));
+        }).<AcknowledgedResponse>delegateFailureAndWrap((delegate, acknowledgedResponse) -> {
+            if (machineLearningExtension.get().isAnomalyDetectionEnabled() == false) {
+                delegate.onResponse(new CancelJobModelSnapshotUpgradeAction.Response(true));
                 return;
             }
             CancelJobModelSnapshotUpgradeAction.Request cancelSnapshotUpgradesReq = new CancelJobModelSnapshotUpgradeAction.Request(
                 "_all",
                 "_all"
             );
-            client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, cancelSnapshotUpgradesListener);
-        }, unsetResetModeListener::onFailure);
-
-        // Stop all model deployments
-        ActionListener<AcknowledgedResponse> pipelineValidation = ActionListener.wrap(acknowledgedResponse -> {
+            client.execute(CancelJobModelSnapshotUpgradeAction.INSTANCE, cancelSnapshotUpgradesReq, delegate);
+        }).delegateFailureAndWrap((delegate, acknowledgedResponse) -> {
             if (trainedModelAllocationClusterServiceSetOnce.get() == null || machineLearningExtension.get().isNlpEnabled() == false) {
-                stopDeploymentsListener.onResponse(AcknowledgedResponse.TRUE);
+                delegate.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(stopDeploymentsListener);
-        }, unsetResetModeListener::onFailure);
+            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(delegate);
+        });
 
         // validate no pipelines are using machine learning models
         ActionListener<AcknowledgedResponse> afterResetModeSet = ActionListener.wrap(acknowledgedResponse -> {
@@ -2287,5 +2307,13 @@ public class MachineLearning extends Plugin
         if (enabled) {
             mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
         }
+    }
+
+    @Override
+    public Map<String, Mapper.TypeParser> getMappers() {
+        if (SemanticTextFeature.isEnabled()) {
+            return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
+        }
+        return Map.of();
     }
 }

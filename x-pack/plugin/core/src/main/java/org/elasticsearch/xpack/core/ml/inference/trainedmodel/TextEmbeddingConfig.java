@@ -46,7 +46,7 @@ public class TextEmbeddingConfig implements NlpConfig {
         ConstructingObjectParser<TextEmbeddingConfig, Void> parser = new ConstructingObjectParser<>(
             NAME,
             ignoreUnknownFields,
-            a -> new TextEmbeddingConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2], (Integer) a[3])
+            a -> TextEmbeddingConfig.create((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2], (Integer) a[3])
         );
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             if (ignoreUnknownFields == false) {
@@ -72,31 +72,42 @@ public class TextEmbeddingConfig implements NlpConfig {
     private final String resultsField;
     private final Integer embeddingSize;
 
-    public TextEmbeddingConfig(
+    static TextEmbeddingConfig create(
         @Nullable VocabularyConfig vocabularyConfig,
         @Nullable Tokenization tokenization,
         @Nullable String resultsField,
         @Nullable Integer embeddingSize
     ) {
-        this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
-            .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
-        this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
-        this.resultsField = resultsField;
-        if (embeddingSize != null && embeddingSize <= 0) {
+        var config = new TextEmbeddingConfig(
+            Optional.ofNullable(vocabularyConfig).orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore())),
+            tokenization == null ? Tokenization.createDefault() : tokenization,
+            resultsField,
+            embeddingSize
+        );
+
+        if (config.embeddingSize != null && config.embeddingSize <= 0) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] must be a number greater than 0; configured size [{}]",
                 EMBEDDING_SIZE.getPreferredName(),
                 embeddingSize
             );
         }
-        this.embeddingSize = embeddingSize;
-        if (this.tokenization.span != -1) {
+        if (config.tokenization.span != -1) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] does not support windowing long text sequences; configured span [{}]",
                 NAME,
-                this.tokenization.span
+                config.tokenization.span
             );
         }
+
+        return config;
+    }
+
+    private TextEmbeddingConfig(VocabularyConfig vocabularyConfig, Tokenization tokenization, String resultsField, Integer embeddingSize) {
+        this.vocabularyConfig = vocabularyConfig;
+        this.tokenization = tokenization;
+        this.resultsField = resultsField;
+        this.embeddingSize = embeddingSize;
     }
 
     public TextEmbeddingConfig(StreamInput in) throws IOException {
@@ -143,6 +154,23 @@ public class TextEmbeddingConfig implements NlpConfig {
     @Override
     public boolean isTargetTypeSupported(TargetType targetType) {
         return false;
+    }
+
+    @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof TextEmbeddingConfigUpdate configUpdate) {
+            return new TextEmbeddingConfig(
+                vocabularyConfig,
+                configUpdate.tokenizationUpdate == null ? tokenization : configUpdate.tokenizationUpdate.apply(tokenization),
+                configUpdate.getResultsField() == null ? resultsField : configUpdate.getResultsField(),
+                embeddingSize
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new TextEmbeddingConfig(vocabularyConfig, updatedTokenization, resultsField, embeddingSize);
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
     }
 
     @Override

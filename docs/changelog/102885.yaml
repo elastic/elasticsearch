@@ -1,0 +1,5 @@
+pr: 102885
+summary: Make field limit more predictable
+area: Mapping
+type: enhancement
+issues: []

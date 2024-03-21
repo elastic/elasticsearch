@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -60,7 +61,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[6];
         for (int i = 0; i < 6; i++) {
             rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
-            hits[i] = new SearchHit(i, Integer.toString(i));
+            hits[i] = SearchHit.unpooled(i, Integer.toString(i));
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
@@ -110,7 +111,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
                     rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
                 }
             }
-            hits[i] = new SearchHit(i, Integer.toString(i));
+            hits[i] = SearchHit.unpooled(i, Integer.toString(i));
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
@@ -167,7 +168,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         // only create four hits
         SearchHit[] hits = new SearchHit[4];
         for (int i = 0; i < 4; i++) {
-            hits[i] = new SearchHit(i, Integer.toString(i));
+            hits[i] = SearchHit.unpooled(i, Integer.toString(i));
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
@@ -208,15 +209,14 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
                 }
             }
         }
-        SearchHit[] hits = new SearchHit[0];
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
-        EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
+        EvalQueryQuality result = dcg.evaluate("id", SearchHits.EMPTY, ratedDocs);
         assertEquals(0.0d, result.metricScore(), DELTA);
         assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
 
         // also check normalized
         dcg = new DiscountedCumulativeGain(true, null, 10);
-        result = dcg.evaluate("id", hits, ratedDocs);
+        result = dcg.evaluate("id", SearchHits.EMPTY, ratedDocs);
         assertEquals(0.0d, result.metricScore(), DELTA);
         assertEquals(0, filterUnratedDocuments(result.getHitsAndRatings()).size());
     }

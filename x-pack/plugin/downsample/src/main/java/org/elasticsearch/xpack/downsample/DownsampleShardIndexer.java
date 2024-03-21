@@ -94,6 +94,7 @@ class DownsampleShardIndexer {
     private final List<FieldValueFetcher> fieldValueFetchers;
     private final DownsampleShardTask task;
     private final DownsampleShardPersistentTaskState state;
+    private final String[] dimensions;
     private volatile boolean abort = false;
     ByteSizeValue downsampleBulkSize = DOWNSAMPLE_BULK_SIZE;
     ByteSizeValue downsampleMaxBytesInFlight = DOWNSAMPLE_MAX_BYTES_IN_FLIGHT;
@@ -107,6 +108,7 @@ class DownsampleShardIndexer {
         final DownsampleConfig config,
         final String[] metrics,
         final String[] labels,
+        final String[] dimensions,
         final DownsampleShardPersistentTaskState state
     ) {
         this.task = task;
@@ -125,13 +127,15 @@ class DownsampleShardIndexer {
                 null,
                 Collections.emptyMap()
             );
+            this.dimensions = dimensions;
             this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = config.createRounding();
 
-            List<FieldValueFetcher> fetchers = new ArrayList<>(metrics.length + labels.length);
+            List<FieldValueFetcher> fetchers = new ArrayList<>(metrics.length + labels.length + dimensions.length);
             fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, metrics));
             fetchers.addAll(FieldValueFetcher.create(searchExecutionContext, labels));
+            fetchers.addAll(DimensionFieldValueFetcher.create(searchExecutionContext, dimensions));
             this.fieldValueFetchers = Collections.unmodifiableList(fetchers);
             toClose = null;
         } finally {
@@ -155,7 +159,7 @@ class DownsampleShardIndexer {
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
-            TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor);
+            TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor, this.dimensions);
             bucketCollector.preCollection();
             timeSeriesSearcher.search(initialStateQuery, bucketCollector);
         }
@@ -332,12 +336,12 @@ class DownsampleShardIndexer {
         long lastTimestamp = Long.MAX_VALUE;
         long lastHistoTimestamp = Long.MAX_VALUE;
 
-        TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor) {
+        TimeSeriesBucketCollector(BulkProcessor2 bulkProcessor, String[] dimensions) {
             this.bulkProcessor = bulkProcessor;
             AbstractDownsampleFieldProducer[] fieldProducers = fieldValueFetchers.stream()
                 .map(FieldValueFetcher::fieldProducer)
                 .toArray(AbstractDownsampleFieldProducer[]::new);
-            this.downsampleBucketBuilder = new DownsampleBucketBuilder(fieldProducers);
+            this.downsampleBucketBuilder = new DownsampleBucketBuilder(fieldProducers, dimensions);
         }
 
         @Override
@@ -358,12 +362,12 @@ class DownsampleShardIndexer {
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
                     task.addNumReceived(1);
-                    final BytesRef tsid = aggCtx.getTsid();
-                    assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
-                    final int tsidOrd = aggCtx.getTsidOrd();
+                    final BytesRef tsidHash = aggCtx.getTsidHash();
+                    assert tsidHash != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
+                    final int tsidHashOrd = aggCtx.getTsidHashOrd();
                     final long timestamp = timestampField.resolution().roundDownToMillis(aggCtx.getTimestamp());
 
-                    boolean tsidChanged = tsidOrd != downsampleBucketBuilder.tsidOrd();
+                    boolean tsidChanged = tsidHashOrd != downsampleBucketBuilder.tsidOrd();
                     if (tsidChanged || timestamp < lastHistoTimestamp) {
                         lastHistoTimestamp = Math.max(
                             rounding.round(timestamp),
@@ -377,7 +381,7 @@ class DownsampleShardIndexer {
                         logger.trace(
                             "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> downsample bucket ts: [{}]",
                             docId,
-                            DocValueFormat.TIME_SERIES_ID.format(tsid),
+                            DocValueFormat.TIME_SERIES_ID.format(tsidHash),
                             timestampFormat.format(timestamp),
                             timestampFormat.format(lastHistoTimestamp)
                         );
@@ -389,13 +393,13 @@ class DownsampleShardIndexer {
                      * - @timestamp must be sorted in descending order within the same _tsid
                      */
                     BytesRef lastTsid = downsampleBucketBuilder.tsid();
-                    assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
+                    assert lastTsid == null || lastTsid.compareTo(tsidHash) <= 0
                         : "_tsid is not sorted in ascending order: ["
                             + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
                             + "] -> ["
-                            + DocValueFormat.TIME_SERIES_ID.format(tsid)
+                            + DocValueFormat.TIME_SERIES_ID.format(tsidHash)
                             + "]";
-                    assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp
+                    assert tsidHash.equals(lastTsid) == false || lastTimestamp >= timestamp
                         : "@timestamp is not sorted in descending order: ["
                             + timestampFormat.format(lastTimestamp)
                             + "] -> ["
@@ -412,7 +416,7 @@ class DownsampleShardIndexer {
 
                         // Create new downsample bucket
                         if (tsidChanged) {
-                            downsampleBucketBuilder.resetTsid(tsid, tsidOrd, lastHistoTimestamp);
+                            downsampleBucketBuilder.resetTsid(tsidHash, tsidHashOrd, lastHistoTimestamp);
                         } else {
                             downsampleBucketBuilder.resetTimestamp(lastHistoTimestamp);
                         }
@@ -482,9 +486,11 @@ class DownsampleShardIndexer {
         private int docCount;
         private final AbstractDownsampleFieldProducer[] fieldProducers;
         private final DownsampleFieldSerializer[] groupedProducers;
+        private final String[] dimensions;
 
-        DownsampleBucketBuilder(AbstractDownsampleFieldProducer[] fieldProducers) {
+        DownsampleBucketBuilder(AbstractDownsampleFieldProducer[] fieldProducers, String[] dimensions) {
             this.fieldProducers = fieldProducers;
+            this.dimensions = dimensions;
             /*
              * The downsample field producers for aggregate_metric_double all share the same name (this is
              * the name they will be serialized in the target index). We group all field producers by
@@ -545,12 +551,6 @@ class DownsampleShardIndexer {
             }
             builder.field(timestampField.name(), timestampFormat.format(timestamp));
             builder.field(DocCountFieldMapper.NAME, docCount);
-            // Extract dimension values from _tsid field, so we avoid loading them from doc_values
-            Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
-            for (Map.Entry<?, ?> e : dimensions.entrySet()) {
-                assert e.getValue() != null;
-                builder.field((String) e.getKey(), e.getValue());
-            }
 
             // Serialize fields
             for (DownsampleFieldSerializer fieldProducer : groupedProducers) {

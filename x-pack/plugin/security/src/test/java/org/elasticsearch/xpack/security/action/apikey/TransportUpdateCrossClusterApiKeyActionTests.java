@@ -74,7 +74,12 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
         }
 
         final String id = randomAlphaOfLength(10);
-        final var request = new UpdateCrossClusterApiKeyRequest(id, roleDescriptorBuilder, metadata);
+        final var request = new UpdateCrossClusterApiKeyRequest(
+            id,
+            roleDescriptorBuilder,
+            metadata,
+            ApiKeyTests.randomFutureExpirationTime()
+        );
         final int updateStatus = randomIntBetween(0, 2); // 0 - success, 1 - noop, 2 - error
 
         doAnswer(invocation -> {
@@ -129,7 +134,12 @@ public class TransportUpdateCrossClusterApiKeyActionTests extends ESTestCase {
             mock(ApiKeyService.class),
             securityContext
         );
-        final var request = new UpdateCrossClusterApiKeyRequest(randomAlphaOfLength(10), null, Map.of());
+        final var request = new UpdateCrossClusterApiKeyRequest(
+            randomAlphaOfLength(10),
+            null,
+            Map.of(),
+            ApiKeyTests.randomFutureExpirationTime()
+        );
 
         // null authentication error
         when(securityContext.getAuthentication()).thenReturn(null);

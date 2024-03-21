@@ -13,14 +13,13 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -30,6 +29,8 @@ import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
@@ -46,6 +47,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService;
+import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
@@ -76,9 +82,12 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.ONE_HUNDRED_MB;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
+import static org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService.STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF;
+import static org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthIndicatorService.STAGNATING_INDEX_IMPACT;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -188,14 +197,14 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     }
                 }
             }""";
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("id2");
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("index_*"))
                 .template(new Template(null, CompressedXContent.fromJSON(mapping), null, null))
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
 
         String indexWithOldOriginationDate = "index_old";
         long originTimeMillis = System.currentTimeMillis() - TimeValue.timeValueDays(365).millis();
@@ -304,7 +313,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             for (int i = 0; i < randomIntBetween(10, 50); i++) {
                 indexDocs(dataStreamName, randomIntBetween(1, 300));
                 // Make sure the segments get written:
-                FlushResponse flushResponse = indicesAdmin().flush(new FlushRequest(toBeRolledOverIndex)).actionGet();
+                BroadcastResponse flushResponse = indicesAdmin().flush(new FlushRequest(toBeRolledOverIndex)).actionGet();
                 assertThat(flushResponse.getStatus(), equalTo(RestStatus.OK));
             }
 
@@ -447,6 +456,27 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(errorInfo.retryCount(), greaterThanOrEqualTo(3));
         });
 
+        GetHealthAction.Response healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
+            .actionGet();
+        HealthIndicatorResult masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
+        // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not
+        // be computed
+        if (masterIsStableIndicator.status() == HealthStatus.GREEN) {
+            // the shards capacity indicator is dictating the overall status
+            assertThat(healthResponse.getStatus(), is(HealthStatus.RED));
+            HealthIndicatorResult dslIndicator = healthResponse.findIndicator(DataStreamLifecycleHealthIndicatorService.NAME);
+            assertThat(dslIndicator.status(), is(HealthStatus.YELLOW));
+            assertThat(dslIndicator.impacts(), is(STAGNATING_INDEX_IMPACT));
+            assertThat(
+                dslIndicator.symptom(),
+                is("A backing index has repeatedly encountered errors whilst trying to advance in its lifecycle")
+            );
+
+            Diagnosis diagnosis = dslIndicator.diagnosisList().get(0);
+            assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
+            assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(writeIndexName));
+        }
+
         // let's reset the cluster max shards per node limit to allow rollover to proceed and check the error store is empty
         updateClusterSettings(Settings.builder().putNull("*"));
 
@@ -476,6 +506,14 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             DataStreamLifecycleHealthInfo dslHealthInfoOnHealthNode = healthNodeResponse.getHealthInfo().dslHealthInfo();
             assertThat(dslHealthInfoOnHealthNode, is(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS));
         });
+
+        healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000)).actionGet();
+        masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
+        // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not
+        // be computed
+        if (masterIsStableIndicator.status() == HealthStatus.GREEN) {
+            assertThat(healthResponse.getStatus(), is(HealthStatus.GREEN));
+        }
     }
 
     public void testErrorRecordingOnRetention() throws Exception {
@@ -569,6 +607,30 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 assertThat(List.of(firstGenerationIndex, secondGenerationIndex).contains(errorInfo.indexName()), is(true));
             });
 
+            GetHealthAction.Response healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
+                .actionGet();
+            HealthIndicatorResult masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
+            // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not
+            // be computed
+            if (masterIsStableIndicator.status() == HealthStatus.GREEN) {
+                // the dsl indicator should turn the overall status yellow
+                assertThat(healthResponse.getStatus(), is(HealthStatus.YELLOW));
+                HealthIndicatorResult dslIndicator = healthResponse.findIndicator(DataStreamLifecycleHealthIndicatorService.NAME);
+                assertThat(dslIndicator.status(), is(HealthStatus.YELLOW));
+                assertThat(dslIndicator.impacts(), is(STAGNATING_INDEX_IMPACT));
+                assertThat(
+                    dslIndicator.symptom(),
+                    is("2 backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle")
+                );
+
+                Diagnosis diagnosis = dslIndicator.diagnosisList().get(0);
+                assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
+                assertThat(
+                    diagnosis.affectedResources().get(0).getValues(),
+                    containsInAnyOrder(firstGenerationIndex, secondGenerationIndex)
+                );
+            }
+
             // let's mark the index as writeable and make sure it's deleted and the error store is empty
             updateIndexSettings(Settings.builder().put(READ_ONLY.settingName(), false), firstGenerationIndex);
 
@@ -598,6 +660,20 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 DataStreamLifecycleHealthInfo dslHealthInfoOnHealthNode = healthNodeResponse.getHealthInfo().dslHealthInfo();
                 assertThat(dslHealthInfoOnHealthNode, is(DataStreamLifecycleHealthInfo.NO_DSL_ERRORS));
             });
+
+            healthResponse = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000)).actionGet();
+            masterIsStableIndicator = healthResponse.findIndicator(StableMasterHealthIndicatorService.NAME);
+            // if the cluster doesn't have a stable master we'll avoid asserting on the health report API as some indicators will not
+            // be computed
+            if (masterIsStableIndicator.status() == HealthStatus.GREEN) {
+                // the dsl indicator should turn the overall status yellow
+                assertThat(healthResponse.getStatus(), is(HealthStatus.GREEN));
+                HealthIndicatorResult dslIndicator = healthResponse.findIndicator(DataStreamLifecycleHealthIndicatorService.NAME);
+                assertThat(dslIndicator.status(), is(HealthStatus.GREEN));
+                assertThat(dslIndicator.impacts().size(), is(0));
+                assertThat(dslIndicator.symptom(), is("Data streams are executing their lifecycles without issues"));
+                assertThat(dslIndicator.diagnosisList().size(), is(0));
+            }
         } finally {
             // when the test executes successfully this will not be needed however, otherwise we need to make sure the index is
             // "delete-able" for test cleanup
@@ -785,7 +861,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
@@ -794,7 +870,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     static void updateLifecycle(String dataStreamName, TimeValue dataRetention) {

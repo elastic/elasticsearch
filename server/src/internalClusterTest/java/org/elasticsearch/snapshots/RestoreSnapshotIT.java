@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -55,7 +56,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -694,30 +694,26 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .build();
 
         logger.info("--> try restoring while changing the number of shards - should fail");
-        assertRequestBuilderThrows(
-            client.admin()
-                .cluster()
-                .prepareRestoreSnapshot("test-repo", "test-snap")
-                .setIgnoreIndexSettings("index.analysis.*")
-                .setIndexSettings(newIncorrectIndexSettings)
-                .setWaitForCompletion(true),
-            SnapshotRestoreException.class
-        );
+        ActionRequestBuilder<?, ?> builder1 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .setIgnoreIndexSettings("index.analysis.*")
+            .setIndexSettings(newIncorrectIndexSettings)
+            .setWaitForCompletion(true);
+        expectThrows(SnapshotRestoreException.class, builder1);
 
         logger.info("--> try restoring while changing the number of replicas to a negative number - should fail");
         Settings newIncorrectReplicasIndexSettings = Settings.builder()
             .put(newIndexSettings)
             .put(SETTING_NUMBER_OF_REPLICAS.substring(IndexMetadata.INDEX_SETTING_PREFIX.length()), randomIntBetween(-10, -1))
             .build();
-        assertRequestBuilderThrows(
-            client.admin()
-                .cluster()
-                .prepareRestoreSnapshot("test-repo", "test-snap")
-                .setIgnoreIndexSettings("index.analysis.*")
-                .setIndexSettings(newIncorrectReplicasIndexSettings)
-                .setWaitForCompletion(true),
-            IllegalArgumentException.class
-        );
+        ActionRequestBuilder<?, ?> builder = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot("test-repo", "test-snap")
+            .setIgnoreIndexSettings("index.analysis.*")
+            .setIndexSettings(newIncorrectReplicasIndexSettings)
+            .setWaitForCompletion(true);
+        expectThrows(IllegalArgumentException.class, builder);
 
         logger.info("--> restore index with correct settings from the snapshot");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
@@ -872,11 +868,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         createSnapshot("test-repo", "snapshot-0", Collections.singletonList("test-index"));
         final SnapshotRestoreException restoreError = expectThrows(
             SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+            clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
                 .setIndexSettings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false))
                 .setRenamePattern("test-index")
                 .setRenameReplacement("new-index")
-                .get()
         );
         assertThat(restoreError.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
     }
@@ -889,7 +884,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String oldSnapshot = initWithSnapshotVersion(repoName, repoPath, oldVersion);
         final SnapshotRestoreException snapshotRestoreException = expectThrows(
             SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(repoName, oldSnapshot).get()
+            clusterAdmin().prepareRestoreSnapshot(repoName, oldSnapshot)
         );
         assertThat(
             snapshotRestoreException.getMessage(),

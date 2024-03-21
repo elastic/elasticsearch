@@ -114,11 +114,11 @@ public class VectorBuilderTests extends ESTestCase {
     private Vector.Builder vectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return switch (elementType) {
             case NULL, DOC, UNKNOWN -> throw new UnsupportedOperationException();
-            case BOOLEAN -> BooleanVector.newVectorBuilder(estimatedSize, blockFactory);
-            case BYTES_REF -> BytesRefVector.newVectorBuilder(estimatedSize, blockFactory);
-            case DOUBLE -> DoubleVector.newVectorBuilder(estimatedSize, blockFactory);
-            case INT -> IntVector.newVectorBuilder(estimatedSize, blockFactory);
-            case LONG -> LongVector.newVectorBuilder(estimatedSize, blockFactory);
+            case BOOLEAN -> blockFactory.newBooleanVectorBuilder(estimatedSize);
+            case BYTES_REF -> blockFactory.newBytesRefVectorBuilder(estimatedSize);
+            case DOUBLE -> blockFactory.newDoubleVectorBuilder(estimatedSize);
+            case INT -> blockFactory.newIntVectorBuilder(estimatedSize);
+            case LONG -> blockFactory.newLongVectorBuilder(estimatedSize);
         };
     }
 

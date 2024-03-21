@@ -1,0 +1,6 @@
+pr: 104440
+summary: Fix write index resolution when an alias is pointing to a TSDS
+area: Data streams
+type: bug
+issues:
+  - 104189

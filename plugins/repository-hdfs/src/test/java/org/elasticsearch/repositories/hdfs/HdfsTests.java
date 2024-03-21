@@ -19,6 +19,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -276,6 +277,6 @@ public class HdfsTests extends ESSingleNodeTestCase {
     }
 
     private long count(Client client, String index) {
-        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
+        return SearchResponseUtils.getTotalHitsValue(client.prepareSearch(index).setSize(0));
     }
 }

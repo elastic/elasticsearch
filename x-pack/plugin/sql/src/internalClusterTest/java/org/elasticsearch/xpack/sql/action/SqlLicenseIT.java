@@ -111,7 +111,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").get()
+            new SqlQueryRequestBuilder(client()).query("SELECT * FROM test")
         );
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
         enableSqlLicensing();
@@ -126,7 +126,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").mode("jdbc").get()
+            new SqlQueryRequestBuilder(client()).query("SELECT * FROM test").mode("jdbc")
         );
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [jdbc]"));
         enableJdbcLicensing();
@@ -141,7 +141,7 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> new SqlTranslateRequestBuilder(client()).query("SELECT * FROM test").get()
+            new SqlTranslateRequestBuilder(client()).query("SELECT * FROM test")
         );
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
         enableSqlLicensing();

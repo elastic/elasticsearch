@@ -132,14 +132,13 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     static final class SortedNumericHalfFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
         SortedNumericHalfFloatFieldData(
             LeafReader reader,
             String field,
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
-            super(0L);
             this.reader = reader;
             this.field = field;
             this.toScriptFieldFactory = toScriptFieldFactory;
@@ -230,10 +229,9 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     static final class SortedNumericFloatFieldData extends LeafDoubleFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
         SortedNumericFloatFieldData(LeafReader reader, String field, ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory) {
-            super(0L);
             this.reader = reader;
             this.field = field;
             this.toScriptFieldFactory = toScriptFieldFactory;
@@ -331,7 +329,6 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
             String field,
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
-            super(0L);
             this.reader = reader;
             this.field = field;
             this.toScriptFieldFactory = toScriptFieldFactory;

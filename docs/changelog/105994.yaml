@@ -1,0 +1,5 @@
+pr: 105994
+summary: Fix bug when nested knn pre-filter might match nested docs
+area: Vector Search
+type: bug
+issues: []

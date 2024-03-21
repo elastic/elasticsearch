@@ -92,17 +92,29 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         return super.scoreMode();
     }
 
+    @FunctionalInterface
+    private interface BucketCollector {
+        void accept(LeafBucketCollector sub, int doc, long subBucketOrdinal) throws IOException;
+    }
+
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        BucketCollector collector;
+        if (parent() == null) {
+            grow(ranges.length);
+            collector = this::collectExistingBucket;
+        } else {
+            collector = this::collectBucket;
         }
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
             SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(aggCtx.getLeafReaderContext());
             return new SortedSetRangeLeafCollector(values, ranges, sub) {
                 @Override
                 protected void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException {
-                    collectBucket(sub, doc, bucket);
+                    collector.accept(sub, doc, bucket);
                 }
             };
         } else {
@@ -110,7 +122,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
             return new SortedBinaryRangeLeafCollector(values, ranges, sub) {
                 @Override
                 protected void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException {
-                    collectBucket(sub, doc, bucket);
+                    collector.accept(sub, doc, bucket);
                 }
             };
         }

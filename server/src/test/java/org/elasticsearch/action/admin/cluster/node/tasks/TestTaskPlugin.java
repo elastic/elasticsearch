@@ -71,11 +71,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
 
     private static final Logger logger = LogManager.getLogger(TestTaskPlugin.class);
 
-    public static final ActionType<NodesResponse> TEST_TASK_ACTION = ActionType.localOnly("cluster:admin/tasks/test");
-    public static final ActionType<UnblockTestTasksResponse> UNBLOCK_TASK_ACTION = new ActionType<>(
-        "cluster:admin/tasks/testunblock",
-        UnblockTestTasksResponse::new
-    );
+    public static final ActionType<NodesResponse> TEST_TASK_ACTION = new ActionType<>("cluster:admin/tasks/test");
+    public static final ActionType<UnblockTestTasksResponse> UNBLOCK_TASK_ACTION = new ActionType<>("cluster:admin/tasks/testunblock");
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

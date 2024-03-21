@@ -10,11 +10,16 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
 
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 
 public class ServiceComponentsTests extends ESTestCase {
     public static ServiceComponents createWithEmptySettings(ThreadPool threadPool) {
-        return new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY);
+        return new ServiceComponents(threadPool, mockThrottlerManager(), Settings.EMPTY, TruncatorTests.createTruncator());
+    }
+
+    public static ServiceComponents createWithSettings(ThreadPool threadPool, Settings settings) {
+        return new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator());
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -61,6 +60,6 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         SqlQueryRequestBuilder request = new SqlQueryRequestBuilder(client()).query("SELECT true")
             .mode(randomFrom(Mode.CLI, Mode.JDBC))
             .version("1.2.3");
-        assertRequestBuilderThrows(request, org.elasticsearch.action.ActionRequestValidationException.class);
+        expectThrows(org.elasticsearch.action.ActionRequestValidationException.class, request);
     }
 }

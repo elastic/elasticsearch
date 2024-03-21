@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.delete;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -28,6 +29,7 @@ import org.elasticsearch.transport.TransportService;
  * Transport action for delete snapshot operation
  */
 public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNodeAction<DeleteSnapshotRequest> {
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/snapshot/delete");
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -40,7 +42,7 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeleteSnapshotAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

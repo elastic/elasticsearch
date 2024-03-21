@@ -26,7 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 
 public class TransportStopILMAction extends AcknowledgedTransportMasterNodeAction<StopILMRequest> {
 
@@ -39,7 +39,7 @@ public class TransportStopILMAction extends AcknowledgedTransportMasterNodeActio
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            StopILMAction.NAME,
+            ILMActions.STOP.name(),
             transportService,
             clusterService,
             threadPool,

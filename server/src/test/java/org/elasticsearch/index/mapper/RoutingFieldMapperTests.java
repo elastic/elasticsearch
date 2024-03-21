@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,9 +51,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON,
-                "routing_value",
-                Map.of(),
-                false
+                "routing_value"
             )
         );
 

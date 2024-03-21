@@ -16,7 +16,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
@@ -83,10 +82,10 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
         String searchContextId = getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
-        searchResponse.set(
+        var existing = searchResponse.getAndSet(
             new SearchResponse(
                 internalSearchResponse,
                 scrollId,
@@ -99,6 +98,11 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
                 searchContextId
             )
         );
+        Releasables.close(releasables);
+        releasables.clear();
+        if (existing != null) {
+            existing.decRef();
+        }
     }
 
     @Override
@@ -145,12 +149,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public void execute(Runnable command) {
-        try {
-            command.run();
-        } finally {
-            Releasables.close(releasables);
-            releasables.clear();
-        }
+        command.run();
     }
 
     @Override

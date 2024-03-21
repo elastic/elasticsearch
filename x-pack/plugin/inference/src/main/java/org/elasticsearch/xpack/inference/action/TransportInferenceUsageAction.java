@@ -62,9 +62,9 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
-    ) throws Exception {
+    ) {
         GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY);
-        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, ActionListener.wrap(response -> {
+        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, listener.delegateFailureAndWrap((delegate, response) -> {
             Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
             for (ModelConfigurations model : response.getModels()) {
                 String statKey = model.getService() + ":" + model.getTaskType().name();
@@ -75,7 +75,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
                 stat.add();
             }
             InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }, listener::onFailure));
+            delegate.onResponse(new XPackUsageFeatureResponse(usage));
+        }));
     }
 }

@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.esql.formatter;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xpack.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -291,16 +290,8 @@ public enum TextFormat implements MediaType {
             hasHeader(request) && esqlResponse.columns() != null
                 ? Iterators.single(writer -> row(writer, esqlResponse.columns().iterator(), ColumnInfo::name, delimiter))
                 : Collections.emptyIterator(),
-            Iterators.map(esqlResponse.values(), row -> writer -> row(writer, row, TextFormat::formatEsqlResultObject, delimiter))
+            Iterators.map(esqlResponse.values(), row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter))
         );
-    }
-
-    private static String formatEsqlResultObject(Object obj) {
-        // TODO: It would be nicer to override GeoPoint.toString() but that has consequences
-        if (obj instanceof SpatialPoint point) {
-            return String.format(Locale.ROOT, "POINT (%.7f %.7f)", point.getX(), point.getY());
-        }
-        return Objects.toString(obj, StringUtils.EMPTY);
     }
 
     boolean hasHeader(RestRequest request) {

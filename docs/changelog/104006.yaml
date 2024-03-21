@@ -1,0 +1,5 @@
+pr: 104006
+summary: Add support for more than one `inner_hit` when searching nested vectors
+area: Vector Search
+type: enhancement
+issues: []

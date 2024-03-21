@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.io.IOException;
@@ -19,6 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestListConnectorAction extends BaseRestHandler {
 
     @Override
@@ -35,7 +39,18 @@ public class RestListConnectorAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         int from = restRequest.paramAsInt("from", PageParams.DEFAULT_FROM);
         int size = restRequest.paramAsInt("size", PageParams.DEFAULT_SIZE);
-        ListConnectorAction.Request request = new ListConnectorAction.Request(new PageParams(from, size));
+        List<String> indexNames = List.of(restRequest.paramAsStringArray(Connector.INDEX_NAME_FIELD.getPreferredName(), new String[0]));
+        List<String> connectorNames = List.of(restRequest.paramAsStringArray("connector_name", new String[0]));
+        List<String> serviceTypes = List.of(restRequest.paramAsStringArray("service_type", new String[0]));
+        String searchQuery = restRequest.param("query");
+
+        ListConnectorAction.Request request = new ListConnectorAction.Request(
+            new PageParams(from, size),
+            indexNames,
+            connectorNames,
+            serviceTypes,
+            searchQuery
+        );
 
         return channel -> client.execute(ListConnectorAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

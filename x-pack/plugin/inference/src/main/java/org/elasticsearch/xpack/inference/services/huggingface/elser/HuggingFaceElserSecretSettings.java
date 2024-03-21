@@ -67,7 +67,7 @@ public record HuggingFaceElserSecretSettings(SecureString apiKey) implements Sec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
@@ -17,7 +18,6 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.search.geo.BaseShapeQueryTestCase;
 import org.elasticsearch.search.geo.SpatialQueryBuilders;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
-import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;

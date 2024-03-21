@@ -91,14 +91,28 @@ public class ToStringTests extends AbstractFunctionTestCase {
             suppliers,
             "ToStringFromGeoPointEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            i -> new BytesRef(GEO.pointAsString(GEO.longAsPoint(i))),
+            wkb -> new BytesRef(GEO.wkbToWkt(wkb)),
             List.of()
         );
         TestCaseSupplier.forUnaryCartesianPoint(
             suppliers,
             "ToStringFromCartesianPointEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
-            i -> new BytesRef(CARTESIAN.pointAsString(CARTESIAN.longAsPoint(i))),
+            wkb -> new BytesRef(CARTESIAN.wkbToWkt(wkb)),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryGeoShape(
+            suppliers,
+            "ToStringFromGeoShapeEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            wkb -> new BytesRef(GEO.wkbToWkt(wkb)),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryCartesianShape(
+            suppliers,
+            "ToStringFromCartesianShapeEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            wkb -> new BytesRef(CARTESIAN.wkbToWkt(wkb)),
             List.of()
         );
         TestCaseSupplier.forUnaryIp(

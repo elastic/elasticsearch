@@ -18,7 +18,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
+import org.elasticsearch.xpack.security.action.user.SetEnabledRequestBuilder;
 
 import java.io.IOException;
 import java.util.List;

@@ -23,8 +23,9 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -60,7 +61,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
-    private final SetOnce<MeterRegistry> meterRegistry = new SetOnce<>();
     private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
@@ -77,21 +77,21 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, meterRegistry.get());
+        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics);
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings()));
+        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
-        meterRegistry.set(services.telemetryProvider().getMeterRegistry());
         return List.of(service);
     }
 
-    S3Service s3Service(Environment environment, Settings nodeSettings) {
-        return new S3Service(environment, nodeSettings);
+    S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+        return new S3Service(environment, nodeSettings, resourceWatcherService);
     }
 
     @Override
@@ -100,11 +100,13 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final RepositoriesMetrics repositoriesMetrics
     ) {
+        final S3RepositoriesMetrics s3RepositoriesMetrics = new S3RepositoriesMetrics(repositoriesMetrics);
         return Collections.singletonMap(
             S3Repository.TYPE,
-            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings)
+            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics)
         );
     }
 
@@ -145,9 +147,5 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     @Override
     public void close() throws IOException {
         getService().close();
-    }
-
-    protected MeterRegistry getMeterRegistry() {
-        return meterRegistry.get();
     }
 }

@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.metrics.CentroidAggregationTestBase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
-import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.util.Collection;
 import java.util.Collections;

@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +23,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorUtils;
+import org.elasticsearch.xpack.application.connector.action.ConnectorUpdateActionResponse;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 
 import java.io.IOException;
@@ -36,16 +37,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants.EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE;
 
-public class UpdateConnectorSyncJobIngestionStatsAction extends ActionType<AcknowledgedResponse> {
+public class UpdateConnectorSyncJobIngestionStatsAction {
 
-    public static final UpdateConnectorSyncJobIngestionStatsAction INSTANCE = new UpdateConnectorSyncJobIngestionStatsAction();
-    public static final String NAME = "cluster:admin/xpack/connector/sync_job/update_stats";
+    public static final String NAME = "indices:data/write/xpack/connector/sync_job/update_stats";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorSyncJobIngestionStatsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private UpdateConnectorSyncJobIngestionStatsAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorSyncJobActionRequest implements ToXContentObject {
         public static final ParseField CONNECTOR_SYNC_JOB_ID_FIELD = new ParseField("connector_sync_job_id");
         public static final String DELETED_DOCUMENT_COUNT_NEGATIVE_ERROR_MESSAGE = "[deleted_document_count] cannot be negative.";
         public static final String INDEXED_DOCUMENT_COUNT_NEGATIVE_ERROR_MESSAGE = "[indexed_document_count] cannot be negative.";
@@ -166,7 +165,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction extends ActionType<Ackno
             PARSER.declareLong(optionalConstructorArg(), ConnectorSyncJob.TOTAL_DOCUMENT_COUNT_FIELD);
             PARSER.declareField(
                 optionalConstructorArg(),
-                (p, c) -> Instant.parse(p.text()),
+                (p, c) -> ConnectorUtils.parseInstant(p, Connector.LAST_SEEN_FIELD.getPreferredName()),
                 ConnectorSyncJob.LAST_SEEN_FIELD,
                 ObjectParser.ValueType.OBJECT_OR_STRING
             );

@@ -1,0 +1,5 @@
+pr: 104363
+summary: Apply windowing and chunking to long documents
+area: Machine Learning
+type: enhancement
+issues: []

@@ -123,7 +123,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (in.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             boolean isExplicitNull = in.readBoolean();
             if (isExplicitNull) {
                 this.lifecycle = DataStreamLifecycle.newBuilder().enabled(false).build();
@@ -177,7 +177,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (out.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
             out.writeOptionalWriteable(lifecycle);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             boolean isExplicitNull = lifecycle != null && lifecycle.isEnabled() == false;
             out.writeBoolean(isExplicitNull);
             if (isExplicitNull == false) {
@@ -213,14 +213,18 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null);
     }
 
     /**
      * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-        throws IOException {
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         if (this.settings != null) {
             builder.startObject(SETTINGS.getPreferredName());
@@ -250,7 +254,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }
         if (this.lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
         }
         builder.endObject();
         return builder;

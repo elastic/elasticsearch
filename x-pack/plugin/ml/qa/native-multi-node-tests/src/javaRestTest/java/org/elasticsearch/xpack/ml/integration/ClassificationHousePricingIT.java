@@ -1579,7 +1579,7 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
             TrainedModelDefinition modelDefinition = getModelDefinition(modelId);
             Ensemble ensemble = (Ensemble) modelDefinition.getTrainedModel();
             int numberTrees = ensemble.getModels().size();
-            String str = "Failure: failed for modelId %s numberTrees %d\n";
+            String str = "Failure: failed for inferenceEntityId %s numberTrees %d\n";
             for (SearchHit hit : sourceData.getHits()) {
                 Map<String, Object> destDoc = getDestDoc(config, hit);
                 assertNotNull(destDoc);

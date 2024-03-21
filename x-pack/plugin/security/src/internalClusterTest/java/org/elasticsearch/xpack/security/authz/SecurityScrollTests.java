@@ -24,6 +24,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -46,29 +47,32 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
         }
         indexRandom(true, docs);
 
-        SearchResponse response = prepareSearch("foo").setScroll(TimeValue.timeValueSeconds(5L)).setQuery(matchAllQuery()).setSize(1).get();
-        assertEquals(numDocs, response.getHits().getTotalHits().value);
-        assertEquals(1, response.getHits().getHits().length);
-
-        if (randomBoolean()) {
-            response = client().prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueSeconds(5L)).get();
+        assertResponse(prepareSearch("foo").setScroll(TimeValue.timeValueSeconds(5L)).setQuery(matchAllQuery()).setSize(1), response -> {
             assertEquals(numDocs, response.getHits().getTotalHits().value);
             assertEquals(1, response.getHits().getHits().length);
-        }
-
-        final String scrollId = response.getScrollId();
-        SearchPhaseExecutionException e = expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> client().filterWithHeader(
-                Collections.singletonMap(
-                    "Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue("other", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
-                )
-            ).prepareSearchScroll(scrollId).get()
-        );
-        for (ShardSearchFailure failure : e.shardFailures()) {
-            assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(SearchContextMissingException.class));
-        }
+            if (randomBoolean()) {
+                assertResponse(
+                    client().prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueSeconds(5L)),
+                    response2 -> {
+                        assertEquals(numDocs, response2.getHits().getTotalHits().value);
+                        assertEquals(1, response2.getHits().getHits().length);
+                    }
+                );
+            }
+            final String scrollId = response.getScrollId();
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().filterWithHeader(
+                    Collections.singletonMap(
+                        "Authorization",
+                        UsernamePasswordToken.basicAuthHeaderValue("other", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+                    )
+                ).prepareSearchScroll(scrollId).get()
+            );
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(ExceptionsHelper.unwrapCause(failure.getCause()), instanceOf(SearchContextMissingException.class));
+            }
+        });
     }
 
     public void testSearchAndClearScroll() throws Exception {
@@ -87,12 +91,14 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
             do {
                 assertHitCount(response, docs.length);
                 hits += response.getHits().getHits().length;
+                response.decRef();
                 response = client().prepareSearchScroll(response.getScrollId()).setScroll(TimeValue.timeValueSeconds(5L)).get();
             } while (response.getHits().getHits().length != 0);
 
             assertThat(hits, equalTo(docs.length));
         } finally {
             clearScroll(response.getScrollId());
+            response.decRef();
         }
     }
 

@@ -403,9 +403,9 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testAllMissingStrict() throws Exception {
         createIndex("test1");
-        expectThrows(IndexNotFoundException.class, () -> prepareSearch("test2").setQuery(matchAllQuery()).get());
+        expectThrows(IndexNotFoundException.class, prepareSearch("test2").setQuery(matchAllQuery()));
 
-        expectThrows(IndexNotFoundException.class, () -> prepareSearch("test2", "test3").setQuery(matchAllQuery()).get());
+        expectThrows(IndexNotFoundException.class, prepareSearch("test2", "test3").setQuery(matchAllQuery()));
 
         // you should still be able to run empty searches without things blowing up
         prepareSearch().setQuery(matchAllQuery()).get().decRef();

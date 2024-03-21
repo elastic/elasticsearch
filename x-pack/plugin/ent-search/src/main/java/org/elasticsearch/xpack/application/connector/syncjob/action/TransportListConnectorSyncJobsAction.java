@@ -18,7 +18,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorSyncStatus;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+
+import java.util.List;
 
 public class TransportListConnectorSyncJobsAction extends HandledTransportAction<
     ListConnectorSyncJobsAction.Request,
@@ -51,12 +54,14 @@ public class TransportListConnectorSyncJobsAction extends HandledTransportAction
         final PageParams pageParams = request.getPageParams();
         final String connectorId = request.getConnectorId();
         final ConnectorSyncStatus syncStatus = request.getConnectorSyncStatus();
+        final List<ConnectorSyncJobType> jobTypeList = request.getConnectorSyncJobTypeList();
 
         connectorSyncJobIndexService.listConnectorSyncJobs(
             pageParams.getFrom(),
             pageParams.getSize(),
             connectorId,
             syncStatus,
+            jobTypeList,
             listener.map(r -> new ListConnectorSyncJobsAction.Response(r.connectorSyncJobs(), r.totalResults()))
         );
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -59,14 +58,14 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try (IntVector.Builder builder = IntVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            try (IntVector.Builder builder = driverContext.blockFactory().newIntVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     builder.appendInt(values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
         }
-        try (IntBlock.Builder builder = IntBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+        try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
@@ -97,8 +96,8 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = IntBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+            var valuesBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
+            var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
@@ -110,7 +109,7 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
                 hasValueBuilder.appendBoolean(hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
-            blocks[offset + 1] = hasValueBuilder.build();
+            blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
     }
 

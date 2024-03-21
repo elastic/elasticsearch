@@ -1,0 +1,6 @@
+pr: 105650
+summary: "ESQL: Fix wrong attribute shadowing in pushdown rules"
+area: ES|QL
+type: bug
+issues:
+ - 105434

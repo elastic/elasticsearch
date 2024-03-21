@@ -306,7 +306,7 @@ public final class DateFieldMapper extends FieldMapper {
             return factory == null
                 ? null
                 : (lookup, ctx, doc, consumer) -> factory.newFactory(
-                    name,
+                    name(),
                     script.get().getParams(),
                     lookup,
                     buildFormatter(),
@@ -364,7 +364,7 @@ public final class DateFieldMapper extends FieldMapper {
                 && ignoreMalformed.isConfigured() == false) {
                 ignoreMalformed.setValue(false);
             }
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, nullTimestamp, resolution, this);
+            return new DateFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, nullTimestamp, resolution, this);
         }
     }
 
@@ -777,7 +777,10 @@ public final class DateFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
-            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
         }
 
         @Override

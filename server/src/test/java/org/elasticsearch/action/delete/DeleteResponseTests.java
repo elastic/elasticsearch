@@ -48,7 +48,7 @@ public class DeleteResponseTests extends ESTestCase {
         {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "id", -1, 0, 7, true);
             response.setForcedRefresh(true);
-            response.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
+            response.setShardInfo(ReplicationResponse.ShardInfo.of(10, 5));
             String output = Strings.toString(response);
             assertEquals(XContentHelper.stripWhitespace("""
                 {

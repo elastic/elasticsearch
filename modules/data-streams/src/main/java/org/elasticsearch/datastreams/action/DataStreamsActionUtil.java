@@ -12,14 +12,13 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 
-import java.util.EnumSet;
 import java.util.List;
 
 public class DataStreamsActionUtil {
 
     /**
      * Gets data streams names, expanding wildcards using {@link IndicesOptions} provided.
-     * For data streams we only care for {@link IndicesOptions.WildcardStates}.HIDDEN state (we can't have closed or open data streams),
+     * For data streams we only care about the hidden state (we can't have closed or open data streams),
      * but we have to have either OPEN or CLOSE to have any names returned from {@link IndexNameExpressionResolver}. So here we always
      * add OPEN to make sure that happens.
      */
@@ -34,9 +33,11 @@ public class DataStreamsActionUtil {
     }
 
     public static IndicesOptions updateIndicesOptions(IndicesOptions indicesOptions) {
-        EnumSet<IndicesOptions.WildcardStates> expandWildcards = indicesOptions.expandWildcards();
-        expandWildcards.add(IndicesOptions.WildcardStates.OPEN);
-        indicesOptions = new IndicesOptions(indicesOptions.options(), expandWildcards);
+        if (indicesOptions.expandWildcardsOpen() == false) {
+            indicesOptions = IndicesOptions.builder(indicesOptions)
+                .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).matchOpen(true))
+                .build();
+        }
         return indicesOptions;
     }
 }

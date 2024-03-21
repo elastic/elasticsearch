@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -215,7 +216,17 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
      */
     public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener) {
-        indexResponse(docId, headers, response, false, listener);
+        indexResponse(docId, headers, null, response, false, listener);
+    }
+
+    public void createResponseForEQL(
+        String docId,
+        Map<String, String> headers,
+        Map<String, List<String>> responseHeaders,
+        R response,
+        ActionListener<DocWriteResponse> listener
+    ) {
+        indexResponse(docId, headers, responseHeaders, response, false, listener);
     }
 
     /**
@@ -223,7 +234,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * and the expected expiration time.
      */
     public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<DocWriteResponse> listener) {
-        indexResponse(docId, headers, response, true, listener);
+        indexResponse(docId, headers, null, response, true, listener);
     }
 
     public void updateResponse(
@@ -238,6 +249,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private void indexResponse(
         String docId,
         Map<String, String> headers,
+        @Nullable Map<String, List<String>> responseHeaders,
         R response,
         boolean limitToMaxResponseSize,
         ActionListener<DocWriteResponse> listener
@@ -249,6 +261,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .startObject()
                 .field(HEADERS_FIELD, headers)
                 .field(EXPIRATION_TIME_FIELD, response.getExpirationTime());
+            if (responseHeaders != null) {
+                source.field(RESPONSE_HEADERS_FIELD, responseHeaders);
+            }
+
             addResultFieldAndFinish(response, source);
             clientWithOrigin.index(new IndexRequest(index).create(true).id(docId).source(buffer.bytes(), source.contentType()), listener);
         } catch (Exception e) {
@@ -425,7 +441,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 listener.onFailure(e);
                 return;
             }
-            listener.onResponse(resp);
+            ActionListener.respondAndRelease(listener, resp);
         }));
     }
 
@@ -474,7 +490,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             }
             Objects.requireNonNull(resp, "Get result doesn't include [" + RESULT_FIELD + "] field");
             Objects.requireNonNull(expirationTime, "Get result doesn't include [" + EXPIRATION_TIME_FIELD + "] field");
-            return resp.withExpirationTime(expirationTime);
+            try {
+                return resp.withExpirationTime(expirationTime);
+            } finally {
+                resp.decRef();
+            }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse the get result", e);
         }
@@ -566,10 +586,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         });
         TransportVersion version = TransportVersion.readVersion(new InputStreamStreamInput(encodedIn));
         assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
+        final StreamInput input;
         if (version.onOrAfter(TransportVersions.V_7_15_0)) {
-            encodedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(encodedIn);
+            input = CompressorFactory.COMPRESSOR.threadLocalStreamInput(encodedIn);
+        } else {
+            input = new InputStreamStreamInput(encodedIn);
         }
-        try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(input, registry)) {
             in.setTransportVersion(version);
             return reader.read(in);
         }

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -82,4 +83,21 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
         out.writeTimeValue(timeout);
     }
 
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
+    }
+
+    /**
+     * AcknowledgedRequest that does not have any additional fields. Should be used instead of implementing noop children for
+     * AcknowledgedRequest.
+     */
+    public static final class Plain extends AcknowledgedRequest<Plain> {
+
+        public Plain(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Plain() {}
+    }
 }

@@ -1,0 +1,6 @@
+pr: 100813
+summary: Make `ParentTaskAssigningClient.getRemoteClusterClient` method also return
+  `ParentTaskAssigningClient`
+area: Infra/Transport API
+type: enhancement
+issues: []

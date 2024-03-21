@@ -1,0 +1,5 @@
+pr: 103300
+summary: Retry indefinitely for s3 indices blob read errors
+area: Snapshot/Restore
+type: enhancement
+issues: []

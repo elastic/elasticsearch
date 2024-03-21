@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -39,7 +38,7 @@ public final class ToLongFromDoubleEvaluator extends AbstractConvertFunction.Abs
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
-      } catch (InvalidArgumentException | QlIllegalArgumentException  e) {
+      } catch (InvalidArgumentException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
@@ -48,7 +47,7 @@ public final class ToLongFromDoubleEvaluator extends AbstractConvertFunction.Abs
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendLong(evalValue(vector, p));
-        } catch (InvalidArgumentException | QlIllegalArgumentException  e) {
+        } catch (InvalidArgumentException  e) {
           registerException(e);
           builder.appendNull();
         }
@@ -82,7 +81,7 @@ public final class ToLongFromDoubleEvaluator extends AbstractConvertFunction.Abs
             }
             builder.appendLong(value);
             valuesAppended = true;
-          } catch (InvalidArgumentException | QlIllegalArgumentException  e) {
+          } catch (InvalidArgumentException  e) {
             registerException(e);
           }
         }

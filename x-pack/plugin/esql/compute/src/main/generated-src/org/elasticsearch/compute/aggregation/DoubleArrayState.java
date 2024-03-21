@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
@@ -60,14 +59,14 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
 
     Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
-            try (DoubleVector.Builder builder = DoubleVector.newVectorBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+            try (DoubleVector.Builder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     builder.appendDouble(values.get(selected.getInt(i)));
                 }
                 return builder.build().asBlock();
             }
         }
-        try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())) {
+        try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (hasValue(group)) {
@@ -98,8 +97,8 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = DoubleBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory());
-            var hasValueBuilder = BooleanBlock.newBlockBuilder(selected.getPositionCount(), driverContext.blockFactory())
+            var valuesBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
+            var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
@@ -111,7 +110,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
                 hasValueBuilder.appendBoolean(hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build();
-            blocks[offset + 1] = hasValueBuilder.build();
+            blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
     }
 

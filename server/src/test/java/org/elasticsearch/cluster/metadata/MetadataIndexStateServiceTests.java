@@ -367,7 +367,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             snapshot,
             randomBoolean(),
             false,
-            SnapshotsInProgress.State.INIT,
+            SnapshotsInProgress.State.STARTED,
             Collections.singletonMap(index, new IndexId(index, index)),
             Collections.emptyList(),
             Collections.emptyList(),

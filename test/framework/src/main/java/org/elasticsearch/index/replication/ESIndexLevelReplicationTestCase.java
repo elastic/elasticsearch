@@ -47,7 +47,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -98,6 +97,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -214,13 +214,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         private ShardRouting createShardRouting(String nodeId, boolean isPrimary) {
-            return TestShardRouting.newShardRouting(
-                shardId,
-                nodeId,
-                isPrimary,
-                ShardRoutingState.INITIALIZING,
+            return shardRoutingBuilder(shardId, nodeId, isPrimary, ShardRoutingState.INITIALIZING).withRecoverySource(
                 isPrimary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
-            );
+            ).build();
         }
 
         protected EngineFactory getEngineFactory(ShardRouting routing) {
@@ -349,13 +345,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public synchronized IndexShard addReplicaWithExistingPath(final ShardPath shardPath, final String nodeId) throws IOException {
-            final ShardRouting shardRouting = TestShardRouting.newShardRouting(
-                shardId,
-                nodeId,
-                false,
-                ShardRoutingState.INITIALIZING,
-                RecoverySource.PeerRecoverySource.INSTANCE
-            );
+            final ShardRouting shardRouting = shardRoutingBuilder(shardId, nodeId, false, ShardRoutingState.INITIALIZING)
+                .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+                .build();
 
             final IndexShard newReplica = newShard(
                 shardRouting,

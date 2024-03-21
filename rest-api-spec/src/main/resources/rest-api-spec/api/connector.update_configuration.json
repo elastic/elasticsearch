@@ -1,7 +1,7 @@
 {
   "connector.update_configuration": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-configuration-api.html",
       "description": "Updates the connector configuration."
     },
     "stability": "experimental",

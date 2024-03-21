@@ -98,7 +98,7 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private final int maxAssignedAllocations;
 
     public static boolean useNewMemoryFields(TransportVersion minClusterVersion) {
-        return minClusterVersion.onOrAfter(TransportVersions.V_8_500_064);
+        return minClusterVersion.onOrAfter(TransportVersions.V_8_11_X);
     }
 
     public static TrainedModelAssignment fromXContent(XContentParser parser) throws IOException {
@@ -285,6 +285,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
 
     public int totalTargetAllocations() {
         return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getTargetAllocations).sum();
+    }
+
+    public int totalFailedAllocations() {
+        return nodeRoutingTable.values().stream().mapToInt(RoutingInfo::getFailedAllocations).sum();
     }
 
     @Override

@@ -33,9 +33,14 @@ public class RestMigrateToDataTiersAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        MigrateToDataTiersRequest migrateRequest = request.hasContent()
-            ? MigrateToDataTiersRequest.parse(request.contentParser())
-            : new MigrateToDataTiersRequest();
+        MigrateToDataTiersRequest migrateRequest;
+        if (request.hasContent()) {
+            try (var parser = request.contentParser()) {
+                migrateRequest = MigrateToDataTiersRequest.parse(parser);
+            }
+        } else {
+            migrateRequest = new MigrateToDataTiersRequest();
+        }
         migrateRequest.setDryRun(request.paramAsBoolean("dry_run", false));
         return channel -> client.execute(MigrateToDataTiersAction.INSTANCE, migrateRequest, new RestToXContentListener<>(channel));
     }

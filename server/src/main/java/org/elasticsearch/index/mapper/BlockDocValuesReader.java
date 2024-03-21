@@ -558,7 +558,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         private BlockLoader.Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
             if (ordinals.advanceExact(docId)) {
                 BytesRef v = ordinals.lookupOrd(ordinals.ordValue());
-                return factory.constantBytes(v);
+                // the returned BytesRef can be reused
+                return factory.constantBytes(BytesRef.deepCopyOf(v));
             } else {
                 return factory.constantNulls();
             }

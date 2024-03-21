@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -20,12 +21,14 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings.extractUri;
 
-public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSettings {
+public record HuggingFaceElserServiceSettings(URI uri, Integer maxInputTokens) implements ServiceSettings {
+
     public static final String NAME = "hugging_face_elser_service_settings";
+    private static final Integer ELSER_TOKEN_LIMIT = 512;
 
     static final String URL = "url";
 
@@ -35,7 +38,7 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-        return new HuggingFaceElserServiceSettings(uri);
+        return new HuggingFaceElserServiceSettings(uri, ELSER_TOKEN_LIMIT);
     }
 
     public HuggingFaceElserServiceSettings {
@@ -43,7 +46,7 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
     }
 
     public HuggingFaceElserServiceSettings(String url) {
-        this(createUri(url));
+        this(createUri(url), ELSER_TOKEN_LIMIT);
     }
 
     public HuggingFaceElserServiceSettings(StreamInput in) throws IOException {
@@ -54,9 +57,15 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(URL, uri.toString());
+        builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         builder.endObject();
 
         return builder;
+    }
+
+    @Override
+    public ToXContentObject getFilteredXContentObject() {
+        return this;
     }
 
     @Override
@@ -66,7 +75,7 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override

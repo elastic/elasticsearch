@@ -30,50 +30,92 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
     private final long defaultValue = randomLongBetween(-1, 0);
 
-    public void testShouldFallbackToDefaultValue() {
+    public void testShouldFallbackToDefaultExpectedShardSize() {
 
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
-        var shard = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.INITIALIZING);
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(
+                randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
+            ).build();
 
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY);
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(defaultValue));
+        assertFalse(
+            "Should NOT reserve space for locally initializing primaries",
+            shouldReserveSpaceForInitializingShard(shard, allocation)
+        );
     }
 
     public void testShouldReadExpectedSizeFromClusterInfo() {
 
         var shardSize = randomLongBetween(100, 1000);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
-        var shard = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.INITIALIZING);
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
 
         var clusterInfo = createClusterInfo(shard, shardSize);
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(shardSize));
+        assertTrue("Should reserve space for relocating shard", shouldReserveSpaceForInitializingShard(shard, allocation));
+    }
+
+    public void testShouldReadExpectedSizeFromPrimaryWhenAddingNewReplica() {
+
+        var shardSize = randomLongBetween(100, 1000);
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+        var primary = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.STARTED);
+        var replica = newShardRouting("my-index", 0, randomIdentifier(), false, ShardRoutingState.INITIALIZING);
+
+        var clusterInfo = createClusterInfo(primary, shardSize);
+        var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
+
+        assertThat(getExpectedShardSize(replica, defaultValue, allocation), equalTo(shardSize));
+        assertTrue("Should reserve space for peer recovery", shouldReserveSpaceForInitializingShard(replica, allocation));
     }
 
     public void testShouldReadExpectedSizeWhenInitializingFromSnapshot() {
 
         var snapshotShardSize = randomLongBetween(100, 1000);
-        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
+
+        var index = switch (randomIntBetween(0, 2)) {
+            // regular snapshot
+            case 0 -> index("my-index");
+            // searchable snapshot
+            case 1 -> index("my-index").settings(
+                indexSettings(IndexVersion.current(), 1, 0) //
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE) //
+            );
+            // partial searchable snapshot
+            case 2 -> index("my-index").settings(
+                indexSettings(IndexVersion.current(), 1, 0) //
+                    .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE) //
+                    .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true) //
+            );
+            default -> throw new AssertionError("unexpected index type");
+        };
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index)).build();
 
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
 
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            null,
-            true,
-            ShardRoutingState.UNASSIGNED,
-            new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)
-        );
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId))
+            .build();
 
         var snapshotShardSizeInfo = new SnapshotShardSizeInfo(
             Map.of(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shard.shardId()), snapshotShardSize)
@@ -81,24 +123,28 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, snapshotShardSizeInfo);
 
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(snapshotShardSize));
+        if (state.metadata().index("my-index").isPartialSearchableSnapshot() == false) {
+            assertTrue("Should reserve space for snapshot restore", shouldReserveSpaceForInitializingShard(shard, allocation));
+        } else {
+            assertFalse(
+                "Should NOT reserve space for partial searchable snapshot restore as they do not download all data during initialization",
+                shouldReserveSpaceForInitializingShard(shard, allocation)
+            );
+        }
     }
 
     public void testShouldReadSizeFromClonedShard() {
 
         var sourceShardSize = randomLongBetween(100, 1000);
         var source = newShardRouting(new ShardId("source", "_na_", 0), randomIdentifier(), true, ShardRoutingState.STARTED);
-        var target = newShardRouting(
-            new ShardId("target", "_na_", 0),
-            randomIdentifier(),
-            true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.LocalShardsRecoverySource.INSTANCE
-        );
+        var target = shardRoutingBuilder(new ShardId("target", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
+            .build();
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 metadata(
-                    IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 2, 0)),
+                    IndexMetadata.builder("source").settings(indexSettings(IndexVersion.current(), 1, 0)),
                     IndexMetadata.builder("target")
                         .settings(
                             indexSettings(IndexVersion.current(), 1, 0) //
@@ -114,6 +160,10 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
 
         assertThat(getExpectedShardSize(target, defaultValue, allocation), equalTo(sourceShardSize));
+        assertFalse(
+            "Should NOT reserve space when using fs hardlink for clone/shrink/split",
+            shouldReserveSpaceForInitializingShard(target, state.metadata())
+        );
     }
 
     private static RoutingAllocation createRoutingAllocation(

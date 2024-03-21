@@ -14,6 +14,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.readiness.ReadinessService;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
@@ -22,8 +23,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.fail;
 
 /**
@@ -70,11 +69,10 @@ public interface ReadinessClientProbe {
 
         try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                String message = expectThrows(IOException.class, () -> {
+                expectThrows(ConnectException.class, () -> {
                     var result = channelConnect(channel, socketAddress);
                     probeLogger.info("No exception on channel connect, connection success [{}]", result);
-                }).getMessage();
-                assertThat(message, containsString("Connection refused"));
+                });
                 return null;
             });
         }

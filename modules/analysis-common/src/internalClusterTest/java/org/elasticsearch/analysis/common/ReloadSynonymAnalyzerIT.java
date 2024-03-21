@@ -10,9 +10,9 @@ package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
-import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -91,7 +91,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 out.println("foo, baz, " + testTerm);
             }
             ReloadAnalyzersResponse reloadResponse = client().execute(
-                ReloadAnalyzerAction.INSTANCE,
+                TransportReloadAnalyzersAction.TYPE,
                 new ReloadAnalyzersRequest(null, preview, "test")
             ).actionGet();
             assertNoFailures(reloadResponse);

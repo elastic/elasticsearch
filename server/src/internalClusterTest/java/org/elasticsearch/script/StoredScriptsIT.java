@@ -54,9 +54,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> { clusterAdmin().preparePutStoredScript().setId("id#").setContent(new BytesArray(Strings.format("""
+            clusterAdmin().preparePutStoredScript().setId("id#").setContent(new BytesArray(Strings.format("""
                 {"script": {"lang": "%s", "source": "1"} }
-                """, LANG)), XContentType.JSON).get(); }
+                """, LANG)), XContentType.JSON)
         );
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }
@@ -64,9 +64,9 @@ public class StoredScriptsIT extends ESIntegTestCase {
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> { clusterAdmin().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
+            clusterAdmin().preparePutStoredScript().setId("foobar").setContent(new BytesArray(Strings.format("""
                 {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
-                """, LANG)), XContentType.JSON).get(); }
+                """, LANG)), XContentType.JSON)
         );
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.slm.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -34,7 +35,7 @@ public class RestGetSnapshotLifecycleStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        GetSnapshotLifecycleStatsAction.Request req = new GetSnapshotLifecycleStatsAction.Request();
+        AcknowledgedRequest.Plain req = new AcknowledgedRequest.Plain();
         req.timeout(request.paramAsTime("timeout", req.timeout()));
         req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
 

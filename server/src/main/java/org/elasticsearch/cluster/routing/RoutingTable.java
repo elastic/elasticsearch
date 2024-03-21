@@ -18,6 +18,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -148,33 +149,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return shard;
     }
 
-    /**
-     * Try to deduplicate the given shard routing with an equal instance found in this routing table. This is used by the logic of the
-     * {@link org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider} and
-     * {@link org.elasticsearch.cluster.InternalClusterInfoService} to deduplicate instances created by a master node and those read from
-     * the network to speed up the use of {@link ShardRouting} as a map key in {@link org.elasticsearch.cluster.ClusterInfo#getDataPath}.
-     *
-     * @param shardRouting shard routing to deduplicate
-     * @return deduplicated shard routing from this routing table if an equivalent shard routing was found or the given instance otherwise
-     */
-    public ShardRouting deduplicate(ShardRouting shardRouting) {
-        final IndexRoutingTable indexShardRoutingTable = indicesRouting.get(shardRouting.index().getName());
-        if (indexShardRoutingTable == null) {
-            return shardRouting;
-        }
-        final IndexShardRoutingTable shardRoutingTable = indexShardRoutingTable.shard(shardRouting.id());
-        if (shardRoutingTable == null) {
-            return shardRouting;
-        }
-        for (int i = 0; i < shardRoutingTable.size(); i++) {
-            ShardRouting found = shardRoutingTable.shard(i);
-            if (shardRouting.equals(found)) {
-                return found;
-            }
-        }
-        return shardRouting;
-    }
-
     @Nullable
     public ShardRouting getByAllocationId(ShardId shardId, String allocationId) {
         final IndexRoutingTable indexRoutingTable = index(shardId.getIndex());
@@ -276,7 +250,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     public ShardsIterator allShards(String[] indices) {
-        return allShardsSatisfyingPredicate(indices, shardRouting -> true, false);
+        return allShardsSatisfyingPredicate(indices, Predicates.always(), false);
     }
 
     public ShardsIterator allActiveShards(String[] indices) {
@@ -284,7 +258,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     }
 
     public ShardsIterator allShardsIncludingRelocationTargets(String[] indices) {
-        return allShardsSatisfyingPredicate(indices, shardRouting -> true, true);
+        return allShardsSatisfyingPredicate(indices, Predicates.always(), true);
     }
 
     private ShardsIterator allShardsSatisfyingPredicate(

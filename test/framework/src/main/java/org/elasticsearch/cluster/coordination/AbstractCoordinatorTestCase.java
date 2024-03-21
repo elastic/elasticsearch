@@ -240,6 +240,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             // Then a commit of the new leader's first cluster state
             + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
 
+    /**
+     * An estimate for the max time needed to stabilize a cluster. Takes into account delays for various communications involved in
+     * leader elections.
+     * */
     public static final long DEFAULT_STABILISATION_TIME =
         // If leader just blackholed, need to wait for this to be detected
         (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)) * defaultInt(
@@ -549,6 +553,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
+        /**
+         * Uses a default period of time in which to wait for cluster stabilisation, and then verifies that a master has been elected.
+         */
         public void stabilise() {
             stabilise(DEFAULT_STABILISATION_TIME, true);
         }
@@ -942,6 +949,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return 0;
         }
 
+        /**
+         * Mimics a cluster node for testing.
+         */
         public final class ClusterNode {
             private static final Logger logger = LogManager.getLogger(ClusterNode.class);
 
@@ -1181,8 +1191,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     transportService.getTaskManager(),
                     localNode::getId,
                     transportService.getLocalNodeConnection(),
-                    null,
-                    getNamedWriteableRegistry()
+                    null
                 );
                 stableMasterHealthIndicatorService = new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService);
                 masterService.setClusterStatePublisher(coordinator);
@@ -2032,6 +2041,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             };
             trackedRefs.add(trackedRef);
             return trackedRef;
+        }
+
+        @Override
+        public int pageSize() {
+            return delegate.pageSize();
         }
 
         /**

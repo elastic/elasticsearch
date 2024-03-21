@@ -49,7 +49,7 @@ public final class PainlessClass {
 
         this.getterMethodHandles = Map.copyOf(getterMethodHandles);
         this.setterMethodHandles = Map.copyOf(setterMethodHandles);
-        this.runtimeMethods = Map.copyOf(runtimeMethods);
+        this.runtimeMethods = runtimeMethods.equals(methods) ? this.methods : Map.copyOf(runtimeMethods);
     }
 
     @Override

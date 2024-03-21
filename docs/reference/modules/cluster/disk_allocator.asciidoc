@@ -46,18 +46,12 @@ resolve persistent watermark errors.
 ====
 It is normal for the nodes in your cluster to be using very different amounts
 of disk space. The <<shards-rebalancing-settings,balance>> of the cluster
-depends only on the number of shards on each node and the indices to which
-those shards belong. It considers neither the sizes of these shards nor the
-available disk space on each node, for the following reasons:
-
-* Disk usage changes over time. Balancing the disk usage of individual nodes
-would require a lot more shard movements, perhaps even wastefully undoing
-earlier movements. Moving a shard consumes resources such as I/O and network
-bandwidth and may evict data from the filesystem cache. These resources are
-better spent handling your searches and indexing where possible.
-
-* A cluster with equal disk usage on every node typically performs no better
-than one that has unequal disk usage, as long as no disk is too full.
+depends on a combination of factors which includes the number of shards on each
+node, the indices to which those shards belong, and the resource needs of each
+shard in terms of its size on disk and its CPU usage. {es} must trade off all
+of these factors against each other, and a cluster which is balanced when
+looking at the combination of all of these factors may not appear to be
+balanced if you focus attention on just one of them.
 ====
 
 You can use the following settings to control disk-based allocation:

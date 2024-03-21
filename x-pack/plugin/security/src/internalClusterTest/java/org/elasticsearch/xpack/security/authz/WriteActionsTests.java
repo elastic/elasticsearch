@@ -12,7 +12,7 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.core.Strings;
@@ -88,7 +88,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationExceptionDefaultUsers(
             client().prepareUpdate("index1", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get,
-            UpdateAction.NAME
+            TransportUpdateAction.NAME
         );
 
         expectThrows(
@@ -98,7 +98,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
 
         assertThrowsAuthorizationExceptionDefaultUsers(
             client().prepareUpdate("missing", "id").setDoc(Requests.INDEX_CONTENT_TYPE, "field2", "value2")::get,
-            UpdateAction.NAME
+            TransportUpdateAction.NAME
         );
         ensureGreen();
     }

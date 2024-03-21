@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.util.BigArrays;
-
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -16,7 +14,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class OutputOperatorTests extends AnyOperatorTestCase {
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple() {
         return new OutputOperator.OutputOperatorFactory(List.of("a"), p -> p, p -> {});
     }
 

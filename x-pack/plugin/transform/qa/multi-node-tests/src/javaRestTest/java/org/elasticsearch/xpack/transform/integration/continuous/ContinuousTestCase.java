@@ -39,7 +39,6 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
-@SuppressWarnings("removal")
 public abstract class ContinuousTestCase extends ESRestTestCase {
 
     public static final TimeValue SYNC_DELAY = new TimeValue(1, TimeUnit.SECONDS);

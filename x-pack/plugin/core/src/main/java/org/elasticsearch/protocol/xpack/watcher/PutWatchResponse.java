@@ -10,28 +10,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class PutWatchResponse extends ActionResponse implements ToXContentObject {
-
-    private static final ObjectParser<PutWatchResponse, Void> PARSER = new ObjectParser<>(
-        "x_pack_put_watch_response",
-        PutWatchResponse::new
-    );
-    static {
-        PARSER.declareString(PutWatchResponse::setId, new ParseField("_id"));
-        PARSER.declareLong(PutWatchResponse::setVersion, new ParseField("_version"));
-        PARSER.declareLong(PutWatchResponse::setSeqNo, new ParseField("_seq_no"));
-        PARSER.declareLong(PutWatchResponse::setPrimaryTerm, new ParseField("_primary_term"));
-        PARSER.declareBoolean(PutWatchResponse::setCreated, new ParseField("created"));
-    }
 
     private String id;
     private long version;
@@ -135,10 +120,6 @@ public class PutWatchResponse extends ActionResponse implements ToXContentObject
             .field("_primary_term", primaryTerm)
             .field("created", created)
             .endObject();
-    }
-
-    public static PutWatchResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 
 }

@@ -8,6 +8,11 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.queries.function.FunctionQuery;
+import org.apache.lucene.queries.function.valuesource.ByteVectorSimilarityFunction;
+import org.apache.lucene.queries.function.valuesource.FloatVectorSimilarityFunction;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
@@ -20,6 +25,7 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.search.vectors.VectorData;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -155,6 +161,62 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
             query = field.createKnnQuery(floatQueryVector, 10, null, null, producer);
             assertThat(query, instanceOf(DiversifyingChildrenByteKnnVectorQuery.class));
+        }
+    }
+
+    public void testExactKnnQuery() {
+        int dims = randomIntBetween(2, 2048);
+        {
+            DenseVectorFieldType field = new DenseVectorFieldType(
+                "f",
+                IndexVersion.current(),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                dims,
+                true,
+                VectorSimilarity.COSINE,
+                Collections.emptyMap()
+            );
+            float[] queryVector = new float[dims];
+            for (int i = 0; i < dims; i++) {
+                queryVector[i] = randomFloat();
+            }
+            Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector));
+            assertTrue(query instanceof BooleanQuery);
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            boolean foundFunction = false;
+            for (BooleanClause clause : booleanQuery) {
+                if (clause.getQuery() instanceof FunctionQuery functionQuery) {
+                    foundFunction = true;
+                    assertTrue(functionQuery.getValueSource() instanceof FloatVectorSimilarityFunction);
+                }
+            }
+            assertTrue("Unable to find FloatVectorSimilarityFunction in created BooleanQuery", foundFunction);
+        }
+        {
+            DenseVectorFieldType field = new DenseVectorFieldType(
+                "f",
+                IndexVersion.current(),
+                DenseVectorFieldMapper.ElementType.BYTE,
+                dims,
+                true,
+                VectorSimilarity.COSINE,
+                Collections.emptyMap()
+            );
+            byte[] queryVector = new byte[dims];
+            for (int i = 0; i < dims; i++) {
+                queryVector[i] = randomByte();
+            }
+            Query query = field.createExactKnnQuery(VectorData.fromBytes(queryVector));
+            assertTrue(query instanceof BooleanQuery);
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            boolean foundFunction = false;
+            for (BooleanClause clause : booleanQuery) {
+                if (clause.getQuery() instanceof FunctionQuery functionQuery) {
+                    foundFunction = true;
+                    assertTrue(functionQuery.getValueSource() instanceof ByteVectorSimilarityFunction);
+                }
+            }
+            assertTrue("Unable to find FloatVectorSimilarityFunction in created BooleanQuery", foundFunction);
         }
     }
 

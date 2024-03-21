@@ -12,7 +12,6 @@ import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -69,6 +68,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -1403,22 +1403,16 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             boolQuery().must(matchAllQuery()).filter(hasParentQuery("parent", matchAllQuery(), false)) };
 
         for (QueryBuilder query : queries) {
-            SearchResponse scrollResponse = prepareSearch("test").setScroll(TimeValue.timeValueSeconds(30))
-                .setSize(1)
-                .addStoredField("_id")
-                .setQuery(query)
-                .get();
-
-            assertNoFailures(scrollResponse);
-            assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(10L));
-            int scannedDocs = 0;
-            do {
-                assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(10L));
-                scannedDocs += scrollResponse.getHits().getHits().length;
-                scrollResponse = client().prepareSearchScroll(scrollResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();
-            } while (scrollResponse.getHits().getHits().length > 0);
-            clearScroll(scrollResponse.getScrollId());
-            assertThat(scannedDocs, equalTo(10));
+            assertScrollResponsesAndHitCount(
+                client(),
+                TimeValue.timeValueSeconds(60),
+                prepareSearch("test").setScroll(TimeValue.timeValueSeconds(30)).setSize(1).addStoredField("_id").setQuery(query),
+                10,
+                (respNum, response) -> {
+                    assertNoFailures(response);
+                    assertThat(response.getHits().getTotalHits().value, equalTo(10L));
+                }
+            );
         }
     }
 

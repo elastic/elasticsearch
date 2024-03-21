@@ -1,7 +1,7 @@
 {
   "connector_sync_job.error": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/set-connector-sync-job-error-api.html",
       "description": "Sets an error for a connector sync job."
     },
     "stability": "experimental",

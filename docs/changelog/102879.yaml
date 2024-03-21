@@ -1,0 +1,5 @@
+pr: 102879
+summary: Fix disk computation when initializing new shards
+area: Allocation
+type: bug
+issues: []

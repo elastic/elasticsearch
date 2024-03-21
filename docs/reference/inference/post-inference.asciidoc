@@ -6,10 +6,17 @@ experimental[]
 
 Performs an inference task on an input text by using an {infer} model.
 
+IMPORTANT: The {infer} APIs enable you to use certain services, such as ELSER,
+OpenAI, or Hugging Face, in your cluster. This is not the same feature that you
+can use on an ML node with custom {ml} models. If you want to train and use your
+own model, use the <<ml-df-trained-models-apis>>.
+
 
 [discrete]
 [[post-inference-api-request]]
 ==== {api-request-title}
+
+`POST /_inference/<model_id>`
 
 `POST /_inference/<task_type>/<model_id>`
 
@@ -18,8 +25,8 @@ Performs an inference task on an input text by using an {infer} model.
 [[post-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
-
+* Requires the `monitor_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` and `inference_user` roles grant this privilege)
 
 [discrete]
 [[post-inference-api-desc]]
@@ -41,7 +48,7 @@ The unique identifier of the {infer} model.
 
 
 `<task_type>`::
-(Required, string)
+(Optional, string)
 The type of {infer} task that the model performs.
 
 

@@ -144,6 +144,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             request.getRollupConfig(),
             request.getMetricFields(),
             request.getLabelFields(),
+            request.getDimensionFields(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
         return indexer.execute();

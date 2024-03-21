@@ -262,6 +262,11 @@ The conditions which will trigger the rollover of a backing index as configured 
 `cluster.lifecycle.default.rollover`. This property is an implementation detail and it will only be retrieved when the query
 param `include_defaults` is set to `true`. The contents of this field are subject to change.
 =====
+
+`rollover_on_write`::
+(Boolean)
+If `true`, the next write to this data stream will trigger a rollover first and the document will be
+indexed in the new backing index. If the rollover fails the indexing request will fail too.
 ====
 
 [[get-data-stream-api-example]]
@@ -311,7 +316,8 @@ The API returns the following response:
       "hidden": false,
       "system": false,
       "allow_custom_routing": false,
-      "replicated": false
+      "replicated": false,
+      "rollover_on_write": false
     },
     {
       "name": "my-data-stream-two",
@@ -339,7 +345,8 @@ The API returns the following response:
       "hidden": false,
       "system": false,
       "allow_custom_routing": false,
-      "replicated": false
+      "replicated": false,
+      "rollover_on_write": false
     }
   ]
 }

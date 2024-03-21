@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -36,6 +37,7 @@ import java.io.IOException;
  */
 public class TransportPutIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<PutIndexTemplateRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/template/put");
     private static final Logger logger = LogManager.getLogger(TransportPutIndexTemplateAction.class);
 
     private final MetadataIndexTemplateService indexTemplateService;
@@ -52,7 +54,7 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         IndexScopedSettings indexScopedSettings
     ) {
         super(
-            PutIndexTemplateAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

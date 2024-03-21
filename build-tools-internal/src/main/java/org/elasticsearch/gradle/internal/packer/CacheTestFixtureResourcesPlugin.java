@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ResolveAllDependencies;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -26,9 +27,12 @@ public class CacheTestFixtureResourcesPlugin implements Plugin<Project> {
         var cacheTestFixturesConfiguration = project.getConfigurations().create(CACHE_TEST_FIXTURES);
         cacheTestFixturesConfiguration.defaultDependencies(deps -> {
             DependencyHandler dependencyHandler = project.getDependencies();
-            deps.add(dependencyHandler.create("org.reflections:reflections:" + VersionProperties.getVersions().get("reflections")));
-            deps.add(dependencyHandler.create("org.javassist:javassist:" + VersionProperties.getVersions().get("javassist")));
+            Dependency reflections = dependencyHandler.create(
+                "org.reflections:reflections:" + VersionProperties.getVersions().get("reflections")
+            );
+            deps.add(reflections);
         });
+
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
             var cacheTestFixtures = project.getTasks().register(CACHE_TEST_FIXTURES, CacheCacheableTestFixtures.class, (t) -> {
                 var testSourceSet = project.getExtensions()

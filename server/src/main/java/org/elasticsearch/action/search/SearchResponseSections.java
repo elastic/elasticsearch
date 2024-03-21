@@ -8,42 +8,55 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.transport.LeakTracker;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
 
 /**
- * Base class that holds the various sections which a search response is
- * composed of (hits, aggs, suggestions etc.) and allows to retrieve them.
- *
- * The reason why this class exists is that the high level REST client uses its own classes
- * to parse aggregations into, which are not serializable. This is the common part that can be
- * shared between core and client.
+ * Holds some sections that a search response is composed of (hits, aggs, suggestions etc.) during some steps of the search response
+ * building.
  */
-public class SearchResponseSections implements ChunkedToXContent {
+public class SearchResponseSections implements RefCounted {
 
+    public static final SearchResponseSections EMPTY_WITH_TOTAL_HITS = new SearchResponseSections(
+        SearchHits.EMPTY_WITH_TOTAL_HITS,
+        null,
+        null,
+        false,
+        null,
+        null,
+        1
+    );
+    public static final SearchResponseSections EMPTY_WITHOUT_TOTAL_HITS = new SearchResponseSections(
+        SearchHits.EMPTY_WITHOUT_TOTAL_HITS,
+        null,
+        null,
+        false,
+        null,
+        null,
+        1
+    );
     protected final SearchHits hits;
-    protected final Aggregations aggregations;
+    protected final InternalAggregations aggregations;
     protected final Suggest suggest;
     protected final SearchProfileResults profileResults;
     protected final boolean timedOut;
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
 
+    private final RefCounted refCounted;
+
     public SearchResponseSections(
         SearchHits hits,
-        Aggregations aggregations,
+        InternalAggregations aggregations,
         Suggest suggest,
         boolean timedOut,
         Boolean terminatedEarly,
@@ -51,39 +64,22 @@ public class SearchResponseSections implements ChunkedToXContent {
         int numReducePhases
     ) {
         this.hits = hits;
+        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
-    }
-
-    public final boolean timedOut() {
-        return this.timedOut;
-    }
-
-    public final Boolean terminatedEarly() {
-        return this.terminatedEarly;
+        refCounted = hits.getHits().length > 0 ? LeakTracker.wrap(new SimpleRefCounted()) : ALWAYS_REFERENCED;
     }
 
     public final SearchHits hits() {
         return hits;
     }
 
-    public final Aggregations aggregations() {
-        return aggregations;
-    }
-
     public final Suggest suggest() {
         return suggest;
-    }
-
-    /**
-     * Returns the number of reduce phases applied to obtain this search response
-     */
-    public final int getNumReducePhases() {
-        return numReducePhases;
     }
 
     /**
@@ -100,31 +96,26 @@ public class SearchResponseSections implements ChunkedToXContent {
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(
-            Iterators.flatMap(Iterators.single(hits), r -> r.toXContentChunked(params)),
-            Iterators.single((ToXContent) (b, p) -> {
-                if (aggregations != null) {
-                    aggregations.toXContent(b, p);
-                }
-                return b;
-            }),
-            Iterators.single((b, p) -> {
-                if (suggest != null) {
-                    suggest.toXContent(b, p);
-                }
-                return b;
-            }),
-            Iterators.single((b, p) -> {
-                if (profileResults != null) {
-                    profileResults.toXContent(b, p);
-                }
-                return b;
-            })
-        );
+    public void incRef() {
+        refCounted.incRef();
     }
 
-    protected void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            hits.decRef();
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
     }
 }

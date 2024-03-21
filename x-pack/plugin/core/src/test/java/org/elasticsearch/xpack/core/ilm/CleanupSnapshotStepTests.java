@@ -10,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -124,7 +124,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(DeleteSnapshotAction.NAME));
+                assertThat(action.name(), is(TransportDeleteSnapshotAction.TYPE.name()));
                 assertTrue(request instanceof DeleteSnapshotRequest);
                 assertThat(((DeleteSnapshotRequest) request).snapshots(), arrayContaining(expectedSnapshotName));
             }

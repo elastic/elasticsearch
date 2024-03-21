@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a BytesRefVector.
+ * Block view of a {@link BytesRefVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock {
@@ -22,7 +22,6 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     BytesRefVectorBlock(BytesRefVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -37,7 +36,7 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -75,11 +74,6 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public boolean isReleased() {
-        return super.isReleased() || vector.isReleased();
-    }
-
-    @Override
     public void closeInternal() {
         assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
@@ -88,5 +82,10 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public void allowPassingToDifferentDriver() {
         vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

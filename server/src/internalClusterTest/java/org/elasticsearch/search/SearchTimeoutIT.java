@@ -94,10 +94,9 @@ public class SearchTimeoutIT extends ESIntegTestCase {
 
         ElasticsearchException ex = expectThrows(
             ElasticsearchException.class,
-            () -> prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
+            prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
                 .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
                 .setAllowPartialSearchResults(false) // this line causes timeouts to report failures
-                .get()
         );
         assertTrue(ex.toString().contains("Time exceeded"));
     }

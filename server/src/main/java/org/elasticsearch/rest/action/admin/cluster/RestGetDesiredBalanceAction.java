@@ -9,15 +9,18 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceRequest;
-import org.elasticsearch.action.admin.cluster.allocation.GetDesiredBalanceAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetDesiredBalanceAction extends BaseRestHandler {
 
     @Override
@@ -33,9 +36,9 @@ public class RestGetDesiredBalanceAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         return restChannel -> client.execute(
-            GetDesiredBalanceAction.INSTANCE,
+            TransportGetDesiredBalanceAction.TYPE,
             new DesiredBalanceRequest(),
-            new RestChunkedToXContentListener<>(restChannel)
+            new RestRefCountedChunkedToXContentListener<>(restChannel)
         );
     }
 }

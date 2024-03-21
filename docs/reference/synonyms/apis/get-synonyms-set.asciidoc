@@ -1,8 +1,6 @@
 [[get-synonyms-set]]
 === Get synonyms set
 
-beta::[]
-
 ++++
 <titleabbrev>Get synonyms set</titleabbrev>
 ++++

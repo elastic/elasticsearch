@@ -347,22 +347,14 @@ public class SearchScrollIT extends ESIntegTestCase {
         createIndex("idx");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareClearScroll().addScrollId("c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1").get()
+            client().prepareClearScroll().addScrollId("c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1")
         );
         assertEquals("Cannot parse scroll id", e.getMessage());
-
-        e = expectThrows(
-            IllegalArgumentException.class,
-            // Fails during base64 decoding (Base64-encoded string must have at least four characters)
-            () -> client().prepareClearScroll().addScrollId("a").get()
-        );
+        // Fails during base64 decoding (Base64-encoded string must have at least four characters)
+        e = expectThrows(IllegalArgumentException.class, client().prepareClearScroll().addScrollId("a"));
         assertEquals("Cannot parse scroll id", e.getMessage());
-
-        e = expectThrows(
-            IllegalArgumentException.class,
-            // Other invalid base64
-            () -> client().prepareClearScroll().addScrollId("abcabc").get()
-        );
+        // Other invalid base64
+        e = expectThrows(IllegalArgumentException.class, client().prepareClearScroll().addScrollId("abcabc"));
         assertEquals("Cannot parse scroll id", e.getMessage());
     }
 
@@ -559,9 +551,8 @@ public class SearchScrollIT extends ESIntegTestCase {
     public void testScrollInvalidDefaultKeepAlive() throws IOException {
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "1m").put("search.default_keep_alive", "2m"))
-                .get()
         );
         assertThat(exc.getMessage(), containsString("was (2m > 1m)"));
 
@@ -571,9 +562,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m"))
-                .get()
+            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m"))
         );
         assertThat(exc.getMessage(), containsString("was (3m > 2m)"));
 
@@ -581,7 +570,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         exc = expectThrows(
             IllegalArgumentException.class,
-            () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s")).get()
+            clusterAdmin().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s"))
         );
         assertThat(exc.getMessage(), containsString("was (1m > 30s)"));
     }
@@ -596,7 +585,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         Exception exc = expectThrows(
             Exception.class,
-            () -> prepareSearch().setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueHours(2)).get()
+            prepareSearch().setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueHours(2))
         );
         IllegalArgumentException illegalArgumentException = (IllegalArgumentException) ExceptionsHelper.unwrap(
             exc,
@@ -611,7 +600,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getHits().length, equalTo(1));
             Exception ex = expectThrows(
                 Exception.class,
-                () -> client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueHours(3)).get()
+                client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueHours(3))
             );
             IllegalArgumentException iae = (IllegalArgumentException) ExceptionsHelper.unwrap(ex, IllegalArgumentException.class);
             assertNotNull(iae);
@@ -699,7 +688,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
         SearchPhaseExecutionException error = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearchScroll(respFromDemoIndexScrollId).get()
+            client().prepareSearchScroll(respFromDemoIndexScrollId)
         );
         for (ShardSearchFailure shardSearchFailure : error.shardFailures()) {
             assertThat(shardSearchFailure.getCause().getMessage(), containsString("No search context found for id [1]"));

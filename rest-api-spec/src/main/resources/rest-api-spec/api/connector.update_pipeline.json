@@ -1,7 +1,7 @@
 {
   "connector.update_pipeline": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-pipeline-api.html",
       "description": "Updates the pipeline field in the connector document."
     },
     "stability": "experimental",

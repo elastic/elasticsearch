@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -109,7 +109,7 @@ public final class AnomalyDetectorsIndex {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                ClusterHealthAction.INSTANCE,
+                TransportClusterHealthAction.TYPE,
                 request,
                 delegate.delegateFailureAndWrap((l, r) -> l.onResponse(r.isTimedOut() == false))
             );

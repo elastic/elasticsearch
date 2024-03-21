@@ -34,6 +34,7 @@ public class ResamplerTests extends ESTestCase {
             requestedSamples,
             1.0d,
             1.0d,
+            1.0d,
             null,
             null,
             null,
@@ -61,6 +62,7 @@ public class ResamplerTests extends ESTestCase {
             requestedSamples,
             1.0d,
             1.0d,
+            1.0d,
             null,
             null,
             null,
@@ -86,6 +88,7 @@ public class ResamplerTests extends ESTestCase {
 
         GetStackTracesRequest request = new GetStackTracesRequest(
             requestedSamples,
+            1.0d,
             1.0d,
             1.0d,
             null,
@@ -116,6 +119,7 @@ public class ResamplerTests extends ESTestCase {
             requestedSamples,
             1.0d,
             1.0d,
+            1.0d,
             new BoolQueryBuilder().filter(
                 new RangeQueryBuilder("@timestamp").lt("2023-10-19 15:33:00").gte("2023-09-20 15:31:52").format("yyyy-MM-dd HH:mm:ss")
             ),
@@ -143,6 +147,7 @@ public class ResamplerTests extends ESTestCase {
 
         GetStackTracesRequest request = new GetStackTracesRequest(
             requestedSamples,
+            1.0d,
             1.0d,
             1.0d,
             null,

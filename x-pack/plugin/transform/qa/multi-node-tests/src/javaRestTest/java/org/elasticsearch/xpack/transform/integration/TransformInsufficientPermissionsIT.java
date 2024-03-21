@@ -418,10 +418,14 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         );
         assertRed(transformId, authIssue);
 
-        startTransform(config.getId(), RequestOptions.DEFAULT);
+        startTransform(transformId, RequestOptions.DEFAULT);
 
-        // transform is red due to lacking permissions
-        assertRed(transformId, authIssue);
+        String destIndexIssue = Strings.format("Could not create destination index [%s] for transform [%s]", destIndexName, transformId);
+        // transform's auth state status is still RED due to:
+        // - lacking permissions
+        // - and the inability to create destination index in the indexer (which is also a consequence of lacking permissions)
+        // wait for 10 seconds to give the transform indexer enough time to try creating destination index
+        assertBusy(() -> { assertRed(transformId, authIssue, destIndexIssue); });
 
         // update transform's credentials so that the transform has permission to access source/dest indices
         updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
@@ -436,6 +440,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
      * unattended              = true
      * pre-existing dest index = true
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105794")
     public void testTransformPermissionsDeferUnattendedDest() throws Exception {
         String transformId = "transform-permissions-defer-unattended-dest-exists";
         String sourceIndexName = transformId + "-index";
@@ -571,14 +576,15 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     }
 
     private void assertGreen(String transformId) throws IOException {
-        Map<String, Object> stats = getTransformStats(transformId);
+        Map<String, Object> stats = getBasicTransformStats(transformId);
         assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(GREEN)));
         assertThat("Stats were: " + stats, extractValue(stats, "health", "issues"), is(nullValue()));
     }
 
+    // We expect exactly the issues passed as "expectedHealthIssueDetails". Not more, not less.
     @SuppressWarnings("unchecked")
     private void assertRed(String transformId, String... expectedHealthIssueDetails) throws IOException {
-        Map<String, Object> stats = getTransformStats(transformId);
+        Map<String, Object> stats = getBasicTransformStats(transformId);
         assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(RED)));
         List<Object> issues = (List<Object>) extractValue(stats, "health", "issues");
         assertThat("Stats were: " + stats, issues, hasSize(expectedHealthIssueDetails.length));
@@ -586,5 +592,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             .map(issue -> (String) extractValue((Map<String, Object>) issue, "details"))
             .collect(toSet());
         assertThat("Stats were: " + stats, actualHealthIssueDetailsSet, containsInAnyOrder(expectedHealthIssueDetails));
+        // We should not progress beyond the 0th checkpoint until we correctly configure the Transform.
+        assertThat("Stats were: " + stats, getCheckpoint(stats), equalTo(0L));
     }
 }

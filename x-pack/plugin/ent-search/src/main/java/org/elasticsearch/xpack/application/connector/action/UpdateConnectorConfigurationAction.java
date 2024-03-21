@@ -8,19 +8,16 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,33 +30,37 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class UpdateConnectorConfigurationAction extends ActionType<UpdateConnectorConfigurationAction.Response> {
+public class UpdateConnectorConfigurationAction {
 
-    public static final UpdateConnectorConfigurationAction INSTANCE = new UpdateConnectorConfigurationAction();
-    public static final String NAME = "cluster:admin/xpack/connector/update_configuration";
+    public static final String NAME = "indices:data/write/xpack/connector/update_configuration";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorConfigurationAction() {
-        super(NAME, UpdateConnectorConfigurationAction.Response::new);
-    }
+    private UpdateConnectorConfigurationAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
         private final Map<String, ConnectorConfiguration> configuration;
+        private final Map<String, Object> configurationValues;
 
-        public Request(String connectorId, Map<String, ConnectorConfiguration> configuration) {
+        private static final ParseField VALUES_FIELD = new ParseField("values");
+
+        public Request(String connectorId, Map<String, ConnectorConfiguration> configuration, Map<String, Object> configurationValues) {
             this.connectorId = connectorId;
             this.configuration = configuration;
+            this.configurationValues = configurationValues;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.connectorId = in.readString();
             this.configuration = in.readMap(ConnectorConfiguration::new);
+            this.configurationValues = in.readGenericMap();
         }
 
         public String getConnectorId() {
@@ -70,16 +71,31 @@ public class UpdateConnectorConfigurationAction extends ActionType<UpdateConnect
             return configuration;
         }
 
+        public Map<String, Map<String, Object>> getConfigurationAsMap() {
+            return configuration.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toMap()));
+        }
+
+        public Map<String, Object> getConfigurationValues() {
+            return configurationValues;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
             if (Strings.isNullOrEmpty(connectorId)) {
-                validationException = addValidationError("[connector_id] cannot be null or empty.", validationException);
+                validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
-            if (Objects.isNull(configuration)) {
-                validationException = addValidationError("[configuration] cannot be null.", validationException);
+            if (configuration == null && configurationValues == null) {
+                validationException = addValidationError("[configuration] and [values] cannot both be null.", validationException);
+            }
+
+            if (configuration != null && configurationValues != null) {
+                validationException = addValidationError(
+                    "[configuration] and [values] cannot both be provided in the same request.",
+                    validationException
+                );
             }
 
             return validationException;
@@ -92,7 +108,8 @@ public class UpdateConnectorConfigurationAction extends ActionType<UpdateConnect
                 false,
                 ((args, connectorId) -> new UpdateConnectorConfigurationAction.Request(
                     connectorId,
-                    (Map<String, ConnectorConfiguration>) args[0]
+                    (Map<String, ConnectorConfiguration>) args[0],
+                    (Map<String, Object>) args[1]
                 ))
             );
 
@@ -103,6 +120,7 @@ public class UpdateConnectorConfigurationAction extends ActionType<UpdateConnect
                 Connector.CONFIGURATION_FIELD,
                 ObjectParser.ValueType.OBJECT
             );
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> p.map(), VALUES_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
         }
 
         public static UpdateConnectorConfigurationAction.Request fromXContentBytes(
@@ -127,6 +145,7 @@ public class UpdateConnectorConfigurationAction extends ActionType<UpdateConnect
             builder.startObject();
             {
                 builder.field(Connector.CONFIGURATION_FIELD.getPreferredName(), configuration);
+                builder.field(VALUES_FIELD.getPreferredName(), configurationValues);
             }
             builder.endObject();
             return builder;
@@ -137,6 +156,7 @@ public class UpdateConnectorConfigurationAction extends ActionType<UpdateConnect
             super.writeTo(out);
             out.writeString(connectorId);
             out.writeMap(configuration, StreamOutput::writeWriteable);
+            out.writeGenericMap(configurationValues);
         }
 
         @Override
@@ -144,59 +164,14 @@ public class UpdateConnectorConfigurationAction extends ActionType<UpdateConnect
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(connectorId, request.connectorId) && Objects.equals(configuration, request.configuration);
+            return Objects.equals(connectorId, request.connectorId)
+                && Objects.equals(configuration, request.configuration)
+                && Objects.equals(configurationValues, request.configurationValues);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectorId, configuration);
-        }
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        final DocWriteResponse.Result result;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            result = DocWriteResponse.Result.readFrom(in);
-        }
-
-        public Response(DocWriteResponse.Result result) {
-            this.result = result;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            this.result.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("result", this.result.getLowercase());
-            builder.endObject();
-            return builder;
-        }
-
-        public RestStatus status() {
-            return switch (result) {
-                case NOT_FOUND -> RestStatus.NOT_FOUND;
-                default -> RestStatus.OK;
-            };
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response that = (Response) o;
-            return Objects.equals(result, that.result);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(result);
+            return Objects.hash(connectorId, configuration, configurationValues);
         }
     }
 }

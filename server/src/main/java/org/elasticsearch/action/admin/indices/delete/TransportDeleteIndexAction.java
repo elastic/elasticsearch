@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -36,6 +37,7 @@ import java.util.Set;
  */
 public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeAction<DeleteIndexRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/delete");
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
 
     private final MetadataDeleteIndexService deleteIndexService;
@@ -52,7 +54,7 @@ public class TransportDeleteIndexAction extends AcknowledgedTransportMasterNodeA
         DestructiveOperations destructiveOperations
     ) {
         super(
-            DeleteIndexAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

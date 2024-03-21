@@ -71,7 +71,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         ClusterState state,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        datafeedManager.putDatafeed(request, state, licenseState, securityContext, threadPool, listener);
+        datafeedManager.putDatafeed(request, state, securityContext, threadPool, listener);
     }
 
     @Override

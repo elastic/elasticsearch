@@ -32,7 +32,8 @@ public record DownsampleShardTaskParams(
     long indexEndTimeMillis,
     ShardId shardId,
     String[] metrics,
-    String[] labels
+    String[] labels,
+    String[] dimensions
 ) implements PersistentTaskParams {
 
     public static final String NAME = DownsampleShardTask.TASK_NAME;
@@ -43,6 +44,7 @@ public record DownsampleShardTaskParams(
     private static final ParseField SHARD_ID = new ParseField("shard_id");
     private static final ParseField METRICS = new ParseField("metrics");
     private static final ParseField LABELS = new ParseField("labels");
+    private static final ParseField DIMENSIONS = new ParseField("dimensions");
     public static final ObjectParser<DownsampleShardTaskParams.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
@@ -57,6 +59,7 @@ public record DownsampleShardTaskParams(
         PARSER.declareString(DownsampleShardTaskParams.Builder::shardId, SHARD_ID);
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::metrics, METRICS);
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::labels, LABELS);
+        PARSER.declareStringArray(DownsampleShardTaskParams.Builder::dimensions, DIMENSIONS);
     }
 
     DownsampleShardTaskParams(final StreamInput in) throws IOException {
@@ -67,7 +70,8 @@ public record DownsampleShardTaskParams(
             in.readVLong(),
             new ShardId(in),
             in.readStringArray(),
-            in.readStringArray()
+            in.readStringArray(),
+            in.readOptionalStringArray()
         );
     }
 
@@ -81,6 +85,7 @@ public record DownsampleShardTaskParams(
         builder.field(SHARD_ID.getPreferredName(), shardId);
         builder.array(METRICS.getPreferredName(), metrics);
         builder.array(LABELS.getPreferredName(), labels);
+        builder.array(DIMENSIONS.getPreferredName(), dimensions);
         return builder.endObject();
     }
 
@@ -91,7 +96,7 @@ public record DownsampleShardTaskParams(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_054;
+        return TransportVersions.V_8_10_X;
     }
 
     @Override
@@ -103,6 +108,7 @@ public record DownsampleShardTaskParams(
         shardId.writeTo(out);
         out.writeStringArray(metrics);
         out.writeStringArray(labels);
+        out.writeOptionalStringArray(dimensions);
     }
 
     public static DownsampleShardTaskParams fromXContent(XContentParser parser) throws IOException {
@@ -123,7 +129,8 @@ public record DownsampleShardTaskParams(
             && Objects.equals(shardId.id(), that.shardId.id())
             && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
             && Arrays.equals(metrics, that.metrics)
-            && Arrays.equals(labels, that.labels);
+            && Arrays.equals(labels, that.labels)
+            && Arrays.equals(dimensions, that.dimensions);
     }
 
     @Override
@@ -138,6 +145,7 @@ public record DownsampleShardTaskParams(
         );
         result = 31 * result + Arrays.hashCode(metrics);
         result = 31 * result + Arrays.hashCode(labels);
+        result = 31 * result + Arrays.hashCode(dimensions);
         return result;
     }
 
@@ -149,6 +157,7 @@ public record DownsampleShardTaskParams(
         ShardId shardId;
         String[] metrics;
         String[] labels;
+        String[] dimensions;
 
         public Builder downsampleConfig(final DownsampleConfig downsampleConfig) {
             this.downsampleConfig = downsampleConfig;
@@ -185,6 +194,11 @@ public record DownsampleShardTaskParams(
             return this;
         }
 
+        public Builder dimensions(final List<String> dimensions) {
+            this.dimensions = dimensions.toArray(String[]::new);
+            return this;
+        }
+
         public DownsampleShardTaskParams build() {
             return new DownsampleShardTaskParams(
                 downsampleConfig,
@@ -193,7 +207,8 @@ public record DownsampleShardTaskParams(
                 indexEndTimeMillis,
                 shardId,
                 metrics,
-                labels
+                labels,
+                dimensions
             );
         }
     }

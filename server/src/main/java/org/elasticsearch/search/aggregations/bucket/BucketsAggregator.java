@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
@@ -77,13 +78,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     public final void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         grow(bucketOrd + 1);
-        collectExistingBucket(subCollector, doc, bucketOrd);
-    }
-
-    /**
-     * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
-     */
-    public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         int docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             // We call the circuit breaker the time to time in order to give it a chance to check available
@@ -93,6 +87,14 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
             }
         }
+        subCollector.collect(doc, bucketOrd);
+    }
+
+    /**
+     * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
+     */
+    public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
+        docCounts.increment(bucketOrd, docCountProvider.getDocCount(doc));
         subCollector.collect(doc, bucketOrd);
     }
 
@@ -172,28 +174,27 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @return the sub-aggregation results in the same order as the provided
      *         array of ordinals
      */
-    protected final InternalAggregations[] buildSubAggsForBuckets(long[] bucketOrdsToCollect) throws IOException {
+    protected final IntFunction<InternalAggregations> buildSubAggsForBuckets(long[] bucketOrdsToCollect) throws IOException {
         prepareSubAggs(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
             aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);
         }
-        InternalAggregations[] result = new InternalAggregations[bucketOrdsToCollect.length];
-        for (int ord = 0; ord < bucketOrdsToCollect.length; ord++) {
-            final int thisOrd = ord;
-            result[ord] = InternalAggregations.from(new AbstractList<>() {
-                @Override
-                public InternalAggregation get(int index) {
-                    return aggregations[index][thisOrd];
-                }
+        return subAggsForBucketFunction(aggregations);
+    }
 
-                @Override
-                public int size() {
-                    return aggregations.length;
-                }
-            });
-        }
-        return result;
+    private static IntFunction<InternalAggregations> subAggsForBucketFunction(InternalAggregation[][] aggregations) {
+        return ord -> InternalAggregations.from(new AbstractList<>() {
+            @Override
+            public InternalAggregation get(int index) {
+                return aggregations[index][ord];
+            }
+
+            @Override
+            public int size() {
+                return aggregations.length;
+            }
+        });
     }
 
     /**
@@ -221,11 +222,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 bucketOrdsToCollect[s++] = bucketToOrd.applyAsLong(bucket);
             }
         }
-        InternalAggregations[] results = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var results = buildSubAggsForBuckets(bucketOrdsToCollect);
         s = 0;
         for (B[] bucket : buckets) {
             for (int b = 0; b < bucket.length; b++) {
-                setAggs.accept(bucket[b], results[s++]);
+                setAggs.accept(bucket[b], results.apply(s++));
             }
         }
     }
@@ -254,7 +255,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             }
         }
         bucketOrdIdx = 0;
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
             List<B> buckets = new ArrayList<>(bucketsPerOwningBucketOrd);
@@ -263,7 +264,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
                     bucketBuilder.build(
                         offsetInOwningOrd,
                         bucketDocCount(bucketOrdsToCollect[bucketOrdIdx]),
-                        subAggregationResults[bucketOrdIdx++]
+                        subAggregationResults.apply(bucketOrdIdx++)
                     )
                 );
             }
@@ -289,10 +290,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
          * `consumeBucketsAndMaybeBreak(owningBucketOrds.length)`
          * here but we don't because single bucket aggs never have.
          */
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(owningBucketOrds);
+        var subAggregationResults = buildSubAggsForBuckets(owningBucketOrds);
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            results[ordIdx] = resultBuilder.build(owningBucketOrds[ordIdx], subAggregationResults[ordIdx]);
+            results[ordIdx] = resultBuilder.build(owningBucketOrds[ordIdx], subAggregationResults.apply(ordIdx));
         }
         return results;
     }
@@ -336,7 +337,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 bucketOrdsToCollect[b++] = ordsEnum.ord();
             }
         }
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
 
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         b = 0;
@@ -352,7 +353,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
                         bucketOrdsToCollect[b]
                     );
                 }
-                buckets.add(bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults[b++]));
+                buckets.add(bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults.apply(b++)));
             }
             results[ordIdx] = resultBuilder.build(owningBucketOrds[ordIdx], buckets);
         }

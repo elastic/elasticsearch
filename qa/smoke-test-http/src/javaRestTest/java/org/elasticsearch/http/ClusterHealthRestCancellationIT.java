@@ -9,7 +9,7 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -33,6 +33,8 @@ public class ClusterHealthRestCancellationIT extends HttpSmokeTestCase {
     @TestIssueLogging(
         issueUrl = "https://github.com/elastic/elasticsearch/issues/100062",
         value = "org.elasticsearch.test.TaskAssertions:TRACE"
+            + ",org.elasticsearch.cluster.service.MasterService:TRACE"
+            + ",org.elasticsearch.tasks.TaskManager:TRACE"
     )
     public void testClusterHealthRestCancellation() throws Exception {
 
@@ -73,14 +75,14 @@ public class ClusterHealthRestCancellationIT extends HttpSmokeTestCase {
 
         safeAwait(barrier);
 
-        awaitTaskWithPrefixOnMaster(ClusterHealthAction.NAME);
+        awaitTaskWithPrefixOnMaster(TransportClusterHealthAction.NAME);
 
         logger.info("--> cancelling cluster health request");
         cancellable.cancel();
         expectThrows(CancellationException.class, future::actionGet);
 
         logger.info("--> checking cluster health task cancelled");
-        assertAllCancellableTasksAreCancelled(ClusterHealthAction.NAME);
+        assertAllCancellableTasksAreCancelled(TransportClusterHealthAction.NAME);
 
         safeAwait(barrier);
     }

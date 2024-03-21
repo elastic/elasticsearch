@@ -20,15 +20,42 @@ import java.util.Set;
 
 public class ExpectedShardSizeEstimator {
 
-    public static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
+    public static boolean shouldReserveSpaceForInitializingShard(ShardRouting shard, RoutingAllocation allocation) {
+        return shouldReserveSpaceForInitializingShard(shard, allocation.metadata());
+    }
+
+    public static long getExpectedShardSize(ShardRouting shard, long defaultSize, RoutingAllocation allocation) {
         return getExpectedShardSize(
-            shardRouting,
+            shard,
             defaultSize,
             allocation.clusterInfo(),
             allocation.snapshotShardSizeInfo(),
             allocation.metadata(),
             allocation.routingTable()
         );
+    }
+
+    public static boolean shouldReserveSpaceForInitializingShard(ShardRouting shard, Metadata metadata) {
+        assert shard.initializing() : "Expected initializing shard, got: " + shard;
+        return switch (shard.recoverySource().getType()) {
+            // No need to reserve disk space when initializing a new empty shard
+            case EMPTY_STORE -> false;
+
+            // No need to reserve disk space if the shard is already allocated on the disk. Starting it is not going to use more.
+            case EXISTING_STORE -> false;
+
+            // Peer recovery require downloading all segments locally to start the shard. Reserve disk space for this
+            case PEER -> true;
+
+            // Snapshot restore (unless it is partial) require downloading all segments locally from the blobstore to start the shard.
+            // See org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction.buildIndexSettings
+            // and DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS
+            case SNAPSHOT -> metadata.getIndexSafe(shard.index()).isPartialSearchableSnapshot() == false;
+
+            // shrink/split/clone operation is going to clone existing locally placed shards using file system hard links
+            // so no additional space is going to be used until future merges
+            case LOCAL_SHARDS -> false;
+        };
     }
 
     /**
@@ -47,11 +74,18 @@ public class ExpectedShardSizeEstimator {
         if (indexMetadata.getResizeSourceIndex() != null
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
+            assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
             return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
-        } else if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+        } else if (shard.active() == false && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
+            assert shard.primary() : "All replica shards are recovering from " + RecoverySource.Type.PEER;
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else {
-            return clusterInfo.getShardSize(shard, defaultValue);
+            var shardSize = clusterInfo.getShardSize(shard.shardId(), shard.primary());
+            if (shardSize == null && shard.primary() == false) {
+                // derive replica size from corresponding primary
+                shardSize = clusterInfo.getShardSize(shard.shardId(), true);
+            }
+            return shardSize == null ? defaultValue : shardSize;
         }
     }
 

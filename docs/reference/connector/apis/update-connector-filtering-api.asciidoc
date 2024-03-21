@@ -1,0 +1,186 @@
+[[update-connector-filtering-api]]
+=== Update connector filtering API
+++++
+<titleabbrev>Update connector filtering</titleabbrev>
+++++
+
+preview::[]
+
+
+Updates the `filtering` configuration of a connector. Learn more about filtering in the {enterprise-search-ref}/sync-rules.html[sync rules] documentation.
+
+[[update-connector-filtering-api-request]]
+==== {api-request-title}
+
+`PUT _connector/<connector_id>/_filtering`
+
+[[update-connector-filtering-api-prereq]]
+==== {api-prereq-title}
+
+* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* The `connector_id` parameter should reference an existing connector.
+
+[[update-connector-filtering-api-path-params]]
+==== {api-path-parms-title}
+
+`<connector_id>`::
+(Required, string)
+
+[role="child_attributes"]
+[[update-connector-filtering-api-request-body]]
+==== {api-request-body-title}
+
+`filtering`::
+(Required, array) The filtering configuration for the connector. This configuration determines the set of rules applied for filtering data during syncs.
+
+Each entry in the `filtering` array represents a set of filtering rules for a specific data domain and includes the following attributes:
+
+- `domain` (Required, string) +
+Specifies the data domain to which these filtering rules apply.
+
+- `active` (Required, object) +
+Contains the set of rules that are actively used for sync jobs. The `active` object includes:
+
+  * `rules` (Required, array of objects) +
+  An array of individual filtering rule objects, each with the following sub-attributes:
+    ** `id` (Required, string) +
+    A unique identifier for the rule.
+    ** `policy` (Required, string) +
+    Specifies the policy, such as "include" or "exclude".
+    ** `field` (Required, string) +
+    The field in the document to which this rule applies.
+    ** `rule` (Required, string) +
+    The type of rule, such as "regex", "starts_with", "ends_with", "contains", "equals", "<", ">", etc.
+    ** `value` (Required, string) +
+    The value to be used in conjunction with the rule for matching the contents of the document's field.
+    ** `order` (Required, number) +
+    The order in which the rules are applied. The first rule to match has its policy applied.
+    ** `created_at` (Optional, datetime) +
+    The timestamp when the rule was added.
+    ** `updated_at` (Optional, datetime) +
+    The timestamp when the rule was last edited.
+
+  * `advanced_snippet` (Optional, object) +
+  Used for {enterprise-search-ref}/sync-rules.html#sync-rules-advanced[advanced filtering] at query time, with the following sub-attributes:
+    ** `value` (Required, object) +
+    A JSON object passed directly to the connector for advanced filtering.
+    ** `created_at` (Optional, datetime) +
+    The timestamp when this JSON object was created.
+    ** `updated_at` (Optional, datetime) +
+    The timestamp when this JSON object was last edited.
+
+  * `validation` (Optional, object) +
+  Provides validation status for the rules, including:
+    ** `state` (Required, string) +
+    Indicates the validation state: "edited", "valid", or "invalid".
+    ** `errors` (Optional, object) +
+    Contains details about any validation errors, with sub-attributes:
+      *** `ids` (Required, string) +
+      The ID(s) of any rules deemed invalid.
+      *** `messages` (Required, string) +
+      Messages explaining what is invalid about the rules.
+
+- `draft` (Optional, object) +
+An object identical in structure to the `active` object, but used for drafting and editing filtering rules before they become active.
+
+
+[[update-connector-filtering-api-response-codes]]
+==== {api-response-codes-title}
+
+`200`::
+Connector `filtering` field was successfully updated.
+
+`400`::
+The `connector_id` was not provided or the request payload was malformed.
+
+`404` (Missing resources)::
+No connector matching `connector_id` could be found.
+
+[[update-connector-filtering-api-example]]
+==== {api-examples-title}
+
+The following example updates the `filtering` property for the connector with ID `my-connector`:
+
+////
+[source, console]
+--------------------------------------------------
+PUT _connector/my-connector
+{
+  "index_name": "search-google-drive",
+  "name": "My Connector",
+  "service_type": "google_drive"
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _connector/my-connector
+--------------------------------------------------
+// TEARDOWN
+////
+
+[source,console]
+----
+PUT _connector/my-connector/_filtering
+{
+    "filtering": [
+        {
+            "active": {
+                "advanced_snippet": {
+                    "created_at": "2023-11-09T15:13:08.231Z",
+                    "updated_at": "2023-11-09T15:13:08.231Z",
+                    "value": {}
+                },
+                "rules": [
+                    {
+                        "created_at": "2023-11-09T15:13:08.231Z",
+                        "field": "_",
+                        "id": "DEFAULT",
+                        "order": 0,
+                        "policy": "include",
+                        "rule": "regex",
+                        "updated_at": "2023-11-09T15:13:08.231Z",
+                        "value": ".*"
+                    }
+                ],
+                "validation": {
+                    "errors": [],
+                    "state": "valid"
+                }
+            },
+            "domain": "DEFAULT",
+            "draft": {
+                "advanced_snippet": {
+                    "created_at": "2023-11-09T15:13:08.231Z",
+                    "updated_at": "2023-11-09T15:13:08.231Z",
+                    "value": {}
+                },
+                "rules": [
+                    {
+                        "created_at": "2023-11-09T15:13:08.231Z",
+                        "field": "_",
+                        "id": "DEFAULT",
+                        "order": 0,
+                        "policy": "include",
+                        "rule": "regex",
+                        "updated_at": "2023-11-09T15:13:08.231Z",
+                        "value": ".*"
+                    }
+                ],
+                "validation": {
+                    "errors": [],
+                    "state": "valid"
+                }
+            }
+        }
+    ]
+}
+----
+
+[source,console-result]
+----
+{
+    "result": "updated"
+}
+----

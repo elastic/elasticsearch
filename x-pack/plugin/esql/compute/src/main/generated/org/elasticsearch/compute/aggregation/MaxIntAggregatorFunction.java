@@ -90,14 +90,18 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
       return;
     }
-    IntVector max = page.<IntBlock>getBlock(channels.get(0)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    IntVector max = ((IntBlock) maxUncast).asVector();
     assert max.getPositionCount() == 1;
-    assert max.getPositionCount() == seen.getPositionCount();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert seen.getPositionCount() == 1;
     if (seen.getBoolean(0)) {
       state.intValue(MaxIntAggregator.combine(state.intValue(), max.getInt(0)));
       state.seen(true);
@@ -112,10 +116,10 @@ public final class MaxIntAggregatorFunction implements AggregatorFunction {
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1, driverContext.blockFactory());
+      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }
-    blocks[offset] = IntBlock.newConstantBlockWith(state.intValue(), 1, driverContext.blockFactory());
+    blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1);
   }
 
   @Override

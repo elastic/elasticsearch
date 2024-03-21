@@ -37,13 +37,14 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_HISTOGRAM;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_OPERATIONS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_THROTTLES_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_THROTTLES_HISTOGRAM;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_UNSUCCESSFUL_OPERATIONS_COUNT;
+import static org.elasticsearch.repositories.RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_TOTAL;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_OPERATIONS_TOTAL;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_THROTTLES_HISTOGRAM;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_THROTTLES_TOTAL;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
@@ -103,13 +104,14 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             final long batch = i + 1;
             addErrorStatus(INTERNAL_SERVER_ERROR, TOO_MANY_REQUESTS, TOO_MANY_REQUESTS);
             blobContainer.writeBlob(purpose, blobName, new BytesArray("blob"), false);
-            assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_COUNT, Operation.PUT_OBJECT), equalTo(4L * batch));
-            assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_COUNT, Operation.PUT_OBJECT), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_COUNT, Operation.PUT_OBJECT), equalTo(0L));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_COUNT, Operation.PUT_OBJECT), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_COUNT, Operation.PUT_OBJECT), equalTo(2L * batch));
+            assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.PUT_OBJECT), equalTo(4L * batch));
+            assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.PUT_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.PUT_OBJECT), equalTo(0L));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.PUT_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.PUT_OBJECT), equalTo(2L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.PUT_OBJECT), equalTo(2L * batch));
+            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(batch));
         }
 
         // Get not found
@@ -122,13 +124,14 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             } catch (Exception e) {
                 // intentional failure
             }
-            assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_COUNT, Operation.GET_OBJECT), equalTo(2L * batch));
-            assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_COUNT, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_COUNT, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_COUNT, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_COUNT, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.GET_OBJECT), equalTo(2L * batch));
+            assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
         }
 
         // List retry exhausted
@@ -141,24 +144,26 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             } catch (Exception e) {
                 // intentional failure
             }
-            assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_COUNT, Operation.LIST_OBJECTS), equalTo(5L * batch));
-            assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_COUNT, Operation.LIST_OBJECTS), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_COUNT, Operation.LIST_OBJECTS), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_COUNT, Operation.LIST_OBJECTS), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_COUNT, Operation.LIST_OBJECTS), equalTo(5L * batch));
+            assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.LIST_OBJECTS), equalTo(5L * batch));
+            assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(5L * batch));
+            assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(batch));
         }
 
         // Delete to clean up
         blobContainer.deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
-        assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_COUNT, Operation.DELETE_OBJECTS), equalTo(1L));
-        assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_COUNT, Operation.DELETE_OBJECTS), equalTo(1L));
-        assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_COUNT, Operation.DELETE_OBJECTS), equalTo(0L));
-        assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_COUNT, Operation.DELETE_OBJECTS), equalTo(0L));
-        assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_COUNT, Operation.DELETE_OBJECTS), equalTo(0L));
+        assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.DELETE_OBJECTS), equalTo(1L));
+        assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.DELETE_OBJECTS), equalTo(1L));
+        assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.DELETE_OBJECTS), equalTo(0L));
+        assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.DELETE_OBJECTS), equalTo(0L));
+        assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.DELETE_OBJECTS), equalTo(0L));
         assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(0L));
         assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(0L));
+        assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MICROS_HISTOGRAM, Operation.DELETE_OBJECTS), equalTo(1L));
     }
 
     private void addErrorStatus(RestStatus... statuses) {
@@ -172,6 +177,11 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             .mapToLong(Measurement::getLong)
             .findFirst()
             .orElse(0L);
+    }
+
+    private long getNumberOfMeasurements(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
+        final List<Measurement> measurements = plugin.getLongHistogramMeasurement(instrumentName);
+        return measurements.stream().filter(m -> m.attributes().get("operation") == operation.getKey()).count();
     }
 
     private long getLongHistogramValue(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {

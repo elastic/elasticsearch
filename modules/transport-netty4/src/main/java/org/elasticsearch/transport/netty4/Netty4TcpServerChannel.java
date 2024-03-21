@@ -16,6 +16,8 @@ import org.elasticsearch.transport.TcpServerChannel;
 
 import java.net.InetSocketAddress;
 
+import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
+
 public class Netty4TcpServerChannel implements TcpServerChannel {
 
     private final Channel channel;
@@ -23,7 +25,7 @@ public class Netty4TcpServerChannel implements TcpServerChannel {
 
     Netty4TcpServerChannel(Channel channel) {
         this.channel = channel;
-        Netty4TcpChannel.addListener(this.channel.closeFuture(), closeContext);
+        addListener(this.channel.closeFuture(), closeContext);
     }
 
     @Override

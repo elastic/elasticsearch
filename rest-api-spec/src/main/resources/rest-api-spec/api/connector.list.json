@@ -1,7 +1,7 @@
 {
   "connector.list": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/enterprise-search/current/connectors.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/list-connector-api.html",
       "description": "Lists all connectors."
     },
     "stability": "experimental",
@@ -30,7 +30,23 @@
       "size": {
         "type": "int",
         "default": 100,
-        "description": "specifies a max number of results to get (default: 100)"
+        "description": "Specifies a max number of results to get (default: 100)"
+      },
+      "index_name": {
+        "type": "list",
+        "description": "A comma-separated list of connector index names to fetch connector documents for"
+      },
+      "connector_name": {
+        "type": "list",
+        "description": "A comma-separated list of connector names to fetch connector documents for"
+      },
+      "service_type": {
+        "type": "list",
+        "description": "A comma-separated list of connector service types to fetch connector documents for"
+      },
+      "query": {
+        "type": "string",
+        "description": "A search string for querying connectors, filtering results by matching against connector names, descriptions, and index names"
       }
     }
   }

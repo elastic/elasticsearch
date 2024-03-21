@@ -77,17 +77,17 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         public TokenCountFieldMapper build(MapperBuilderContext context) {
             if (analyzer.getValue() == null) {
-                throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
+                throw new MapperParsingException("Analyzer must be set for field [" + name() + "] but wasn't.");
             }
             MappedFieldType ft = new TokenCountFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new TokenCountFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -204,14 +204,6 @@ public class TokenCountFieldMapper extends FieldMapper {
      */
     public String analyzer() {
         return analyzer.name();
-    }
-
-    /**
-     * Indicates if position increments are counted.
-     * @return <code>true</code> if position increments are counted
-     */
-    public boolean enablePositionIncrements() {
-        return enablePositionIncrements;
     }
 
     @Override

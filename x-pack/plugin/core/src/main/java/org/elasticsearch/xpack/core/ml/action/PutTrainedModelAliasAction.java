@@ -35,7 +35,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/xpack/ml/inference/model_aliases/put";
 
     private PutTrainedModelAliasAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

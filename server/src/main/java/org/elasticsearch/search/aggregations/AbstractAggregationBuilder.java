@@ -48,7 +48,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     protected AbstractAggregationBuilder(StreamInput in) throws IOException {
         super(in.readString());
         factoriesBuilder = new AggregatorFactories.Builder(in);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
     }
 
     @Override

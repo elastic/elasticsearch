@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class ClearSecurityCacheAction extends ActionType<ClearSecurityCacheResponse> {
 
@@ -16,6 +15,6 @@ public class ClearSecurityCacheAction extends ActionType<ClearSecurityCacheRespo
     public static final String NAME = "cluster:admin/xpack/security/cache/clear";
 
     protected ClearSecurityCacheAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

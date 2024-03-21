@@ -1,3 +1,6 @@
+import org.gradle.api.services.internal.BuildServiceProvider
+import org.gradle.api.services.internal.BuildServiceRegistryInternal
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -13,15 +16,15 @@ tasks.named("preProcessFixture").configure {
   doLast {
     // We need to create these up-front because if docker creates them they will be owned by root and we won't be
     // able to clean them up
-    services.each { file("${testFixturesDir}/shared/${it}").mkdirs() }
+    services.each { fixturesDir.dir("shared/${it}").get().getAsFile().mkdirs() }
   }
 }
 
-tasks.named("postProcessFixture").configure {
-  inputs.dir("${testFixturesDir}/shared")
+tasks.named("postProcessFixture").configure { task ->
+  inputs.dir(fixturesDir.dir('shared').get().getAsFile())
   services.each { service ->
-    File confTemplate = file("${testFixturesDir}/shared/${service}/krb5.conf.template")
-    File confFile = file("${testFixturesDir}/shared/${service}/krb5.conf")
+    File confTemplate = fixturesDir.file("shared/${service}/krb5.conf.template").get().asFile
+    File confFile = fixturesDir.file("shared/${service}/krb5.conf").get().asFile
     outputs.file(confFile)
     doLast {
       assert confTemplate.exists()
@@ -32,9 +35,8 @@ tasks.named("postProcessFixture").configure {
   }
 }
 
-
-project.ext.krb5Conf = { service -> file("$testFixturesDir/shared/${service}/krb5.conf") }
-project.ext.krb5Keytabs = { service, fileName -> file("$testFixturesDir/shared/${service}/keytabs/${fileName}") }
+project.ext.krb5Conf = { s -> file("$testFixturesDir/shared/${s}/krb5.conf") }
+project.ext.krb5Keytabs = { s, fileName -> file("$testFixturesDir/shared/${s}/keytabs/${fileName}") }
 
 configurations {
   krb5ConfHdfsFile {

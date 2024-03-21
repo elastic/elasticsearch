@@ -23,7 +23,7 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/shutdown/delete";
 
     public DeleteShutdownNodeAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

@@ -63,9 +63,10 @@ public class ReservedStateMetadataTests extends ESTestCase {
         builder.startObject();
         meta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        parser.nextToken(); // the beginning of the object
-        assertThat(ReservedStateMetadata.fromXContent(parser), equalTo(meta));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            parser.nextToken(); // the beginning of the object
+            assertThat(ReservedStateMetadata.fromXContent(parser), equalTo(meta));
+        }
     }
 
     public void testXContent() throws IOException {

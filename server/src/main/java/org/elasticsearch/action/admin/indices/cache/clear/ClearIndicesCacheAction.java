@@ -9,13 +9,14 @@
 package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 
-public class ClearIndicesCacheAction extends ActionType<ClearIndicesCacheResponse> {
+public class ClearIndicesCacheAction extends ActionType<BroadcastResponse> {
 
     public static final ClearIndicesCacheAction INSTANCE = new ClearIndicesCacheAction();
     public static final String NAME = "indices:admin/cache/clear";
 
     private ClearIndicesCacheAction() {
-        super(NAME, ClearIndicesCacheResponse::new);
+        super(NAME);
     }
 }

@@ -46,6 +46,21 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
                 DataTypes.BOOLEAN,
                 equalTo(str.startsWith(prefix))
             );
+        }), new TestCaseSupplier("Starts with basic test with text args", () -> {
+            String str = randomAlphaOfLength(5);
+            String prefix = randomAlphaOfLength(5);
+            if (randomBoolean()) {
+                str = prefix + str;
+            }
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(prefix), DataTypes.TEXT, "prefix")
+                ),
+                "StartsWithEvaluator[str=Attribute[channel=0], prefix=Attribute[channel=1]]",
+                DataTypes.BOOLEAN,
+                equalTo(str.startsWith(prefix))
+            );
         })));
     }
 

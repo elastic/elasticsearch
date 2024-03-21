@@ -65,11 +65,8 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
                 TEMPLATE_VERSION_VARIABLE
             )
         )) {
-            try {
-                componentTemplates.put(
-                    config.getTemplateName(),
-                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
-                );
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
+                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

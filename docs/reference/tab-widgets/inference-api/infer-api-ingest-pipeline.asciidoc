@@ -1,0 +1,63 @@
+////
+
+[source,console]
+----
+DELETE _ingest/pipeline/*_embeddings
+----
+// TEST
+// TEARDOWN
+
+////
+
+// tag::cohere[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/cohere_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "cohere_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference configuration you created by using the
+<<put-inference-api>>.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::cohere[]
+
+
+// tag::openai[]
+
+[source,console]
+--------------------------------------------------
+PUT _ingest/pipeline/openai_embeddings
+{
+  "processors": [
+    {
+      "inference": {
+        "model_id": "openai_embeddings", <1>
+        "input_output": { <2>
+          "input_field": "content",
+          "output_field": "content_embedding"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+<1> The name of the inference configuration you created by using the
+<<put-inference-api>>.
+<2> Configuration object that defines the `input_field` for the {infer} process
+and the `output_field` that will contain the {infer} results.
+
+// end::openai[]

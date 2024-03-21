@@ -26,8 +26,11 @@ public class ExplainLifecycleResponseTests extends AbstractXContentSerializingTe
     @Override
     protected ExplainLifecycleResponse createTestInstance() {
         Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
+        long now = System.currentTimeMillis();
         for (int i = 0; i < randomIntBetween(0, 2); i++) {
             IndexLifecycleExplainResponse indexResponse = IndexLifecycleExplainResponseTests.randomIndexExplainResponse();
+            // Since the age is calculated from now, we make now constant so that we don't get changes in age during the run of the test:
+            indexResponse.nowSupplier = () -> now;
             indexResponses.put(indexResponse.getIndex(), indexResponse);
         }
         return new ExplainLifecycleResponse(indexResponses);

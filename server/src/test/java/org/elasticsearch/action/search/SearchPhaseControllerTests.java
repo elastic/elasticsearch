@@ -50,7 +50,6 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -293,8 +292,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     profile
                 );
+                final SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                 try {
-                    InternalSearchResponse mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
@@ -347,6 +346,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         assertThat(mergedResponse.profile(), is(anEmptyMap()));
                     }
                 } finally {
+                    mergedResponse.decRef();
                     fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {
@@ -411,8 +411,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     reducedQueryPhase.suggest(),
                     false
                 );
+                SearchResponseSections mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                 try {
-                    InternalSearchResponse mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
                     if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                         assertNull(mergedResponse.hits.getTotalHits());
                     } else {
@@ -428,6 +428,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertThat(mergedResponse.hits().getHits().length, equalTo(reducedQueryPhase.sortedTopDocs().scoreDocs().length));
                     assertThat(mergedResponse.profile(), is(anEmptyMap()));
                 } finally {
+                    mergedResponse.decRef();
                     fetchResults.asList().forEach(TransportMessage::decRef);
                 }
             } finally {
@@ -557,7 +558,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             List<SearchHit> searchHits = new ArrayList<>();
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
                 if (scoreDoc.shardIndex == shardIndex) {
-                    searchHits.add(new SearchHit(scoreDoc.doc, ""));
+                    searchHits.add(SearchHit.unpooled(scoreDoc.doc, ""));
                     if (scoreDoc.score > maxScore) {
                         maxScore = scoreDoc.score;
                     }
@@ -569,7 +570,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         for (CompletionSuggestion.Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
                             ScoreDoc doc = option.getDoc();
                             if (doc.shardIndex == shardIndex) {
-                                searchHits.add(new SearchHit(doc.doc, ""));
+                                searchHits.add(SearchHit.unpooled(doc.doc, ""));
                                 if (doc.score > maxScore) {
                                     maxScore = doc.score;
                                 }
@@ -578,11 +579,14 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     }
                 }
             }
-            SearchHit[] hits = searchHits.toArray(new SearchHit[0]);
+            SearchHit[] hits = searchHits.toArray(SearchHits.EMPTY);
             ProfileResult profileResult = profile && searchHits.size() > 0
                 ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), randomNonNegativeLong(), List.of())
                 : null;
-            fetchSearchResult.shardResult(new SearchHits(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore), profileResult);
+            fetchSearchResult.shardResult(
+                SearchHits.unpooled(hits, new TotalHits(hits.length, Relation.EQUAL_TO), maxScore),
+                profileResult
+            );
             fetchResults.set(shardIndex, fetchSearchResult);
         }
         return fetchResults;
@@ -609,16 +613,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")));
         request.setBatchedReduceSize(bufferSize);
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            3 + numEmptyResponses,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                3 + numEmptyResponses,
+                exc -> {}
+            )
+        ) {
             if (numEmptyResponses == 0) {
                 assertEquals(0, reductions.size());
             }
@@ -722,8 +727,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertNull(reduce.sortedTopDocs().sortFields());
             assertNull(reduce.sortedTopDocs().collapseField());
             assertNull(reduce.sortedTopDocs().collapseValues());
-        } finally {
-            consumer.decRef();
         }
     }
 
@@ -734,16 +737,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")));
         request.setBatchedReduceSize(bufferSize);
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
             AtomicInteger max = new AtomicInteger();
             Thread[] threads = new Thread[expectedNumResults];
             CountDownLatch latch = new CountDownLatch(expectedNumResults);
@@ -796,8 +800,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertNull(reduce.sortedTopDocs().sortFields());
             assertNull(reduce.sortedTopDocs().collapseField());
             assertNull(reduce.sortedTopDocs().collapseValues());
-        } finally {
-            consumer.decRef();
         }
     }
 
@@ -807,16 +809,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         request.source(new SearchSourceBuilder().aggregation(new MaxAggregationBuilder("test")).size(0));
         request.setBatchedReduceSize(bufferSize);
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
             AtomicInteger max = new AtomicInteger();
             CountDownLatch latch = new CountDownLatch(expectedNumResults);
             for (int i = 0; i < expectedNumResults; i++) {
@@ -856,8 +859,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertNull(reduce.sortedTopDocs().sortFields());
             assertNull(reduce.sortedTopDocs().collapseField());
             assertNull(reduce.sortedTopDocs().collapseValues());
-        } finally {
-            consumer.decRef();
         }
     }
 
@@ -869,16 +870,18 @@ public class SearchPhaseControllerTests extends ESTestCase {
             request.source(new SearchSourceBuilder().size(randomIntBetween(1, 10)));
         }
         request.setBatchedReduceSize(bufferSize);
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        try {
+
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
             AtomicInteger max = new AtomicInteger();
             CountDownLatch latch = new CountDownLatch(expectedNumResults);
             for (int i = 0; i < expectedNumResults; i++) {
@@ -915,8 +918,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertNull(reduce.sortedTopDocs().sortFields());
             assertNull(reduce.sortedTopDocs().collapseField());
             assertNull(reduce.sortedTopDocs().collapseValues());
-        } finally {
-            consumer.decRef();
         }
     }
 
@@ -936,16 +937,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().size(5).from(5));
         request.setBatchedReduceSize(randomIntBetween(2, 4));
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            4,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                4,
+                exc -> {}
+            )
+        ) {
             int score = 100;
             CountDownLatch latch = new CountDownLatch(4);
             for (int i = 0; i < 4; i++) {
@@ -983,8 +985,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertEquals(93.0f, scoreDocs[2].score, 0.0f);
             assertEquals(92.0f, scoreDocs[3].score, 0.0f);
             assertEquals(91.0f, scoreDocs[4].score, 0.0f);
-        } finally {
-            consumer.decRef();
         }
     }
 
@@ -994,16 +994,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(1, 10);
         request.setBatchedReduceSize(bufferSize);
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
             AtomicInteger max = new AtomicInteger();
             SortField[] sortFields = { new SortField("field", SortField.Type.INT, true) };
             DocValueFormat[] docValueFormats = { DocValueFormat.RAW };
@@ -1039,8 +1040,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertEquals(SortField.Type.INT, reduce.sortedTopDocs().sortFields()[0].getType());
             assertNull(reduce.sortedTopDocs().collapseField());
             assertNull(reduce.sortedTopDocs().collapseValues());
-        } finally {
-            consumer.decRef();
         }
     }
 
@@ -1050,16 +1049,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         SearchRequest request = randomSearchRequest();
         int size = randomIntBetween(5, 10);
         request.setBatchedReduceSize(bufferSize);
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
             SortField[] sortFields = { new SortField("field", SortField.Type.STRING) };
             BytesRef a = new BytesRef("a");
             BytesRef b = new BytesRef("b");
@@ -1099,8 +1099,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertEquals(SortField.Type.STRING, reduce.sortedTopDocs().sortFields()[0].getType());
             assertEquals("field", reduce.sortedTopDocs().collapseField());
             assertArrayEquals(collapseValues, reduce.sortedTopDocs().collapseValues());
-        } finally {
-            consumer.decRef();
         }
     }
 
@@ -1109,16 +1107,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int bufferSize = randomIntBetween(2, 200);
         SearchRequest request = randomSearchRequest();
         request.setBatchedReduceSize(bufferSize);
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> {}
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> {}
+            )
+        ) {
             int maxScoreTerm = -1;
             int maxScorePhrase = -1;
             int maxScoreCompletion = -1;
@@ -1215,8 +1214,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             assertNull(reduce.sortedTopDocs().sortFields());
             assertNull(reduce.sortedTopDocs().collapseField());
             assertNull(reduce.sortedTopDocs().collapseValues());
-        } finally {
-            consumer.decRef();
         }
     }
 
@@ -1256,16 +1253,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     assertEquals(numReduceListener.incrementAndGet(), reducePhase);
                 }
             };
-            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-                fixedExecutor,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                () -> false,
-                progressListener,
-                request,
-                expectedNumResults,
-                exc -> {}
-            );
-            try {
+            try (
+                SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                    fixedExecutor,
+                    new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                    () -> false,
+                    progressListener,
+                    request,
+                    expectedNumResults,
+                    exc -> {}
+                )
+            ) {
                 AtomicInteger max = new AtomicInteger();
                 Thread[] threads = new Thread[expectedNumResults];
                 CountDownLatch latch = new CountDownLatch(expectedNumResults);
@@ -1323,8 +1321,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 assertEquals(expectedNumResults, numQueryResultListener.get());
                 assertEquals(0, numQueryFailureListener.get());
                 assertEquals(numReduceListener.get(), reduce.numReducePhases());
-            } finally {
-                consumer.decRef();
             }
         }
     }
@@ -1347,16 +1343,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         if (shouldFailPartial) {
             circuitBreaker.shouldBreak.set(true);
         }
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            circuitBreaker,
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            numShards,
-            exc -> hasConsumedFailure.set(true)
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                circuitBreaker,
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                numShards,
+                exc -> hasConsumedFailure.set(true)
+            )
+        ) {
             CountDownLatch latch = new CountDownLatch(numShards);
             Thread[] threads = new Thread[numShards];
             for (int i = 0; i < numShards; i++) {
@@ -1405,8 +1402,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
             } else {
                 consumer.reduce();
             }
-        } finally {
-            consumer.decRef();
         }
         assertThat(circuitBreaker.allocated, equalTo(0L));
     }
@@ -1419,16 +1414,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
-        SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
-            fixedExecutor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            () -> false,
-            SearchProgressListener.NOOP,
-            request,
-            expectedNumResults,
-            exc -> hasConsumedFailure.set(true)
-        );
-        try {
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                fixedExecutor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                expectedNumResults,
+                exc -> hasConsumedFailure.set(true)
+            )
+        ) {
             for (int i = 0; i < expectedNumResults; i++) {
                 final int index = i;
                 QuerySearchResult result = new QuerySearchResult(
@@ -1453,8 +1449,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 }
             }
             assertNull(consumer.reduce().aggregations());
-        } finally {
-            consumer.decRef();
         }
     }
 

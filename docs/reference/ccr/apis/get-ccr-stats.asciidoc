@@ -112,6 +112,7 @@ The API returns the following results:
     "indices" : [
       {
         "index" : "follower_index",
+        "total_global_checkpoint_lag" : 256,
         "shards" : [
           {
             "remote_cluster" : "remote_cluster",
@@ -149,6 +150,7 @@ The API returns the following results:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"total_global_checkpoint_lag" : 256/"total_global_checkpoint_lag" : 0/]
 // TESTRESPONSE[s/"number_of_failed_follow_indices" : 0/"number_of_failed_follow_indices" : $body.auto_follow_stats.number_of_failed_follow_indices/]
 // TESTRESPONSE[s/"number_of_failed_remote_cluster_state_requests" : 0/"number_of_failed_remote_cluster_state_requests" : $body.auto_follow_stats.number_of_failed_remote_cluster_state_requests/]
 // TESTRESPONSE[s/"number_of_successful_follow_indices" : 1/"number_of_successful_follow_indices" : $body.auto_follow_stats.number_of_successful_follow_indices/]

@@ -56,7 +56,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/overall_buckets/get";
 
     private GetOverallBucketsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

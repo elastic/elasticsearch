@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -51,7 +52,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
     public static final String DUMMY_DEST_INDEX_FOR_PREVIEW = "unused-transform-preview-index";
 
     private PreviewTransformAction() {
-        super(NAME, PreviewTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -84,12 +85,11 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             content.putIfAbsent(TransformField.ID.getPreferredName(), "transform-preview");
             try (
                 XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
-                XContentParser newParser = XContentType.JSON.xContent()
-                    .createParser(
-                        parser.getXContentRegistry(),
-                        LoggingDeprecationHandler.INSTANCE,
-                        BytesReference.bytes(xContentBuilder).streamInput()
-                    )
+                XContentParser newParser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(parser.getXContentRegistry()),
+                    BytesReference.bytes(xContentBuilder),
+                    XContentType.JSON
+                )
             ) {
                 return new Request(TransformConfig.fromXContent(newParser, null, false), timeout);
             }
@@ -183,7 +183,7 @@ public class PreviewTransformAction extends ActionType<PreviewTransformAction.Re
             int size = in.readInt();
             this.docs = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                this.docs.add(in.readMap());
+                this.docs.add(in.readGenericMap());
             }
             this.generatedDestIndexSettings = new TransformDestIndexSettings(in);
         }

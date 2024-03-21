@@ -17,7 +17,9 @@
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
-        "index-version": ${xpack.profiling.index.sq.leafframes.version}
+        "index-version": ${xpack.profiling.index.sq.leafframes.version},
+        "description": "Index template for .profiling-sq-leafframes",
+        "managed": true
       },
       "dynamic": false,
       "properties": {

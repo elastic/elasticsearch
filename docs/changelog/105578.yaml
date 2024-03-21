@@ -1,0 +1,13 @@
+pr: 105578
+summary: Upgrade to Lucene 9.10.0
+area: Search
+type: enhancement
+issues: []
+highlight:
+  title: New Lucene 9.10 release
+  body: |-
+    - https://github.com/apache/lucene/pull/13090: Prevent humongous allocations in ScalarQuantizer when building quantiles.
+    - https://github.com/apache/lucene/pull/12962: Speedup concurrent multi-segment HNSW graph search
+    - https://github.com/apache/lucene/pull/13033: Range queries on numeric/date/ip fields now exit earlier on segments whose values don't intersect with the query range. This should especially help when there are other required clauses in the `bool` query and when the range filter is narrow, e.g. filtering on the last 5 minutes.
+    - https://github.com/apache/lucene/pull/13026: `bool` queries that mix `filter` and `should` clauses will now propagate minimum competitive scores through the `should` clauses. This should yield speedups when sorting by descending score.
+  notable: true

@@ -350,7 +350,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> prepareSearch().setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lenient(false)).get()
+            prepareSearch().setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lenient(false))
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.toString(), containsString("unit [D] not supported for date math"));
@@ -544,7 +544,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertResponse(prepareSearch().setQuery(matchQuery("double", "2")), response -> {
             assertHitCount(response, 1L);
             assertFirstHit(response, hasId("2"));
-            expectThrows(SearchPhaseExecutionException.class, () -> prepareSearch().setQuery(matchQuery("double", "2 3 4")).get());
+            expectThrows(SearchPhaseExecutionException.class, prepareSearch().setQuery(matchQuery("double", "2 3 4")));
         });
     }
 

@@ -32,6 +32,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,21 +54,14 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
-        assertBusy(
-            () -> { assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs)); }
-        );
+        assertBusy(() -> assertHitCount(client().prepareSearch("follower"), firstBatchNumDocs));
 
         final long secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < secondBatchNumDocs; i++) {
             prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(() -> {
-            assertThat(
-                client().prepareSearch("follower").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs)
-            );
-        });
+        assertBusy(() -> assertHitCount(client().prepareSearch("follower"), firstBatchNumDocs + secondBatchNumDocs));
 
         PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request("follower");
         client().execute(PauseFollowAction.INSTANCE, pauseRequest);
@@ -78,12 +72,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         }
 
         client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
-        assertBusy(() -> {
-            assertThat(
-                client().prepareSearch("follower").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)
-            );
-        });
+        assertBusy(() -> assertHitCount(client().prepareSearch("follower"), firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
         ensureEmptyWriteBuffers();
     }
 
@@ -136,9 +125,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
                 assertEquals(firstBatchNumDocs, indexingPressure.stats().getCurrentPrimaryOps());
             });
             blocker.countDown();
-            assertBusy(
-                () -> { assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs)); }
-            );
+            assertBusy(() -> assertHitCount(client().prepareSearch("follower"), firstBatchNumDocs));
             ensureEmptyWriteBuffers();
         } finally {
             if (blocker.getCount() > 0) {
@@ -210,7 +197,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             prepareIndex("index-1").setSource("{}", XContentType.JSON).get();
         }
         client().execute(PutFollowAction.INSTANCE, getPutFollowRequest("index-1", "index-2")).get();
-        assertBusy(() -> assertThat(client().prepareSearch("index-2").get().getHits().getTotalHits().value, equalTo((long) numDocs)));
+        assertBusy(() -> assertHitCount(client().prepareSearch("index-2"), numDocs));
 
         // Then switch index-1 to be a follower of index-0
         assertAcked(client().admin().indices().prepareCreate("index-0").setSource(settings, XContentType.JSON));

@@ -104,7 +104,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
-        userMetadata = in.readMap();
+        userMetadata = in.readGenericMap();
     }
 
     @Override

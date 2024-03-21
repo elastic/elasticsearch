@@ -1,0 +1,5 @@
+pr: 104958
+summary: "ESQL: Extend STATS command to support aggregate expressions"
+area: ES|QL
+type: enhancement
+issues: []

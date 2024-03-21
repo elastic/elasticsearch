@@ -173,17 +173,17 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         this.createTime = in.readOptionalInstant();
         this.size = in.readVLong();
         this.sha256 = in.readOptionalString();
-        this.inferenceConfigSource = in.readMap();
-        this.metadata = in.readMap();
+        this.inferenceConfigSource = in.readGenericMap();
+        this.metadata = in.readGenericMap();
         this.modelType = in.readOptionalString();
         this.tags = in.readOptionalCollectionAsList(StreamInput::readString);
         this.vocabularyFile = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             this.platformArchitecture = in.readOptionalString();
         } else {
             platformArchitecture = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
         } else {
             prefixStrings = null;
@@ -308,10 +308,10 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(modelType);
         out.writeOptionalStringCollection(tags);
         out.writeOptionalString(vocabularyFile);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeOptionalString(platformArchitecture);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(prefixStrings);
         }
     }

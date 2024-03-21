@@ -27,7 +27,7 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
     public static final GetAutoFollowPatternAction INSTANCE = new GetAutoFollowPatternAction();
 
     private GetAutoFollowPatternAction() {
-        super(NAME, GetAutoFollowPatternAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {

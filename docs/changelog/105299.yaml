@@ -1,0 +1,6 @@
+pr: 105299
+summary: Conditionally send the dimensions field as part of the openai requests
+area: Machine Learning
+type: enhancement
+issues:
+ - 105005

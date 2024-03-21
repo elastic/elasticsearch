@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -521,7 +520,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         request.setNodes(testNodes[0].getNodeId());
         request.setReason("Testing Cancellation");
         request.setActions(actionName);
-        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+        ListTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
             request
         );
@@ -697,7 +696,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         cancellationFuture.actionGet();
         logger.info("Parent task is now cancelled counting down task latch");
         taskLatch.countDown();
-        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+        expectThrows(TaskCancelledException.class, taskFuture);
 
         // Release all node tasks and wait for response
         checkLatch.countDown();
@@ -775,7 +774,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.ensureUnreachable();
         }
 
-        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+        expectThrows(TaskCancelledException.class, taskFuture);
 
         blockedActionLatch.countDown();
         NodesResponse responses = future.get(10, TimeUnit.SECONDS);
@@ -848,7 +847,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             reachabilityChecker.ensureUnreachable();
         }
 
-        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+        expectThrows(TaskCancelledException.class, taskFuture);
     }
 
     public void testTaskLevelActionFailures() throws Exception {

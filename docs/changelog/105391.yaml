@@ -1,0 +1,5 @@
+pr: 105391
+summary: Catch all the potential exceptions in the ingest processor code
+area: Machine Learning
+type: bug
+issues: []

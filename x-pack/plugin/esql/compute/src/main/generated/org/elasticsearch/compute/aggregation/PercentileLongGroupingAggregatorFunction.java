@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -36,23 +35,19 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
   private final DriverContext driverContext;
 
-  private final BigArrays bigArrays;
-
   private final double percentile;
 
   public PercentileLongGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays,
-      double percentile) {
+      QuantileStates.GroupingState state, DriverContext driverContext, double percentile) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
-    this.bigArrays = bigArrays;
     this.percentile = percentile;
   }
 
   public static PercentileLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, BigArrays bigArrays, double percentile) {
-    return new PercentileLongGroupingAggregatorFunction(channels, PercentileLongAggregator.initGrouping(bigArrays, percentile), driverContext, bigArrays, percentile);
+      DriverContext driverContext, double percentile) {
+    return new PercentileLongGroupingAggregatorFunction(channels, PercentileLongAggregator.initGrouping(driverContext.bigArrays(), percentile), driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

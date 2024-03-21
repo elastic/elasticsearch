@@ -294,8 +294,8 @@ The following mapping parameters are accepted:
 <<null-value,`null_value`>>::
 
     A string value which is substituted for any explicit `null` values within
-    the flattened object field. Defaults to `null`, which means null sields are
-    treated as if it were missing.
+    the flattened object field. Defaults to `null`, which means null fields are
+    treated as if they were missing.
 
 <<similarity,`similarity`>>::
 

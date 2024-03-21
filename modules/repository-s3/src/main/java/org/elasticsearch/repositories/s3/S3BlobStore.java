@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
 import com.amazonaws.metrics.RequestMetricCollector;
@@ -32,9 +33,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongHistogram;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -48,20 +46,16 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_EXCEPTIONS_HISTOGRAM;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_OPERATIONS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_REQUESTS_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_THROTTLES_COUNT;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_THROTTLES_HISTOGRAM;
-import static org.elasticsearch.repositories.RepositoriesModule.METRIC_UNSUCCESSFUL_OPERATIONS_COUNT;
 
 class S3BlobStore implements BlobStore {
+
+    public static final String CUSTOM_QUERY_PARAMETER_PURPOSE = "x-purpose";
 
     /**
      * Maximum number of deletes in a {@link DeleteObjectsRequest}.
@@ -89,20 +83,9 @@ class S3BlobStore implements BlobStore {
 
     private final ThreadPool threadPool;
     private final Executor snapshotExecutor;
-    private final MeterRegistry meterRegistry;
-    private final LongCounter requestCounter;
-    private final LongCounter exceptionCounter;
-    private final LongCounter throttleCounter;
-    private final LongCounter operationCounter;
-    private final LongCounter unsuccessfulOperationCounter;
-    private final LongHistogram exceptionHistogram;
-    private final LongHistogram throttleHistogram;
+    private final S3RepositoriesMetrics s3RepositoriesMetrics;
 
     private final StatsCollectors statsCollectors = new StatsCollectors();
-
-    private static final TimeValue RETRY_STATS_WINDOW = TimeValue.timeValueMinutes(5);
-
-    private volatile S3RequestRetryStats s3RequestRetryStats;
 
     S3BlobStore(
         S3Service service,
@@ -114,7 +97,7 @@ class S3BlobStore implements BlobStore {
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
-        MeterRegistry meterRegistry
+        S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
         this.service = service;
         this.bigArrays = bigArrays;
@@ -126,31 +109,11 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        this.meterRegistry = meterRegistry;
-        this.requestCounter = this.meterRegistry.getLongCounter(METRIC_REQUESTS_COUNT);
-        this.exceptionCounter = this.meterRegistry.getLongCounter(METRIC_EXCEPTIONS_COUNT);
-        this.throttleCounter = this.meterRegistry.getLongCounter(METRIC_THROTTLES_COUNT);
-        this.operationCounter = this.meterRegistry.getLongCounter(METRIC_OPERATIONS_COUNT);
-        this.unsuccessfulOperationCounter = this.meterRegistry.getLongCounter(METRIC_UNSUCCESSFUL_OPERATIONS_COUNT);
-        this.exceptionHistogram = this.meterRegistry.getLongHistogram(METRIC_EXCEPTIONS_HISTOGRAM);
-        this.throttleHistogram = this.meterRegistry.getLongHistogram(METRIC_THROTTLES_HISTOGRAM);
-        s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
-        threadPool.scheduleWithFixedDelay(() -> {
-            var priorRetryStats = s3RequestRetryStats;
-            s3RequestRetryStats = new S3RequestRetryStats(getMaxRetries());
-            priorRetryStats.emitMetrics();
-        }, RETRY_STATS_WINDOW, threadPool.generic());
+        this.s3RepositoriesMetrics = s3RepositoriesMetrics;
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
-        var collector = statsCollectors.getMetricCollector(operation, purpose);
-        return new RequestMetricCollector() {
-            @Override
-            public void collectMetrics(Request<?> request, Response<?> response) {
-                s3RequestRetryStats.addRequest(request);
-                collector.collectMetrics(request, response);
-            }
-        };
+        return statsCollectors.getMetricCollector(operation, purpose);
     }
 
     public Executor getSnapshotExecutor() {
@@ -210,24 +173,48 @@ class S3BlobStore implements BlobStore {
                 .map(List::size)
                 .orElse(0);
 
-            operationCounter.incrementBy(1, attributes);
+            s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
             if (numberOfAwsErrors == requestCount) {
-                unsuccessfulOperationCounter.incrementBy(1, attributes);
+                s3RepositoriesMetrics.common().unsuccessfulOperationCounter().incrementBy(1, attributes);
             }
 
-            requestCounter.incrementBy(requestCount, attributes);
+            s3RepositoriesMetrics.common().requestCounter().incrementBy(requestCount, attributes);
             if (exceptionCount > 0) {
-                exceptionCounter.incrementBy(exceptionCount, attributes);
-                exceptionHistogram.record(exceptionCount, attributes);
+                s3RepositoriesMetrics.common().exceptionCounter().incrementBy(exceptionCount, attributes);
+                s3RepositoriesMetrics.common().exceptionHistogram().record(exceptionCount, attributes);
             }
             if (throttleCount > 0) {
-                throttleCounter.incrementBy(throttleCount, attributes);
-                throttleHistogram.record(throttleCount, attributes);
+                s3RepositoriesMetrics.common().throttleCounter().incrementBy(throttleCount, attributes);
+                s3RepositoriesMetrics.common().throttleHistogram().record(throttleCount, attributes);
+            }
+            maybeRecordHttpRequestTime(request);
+        }
+
+        /**
+         * Used for APM style metrics to measure statics about performance. This is not for billing.
+         */
+        private void maybeRecordHttpRequestTime(Request<?> request) {
+            final List<TimingInfo> requestTimesIncludingRetries = request.getAWSRequestMetrics()
+                .getTimingInfo()
+                .getAllSubMeasurements(AWSRequestMetrics.Field.HttpRequestTime.name());
+            // It can be null if the request did not reach the server for some reason
+            if (requestTimesIncludingRetries == null) {
+                return;
+            }
+
+            final long totalTimeInMicros = getTotalTimeInMicros(requestTimesIncludingRetries);
+            if (totalTimeInMicros == 0) {
+                logger.warn("Expected HttpRequestTime to be tracked for request [{}] but found no count.", request);
+            } else {
+                s3RepositoriesMetrics.common().httpRequestTimeInMicroHistogram().record(totalTimeInMicros, attributes);
             }
         }
 
         private boolean assertConsistencyBetweenHttpRequestAndOperation(Request<?> request, Operation operation) {
             switch (operation) {
+                case HEAD_OBJECT -> {
+                    return request.getHttpMethod().name().equals("HEAD");
+                }
                 case GET_OBJECT, LIST_OBJECTS -> {
                     return request.getHttpMethod().name().equals("GET");
                 }
@@ -262,6 +249,20 @@ class S3BlobStore implements BlobStore {
         }
     }
 
+    private static long getTotalTimeInMicros(List<TimingInfo> requestTimesIncludingRetries) {
+        // Here we calculate the timing in Microseconds for the sum of the individual subMeasurements with the goal of deriving the TTFB
+        // (time to first byte). We calculate the time in micros for later use with an APM style counter (exposed as a long), rather than
+        // using the default double exposed by getTimeTakenMillisIfKnown().
+        long totalTimeInMicros = 0;
+        for (TimingInfo timingInfo : requestTimesIncludingRetries) {
+            var endTimeInNanos = timingInfo.getEndTimeNanoIfKnown();
+            if (endTimeInNanos != null) {
+                totalTimeInMicros += TimeUnit.NANOSECONDS.toMicros(endTimeInNanos - timingInfo.getStartTimeNano());
+            }
+        }
+        return totalTimeInMicros;
+    }
+
     @Override
     public String toString() {
         return bucket;
@@ -289,6 +290,14 @@ class S3BlobStore implements BlobStore {
 
     public long bufferSizeInBytes() {
         return bufferSize.getBytes();
+    }
+
+    public RepositoryMetadata getRepositoryMetadata() {
+        return repositoryMetadata;
+    }
+
+    public S3RepositoriesMetrics getS3RepositoriesMetrics() {
+        return s3RepositoriesMetrics;
     }
 
     @Override
@@ -353,9 +362,11 @@ class S3BlobStore implements BlobStore {
     }
 
     private static DeleteObjectsRequest bulkDelete(OperationPurpose purpose, S3BlobStore blobStore, List<String> blobs) {
-        return new DeleteObjectsRequest(blobStore.bucket()).withKeys(blobs.toArray(Strings.EMPTY_ARRAY))
-            .withQuiet(true)
-            .withRequestMetricCollector(blobStore.getMetricCollector(Operation.DELETE_OBJECTS, purpose));
+        final DeleteObjectsRequest deleteObjectsRequest = new DeleteObjectsRequest(blobStore.bucket()).withKeys(
+            blobs.toArray(Strings.EMPTY_ARRAY)
+        ).withQuiet(true);
+        configureRequestForMetrics(deleteObjectsRequest, blobStore, Operation.DELETE_OBJECTS, purpose);
+        return deleteObjectsRequest;
     }
 
     @Override
@@ -365,7 +376,7 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public Map<String, Long> stats() {
-        return statsCollectors.statsMap();
+        return statsCollectors.statsMap(service.isStateless);
     }
 
     // Package private for testing
@@ -420,6 +431,7 @@ class S3BlobStore implements BlobStore {
     }
 
     enum Operation {
+        HEAD_OBJECT("HeadObject"),
         GET_OBJECT("GetObject"),
         LIST_OBJECTS("ListObjects"),
         PUT_OBJECT("PutObject"),
@@ -449,7 +461,12 @@ class S3BlobStore implements BlobStore {
         }
     }
 
-    record StatsKey(Operation operation, OperationPurpose purpose) {}
+    record StatsKey(Operation operation, OperationPurpose purpose) {
+        @Override
+        public String toString() {
+            return purpose.getKey() + "_" + operation.getKey();
+        }
+    }
 
     class StatsCollectors {
         final Map<StatsKey, IgnoreNoResponseMetricsCollector> collectors = new ConcurrentHashMap<>();
@@ -458,14 +475,30 @@ class S3BlobStore implements BlobStore {
             return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
         }
 
-        Map<String, Long> statsMap() {
-            final Map<String, Long> m = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, e -> 0L));
-            collectors.forEach((sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c) + v.counter.sum()));
-            return Map.copyOf(m);
+        Map<String, Long> statsMap(boolean isStateless) {
+            if (isStateless) {
+                return collectors.entrySet()
+                    .stream()
+                    .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> entry.getValue().counter.sum()));
+            } else {
+                final Map<String, Long> m = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, e -> 0L));
+                collectors.forEach((sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c) + v.counter.sum()));
+                return Map.copyOf(m);
+            }
         }
 
         IgnoreNoResponseMetricsCollector buildMetricCollector(Operation operation, OperationPurpose purpose) {
             return new IgnoreNoResponseMetricsCollector(operation, purpose);
         }
+    }
+
+    static void configureRequestForMetrics(
+        AmazonWebServiceRequest request,
+        S3BlobStore blobStore,
+        Operation operation,
+        OperationPurpose purpose
+    ) {
+        request.setRequestMetricCollector(blobStore.getMetricCollector(operation, purpose));
+        request.putCustomQueryParameter(CUSTOM_QUERY_PARAMETER_PURPOSE, purpose.getKey());
     }
 }

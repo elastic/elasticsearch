@@ -927,8 +927,9 @@ public class JobResultsProviderTests extends ESTestCase {
 
             list.add(hit);
         }
-        SearchHits hits = new SearchHits(list.toArray(new SearchHit[0]), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
-        when(response.getHits()).thenReturn(hits);
+        SearchHits hits = new SearchHits(list.toArray(SearchHits.EMPTY), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
+        when(response.getHits()).thenReturn(hits.asUnpooled());
+        hits.decRef();
 
         return response;
     }

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
@@ -16,7 +17,10 @@ import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,9 +32,76 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkByScrollResponse> {
+
+    private static final ObjectParser<BulkByScrollResponseBuilder, Void> PARSER = new ObjectParser<>(
+        "bulk_by_scroll_response",
+        true,
+        BulkByScrollResponseBuilder::new
+    );
+    static {
+        PARSER.declareLong(BulkByScrollResponseBuilder::setTook, new ParseField(BulkByScrollResponse.TOOK_FIELD));
+        PARSER.declareBoolean(BulkByScrollResponseBuilder::setTimedOut, new ParseField(BulkByScrollResponse.TIMED_OUT_FIELD));
+        PARSER.declareObjectArray(
+            BulkByScrollResponseBuilder::setFailures,
+            (p, c) -> parseFailure(p),
+            new ParseField(BulkByScrollResponse.FAILURES_FIELD)
+        );
+        // since the result of BulkByScrollResponse.Status are mixed we also parse that in this
+        Status.declareFields(PARSER);
+    }
+
+    private static Object parseFailure(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        XContentParser.Token token;
+        String index = null;
+        String id = null;
+        Integer status = null;
+        Integer shardId = null;
+        String nodeId = null;
+        ElasticsearchException bulkExc = null;
+        ElasticsearchException searchExc = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            String name = parser.currentName();
+            token = parser.nextToken();
+            if (token == XContentParser.Token.START_ARRAY) {
+                parser.skipChildren();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                switch (name) {
+                    case ScrollableHitSource.SearchFailure.REASON_FIELD -> searchExc = ElasticsearchException.fromXContent(parser);
+                    case Failure.CAUSE_FIELD -> bulkExc = ElasticsearchException.fromXContent(parser);
+                    default -> parser.skipChildren();
+                }
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                switch (name) {
+                    // This field is the same as SearchFailure.index
+                    case Failure.INDEX_FIELD -> index = parser.text();
+                    case Failure.ID_FIELD -> id = parser.text();
+                    case ScrollableHitSource.SearchFailure.NODE_FIELD -> nodeId = parser.text();
+                }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                switch (name) {
+                    case Failure.STATUS_FIELD -> status = parser.intValue();
+                    case ScrollableHitSource.SearchFailure.SHARD_FIELD -> shardId = parser.intValue();
+                }
+            }
+        }
+        if (bulkExc != null) {
+            return new Failure(index, id, bulkExc, RestStatus.fromCode(status));
+        } else if (searchExc != null) {
+            if (status == null) {
+                return new ScrollableHitSource.SearchFailure(searchExc, index, shardId, nodeId);
+            } else {
+                return new ScrollableHitSource.SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
+            }
+        } else {
+            throw new ElasticsearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
+        }
+    }
 
     private boolean includeUpdated;
     private boolean includeCreated;
@@ -160,7 +231,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
 
     @Override
     protected BulkByScrollResponse doParseInstance(XContentParser parser) throws IOException {
-        return BulkByScrollResponse.fromXContent(parser);
+        return PARSER.apply(parser, null).buildResponse();
     }
 
     @Override

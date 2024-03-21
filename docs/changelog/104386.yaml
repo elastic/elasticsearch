@@ -1,0 +1,6 @@
+pr: 104386
+summary: "X-pack/plugin/apm-data: add dynamic setting for enabling template registry"
+area: Data streams
+type: enhancement
+issues:
+ - 104385

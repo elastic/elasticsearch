@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -23,10 +27,13 @@ import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
@@ -36,8 +43,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESTestCase.randomCartesianPoint;
-import static org.elasticsearch.test.ESTestCase.randomGeoPoint;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,6 +53,8 @@ import static org.hamcrest.Matchers.equalTo;
 public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestCase> supplier)
     implements
         Supplier<TestCaseSupplier.TestCase> {
+
+    private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
     /**
      * Build a test case without types.
      *
@@ -165,40 +172,92 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
+        casesCrossProduct(
+            (l, r) -> expected.apply(((Number) l).doubleValue(), ((Number) r).doubleValue()),
+            lhsSuppliers,
+            rhsSuppliers,
+            (lhsType, rhsType) -> name
+                + "["
+                + lhsName
+                + "="
+                + castToDoubleEvaluator("Attribute[channel=0]", lhsType)
+                + ", "
+                + rhsName
+                + "="
+                + castToDoubleEvaluator("Attribute[channel=1]", rhsType)
+                + "]",
+            warnings,
+            suppliers,
+            DataTypes.DOUBLE,
+            false
+        );
+        return suppliers;
+    }
+
+    private static void casesCrossProduct(
+        BinaryOperator<Object> expected,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        BiFunction<DataType, DataType, String> evaluatorToString,
+        List<String> warnings,
+        List<TestCaseSupplier> suppliers,
+        DataType expectedType,
+        boolean symmetric
+    ) {
         for (TypedDataSupplier lhsSupplier : lhsSuppliers) {
             for (TypedDataSupplier rhsSupplier : rhsSuppliers) {
-                String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
-                suppliers.add(new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
-                    Number lhs = (Number) lhsSupplier.supplier().get();
-                    Number rhs = (Number) rhsSupplier.supplier().get();
-                    TypedData lhsTyped = new TypedData(
-                        // TODO there has to be a better way to handle unsigned long
-                        lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
-                        lhsSupplier.type(),
-                        "lhs"
-                    );
-                    TypedData rhsTyped = new TypedData(
-                        rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
-                        rhsSupplier.type(),
-                        "rhs"
-                    );
-                    String lhsEvalName = castToDoubleEvaluator("Attribute[channel=0]", lhsSupplier.type());
-                    String rhsEvalName = castToDoubleEvaluator("Attribute[channel=1]", rhsSupplier.type());
-                    TestCase testCase = new TestCase(
-                        List.of(lhsTyped, rhsTyped),
-                        name + "[" + lhsName + "=" + lhsEvalName + ", " + rhsName + "=" + rhsEvalName + "]",
-                        DataTypes.DOUBLE,
-                        equalTo(expected.apply(lhs.doubleValue(), rhs.doubleValue()))
-                    );
-                    for (String warning : warnings) {
-                        testCase = testCase.withWarning(warning);
-                    }
-                    return testCase;
-                }));
+                suppliers.add(testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expected, warnings));
+                if (symmetric) {
+                    suppliers.add(testCaseSupplier(rhsSupplier, lhsSupplier, evaluatorToString, expectedType, expected, warnings));
+                }
             }
         }
+    }
 
-        return suppliers;
+    public static TestCaseSupplier testCaseSupplier(
+        TypedDataSupplier lhsSupplier,
+        TypedDataSupplier rhsSupplier,
+        BiFunction<DataType, DataType, String> evaluatorToString,
+        DataType expectedType,
+        BinaryOperator<Object> expectedValue
+    ) {
+        return testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expectedValue, List.of());
+    }
+
+    private static TestCaseSupplier testCaseSupplier(
+        TypedDataSupplier lhsSupplier,
+        TypedDataSupplier rhsSupplier,
+        BiFunction<DataType, DataType, String> evaluatorToString,
+        DataType expectedType,
+        BinaryOperator<Object> expectedValue,
+        List<String> warnings
+    ) {
+        String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
+        return new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
+            Object lhs = lhsSupplier.supplier().get();
+            Object rhs = rhsSupplier.supplier().get();
+            TypedData lhsTyped = new TypedData(
+                // TODO there has to be a better way to handle unsigned long
+                lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
+                lhsSupplier.type(),
+                "lhs"
+            );
+            TypedData rhsTyped = new TypedData(
+                rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
+                rhsSupplier.type(),
+                "rhs"
+            );
+            TestCase testCase = new TestCase(
+                List.of(lhsTyped, rhsTyped),
+                evaluatorToString.apply(lhsSupplier.type(), rhsSupplier.type()),
+                expectedType,
+                equalTo(expectedValue.apply(lhs, rhs))
+            );
+            for (String warning : warnings) {
+                testCase = testCase.withWarning(warning);
+            }
+            return testCase;
+        });
     }
 
     public static List<TypedDataSupplier> castToDoubleSuppliersFromRange(Double Min, Double Max) {
@@ -207,6 +266,122 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         suppliers.addAll(longCases(Min.longValue(), Max.longValue()));
         suppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(Min)), BigInteger.valueOf((long) Math.floor(Max))));
         suppliers.addAll(doubleCases(Min, Max));
+        return suppliers;
+    }
+
+    public record NumericTypeTestConfig(Number min, Number max, BinaryOperator<Number> expected, String evaluatorName) {}
+
+    public record NumericTypeTestConfigs(
+        NumericTypeTestConfig intStuff,
+        NumericTypeTestConfig longStuff,
+        NumericTypeTestConfig doubleStuff
+    ) {
+        public NumericTypeTestConfig get(DataType type) {
+            if (type == DataTypes.INTEGER) {
+                return intStuff;
+            }
+            if (type == DataTypes.LONG) {
+                return longStuff;
+            }
+            if (type == DataTypes.DOUBLE) {
+                return doubleStuff;
+            }
+            throw new IllegalArgumentException("bogus numeric type [" + type + "]");
+        }
+    }
+
+    private static DataType widen(DataType lhs, DataType rhs) {
+        if (lhs == rhs) {
+            return lhs;
+        }
+        if (lhs == DataTypes.DOUBLE || rhs == DataTypes.DOUBLE) {
+            return DataTypes.DOUBLE;
+        }
+        if (lhs == DataTypes.LONG || rhs == DataTypes.LONG) {
+            return DataTypes.LONG;
+        }
+        throw new IllegalArgumentException("Invalid numeric widening lhs: [" + lhs + "] rhs: [" + rhs + "]");
+    }
+
+    private static List<TypedDataSupplier> getSuppliersForNumericType(DataType type, Number min, Number max) {
+        if (type == DataTypes.INTEGER) {
+            return intCases(NumericUtils.saturatingIntValue(min), NumericUtils.saturatingIntValue(max));
+        }
+        if (type == DataTypes.LONG) {
+            return longCases(min.longValue(), max.longValue());
+        }
+        if (type == DataTypes.UNSIGNED_LONG) {
+            return ulongCases(
+                min instanceof BigInteger ? (BigInteger) min : BigInteger.valueOf(Math.max(min.longValue(), 0L)),
+                max instanceof BigInteger ? (BigInteger) max : BigInteger.valueOf(Math.max(max.longValue(), 0L))
+            );
+        }
+        if (type == DataTypes.DOUBLE) {
+            return doubleCases(min.doubleValue(), max.doubleValue());
+        }
+        throw new IllegalArgumentException("bogus numeric type [" + type + "]");
+    }
+
+    public static List<TestCaseSupplier> forBinaryWithWidening(
+        NumericTypeTestConfigs typeStuff,
+        String lhsName,
+        String rhsName,
+        List<String> warnings
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
+
+        for (DataType lhsType : numericTypes) {
+            for (DataType rhsType : numericTypes) {
+                DataType expected = widen(lhsType, rhsType);
+                NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
+                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
+                    + "["
+                    + lhsName
+                    + "="
+                    + getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                    + ", "
+                    + rhsName
+                    + "="
+                    + getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                    + "]";
+                casesCrossProduct(
+                    (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
+                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                    evaluatorToString,
+                    warnings,
+                    suppliers,
+                    expected,
+                    true
+                );
+            }
+        }
+
+        return suppliers;
+    }
+
+    public static List<TestCaseSupplier> forBinaryNotCasting(
+        String name,
+        String lhsName,
+        String rhsName,
+        BinaryOperator<Object> expected,
+        DataType expectedType,
+        List<TypedDataSupplier> lhsSuppliers,
+        List<TypedDataSupplier> rhsSuppliers,
+        List<String> warnings
+    ) {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        casesCrossProduct(
+            expected,
+            lhsSuppliers,
+            rhsSuppliers,
+            (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
+            warnings,
+            suppliers,
+            expectedType,
+            true
+        );
         return suppliers;
     }
 
@@ -386,17 +561,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<Long, Object> expectedValue,
+        Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            geoPointCases(),
-            expectedType,
-            n -> expectedValue.apply(n.longValue()),
-            warnings
-        );
+        unary(suppliers, expectedEvaluatorToString, geoPointCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
@@ -406,17 +574,36 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
         DataType expectedType,
-        Function<Long, Object> expectedValue,
+        Function<BytesRef, Object> expectedValue,
         List<String> warnings
     ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            cartesianPointCases(),
-            expectedType,
-            n -> expectedValue.apply(n.longValue()),
-            warnings
-        );
+        unary(suppliers, expectedEvaluatorToString, cartesianPointCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#GEO_SHAPE}.
+     */
+    public static void forUnaryGeoShape(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, geoShapeCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on an {@link EsqlDataTypes#CARTESIAN_SHAPE}.
+     */
+    public static void forUnaryCartesianShape(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, cartesianShapeCases(), expectedType, n -> expectedValue.apply((BytesRef) n), warnings);
     }
 
     /**
@@ -530,6 +717,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     supplier.type(),
                     "value"
                 );
+                logger.info("Value is " + value + " of type " + value.getClass());
+                logger.info("expectedValue is " + expectedValue.apply(value));
                 TestCase testCase = new TestCase(
                     List.of(typed),
                     expectedEvaluatorToString,
@@ -716,7 +905,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> dateCases() {
+    public static List<TypedDataSupplier> dateCases() {
         return List.of(
             new TypedDataSupplier("<1970-01-01T00:00:00Z>", () -> 0L, DataTypes.DATETIME),
             new TypedDataSupplier(
@@ -733,17 +922,85 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> geoPointCases() {
-        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.pointAsLong(randomGeoPoint()), EsqlDataTypes.GEO_POINT));
-    }
-
-    private static List<TypedDataSupplier> cartesianPointCases() {
+    public static List<TypedDataSupplier> datePeriodCases() {
         return List.of(
-            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.pointAsLong(randomCartesianPoint()), EsqlDataTypes.CARTESIAN_POINT)
+            new TypedDataSupplier("<zero date period>", () -> Period.ZERO, EsqlDataTypes.DATE_PERIOD),
+            new TypedDataSupplier(
+                "<random date period>",
+                () -> Period.of(
+                    ESTestCase.randomIntBetween(-1000, 1000),
+                    ESTestCase.randomIntBetween(-13, 13),
+                    ESTestCase.randomIntBetween(-32, 32)
+                ),
+                EsqlDataTypes.DATE_PERIOD
+            )
         );
     }
 
-    private static List<TypedDataSupplier> ipCases() {
+    public static List<TypedDataSupplier> timeDurationCases() {
+        return List.of(
+            new TypedDataSupplier("<zero time duration>", () -> Duration.ZERO, EsqlDataTypes.TIME_DURATION),
+            new TypedDataSupplier(
+                "<up to 7 days duration>",
+                () -> Duration.ofMillis(ESTestCase.randomLongBetween(-604800000L, 604800000L)), // plus/minus 7 days
+                EsqlDataTypes.TIME_DURATION
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> geoPointCases() {
+        return geoPointCases(ESTestCase::randomBoolean);
+    }
+
+    public static List<TypedDataSupplier> cartesianPointCases() {
+        return cartesianPointCases(ESTestCase::randomBoolean);
+    }
+
+    public static List<TypedDataSupplier> geoShapeCases() {
+        return geoShapeCases(ESTestCase::randomBoolean);
+    }
+
+    public static List<TypedDataSupplier> cartesianShapeCases() {
+        return cartesianShapeCases(ESTestCase::randomBoolean);
+    }
+
+    public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
+        return List.of(
+            new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), EsqlDataTypes.GEO_POINT)
+        );
+    }
+
+    public static List<TypedDataSupplier> cartesianPointCases(Supplier<Boolean> hasAlt) {
+        return List.of(
+            new TypedDataSupplier(
+                "<cartesian_point>",
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(hasAlt.get())),
+                EsqlDataTypes.CARTESIAN_POINT
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> geoShapeCases(Supplier<Boolean> hasAlt) {
+        return List.of(
+            new TypedDataSupplier(
+                "<geo_shape>",
+                () -> GEO.asWkb(GeometryTestUtils.randomGeometryWithoutCircle(0, hasAlt.get())),
+                EsqlDataTypes.GEO_SHAPE
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> cartesianShapeCases(Supplier<Boolean> hasAlt) {
+        return List.of(
+            new TypedDataSupplier(
+                "<cartesian_shape>",
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt.get())),
+                EsqlDataTypes.CARTESIAN_SHAPE
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> ipCases() {
         return List.of(
             new TypedDataSupplier(
                 "<127.0.0.1 ip>",
@@ -805,6 +1062,54 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    private static String getCastEvaluator(String original, DataType current, DataType target) {
+        if (current == target) {
+            return original;
+        }
+        if (target == DataTypes.LONG) {
+            return castToLongEvaluator(original, current);
+        }
+        if (target == DataTypes.UNSIGNED_LONG) {
+            return castToUnsignedLongEvaluator(original, current);
+        }
+        if (target == DataTypes.DOUBLE) {
+            return castToDoubleEvaluator(original, current);
+        }
+        throw new IllegalArgumentException("Invalid numeric cast to [" + target + "]");
+    }
+
+    private static String castToLongEvaluator(String original, DataType current) {
+        if (current == DataTypes.LONG) {
+            return original;
+        }
+        if (current == DataTypes.INTEGER) {
+            return "CastIntToLongEvaluator[v=" + original + "]";
+        }
+        if (current == DataTypes.DOUBLE) {
+            return "CastDoubleToLongEvaluator[v=" + original + "]";
+        }
+        if (current == DataTypes.UNSIGNED_LONG) {
+            return "CastUnsignedLongToLong[v=" + original + "]";
+        }
+        throw new UnsupportedOperationException();
+    }
+
+    private static String castToUnsignedLongEvaluator(String original, DataType current) {
+        if (current == DataTypes.UNSIGNED_LONG) {
+            return original;
+        }
+        if (current == DataTypes.INTEGER) {
+            return "CastIntToUnsignedLongEvaluator[v=" + original + "]";
+        }
+        if (current == DataTypes.LONG) {
+            return "CastLongToUnsignedLongEvaluator[v=" + original + "]";
+        }
+        if (current == DataTypes.DOUBLE) {
+            return "CastDoubleToUnsignedLongEvaluator[v=" + original + "]";
+        }
+        throw new UnsupportedOperationException();
+    }
+
     private static String castToDoubleEvaluator(String original, DataType current) {
         if (current == DataTypes.DOUBLE) {
             return original;
@@ -825,48 +1130,57 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         /**
          * The {@link Source} this test case should be run with
          */
-        private Source source;
+        private final Source source;
         /**
          * The parameter values and types to pass into the function for this test run
          */
-        private List<TypedData> data;
+        private final List<TypedData> data;
 
         /**
          * The expected toString output for the evaluator this function invocation should generate
          */
-        String evaluatorToString;
+        private final Matcher<String> evaluatorToString;
         /**
          * The expected output type for the case being tested
          */
-        DataType expectedType;
+        private final DataType expectedType;
         /**
          * A matcher to validate the output of the function run on the given input data
          */
-        private Matcher<Object> matcher;
+        private final Matcher<Object> matcher;
 
         /**
          * Warnings this test is expected to produce
          */
-        private String[] expectedWarnings;
+        private final String[] expectedWarnings;
 
         private final String expectedTypeError;
         private final boolean allTypesAreRepresentable;
 
+        private final Class<? extends Throwable> foldingExceptionClass;
+        private final String foldingExceptionMessage;
+
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
-            this(data, evaluatorToString, expectedType, matcher, null, null);
+            this(data, equalTo(evaluatorToString), expectedType, matcher);
+        }
+
+        public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
+            this(data, evaluatorToString, expectedType, matcher, null, null, null, null);
         }
 
         public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
-            return new TestCase(data, null, null, null, null, expectedTypeError);
+            return new TestCase(data, null, null, null, null, expectedTypeError, null, null);
         }
 
         TestCase(
             List<TypedData> data,
-            String evaluatorToString,
+            Matcher<String> evaluatorToString,
             DataType expectedType,
             Matcher<Object> matcher,
             String[] expectedWarnings,
-            String expectedTypeError
+            String expectedTypeError,
+            Class<? extends Throwable> foldingExceptionClass,
+            String foldingExceptionMessage
         ) {
             this.source = Source.EMPTY;
             this.data = data;
@@ -876,6 +1190,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.expectedWarnings = expectedWarnings;
             this.expectedTypeError = expectedTypeError;
             this.allTypesAreRepresentable = data.stream().allMatch(d -> EsqlDataTypes.isRepresentable(d.type));
+            this.foldingExceptionClass = foldingExceptionClass;
+            this.foldingExceptionMessage = foldingExceptionMessage;
         }
 
         public Source getSource() {
@@ -887,15 +1203,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public List<Expression> getDataAsFields() {
-            return data.stream().map(t -> AbstractFunctionTestCase.field(t.name(), t.type())).collect(Collectors.toList());
+            return data.stream().map(TypedData::asField).collect(Collectors.toList());
         }
 
         public List<Expression> getDataAsDeepCopiedFields() {
-            return data.stream().map(t -> AbstractFunctionTestCase.deepCopyOfField(t.name(), t.type())).collect(Collectors.toList());
+            return data.stream().map(TypedData::asDeepCopyOfField).collect(Collectors.toList());
         }
 
         public List<Expression> getDataAsLiterals() {
-            return data.stream().map(t -> new Literal(Source.synthetic(t.name()), t.data(), t.type())).collect(Collectors.toList());
+            return data.stream().map(TypedData::asLiteral).collect(Collectors.toList());
         }
 
         public List<Object> getDataValues() {
@@ -914,6 +1230,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return expectedWarnings;
         }
 
+        public Class<? extends Throwable> foldingExceptionClass() {
+            return foldingExceptionClass;
+        }
+
+        public String foldingExceptionMessage() {
+            return foldingExceptionMessage;
+        }
+
         public String getExpectedTypeError() {
             return expectedTypeError;
         }
@@ -926,7 +1250,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             } else {
                 newWarnings = new String[] { warning };
             }
-            return new TestCase(data, evaluatorToString, expectedType, matcher, newWarnings, expectedTypeError);
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                newWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage
+            );
+        }
+
+        public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
+            return new TestCase(data, evaluatorToString, expectedType, matcher, expectedWarnings, expectedTypeError, clazz, message);
+        }
+
+        public DataType expectedType() {
+            return expectedType;
+        }
+
+        public Matcher<String> evaluatorToString() {
+            return evaluatorToString;
         }
     }
 
@@ -935,21 +1280,117 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * exists because we can't generate random values from the test parameter generation functions, and instead need to return
      * suppliers which generate the random values at test execution time.
      */
-    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {}
+    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
+        public TypedData get() {
+            return new TypedData(supplier.get(), type, name);
+        }
+    }
 
     /**
      * Holds a data value and the intended parse type of that value
-     * @param data - value to test against
-     * @param type - type of the value, for building expressions
      */
-    public record TypedData(Object data, DataType type, String name) {
+    public static class TypedData {
+        public static final TypedData NULL = new TypedData(null, DataTypes.NULL, "<null>");
+
+        private final Object data;
+        private final DataType type;
+        private final String name;
+        private final boolean forceLiteral;
+
+        /**
+         * @param data value to test against
+         * @param type type of the value, for building expressions
+         * @param name a name for the value, used for generating test case names
+         * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
+         */
+        private TypedData(Object data, DataType type, String name, boolean forceLiteral) {
+            this.data = data;
+            this.type = type;
+            this.name = name;
+            this.forceLiteral = forceLiteral;
+        }
+
+        /**
+         * @param data value to test against
+         * @param type type of the value, for building expressions
+         * @param name a name for the value, used for generating test case names
+         */
+        public TypedData(Object data, DataType type, String name) {
+            this(data, type, name, false);
+        }
+
+        /**
+         * Build a value, guessing the type via reflection.
+         * @param data value to test against
+         * @param name a name for the value, used for generating test case names
+         */
         public TypedData(Object data, String name) {
             this(data, EsqlDataTypes.fromJava(data), name);
         }
 
+        /**
+         * Return a {@link TypedData} that always returns a {@link Literal} from
+         * {@link #asField} and {@link #asDeepCopyOfField}. Use this for things that
+         * must be constants.
+         */
+        public TypedData forceLiteral() {
+            return new TypedData(data, type, name, true);
+        }
+
         @Override
         public String toString() {
+            if (type == DataTypes.UNSIGNED_LONG && data instanceof Long longData) {
+                return type.toString() + "(" + NumericUtils.unsignedLongAsBigInteger(longData).toString() + ")";
+            }
             return type.toString() + "(" + (data == null ? "null" : data.toString()) + ")";
+        }
+
+        /**
+         * Convert this into reference to a field.
+         */
+        public Expression asField() {
+            if (forceLiteral) {
+                return asLiteral();
+            }
+            return AbstractFunctionTestCase.field(name, type);
+        }
+
+        /**
+         * Convert this into an anonymous function that performs a copy of the values loaded from a field.
+         */
+        public Expression asDeepCopyOfField() {
+            if (forceLiteral) {
+                return asLiteral();
+            }
+            return AbstractFunctionTestCase.deepCopyOfField(name, type);
+        }
+
+        /**
+         * Convert this into a {@link Literal}.
+         */
+        public Literal asLiteral() {
+            return new Literal(Source.synthetic(name), data, type);
+        }
+
+        /**
+         * Value to test against.
+         */
+        public Object data() {
+            return data;
+        }
+
+        /**
+         * Type of the value. For building {@link Expression}s.
+         */
+        public DataType type() {
+            return type;
+        }
+
+        /**
+         * A name for the value. Used to generate test names.
+         */
+        public String name() {
+            return name;
         }
     }
 }

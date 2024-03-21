@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.license.License;
@@ -157,7 +157,7 @@ public class ChunkedTrainedModelPersister {
         CountDownLatch latch = new CountDownLatch(1);
 
         // Latch is attached to this action as it is the last one to execute.
-        ActionListener<RefreshResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(refreshed -> {
+        ActionListener<BroadcastResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(refreshed -> {
             if (refreshed != null) {
                 LOGGER.debug(() -> "[" + analytics.getId() + "] refreshed inference index after model store");
             }
@@ -210,7 +210,7 @@ public class ChunkedTrainedModelPersister {
         CountDownLatch latch = new CountDownLatch(1);
 
         // Latch is attached to this action as it is the last one to execute.
-        ActionListener<RefreshResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(refreshed -> {
+        ActionListener<BroadcastResponse> refreshListener = new LatchedActionListener<>(ActionListener.wrap(refreshed -> {
             if (refreshed != null) {
                 LOGGER.debug(() -> "[" + analytics.getId() + "] refreshed inference index after model metadata store");
             }

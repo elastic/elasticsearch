@@ -1,0 +1,115 @@
+[[semantic-search-inference]]
+=== Tutorial: semantic search with the {infer} API
+++++
+<titleabbrev>Semantic search with the {infer} API</titleabbrev>
+++++
+
+The instructions in this tutorial shows you how to use the {infer} API with
+various services to perform semantic search on your data. The following examples 
+use Cohere's `embed-english-v3.0` model and OpenAI's `text-embedding-ada-002`
+second generation embedding model. You can use any Cohere and OpenAI models,
+they are all supported by the {infer} API.
+
+Click the name of the service you want to use on any of the widgets below to
+review the corresponding instructions.
+
+
+[discrete]
+[[infer-service-requirements]]
+==== Requirements
+
+include::{es-repo-dir}/tab-widgets/inference-api/infer-api-requirements-widget.asciidoc[]
+
+
+[discrete]
+[[infer-text-embedding-task]]
+==== Create the inference task
+
+Create the {infer} task by using the <<put-inference-api>>:
+
+include::{es-repo-dir}/tab-widgets/inference-api/infer-api-task-widget.asciidoc[]
+
+
+[discrete]
+[[infer-service-mappings]]
+==== Create the index mapping
+
+The mapping of the destination index - the index that contains the embeddings
+that the model will create based on your input text - must be created. The
+destination index must have a field with the <<dense-vector, `dense_vector`>>
+field type to index the output of the used model.
+
+include::{es-repo-dir}/tab-widgets/inference-api/infer-api-mapping-widget.asciidoc[]
+
+
+[discrete]
+[[infer-service-inference-ingest-pipeline]]
+==== Create an ingest pipeline with an inference processor
+
+Create an <<ingest,ingest pipeline>> with an
+<<inference-processor,{infer} processor>> and use the model you created above to
+infer against the data that is being ingested in the pipeline.
+
+include::{es-repo-dir}/tab-widgets/inference-api/infer-api-ingest-pipeline-widget.asciidoc[]
+
+
+[discrete]
+[[infer-load-data]]
+==== Load data
+
+In this step, you load the data that you later use in the {infer} ingest
+pipeline to create embeddings from it.
+
+Use the `msmarco-passagetest2019-top1000` data set, which is a subset of the MS
+MARCO Passage Ranking data set. It consists of 200 queries, each accompanied by
+a list of relevant text passages. All unique passages, along with their IDs,
+have been extracted from that data set and compiled into a
+https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
+
+Download the file and upload it to your cluster using the
+{kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer]
+in the {ml-app} UI. Assign the name `id` to the first column and `content` to
+the second column. The index name is `test-data`. Once the upload is complete,
+you can see an index named `test-data` with 182469 documents.
+
+
+[discrete]
+[[reindexing-data-infer]]
+==== Ingest the data through the {infer} ingest pipeline
+
+Create the embeddings from the text by reindexing the data through the {infer}
+pipeline that uses the chosen model as the inference model.
+
+include::{es-repo-dir}/tab-widgets/inference-api/infer-api-reindex-widget.asciidoc[]
+
+The call returns a task ID to monitor the progress:
+
+[source,console]
+----
+GET _tasks/<task_id>
+----
+// TEST[skip:TBD]
+
+You can also cancel the reindexing process if you don't want to wait until the
+reindexing process is fully complete which might take hours:
+
+[source,console]
+----
+POST _tasks/<task_id>/_cancel
+----
+// TEST[skip:TBD]
+
+
+[discrete]
+[[infer-semantic-search]]
+==== Semantic search
+
+After the dataset has been enriched with the embeddings, you can query the data
+using {ref}/knn-search.html#knn-semantic-search[semantic search]. Pass a
+`query_vector_builder` to the k-nearest neighbor (kNN) vector search API, and
+provide the query text and the model you have used to create the embeddings.
+
+NOTE: If you cancelled the reindexing process, you run the query only a part of
+the data which affects the quality of your results.
+
+include::{es-repo-dir}/tab-widgets/inference-api/infer-api-search-widget.asciidoc[]

@@ -1,0 +1,5 @@
+pr: 104113
+summary: "X-pack/plugin/apm-data: fix `@custom` pipeline support"
+area: Ingest Node
+type: bug
+issues: []

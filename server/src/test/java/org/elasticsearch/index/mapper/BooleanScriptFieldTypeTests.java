@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -347,73 +348,81 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);
             String source = "{\"foo\": " + values + "}";
-            XContentParser parser = createParser(JsonXContent.jsonXContent, source);
-            SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
-            DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.EMPTY, sourceToParse) {
-                @Override
-                public XContentParser parser() {
-                    return parser;
-                }
-            };
-            ctx.doc().add(new StoredField("_source", new BytesRef(source)));
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+                SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
+                DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.EMPTY, sourceToParse) {
+                    @Override
+                    public XContentParser parser() {
+                        return parser;
+                    }
+                };
+                ctx.doc().add(new StoredField("_source", new BytesRef(source)));
 
-            ctx.parser().nextToken();
-            ctx.parser().nextToken();
-            ctx.parser().nextToken();
-            while (ctx.parser().nextToken() != Token.END_ARRAY) {
-                ootb.parse(ctx);
-            }
-            iw.addDocument(ctx.doc());
-            try (DirectoryReader reader = iw.getReader()) {
-                IndexSearcher searcher = newSearcher(reader);
-                assertSameCount(
-                    searcher,
-                    source,
-                    "*",
-                    simpleMappedFieldType().existsQuery(mockContext()),
-                    ootb.fieldType().existsQuery(mockContext())
-                );
-                boolean term = randomBoolean();
-                assertSameCount(
-                    searcher,
-                    source,
-                    term,
-                    simpleMappedFieldType().termQuery(term, mockContext()),
-                    ootb.fieldType().termQuery(term, mockContext())
-                );
-                List<Boolean> terms = randomList(0, 3, ESTestCase::randomBoolean);
-                assertSameCount(
-                    searcher,
-                    source,
-                    terms,
-                    simpleMappedFieldType().termsQuery(terms, mockContext()),
-                    ootb.fieldType().termsQuery(terms, mockContext())
-                );
-                boolean low;
-                boolean high;
-                if (randomBoolean()) {
-                    low = high = randomBoolean();
-                } else {
-                    low = false;
-                    high = true;
+                ctx.parser().nextToken();
+                ctx.parser().nextToken();
+                ctx.parser().nextToken();
+                while (ctx.parser().nextToken() != Token.END_ARRAY) {
+                    ootb.parse(ctx);
                 }
-                boolean includeLow = randomBoolean();
-                boolean includeHigh = randomBoolean();
-                assertSameCount(
-                    searcher,
-                    source,
-                    (includeLow ? "[" : "(") + low + "," + high + (includeHigh ? "]" : ")"),
-                    simpleMappedFieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext()),
-                    ootb.fieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext())
-                );
+                iw.addDocument(ctx.doc());
+                try (DirectoryReader reader = iw.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    assertSameCount(
+                        searcher,
+                        source,
+                        "*",
+                        simpleMappedFieldType().existsQuery(mockContext()),
+                        ootb.fieldType().existsQuery(mockContext())
+                    );
+                    boolean term = randomBoolean();
+                    assertSameCount(
+                        searcher,
+                        source,
+                        term,
+                        simpleMappedFieldType().termQuery(term, mockContext()),
+                        ootb.fieldType().termQuery(term, mockContext())
+                    );
+                    List<Boolean> terms = randomList(0, 3, ESTestCase::randomBoolean);
+                    assertSameCount(
+                        searcher,
+                        source,
+                        terms,
+                        simpleMappedFieldType().termsQuery(terms, mockContext()),
+                        ootb.fieldType().termsQuery(terms, mockContext())
+                    );
+                    boolean low;
+                    boolean high;
+                    if (randomBoolean()) {
+                        low = high = randomBoolean();
+                    } else {
+                        low = false;
+                        high = true;
+                    }
+                    boolean includeLow = randomBoolean();
+                    boolean includeHigh = randomBoolean();
+                    assertSameCount(
+                        searcher,
+                        source,
+                        (includeLow ? "[" : "(") + low + "," + high + (includeHigh ? "]" : ")"),
+                        simpleMappedFieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext()),
+                        ootb.fieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext())
+                    );
+                }
             }
         }
     }
 
     public void testBlockLoader() throws IOException {
-        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}")))
+                )
+            );
             try (DirectoryReader reader = iw.getReader()) {
                 BooleanScriptFieldType fieldType = build("xor_param", Map.of("param", false), OnScriptError.FAIL);
                 List<Boolean> expected = List.of(false, true);

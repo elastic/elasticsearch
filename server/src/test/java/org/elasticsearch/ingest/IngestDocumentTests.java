@@ -339,7 +339,7 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testSetFieldValueNullValue() {
-        ingestDocument.setFieldValue("new_field", null);
+        ingestDocument.setFieldValue("new_field", (Object) null);
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(true));
         assertThat(ingestDocument.getSourceAndMetadata().get("new_field"), nullValue());
     }
@@ -1015,6 +1015,29 @@ public class IngestDocumentTests extends ESTestCase {
             Exception e = expectThrows(IllegalArgumentException.class, () -> new IngestDocument(ingestDocument));
             assertThat(e.getMessage(), equalTo("Iterable object is self-referencing itself"));
         }
+    }
+
+    public void testCopyConstructorWithExecutedPipelines() {
+        /*
+         * This is similar to the first part of testCopyConstructor, except that we're executing a pipeilne, and running the
+         * assertions inside the processor so that we can test that executedPipelines is correct.
+         */
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        TestProcessor processor = new TestProcessor(ingestDocument1 -> {
+            assertThat(ingestDocument1.getPipelineStack().size(), equalTo(1));
+            IngestDocument copy = new IngestDocument(ingestDocument1);
+            assertThat(ingestDocument1.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
+            assertThat(ingestDocument1.getCtxMap(), not(sameInstance(copy.getCtxMap())));
+            assertThat(ingestDocument1.getCtxMap().getMetadata(), not(sameInstance(copy.getCtxMap().getMetadata())));
+            assertIngestDocument(ingestDocument1, copy);
+            assertThat(copy.getPipelineStack(), equalTo(ingestDocument1.getPipelineStack()));
+        });
+        Pipeline pipeline = new Pipeline("pipeline1", "test pipeline", 1, Map.of(), new CompoundProcessor(processor));
+        ingestDocument.executePipeline(pipeline, (ingestDocument1, exception) -> {
+            assertNotNull(ingestDocument1);
+            assertNull(exception);
+        });
+        assertThat(processor.getInvokedCounter(), equalTo(1));
     }
 
     public void testCopyConstructorWithZonedDateTime() {

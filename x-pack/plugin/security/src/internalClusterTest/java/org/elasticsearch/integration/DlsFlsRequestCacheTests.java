@@ -9,9 +9,8 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
@@ -191,31 +190,31 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         final Client limitedClient = limitedClient();
 
         // Search first with power client, it should see all docs
-        assertSearchResponse(powerClient.prepareSearch(DLS_INDEX).setRequestCache(true).get(), Set.of("101", "102"));
+        assertSearchResponse(powerClient.prepareSearch(DLS_INDEX).setRequestCache(true), Set.of("101", "102"));
         assertCacheState(DLS_INDEX, 0, 1);
 
         // Search with the limited client and it should see only one doc (i.e. it won't use cache entry for power client)
-        assertSearchResponse(limitedClient.prepareSearch(DLS_INDEX).setRequestCache(true).get(), Set.of("101"));
+        assertSearchResponse(limitedClient.prepareSearch(DLS_INDEX).setRequestCache(true), Set.of("101"));
         assertCacheState(DLS_INDEX, 0, 2);
 
         // Execute the above search again and it should use the cache entry for limited client
-        assertSearchResponse(limitedClient.prepareSearch(DLS_INDEX).setRequestCache(true).get(), Set.of("101"));
+        assertSearchResponse(limitedClient.prepareSearch(DLS_INDEX).setRequestCache(true), Set.of("101"));
         assertCacheState(DLS_INDEX, 1, 2);
 
         // Execute the search with power client again and it should still see all docs
-        assertSearchResponse(powerClient.prepareSearch(DLS_INDEX).setRequestCache(true).get(), Set.of("101", "102"));
+        assertSearchResponse(powerClient.prepareSearch(DLS_INDEX).setRequestCache(true), Set.of("101", "102"));
         assertCacheState(DLS_INDEX, 2, 2);
 
         // The limited client has a different DLS query for dls-alias compared to the underlying dls-index
-        assertSearchResponse(limitedClient.prepareSearch(DLS_ALIAS).setRequestCache(true).get(), Set.of("102"));
+        assertSearchResponse(limitedClient.prepareSearch(DLS_ALIAS).setRequestCache(true), Set.of("102"));
         assertCacheState(DLS_INDEX, 2, 3);
-        assertSearchResponse(limitedClient.prepareSearch(DLS_ALIAS).setRequestCache(true).get(), Set.of("102"));
+        assertSearchResponse(limitedClient.prepareSearch(DLS_ALIAS).setRequestCache(true), Set.of("102"));
         assertCacheState(DLS_INDEX, 3, 3);
 
         // Search with limited client for dls-alias and dls-index returns all docs. The cache entry is however different
         // from the power client, i.e. still no sharing even if the end results are the same. This is because the
         // search with limited client still have DLS queries attached to it.
-        assertSearchResponse(limitedClient.prepareSearch(DLS_ALIAS, DLS_INDEX).setRequestCache(true).get(), Set.of("101", "102"));
+        assertSearchResponse(limitedClient.prepareSearch(DLS_ALIAS, DLS_INDEX).setRequestCache(true), Set.of("101", "102"));
         assertCacheState(DLS_INDEX, 3, 4);
     }
 
@@ -224,37 +223,29 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         final Client limitedClient = limitedClient();
 
         // Search first with power client, it should see all fields
-        assertSearchResponse(
-            powerClient.prepareSearch(FLS_INDEX).setRequestCache(true).get(),
-            Set.of("201", "202"),
-            Set.of("public", "private")
-        );
+        assertSearchResponse(powerClient.prepareSearch(FLS_INDEX).setRequestCache(true), Set.of("201", "202"), Set.of("public", "private"));
         assertCacheState(FLS_INDEX, 0, 1);
 
         // Search with limited client and it should see only public field
-        assertSearchResponse(limitedClient.prepareSearch(FLS_INDEX).setRequestCache(true).get(), Set.of("201", "202"), Set.of("public"));
+        assertSearchResponse(limitedClient.prepareSearch(FLS_INDEX).setRequestCache(true), Set.of("201", "202"), Set.of("public"));
         assertCacheState(FLS_INDEX, 0, 2);
 
         // Search with limited client again and it should use the cache
-        assertSearchResponse(limitedClient.prepareSearch(FLS_INDEX).setRequestCache(true).get(), Set.of("201", "202"), Set.of("public"));
+        assertSearchResponse(limitedClient.prepareSearch(FLS_INDEX).setRequestCache(true), Set.of("201", "202"), Set.of("public"));
         assertCacheState(FLS_INDEX, 1, 2);
 
         // Search again with power client, it should use its own cache entry
-        assertSearchResponse(
-            powerClient.prepareSearch(FLS_INDEX).setRequestCache(true).get(),
-            Set.of("201", "202"),
-            Set.of("public", "private")
-        );
+        assertSearchResponse(powerClient.prepareSearch(FLS_INDEX).setRequestCache(true), Set.of("201", "202"), Set.of("public", "private"));
         assertCacheState(FLS_INDEX, 2, 2);
 
         // The fls-alias has a different FLS definition compared to its underlying fls-index.
-        assertSearchResponse(limitedClient.prepareSearch(FLS_ALIAS).setRequestCache(true).get(), Set.of("201", "202"), Set.of("private"));
+        assertSearchResponse(limitedClient.prepareSearch(FLS_ALIAS).setRequestCache(true), Set.of("201", "202"), Set.of("private"));
         assertCacheState(FLS_INDEX, 2, 3);
 
         // Search with the limited client for both fls-alias and fls-index and all docs and fields are also returned.
         // But request cache is not shared with the power client because it still has a different indexAccessControl
         assertSearchResponse(
-            limitedClient.prepareSearch(FLS_ALIAS, FLS_INDEX).setRequestCache(true).get(),
+            limitedClient.prepareSearch(FLS_ALIAS, FLS_INDEX).setRequestCache(true),
             Set.of("201", "202"),
             Set.of("public", "private")
         );
@@ -267,7 +258,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
 
         // Search first with power client, it should see all fields
         assertSearchResponse(
-            powerClient.prepareSearch(INDEX).setRequestCache(true).get(),
+            powerClient.prepareSearch(INDEX).setRequestCache(true),
             Set.of("1", "2"),
             Set.of("number", "letter", "public", "private")
         );
@@ -278,25 +269,17 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         expectThrows(ElasticsearchSecurityException.class, () -> limitedClient.prepareSearch(INDEX).setRequestCache(true).get());
 
         // Search for alias1 that points to index and has DLS/FLS
-        assertSearchResponse(
-            limitedClient.prepareSearch(ALIAS1).setRequestCache(true).get(),
-            Set.of("1"),
-            Set.of("number", "letter", "public")
-        );
+        assertSearchResponse(limitedClient.prepareSearch(ALIAS1).setRequestCache(true), Set.of("1"), Set.of("number", "letter", "public"));
         assertCacheState(INDEX, 0, 2);
 
         // Search for alias2 that also points to index but has a different set of DLS/FLS
-        assertSearchResponse(
-            limitedClient.prepareSearch(ALIAS2).setRequestCache(true).get(),
-            Set.of("2"),
-            Set.of("number", "letter", "private")
-        );
+        assertSearchResponse(limitedClient.prepareSearch(ALIAS2).setRequestCache(true), Set.of("2"), Set.of("number", "letter", "private"));
         assertCacheState(INDEX, 0, 3);
 
         // Search for all-alias that has full read access to the underlying index
         // This makes it share the cache entry of the power client
         assertSearchResponse(
-            limitedClient.prepareSearch(ALL_ALIAS).setRequestCache(true).get(),
+            limitedClient.prepareSearch(ALL_ALIAS).setRequestCache(true),
             Set.of("1", "2"),
             Set.of("number", "letter", "public", "private")
         );
@@ -305,7 +288,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         // Similarly, search for alias1 and all-alias results in full read access to the index
         // and again reuse the cache entry of the power client
         assertSearchResponse(
-            limitedClient.prepareSearch(ALIAS1, ALL_ALIAS).setRequestCache(true).get(),
+            limitedClient.prepareSearch(ALIAS1, ALL_ALIAS).setRequestCache(true),
             Set.of("1", "2"),
             Set.of("number", "letter", "public", "private")
         );
@@ -314,7 +297,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         // Though search for both alias1 and alias2 is effectively full read access to index,
         // it does not share the cache entry of the power client because role queries still exist.
         assertSearchResponse(
-            limitedClient.prepareSearch(ALIAS1, ALIAS2).setRequestCache(true).get(),
+            limitedClient.prepareSearch(ALIAS1, ALIAS2).setRequestCache(true),
             Set.of("1", "2"),
             Set.of("number", "letter", "public", "private")
         );
@@ -325,7 +308,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
 
         // It should not reuse any entries from the cache
         assertSearchResponse(
-            limitedClientApiKey.prepareSearch(ALL_ALIAS).setRequestCache(true).get(),
+            limitedClientApiKey.prepareSearch(ALL_ALIAS).setRequestCache(true),
             Set.of("1"),
             Set.of("letter", "public", "private")
         );
@@ -341,43 +324,23 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         );
 
         // Search first with user1 and only one document will be return with the corresponding username
-        assertSearchResponse(
-            client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
-            Set.of("1"),
-            Set.of("username")
-        );
+        assertSearchResponse(client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true), Set.of("1"), Set.of("username"));
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 1);
 
         // Search with user2 will not use user1's cache because template query is resolved differently for them
-        assertSearchResponse(
-            client2.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
-            Set.of("2"),
-            Set.of("username")
-        );
+        assertSearchResponse(client2.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true), Set.of("2"), Set.of("username"));
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 2);
 
         // Search with user1 again will use user1's cache
-        assertSearchResponse(
-            client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
-            Set.of("1"),
-            Set.of("username")
-        );
+        assertSearchResponse(client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true), Set.of("1"), Set.of("username"));
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 1, 2);
 
         // Search with user2 again will use user2's cache
-        assertSearchResponse(
-            client2.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
-            Set.of("2"),
-            Set.of("username")
-        );
+        assertSearchResponse(client2.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true), Set.of("2"), Set.of("username"));
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 2, 2);
 
         // Since the DLS for the alias uses a stored script, this should cause the request cached to be disabled
-        assertSearchResponse(
-            client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_ALIAS).setRequestCache(true).get(),
-            Set.of("1"),
-            Set.of("username")
-        );
+        assertSearchResponse(client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_ALIAS).setRequestCache(true), Set.of("1"), Set.of("username"));
         // No cache should be used
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 2, 2);
     }
@@ -413,14 +376,14 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
-        final ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge(
+        final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(
             DLS_INDEX,
             FLS_INDEX,
             INDEX,
             DLS_TEMPLATE_ROLE_QUERY_INDEX
         ).setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
-        final RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX)
+        final BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX)
             .get();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         ensureGreen(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX);
@@ -455,19 +418,24 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         return client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKey));
     }
 
-    private void assertSearchResponse(SearchResponse searchResponse, Set<String> docIds) {
-        assertSearchResponse(searchResponse, docIds, null);
+    private void assertSearchResponse(SearchRequestBuilder requestBuilder, Set<String> docIds) {
+        assertSearchResponse(requestBuilder, docIds, null);
     }
 
-    private void assertSearchResponse(SearchResponse searchResponse, Set<String> docIds, Set<String> fieldNames) {
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docIds.size()));
-        final SearchHit[] hits = searchResponse.getHits().getHits();
-        assertThat(Arrays.stream(hits).map(SearchHit::getId).collect(Collectors.toUnmodifiableSet()), equalTo(docIds));
-        if (fieldNames != null) {
-            for (SearchHit hit : hits) {
-                assertThat(hit.getSourceAsMap().keySet(), equalTo(fieldNames));
+    private void assertSearchResponse(SearchRequestBuilder requestBuilder, Set<String> docIds, Set<String> fieldNames) {
+        var searchResponse = requestBuilder.get();
+        try {
+            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docIds.size()));
+            final SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(Arrays.stream(hits).map(SearchHit::getId).collect(Collectors.toUnmodifiableSet()), equalTo(docIds));
+            if (fieldNames != null) {
+                for (SearchHit hit : hits) {
+                    assertThat(hit.getSourceAsMap().keySet(), equalTo(fieldNames));
+                }
             }
+        } finally {
+            searchResponse.decRef();
         }
     }
 

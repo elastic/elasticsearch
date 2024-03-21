@@ -98,11 +98,8 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
             )
         )) {
 
-            try {
-                componentTemplates.put(
-                    config.getTemplateName(),
-                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
-                );
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
+                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

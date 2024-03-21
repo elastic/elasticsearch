@@ -39,7 +39,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     )
     public MvConcat(
         Source source,
-        @Param(name = "v", type = { "text", "keyword" }, description = "values to join") Expression field,
+        @Param(name = "string", type = { "text", "keyword" }, description = "values to join") Expression field,
         @Param(name = "delim", type = { "text", "keyword" }, description = "delimiter") Expression delim
     ) {
         super(source, field, delim);
@@ -123,7 +123,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
         public final Block eval(Page page) {
             try (BytesRefBlock fieldVal = (BytesRefBlock) field.eval(page); BytesRefBlock delimVal = (BytesRefBlock) delim.eval(page)) {
                 int positionCount = page.getPositionCount();
-                try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(positionCount, context.blockFactory())) {
+                try (BytesRefBlock.Builder builder = context.blockFactory().newBytesRefBlockBuilder(positionCount)) {
                     BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don't blow past circuit breakers
                     BytesRef fieldScratch = new BytesRef();
                     BytesRef delimScratch = new BytesRef();

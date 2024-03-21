@@ -55,12 +55,12 @@ setup:
 "Get field mapping with local parameter should fail":
 
   - skip:
-      features: ["warnings", "node_selector"]
+      features: ["warnings"]
+      version: " - 7.99.99"
+      reason: "local parameter for get field mapping API was allowed before v8"
 
   - do:
       catch: bad_request
-      node_selector:
-        version: "8.0.0 - "
       indices.get_field_mapping:
         fields: text
         local: true

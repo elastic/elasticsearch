@@ -78,12 +78,13 @@ public final class SetProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        if (overrideEnabled || document.hasField(field) == false || document.getFieldValue(field, Object.class) == null) {
+        String path = document.renderTemplate(field);
+        if (overrideEnabled || document.hasField(path) == false || document.getFieldValue(path, Object.class) == null) {
             if (copyFrom != null) {
                 Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValue);
-                document.setFieldValue(field, IngestDocument.deepCopy(fieldValue), ignoreEmptyValue);
+                document.setFieldValue(path, IngestDocument.deepCopy(fieldValue), ignoreEmptyValue);
             } else {
-                document.setFieldValue(field, value, ignoreEmptyValue);
+                document.setFieldValue(path, value, ignoreEmptyValue);
             }
         }
         return document;

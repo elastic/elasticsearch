@@ -124,10 +124,12 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
 
         // ensure the table is always at least as big as DEFAULT_WORD_DELIM_TABLE for performance
         byte types[] = new byte[Math.max(typeMap.lastKey() + 1, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE.length)];
-        for (int i = 0; i < types.length; i++)
+        for (int i = 0; i < types.length; i++) {
             types[i] = WordDelimiterIterator.getType(i);
-        for (Map.Entry<Character, Byte> mapping : typeMap.entrySet())
+        }
+        for (Map.Entry<Character, Byte> mapping : typeMap.entrySet()) {
             types[mapping.getKey()] = mapping.getValue();
+        }
         return types;
     }
 

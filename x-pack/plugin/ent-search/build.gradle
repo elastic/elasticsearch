@@ -38,6 +38,13 @@ dependencies {
   module ':modules:search-business-rules'
 }
 
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
+  user username: 'x_pack_rest_user', password: 'x-pack-test-password'
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson.*/, to: 'jackson'
 }

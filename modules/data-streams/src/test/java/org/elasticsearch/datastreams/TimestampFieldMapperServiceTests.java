@@ -10,7 +10,7 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -94,7 +94,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
               }
             }""";
         var templateSettings = Settings.builder().put("index.mode", tsdb ? "time_series" : "standard");
-        var request = new PutComposableIndexTemplateAction.Request("id");
+        var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("k8s*"))
@@ -102,7 +102,7 @@ public class TimestampFieldMapperServiceTests extends ESSingleNodeTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     private static String formatInstant(Instant instant) {

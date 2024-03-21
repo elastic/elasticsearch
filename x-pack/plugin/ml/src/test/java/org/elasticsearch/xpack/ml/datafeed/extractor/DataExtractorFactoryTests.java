@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -94,7 +94,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             ActionListener listener = (ActionListener) invocationMock.getArguments()[2];
             listener.onResponse(fieldsCapabilities);
             return null;
-        }).when(client).execute(same(FieldCapabilitiesAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportFieldCapabilitiesAction.TYPE), any(), any());
 
         doAnswer(invocationMock -> {
             ActionListener listener = (ActionListener) invocationMock.getArguments()[2];

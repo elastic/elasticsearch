@@ -36,7 +36,6 @@ dependencies {
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
-  internalClusterTestImplementation project(":client:rest-high-level")
   internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
@@ -59,7 +58,7 @@ sourceSets.main.java {
   exclude 'generated/**'
 }
 
-tasks.getByName('test') {
+tasks.named("test").configure {
   if (BuildParams.isCi() == false) {
     systemProperty 'generateDocs', true
     doFirst {

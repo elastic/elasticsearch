@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -41,7 +39,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+    protected Operator.OperatorFactory simple() {
         Supplier<Function<String, Map<String, String>>> expEval = () -> new FirstWord("test");
         return new StringExtractOperator.StringExtractOperatorFactory(
             new String[] { "test" },
@@ -84,11 +82,6 @@ public class StringExtractOperatorTests extends OperatorTestCase {
         }
     }
 
-    @Override
-    protected ByteSizeValue smallEnoughToCircuitBreak() {
-        return ByteSizeValue.ofBytes(between(1, 32));
-    }
-
     public void testMultivalueDissectInput() {
 
         StringExtractOperator operator = new StringExtractOperator(new String[] { "test" }, new EvalOperator.ExpressionEvaluator() {
@@ -103,8 +96,9 @@ public class StringExtractOperatorTests extends OperatorTestCase {
             public void close() {}
         }, new FirstWord("test"), driverContext());
 
-        Page result = null;
-        try (BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1)) {
+        BlockFactory blockFactory = blockFactory();
+        final Page result;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)) {
             builder.beginPositionEntry();
             builder.appendBytesRef(new BytesRef("foo1 bar1"));
             builder.appendBytesRef(new BytesRef("foo2 bar2"));

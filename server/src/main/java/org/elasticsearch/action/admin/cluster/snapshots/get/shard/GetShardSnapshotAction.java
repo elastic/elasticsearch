@@ -16,6 +16,6 @@ public class GetShardSnapshotAction extends ActionType<GetShardSnapshotResponse>
     public static final String NAME = "internal:admin/snapshot/get_shard";
 
     public GetShardSnapshotAction() {
-        super(NAME, GetShardSnapshotResponse::new);
+        super(NAME);
     }
 }

@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -33,12 +32,12 @@ final class LongLongBlockHash extends BlockHash {
     private final int emitBatchSize;
     private final LongLongHash hash;
 
-    LongLongBlockHash(DriverContext driverContext, int channel1, int channel2, int emitBatchSize) {
-        super(driverContext);
+    LongLongBlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize) {
+        super(blockFactory);
         this.channel1 = channel1;
         this.channel2 = channel2;
         this.emitBatchSize = emitBatchSize;
-        this.hash = new LongLongHash(1, bigArrays);
+        this.hash = new LongLongHash(1, blockFactory.bigArrays());
     }
 
     @Override
@@ -65,7 +64,7 @@ final class LongLongBlockHash extends BlockHash {
 
     private IntVector add(LongVector vector1, LongVector vector2) {
         int positions = vector1.getPositionCount();
-        try (var builder = IntVector.newVectorFixedBuilder(positions, blockFactory)) {
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendInt(Math.toIntExact(hashOrdToGroup(hash.add(vector1.getLong(i), vector2.getLong(i)))));
             }

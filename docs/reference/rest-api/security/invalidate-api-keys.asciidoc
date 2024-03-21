@@ -27,8 +27,11 @@ in one of the three formats:
 [[security-api-invalidate-api-key-desc]]
 ==== {api-description-title}
 
-The API keys created by <<security-api-create-api-key,create API Key>> can be
-invalidated using this API.
+This API invalidates API keys created by the <<security-api-create-api-key,create API key>> or <<security-api-grant-api-key,grant API key>>
+APIs.
+Invalidated API keys fail authentication, but they can still be viewed using the
+<<security-api-get-api-key,get API key information>> and <<security-api-query-api-key,query API key information>> APIs,
+for at least the <<api-key-service-settings-delete-retention-period,configured retention period>>, until they are automatically deleted.
 
 
 [[security-api-invalidate-api-key-request-body]]

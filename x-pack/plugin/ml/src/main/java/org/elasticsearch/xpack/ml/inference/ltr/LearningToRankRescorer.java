@@ -55,6 +55,15 @@ public class LearningToRankRescorer implements Rescorer {
         if (ltrRescoreContext.regressionModelDefinition == null) {
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
         }
+
+        if (rescoreContext.getWindowSize() < topDocs.scoreDocs.length) {
+            throw new IllegalArgumentException(
+                "Rescore window is too small and should be at least the value of from + size but was ["
+                    + rescoreContext.getWindowSize()
+                    + "]"
+            );
+        }
+
         LocalModel definition = ltrRescoreContext.regressionModelDefinition;
 
         // First take top slice of incoming docs, to be rescored:

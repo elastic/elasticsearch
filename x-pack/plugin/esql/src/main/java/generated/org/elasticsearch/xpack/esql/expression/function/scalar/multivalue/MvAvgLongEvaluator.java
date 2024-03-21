@@ -19,11 +19,8 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
  * This class is generated. Do not edit it.
  */
 public final class MvAvgLongEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  private final DriverContext driverContext;
-
   public MvAvgLongEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
-    super(field);
-    this.driverContext = driverContext;
+    super(driverContext, field);
   }
 
   @Override

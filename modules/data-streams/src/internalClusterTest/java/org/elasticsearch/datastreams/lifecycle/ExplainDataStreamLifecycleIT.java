@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -118,7 +118,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
-                assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
+                assertThat(explainIndex.getLifecycle().getDataStreamRetention(), nullValue());
                 if (internalCluster().numDataNodes() > 1) {
                     // If the number of nodes is 1 then the cluster will be yellow so forcemerge will report an error if it has run
                     assertThat(explainIndex.getError(), nullValue());
@@ -175,7 +175,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
-                assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
+                assertThat(explainIndex.getLifecycle().getDataStreamRetention(), nullValue());
 
                 if (explainIndex.getIndex().equals(DataStream.getDefaultBackingIndexName(dataStreamName, 1))) {
                     // first generation index was rolled over
@@ -243,7 +243,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 assertThat(explainIndex.isManagedByLifecycle(), is(true));
                 assertThat(explainIndex.getIndexCreationDate(), notNullValue());
                 assertThat(explainIndex.getLifecycle(), notNullValue());
-                assertThat(explainIndex.getLifecycle().getEffectiveDataRetention(), nullValue());
+                assertThat(explainIndex.getLifecycle().getDataStreamRetention(), nullValue());
                 assertThat(explainIndex.getRolloverDate(), nullValue());
                 assertThat(explainIndex.getTimeSinceRollover(System::currentTimeMillis), nullValue());
                 // index has not been rolled over yet
@@ -349,7 +349,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamLifecycle lifecycle
     ) throws IOException {
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
@@ -358,7 +358,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
 }

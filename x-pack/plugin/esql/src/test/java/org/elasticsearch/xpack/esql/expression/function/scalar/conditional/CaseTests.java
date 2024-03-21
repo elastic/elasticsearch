@@ -12,8 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -88,11 +88,15 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     public void testEvalCase() {
         testCase(caseExpr -> {
+            DriverContext driverContext = driverContext();
+            Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(0, 1));
             try (
-                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(child -> evaluator(child)).get(driverContext());
-                Block block = eval.eval(new Page(IntBlock.newConstantBlockWith(0, 1)))
+                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(child -> evaluator(child)).get(driverContext);
+                Block block = eval.eval(page)
             ) {
                 return toJavaObject(block, 0);
+            } finally {
+                page.releaseBlocks();
             }
         });
     }
@@ -148,7 +152,8 @@ public class CaseTests extends AbstractFunctionTestCase {
 
     public void testCaseIsLazy() {
         Case caseExpr = caseExpr(true, 1, true, 2);
-        try (Block block = caseExpr.toEvaluator(child -> {
+        DriverContext driveContext = driverContext();
+        EvalOperator.ExpressionEvaluator evaluator = caseExpr.toEvaluator(child -> {
             Object value = child.fold();
             if (value != null && value.equals(2)) {
                 return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
@@ -163,8 +168,12 @@ public class CaseTests extends AbstractFunctionTestCase {
                 };
             }
             return evaluator(child);
-        }).get(driverContext()).eval(new Page(IntBlock.newConstantBlockWith(0, 1)))) {
+        }).get(driveContext);
+        Page page = new Page(driveContext.blockFactory().newConstantIntBlockWith(0, 1));
+        try (Block block = evaluator.eval(page)) {
             assertEquals(1, toJavaObject(block, 0));
+        } finally {
+            page.releaseBlocks();
         }
     }
 

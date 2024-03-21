@@ -1,0 +1,5 @@
+pr: 105178
+summary: "[Connector API] Support filtering connectors by service type and a query"
+area: Application
+type: enhancement
+issues: []

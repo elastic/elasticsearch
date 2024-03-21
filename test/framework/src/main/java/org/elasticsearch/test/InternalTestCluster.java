@@ -17,10 +17,10 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -64,6 +64,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -650,7 +651,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private NodeAndClient getRandomNodeAndClient() {
-        return getRandomNodeAndClient(nc -> true);
+        return getRandomNodeAndClient(Predicates.always());
     }
 
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
@@ -1621,7 +1622,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to a random nodes instances of the given class &gt;T&lt;
      */
     public <T> T getInstance(Class<T> clazz) {
-        return getInstance(clazz, nc -> true);
+        return getInstance(clazz, Predicates.always());
     }
 
     private static <T> T getInstanceFromNode(Class<T> clazz, Node node) {
@@ -1906,7 +1907,7 @@ public final class InternalTestCluster extends TestCluster {
                 logger.info("adding voting config exclusions {} prior to restart/shutdown", excludedNodeNames);
                 try {
                     client().execute(
-                        AddVotingConfigExclusionsAction.INSTANCE,
+                        TransportAddVotingConfigExclusionsAction.TYPE,
                         new AddVotingConfigExclusionsRequest(excludedNodeNames.toArray(Strings.EMPTY_ARRAY))
                     ).get();
                 } catch (InterruptedException | ExecutionException e) {
@@ -1923,7 +1924,7 @@ public final class InternalTestCluster extends TestCluster {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
                 Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
-                client.execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
+                client.execute(TransportClearVotingConfigExclusionsAction.TYPE, new ClearVotingConfigExclusionsRequest()).get();
             } catch (InterruptedException | ExecutionException e) {
                 ESTestCase.fail(e);
             }
@@ -1990,7 +1991,7 @@ public final class InternalTestCluster extends TestCluster {
      * @return the name of a random node in a cluster
      */
     public String getRandomNodeName() {
-        return getNodeNameThat(ignored -> true);
+        return getNodeNameThat(Predicates.always());
     }
 
     /**
@@ -2325,7 +2326,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
-                    if (shard == indexRouting.indexShard("id", routing, null, null)) {
+                    if (shard == indexRouting.indexShard("id", routing, null, null, null)) {
                         return routing;
                     }
                 }

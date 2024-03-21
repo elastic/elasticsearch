@@ -31,13 +31,13 @@ incoming cross-cluster requests by default, while it is ready to send outgoing
 cross-cluster requests. Ensure you've enabled the remote cluster server on every
 node of the remote cluster. In `elasticsearch.yml`:
 
-* Set <<remote-cluster-network-settings,`remote_cluster_server.enabled`>> to 
+* Set <<remote-cluster-network-settings,`remote_cluster_server.enabled`>> to
 `true`.
 * Configure the bind and publish address for remote cluster server traffic, for
 example using <<remote-cluster-network-settings,`remote_cluster.host`>>. Without
 configuring the address, remote cluster traffic may be bound to the local
 interface, and remote clusters running on other machines can't connect.
-* Optionally, configure the remote server port using 
+* Optionally, configure the remote server port using
 <<remote_cluster.port,`remote_cluster.port`>> (defaults to `9443`).
 
 [[remote-clusters-troubleshooting-common-issues]]
@@ -73,7 +73,7 @@ org.elasticsearch.transport.ConnectTransportException: [][192.168.0.42:9443] *co
 ====== Resolution
 
 * Check the host and port for the remote cluster are correct.
-* Ensure the <<remote-clusters-troubleshooting-enable-server,remote cluster 
+* Ensure the <<remote-clusters-troubleshooting-enable-server,remote cluster
 server is enabled>> on the remote cluster.
 * Ensure no firewall is blocking the communication.
 
@@ -108,11 +108,11 @@ cause of the failure. For example:
 
 * Is the remote cluster certificate not signed by a trusted CA? This is the most
 likely cause.
-* Is hostname verification failing? 
+* Is hostname verification failing?
 * Is the certificate expired?
 
 Once you know the cause, you should be able to fix it by adjusting the remote
-cluster related SSL settings on either the local cluster or the remote cluster. 
+cluster related SSL settings on either the local cluster or the remote cluster.
 
 Often, the issue is on the local cluster. For example, fix it by configuring necessary
 trusted CAs (`xpack.security.remote_cluster_client.ssl.certificate_authorities`).
@@ -275,7 +275,7 @@ This does not show up in the logs of the remote cluster.
 ====== Resolution
 
 Add the cross-cluster API key to {es} keystore on every node of the local
-cluster. Restart the local cluster to reload the keystore.
+cluster. Use the <<cluster-nodes-reload-secure-settings>> API to reload the keystore.
 
 [[remote-clusters-troubleshooting-wrong-api-key-type]]
 ===== Using the wrong API key type
@@ -302,8 +302,7 @@ This does not show up in the logs of the remote cluster.
 Ask the remote cluster administrator to create and distribute a
 <<security-api-create-cross-cluster-api-key,cross-cluster API key>>. Replace the
 existing API key in the {es} keystore with this cross-cluster API key on every
-node of the local cluster. Restart the local cluster for keystore changes to
-take effect.
+node of the local cluster. Use the <<cluster-nodes-reload-secure-settings>> API to reload the keystore.
 
 [[remote-clusters-troubleshooting-non-valid-api-key]]
 ===== Invalid API key
@@ -334,15 +333,14 @@ The remote cluster logs `Authentication using apikey failed`:
 Ask the remote cluster administrator to create and distribute a
 <<security-api-create-cross-cluster-api-key,cross-cluster API key>>. Replace the
 existing API key in the {es} keystore with this cross-cluster API key on every
-node of the local cluster. Restart the local cluster for keystore changes to
-take effect.
+node of the local cluster. Use the <<cluster-nodes-reload-secure-settings>> API to reload the keystore.
 
 [[remote-clusters-troubleshooting-insufficient-privileges]]
 ===== API key or local user has insufficient privileges
 
 The effective permission for a local user running requests on a remote cluster
 is determined by the intersection of the cross-cluster API key's privileges and
-the local user's `remote_indices` privileges. 
+the local user's `remote_indices` privileges.
 
 ====== Symptom
 
@@ -366,8 +364,7 @@ This does not show up in any logs.
 create and distribute a
 <<security-api-create-cross-cluster-api-key,cross-cluster API key>>. Replace the
 existing API key in the {es} keystore with this cross-cluster API key on every
-node of the local cluster. Restart the local cluster for keystore changes to
-take effect.
+node of the local cluster. Use the <<cluster-nodes-reload-secure-settings>> API to reload the keystore.
 
 [[remote-clusters-troubleshooting-no-remote_indices-privileges]]
 ===== Local user has no `remote_indices` privileges

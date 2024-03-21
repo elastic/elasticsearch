@@ -1,8 +1,6 @@
 [[synonyms-apis]]
 == Synonyms APIs
 
-beta::[]
-
 ++++
 <titleabbrev>Synonyms APIs</titleabbrev>
 ++++

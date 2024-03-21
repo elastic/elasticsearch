@@ -30,6 +30,16 @@ setup:
       indices.refresh: { }
 
 ---
+"Counted keyword is searchable by default":
+  - do:
+      field_caps:
+        index: test-events
+        fields: [ events ]
+
+  - match: { fields.events.counted_keyword.searchable: true }
+  - match: { fields.events.counted_keyword.aggregatable: true }
+
+---
 "Counted Terms agg":
 
   - do:
@@ -49,3 +59,22 @@ setup:
   - match: { aggregations.event_terms.buckets.2.key: "c" }
   - match: { aggregations.event_terms.buckets.2.doc_count: 2 }
   - length: { aggregations.event_terms.buckets: 3 }
+
+---
+# Use a probability of 1.0 to ensure a consistent bucket count.
+"Sampled Counted Terms agg":
+  - do:
+      search:
+        index: test-events
+        body:
+          size: 0
+          aggs:
+            sample:
+              random_sampler:
+                probability: 1.0
+              aggs:
+                event_terms:
+                  counted_terms:
+                    field: events
+
+  - length: { aggregations.sample.event_terms.buckets: 3 }

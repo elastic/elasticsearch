@@ -134,6 +134,7 @@ A successful call returns a JSON structure that contains the information of the 
       "invalidated": false, <6>
       "username": "myuser", <7>
       "realm": "native1", <8>
+      "realm_type": "native",
       "metadata": { <9>
         "application": "myapp"
       },
@@ -289,6 +290,7 @@ A successful call returns a JSON structure that contains the information of one 
       "invalidated": false,
       "username": "myuser",
       "realm": "native1",
+      "realm_type": "native",
       "metadata": {
         "application": "myapp"
       },

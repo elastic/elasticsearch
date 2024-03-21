@@ -56,7 +56,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
     public static final String NAME = "cluster:monitor/xpack/ml/trained_models/deployment/infer";
 
     public InferTrainedModelDeploymentAction() {
-        super(NAME, InferTrainedModelDeploymentAction.Response::new);
+        super(NAME);
     }
 
     /**
@@ -104,6 +104,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         // input and so cannot construct a document.
         private final List<String> textInput;
         private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+        private boolean chunkResults = false;
 
         public static Request forDocs(String id, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             return new Request(
@@ -147,7 +148,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            docs = in.readCollectionAsImmutableList(StreamInput::readMap);
+            docs = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             update = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
             inferenceTimeout = in.readOptionalTimeValue();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
@@ -158,10 +159,15 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             } else {
                 textInput = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+                chunkResults = in.readBoolean();
+            } else {
+                chunkResults = false;
             }
         }
 
@@ -215,6 +221,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return prefixType;
         }
 
+        public boolean isChunkResults() {
+            return chunkResults;
+        }
+
+        public void setChunkResults(boolean chunkResults) {
+            this.chunkResults = chunkResults;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = super.validate();
@@ -241,8 +255,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+                out.writeBoolean(chunkResults);
             }
         }
 
@@ -262,12 +279,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
                 && Objects.equals(highPriority, that.highPriority)
                 && Objects.equals(textInput, that.textInput)
-                && (prefixType == that.prefixType);
+                && (prefixType == that.prefixType)
+                && (chunkResults == that.chunkResults);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, update, docs, inferenceTimeout, highPriority, textInput, prefixType);
+            return Objects.hash(id, update, docs, inferenceTimeout, highPriority, textInput, prefixType, chunkResults);
         }
 
         @Override

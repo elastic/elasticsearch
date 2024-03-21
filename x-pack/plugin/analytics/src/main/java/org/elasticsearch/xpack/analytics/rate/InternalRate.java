@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -17,7 +18,6 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -68,19 +68,27 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
     }
 
     @Override
-    public InternalRate reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        Double firstDivisor = null;
-        for (InternalAggregation aggregation : aggregations) {
-            double value = ((InternalRate) aggregation).sum;
-            kahanSummation.add(value);
-            if (firstDivisor == null) {
-                firstDivisor = ((InternalRate) aggregation).divisor;
+        return new AggregatorReducer() {
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+            Double firstDivisor = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                double value = ((InternalRate) aggregation).sum;
+                kahanSummation.add(value);
+                if (firstDivisor == null) {
+                    firstDivisor = ((InternalRate) aggregation).divisor;
+                }
             }
-        }
-        return new InternalRate(name, kahanSummation.value(), firstDivisor, format, getMetadata());
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalRate(name, kahanSummation.value(), firstDivisor, format, getMetadata());
+            }
+        };
     }
 
     @Override

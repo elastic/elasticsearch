@@ -29,7 +29,7 @@ public class LoadTrainedModelPackageAction extends ActionType<AcknowledgedRespon
     public static final LoadTrainedModelPackageAction INSTANCE = new LoadTrainedModelPackageAction();
 
     private LoadTrainedModelPackageAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<LoadTrainedModelPackageAction.Request> {

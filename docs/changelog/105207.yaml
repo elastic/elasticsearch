@@ -1,0 +1,6 @@
+pr: 105207
+summary: Introduce an `AggregatorReducer` to reduce the footprint of aggregations
+  in the coordinating node
+area: Aggregations
+type: enhancement
+issues: []

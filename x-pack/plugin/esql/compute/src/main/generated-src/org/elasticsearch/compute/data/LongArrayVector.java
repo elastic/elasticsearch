@@ -8,34 +8,58 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
  * Vector implementation that stores an array of long values.
  * This class is generated. Do not edit it.
  */
-public final class LongArrayVector extends AbstractVector implements LongVector {
+final class LongArrayVector extends AbstractVector implements LongVector {
 
-    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayVector.class)
+        // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
+        + RamUsageEstimator.shallowSizeOfInstance(LongVectorBlock.class);
 
     private final long[] values;
 
-    private final LongBlock block;
-
-    public LongArrayVector(long[] values, int positionCount) {
-        this(values, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
+    LongArrayVector(long[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
-        this.block = new LongVectorBlock(this);
+    }
+
+    static LongArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        final long preAdjustedBytes = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) positions * Long.BYTES;
+        blockFactory.adjustBreaker(preAdjustedBytes);
+        boolean success = false;
+        try {
+            long[] values = new long[positions];
+            for (int i = 0; i < positions; i++) {
+                values[i] = in.readLong();
+            }
+            final var block = new LongArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - preAdjustedBytes);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                blockFactory.adjustBreaker(-preAdjustedBytes);
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        for (int i = 0; i < positions; i++) {
+            out.writeLong(values[i]);
+        }
     }
 
     @Override
     public LongBlock asBlock() {
-        return block;
+        return new LongVectorBlock(this);
     }
 
     @Override

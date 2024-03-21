@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.action.AbstractTransportSetResetModeAction;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 
 public class TransportSetResetModeAction extends AbstractTransportSetResetModeAction {
 

@@ -30,7 +30,9 @@ import org.elasticsearch.xpack.application.connector.configuration.Configuration
 import org.elasticsearch.xpack.application.connector.configuration.ConfigurationValidation;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -54,6 +56,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
     private final String placeholder;
     private final boolean required;
     private final boolean sensitive;
+    @Nullable
     private final String tooltip;
     private final ConfigurationFieldType type;
     private final List<String> uiRestrictions;
@@ -149,7 +152,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ConnectorConfiguration, Void> PARSER = new ConstructingObjectParser<>(
-        "connector_configuration_dependency",
+        "connector_configuration",
         true,
         args -> {
             int i = 0;
@@ -161,8 +164,8 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
                 .setOptions((List<ConfigurationSelectOption>) args[i++])
                 .setOrder((Integer) args[i++])
                 .setPlaceholder((String) args[i++])
-                .setRequired((boolean) args[i++])
-                .setSensitive((boolean) args[i++])
+                .setRequired((Boolean) args[i++])
+                .setSensitive((Boolean) args[i++])
                 .setTooltip((String) args[i++])
                 .setType((ConfigurationFieldType) args[i++])
                 .setUiRestrictions((List<String>) args[i++])
@@ -186,40 +189,118 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
             }
             throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
         }, DEFAULT_VALUE_FIELD, ObjectParser.ValueType.VALUE);
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> ConfigurationDependency.fromXContent(p), DEPENDS_ON_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ConfigurationDependency.fromXContent(p), DEPENDS_ON_FIELD);
         PARSER.declareField(
-            constructorArg(),
+            optionalConstructorArg(),
             (p, c) -> ConfigurationDisplayType.displayType(p.text()),
             DISPLAY_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
         PARSER.declareString(constructorArg(), LABEL_FIELD);
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> ConfigurationSelectOption.fromXContent(p), OPTIONS_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ConfigurationSelectOption.fromXContent(p), OPTIONS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), ORDER_FIELD);
-        PARSER.declareString(optionalConstructorArg(), PLACEHOLDER_FIELD);
-        PARSER.declareBoolean(constructorArg(), REQUIRED_FIELD);
-        PARSER.declareBoolean(constructorArg(), SENSITIVE_FIELD);
-        PARSER.declareStringOrNull(constructorArg(), TOOLTIP_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), PLACEHOLDER_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), REQUIRED_FIELD);
+        PARSER.declareBoolean(optionalConstructorArg(), SENSITIVE_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), TOOLTIP_FIELD);
         PARSER.declareField(
-            constructorArg(),
-            (p, c) -> ConfigurationFieldType.fieldType(p.text()),
+            optionalConstructorArg(),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : ConfigurationFieldType.fieldType(p.text()),
             TYPE_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareStringArray(constructorArg(), UI_RESTRICTIONS_FIELD);
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> ConfigurationValidation.fromXContent(p), VALIDATIONS_FIELD);
-        PARSER.declareField(constructorArg(), (p, c) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return p.text();
-            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return p.numberValue();
-            } else if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
-                return p.booleanValue();
-            } else if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
-            }
-            throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
-        }, VALUE_FIELD, ObjectParser.ValueType.VALUE);
+        PARSER.declareStringArray(optionalConstructorArg(), UI_RESTRICTIONS_FIELD);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ConfigurationValidation.fromXContent(p), VALIDATIONS_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> parseConfigurationValue(p),
+            VALUE_FIELD,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
+        );
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public Object getDefaultValue() {
+        return defaultValue;
+    }
+
+    public List<ConfigurationDependency> getDependsOn() {
+        return dependsOn;
+    }
+
+    public ConfigurationDisplayType getDisplay() {
+        return display;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public List<ConfigurationSelectOption> getOptions() {
+        return options;
+    }
+
+    public Integer getOrder() {
+        return order;
+    }
+
+    public String getPlaceholder() {
+        return placeholder;
+    }
+
+    public boolean isRequired() {
+        return required;
+    }
+
+    public boolean isSensitive() {
+        return sensitive;
+    }
+
+    public String getTooltip() {
+        return tooltip;
+    }
+
+    public ConfigurationFieldType getType() {
+        return type;
+    }
+
+    public List<String> getUiRestrictions() {
+        return uiRestrictions;
+    }
+
+    public List<ConfigurationValidation> getValidations() {
+        return validations;
+    }
+
+    public Object getValue() {
+        return value;
+    }
+
+    /**
+     * Parses a configuration value from a parser context, supporting the {@link Connector} protocol's value types.
+     * This method can parse strings, numbers, booleans, objects, and null values, matching the types commonly
+     * supported in {@link ConnectorConfiguration}.
+     *
+     * @param p the {@link org.elasticsearch.xcontent.XContentParser} instance from which to parse the configuration value.
+     */
+    public static Object parseConfigurationValue(XContentParser p) throws IOException {
+
+        if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return p.text();
+        } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return p.numberValue();
+        } else if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+            return p.booleanValue();
+        } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+            // Crawler expects the value to be an object
+            return p.map();
+        } else if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return null;
+        }
+        throw new XContentParseException("Unsupported token [" + p.currentToken() + "]");
     }
 
     @Override
@@ -230,10 +311,16 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
                 builder.field(CATEGORY_FIELD.getPreferredName(), category);
             }
             builder.field(DEFAULT_VALUE_FIELD.getPreferredName(), defaultValue);
-            builder.xContentList(DEPENDS_ON_FIELD.getPreferredName(), dependsOn);
-            builder.field(DISPLAY_FIELD.getPreferredName(), display.toString());
+            if (dependsOn != null) {
+                builder.xContentList(DEPENDS_ON_FIELD.getPreferredName(), dependsOn);
+            }
+            if (display != null) {
+                builder.field(DISPLAY_FIELD.getPreferredName(), display.toString());
+            }
             builder.field(LABEL_FIELD.getPreferredName(), label);
-            builder.xContentList(OPTIONS_FIELD.getPreferredName(), options);
+            if (options != null) {
+                builder.xContentList(OPTIONS_FIELD.getPreferredName(), options);
+            }
             if (order != null) {
                 builder.field(ORDER_FIELD.getPreferredName(), order);
             }
@@ -242,10 +329,18 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
             }
             builder.field(REQUIRED_FIELD.getPreferredName(), required);
             builder.field(SENSITIVE_FIELD.getPreferredName(), sensitive);
-            builder.field(TOOLTIP_FIELD.getPreferredName(), tooltip);
-            builder.field(TYPE_FIELD.getPreferredName(), type.toString());
-            builder.stringListField(UI_RESTRICTIONS_FIELD.getPreferredName(), uiRestrictions);
-            builder.xContentList(VALIDATIONS_FIELD.getPreferredName(), validations);
+            if (tooltip != null) {
+                builder.field(TOOLTIP_FIELD.getPreferredName(), tooltip);
+            }
+            if (type != null) {
+                builder.field(TYPE_FIELD.getPreferredName(), type.toString());
+            }
+            if (uiRestrictions != null) {
+                builder.stringListField(UI_RESTRICTIONS_FIELD.getPreferredName(), uiRestrictions);
+            }
+            if (validations != null) {
+                builder.xContentList(VALIDATIONS_FIELD.getPreferredName(), validations);
+            }
             builder.field(VALUE_FIELD.getPreferredName(), value);
         }
         builder.endObject();
@@ -281,6 +376,46 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         out.writeOptionalStringCollection(uiRestrictions);
         out.writeOptionalCollection(validations);
         out.writeGenericValue(value);
+    }
+
+    public Map<String, Object> toMap() {
+        Map<String, Object> map = new HashMap<>();
+        if (category != null) {
+            map.put(CATEGORY_FIELD.getPreferredName(), category);
+        }
+        map.put(DEFAULT_VALUE_FIELD.getPreferredName(), defaultValue);
+        if (dependsOn != null) {
+            map.put(DEPENDS_ON_FIELD.getPreferredName(), dependsOn.stream().map(ConfigurationDependency::toMap).toList());
+        }
+        if (display != null) {
+            map.put(DISPLAY_FIELD.getPreferredName(), display.toString());
+        }
+        map.put(LABEL_FIELD.getPreferredName(), label);
+        if (options != null) {
+            map.put(OPTIONS_FIELD.getPreferredName(), options.stream().map(ConfigurationSelectOption::toMap).toList());
+        }
+        if (order != null) {
+            map.put(ORDER_FIELD.getPreferredName(), order);
+        }
+        if (placeholder != null) {
+            map.put(PLACEHOLDER_FIELD.getPreferredName(), placeholder);
+        }
+        map.put(REQUIRED_FIELD.getPreferredName(), required);
+        map.put(SENSITIVE_FIELD.getPreferredName(), sensitive);
+        if (tooltip != null) {
+            map.put(TOOLTIP_FIELD.getPreferredName(), tooltip);
+        }
+        if (type != null) {
+            map.put(TYPE_FIELD.getPreferredName(), type.toString());
+        }
+        if (uiRestrictions != null) {
+            map.put(UI_RESTRICTIONS_FIELD.getPreferredName(), uiRestrictions);
+        }
+        if (validations != null) {
+            map.put(VALIDATIONS_FIELD.getPreferredName(), validations.stream().map(ConfigurationValidation::toMap).toList());
+        }
+        map.put(VALUE_FIELD.getPreferredName(), value);
+        return map;
     }
 
     @Override
@@ -384,13 +519,13 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setRequired(boolean required) {
-            this.required = required;
+        public Builder setRequired(Boolean required) {
+            this.required = Objects.requireNonNullElse(required, false);
             return this;
         }
 
-        public Builder setSensitive(boolean sensitive) {
-            this.sensitive = sensitive;
+        public Builder setSensitive(Boolean sensitive) {
+            this.sensitive = Objects.requireNonNullElse(sensitive, false);
             return this;
         }
 

@@ -1,0 +1,5 @@
+pr: 105428
+summary: Limiting the number of nested pipelines that can be executed
+area: Ingest Node
+type: enhancement
+issues: []

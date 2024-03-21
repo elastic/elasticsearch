@@ -32,7 +32,7 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/ml/job/get";
 
     private GetJobsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static final class Request extends MasterNodeReadRequest<Request> {

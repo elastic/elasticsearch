@@ -8,10 +8,12 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -38,11 +40,9 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
-            InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
             SearchResponse.Clusters clusters = randomClusters();
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-            SearchResponse searchResponse = new SearchResponse(
-                internalSearchResponse,
+            SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                 null,
                 totalShards,
                 successfulShards,
@@ -75,11 +75,9 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
-                InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
                 SearchResponse.Clusters clusters = randomClusters();
                 SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
-                SearchResponse searchResponse = new SearchResponse(
-                    internalSearchResponse,
+                SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
                     null,
                     totalShards,
                     successfulShards,
@@ -98,8 +96,26 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
     }
 
     @Override
-    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) throws IOException {
-        return MultiSearchTemplateResponse.fromXContext(parser);
+    protected MultiSearchTemplateResponse doParseInstance(XContentParser parser) {
+        // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
+        MultiSearchResponse mSearchResponse = SearchResponseUtils.parseMultiSearchResponse(parser);
+        try {
+            org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
+            MultiSearchTemplateResponse.Item[] templateResponses = new MultiSearchTemplateResponse.Item[responses.length];
+            int i = 0;
+            for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
+                SearchTemplateResponse stResponse = null;
+                if (item.getResponse() != null) {
+                    stResponse = new SearchTemplateResponse();
+                    stResponse.setResponse(item.getResponse());
+                    item.getResponse().incRef();
+                }
+                templateResponses[i++] = new MultiSearchTemplateResponse.Item(stResponse, item.getFailure());
+            }
+            return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
+        } finally {
+            mSearchResponse.decRef();
+        }
     }
 
     @Override
@@ -150,7 +166,13 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             this::doParseInstance,
             this::assertEqualInstances,
             assertToXContentEquivalence,
-            ToXContent.EMPTY_PARAMS
+            ToXContent.EMPTY_PARAMS,
+            RefCounted::decRef
         );
+    }
+
+    @Override
+    protected void dispose(MultiSearchTemplateResponse instance) {
+        instance.decRef();
     }
 }

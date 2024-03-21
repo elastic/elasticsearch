@@ -168,7 +168,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         this.snapshotName = in.readString();
         this.operation = in.readString();
         this.success = in.readBoolean();
-        this.snapshotConfiguration = in.readMap();
+        this.snapshotConfiguration = in.readGenericMap();
         this.errorDetails = in.readOptionalString();
     }
 

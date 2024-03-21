@@ -70,6 +70,7 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -203,7 +204,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
             if (countDown.countDown()) {
                 Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(exchange.getRequestBody());
-                assertThat(content.isPresent(), is(true));
+                assertThat(content, isPresent());
                 assertThat(content.get().v1(), equalTo(blobContainer.path().buildAsString() + "write_blob_max_retries"));
                 if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {
                     byte[] response = Strings.format("""

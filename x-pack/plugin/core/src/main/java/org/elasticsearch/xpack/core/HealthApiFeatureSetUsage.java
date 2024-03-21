@@ -77,7 +77,7 @@ public class HealthApiFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public HealthApiFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        usageStats = in.readMap();
+        usageStats = in.readGenericMap();
     }
 
     public HealthApiFeatureSetUsage(boolean available, boolean enabled, @Nullable Counters stats) {

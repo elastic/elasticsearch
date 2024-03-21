@@ -8,7 +8,6 @@
 
 package org.elasticsearch.datastreams.lifecycle.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -40,10 +39,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIE
  */
 public class PutDataStreamLifecycleAction {
 
-    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(
-        "indices:admin/data_stream/lifecycle/put",
-        AcknowledgedResponse::readFrom
-    );
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>("indices:admin/data_stream/lifecycle/put");
 
     private PutDataStreamLifecycleAction() {/* no instances */}
 
@@ -130,11 +126,6 @@ public class PutDataStreamLifecycleAction {
             builder.field("lifecycle", lifecycle);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

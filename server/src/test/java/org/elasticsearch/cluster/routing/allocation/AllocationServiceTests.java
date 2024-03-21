@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
@@ -314,7 +315,7 @@ public class AllocationServiceTests extends ESTestCase {
         public void beforeAllocation(RoutingAllocation allocation) {}
 
         @Override
-        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {}
 
         @Override
         public void allocateUnassigned(

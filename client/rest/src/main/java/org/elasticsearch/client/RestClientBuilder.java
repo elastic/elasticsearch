@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.net.ssl.SSLContext;
 
@@ -50,6 +52,9 @@ public final class RestClientBuilder {
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
+
+    static final String THREAD_NAME_PREFIX = "elasticsearch-rest-client-";
+    private static final String THREAD_NAME_FORMAT = THREAD_NAME_PREFIX + "%d-thread-%d";
 
     public static final String VERSION;
     static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
@@ -298,6 +303,24 @@ public final class RestClientBuilder {
         return restClient;
     }
 
+    /**
+     * Similar to {@code org.apache.http.impl.nio.reactor.AbstractMultiworkerIOReactor.DefaultThreadFactory} but with better thread names.
+     */
+    private static class RestClientThreadFactory implements ThreadFactory {
+        private static final AtomicLong CLIENT_THREAD_POOL_ID_GENERATOR = new AtomicLong();
+
+        private final long clientThreadPoolId = CLIENT_THREAD_POOL_ID_GENERATOR.getAndIncrement(); // 0-based
+        private final AtomicLong clientThreadId = new AtomicLong();
+
+        @Override
+        public Thread newThread(Runnable runnable) {
+            return new Thread(
+                runnable,
+                String.format(Locale.ROOT, THREAD_NAME_FORMAT, clientThreadPoolId, clientThreadId.incrementAndGet()) // 1-based
+            );
+        }
+    }
+
     private CloseableHttpAsyncClient createHttpClient() {
         // default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
@@ -315,7 +338,8 @@ public final class RestClientBuilder {
                 .setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
                 .setUserAgent(USER_AGENT_HEADER_VALUE)
-                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
+                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy())
+                .setThreadFactory(new RestClientThreadFactory());
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }

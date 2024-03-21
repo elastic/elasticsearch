@@ -20,7 +20,7 @@ import java.util.Objects;
 
 public class AuthenticateResponse extends ActionResponse implements ToXContent {
 
-    public static final TransportVersion VERSION_OPERATOR_FIELD = TransportVersions.V_8_500_040;
+    public static final TransportVersion VERSION_OPERATOR_FIELD = TransportVersions.V_8_10_X;
 
     private final Authentication authentication;
     private final boolean operator;

@@ -1,0 +1,5 @@
+pr: 104309
+summary: "ESQL: Add TO_UPPER and TO_LOWER functions"
+area: ES|QL
+type: enhancement
+issues: []

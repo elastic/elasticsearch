@@ -75,6 +75,10 @@ import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 
 /**
  * A {@link FieldMapper} for indexing fields with version strings.
+ *
+ * The binary encoding of these strings will sort without decoding, according to semver.  See {@link VersionEncoder}
+ *
+ * NB: If you are looking for the document version field _version, you want {@link org.elasticsearch.index.mapper.VersionFieldMapper}
  */
 public class VersionStringFieldMapper extends FieldMapper {
 
@@ -108,14 +112,14 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype) {
-            return new VersionStringFieldType(context.buildFullName(name), fieldtype, meta.getValue());
+            return new VersionStringFieldType(context.buildFullName(name()), fieldtype, meta.getValue());
         }
 
         @Override
         public VersionStringFieldMapper build(MapperBuilderContext context) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(
-                name,
+                name(),
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),

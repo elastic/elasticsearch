@@ -30,7 +30,6 @@ import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -127,6 +126,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
                     ++expectedSearchRetries;
                 }
 
+                searchResponse.decRef();
                 searchResponse = createSearchResponse();
                 client.respond(TransportSearchScrollAction.TYPE, searchResponse);
             }
@@ -162,15 +162,20 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
     private SearchResponse createSearchResponse() {
         // create a simulated response.
-        SearchHit hit = new SearchHit(0, "id").sourceRef(new BytesArray("{}"));
-        SearchHits hits = new SearchHits(
+        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
+        SearchHits hits = SearchHits.unpooled(
             IntStream.range(0, randomIntBetween(0, 20)).mapToObj(i -> hit).toArray(SearchHit[]::new),
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
         return new SearchResponse(
-            internalResponse,
+            hits,
+            null,
+            null,
+            false,
+            false,
+            null,
+            1,
             randomSimpleString(random(), 1, 10),
             5,
             4,

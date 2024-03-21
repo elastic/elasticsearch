@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
@@ -18,6 +19,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.fixtures.smb.SmbTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
@@ -25,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySe
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -39,8 +43,11 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
+    @ClassRule
+    public static final SmbTestContainer smbFixture = new SmbTestContainer();
     // follow referrals defaults to false here which differs from the default value of the setting
     // this is needed to prevent test logs being filled by errors as the default configuration of
     // the tests run against a vagrant samba4 instance configured as a domain controller with the
@@ -48,14 +55,7 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     // as we cannot control the URL of the referral which may contain a non-resolvable DNS name as
     // this name would be served by the samba4 instance
     public static final Boolean FOLLOW_REFERRALS = Booleans.parseBoolean(getFromEnv("TESTS_AD_FOLLOW_REFERRALS", "false"));
-    public static final String AD_LDAP_URL = getFromEnv("TESTS_AD_LDAP_URL", "ldaps://localhost:" + getFromProperty("636"));
-    public static final String AD_LDAP_GC_URL = getFromEnv("TESTS_AD_LDAP_GC_URL", "ldaps://localhost:" + getFromProperty("3269"));
-    public static final String PASSWORD = getFromEnv("TESTS_AD_USER_PASSWORD", "Passw0rd");
-    public static final String AD_LDAP_PORT = getFromEnv("TESTS_AD_LDAP_PORT", getFromProperty("389"));
-
-    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT", getFromProperty("636"));
-    public static final String AD_GC_LDAP_PORT = getFromEnv("TESTS_AD_GC_LDAP_PORT", getFromProperty("3268"));
-    public static final String AD_GC_LDAPS_PORT = getFromEnv("TESTS_AD_GC_LDAPS_PORT", getFromProperty("3269"));
+    public static final String PASSWORD = "Passw0rd";
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
 
     protected SSLService sslService;
@@ -108,10 +108,6 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
             .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
             .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING), userSearchDN)
             .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING), scope)
-            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
-            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
-            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
-            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
             .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS)
             .putList(getFullSettingKey(realmId, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
         if (randomBoolean()) {
@@ -152,12 +148,5 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     private static String getFromEnv(String envVar, String defaultValue) {
         final String value = System.getenv(envVar);
         return value == null ? defaultValue : value;
-    }
-
-    private static String getFromProperty(String port) {
-        String key = "test.fixtures.smb-fixture.tcp." + port;
-        final String value = System.getProperty(key);
-        assertNotNull("Expected the actual value for port " + port + " to be in system property " + key, value);
-        return value;
     }
 }

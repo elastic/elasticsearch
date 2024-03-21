@@ -659,14 +659,14 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().search(
+            client().search(
                 new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
                     .source(
                         searchSource().query(
                             functionScoreQuery(termQuery("test", "value"), gaussDecayFunction("num1", "2013-05-28", "-1d"))
                         )
                     )
-            ).actionGet()
+            )
         );
         assertThat(e.getMessage(), is("all shards failed"));
     }
@@ -987,7 +987,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().search(
+            client().search(
                 new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
                     .source(
                         searchSource().size(numDocs)
@@ -997,7 +997,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                                 )
                             )
                     )
-            ).actionGet()
+            )
         );
         assertThat(e.getMessage(), is("all shards failed"));
     }
@@ -1028,7 +1028,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         // so, we indexed a string field, but now we try to score a num field
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().search(
+            client().search(
                 new SearchRequest(new String[] {}).searchType(SearchType.QUERY_THEN_FETCH)
                     .source(
                         searchSource().query(
@@ -1037,7 +1037,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                             )
                         )
                     )
-            ).actionGet()
+            )
         );
         assertThat(e.getMessage(), is("all shards failed"));
     }

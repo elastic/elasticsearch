@@ -1,8 +1,6 @@
 [[delete-synonyms-set]]
 === Delete synonyms set
 
-beta::[]
-
 ++++
 <titleabbrev>Delete synonyms set</titleabbrev>
 ++++

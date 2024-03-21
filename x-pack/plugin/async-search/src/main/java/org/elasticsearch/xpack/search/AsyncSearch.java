@@ -21,6 +21,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.core.search.action.GetAsyncMyStatusAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -40,7 +41,8 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
         return Arrays.asList(
             new ActionHandler<>(SubmitAsyncSearchAction.INSTANCE, TransportSubmitAsyncSearchAction.class),
             new ActionHandler<>(GetAsyncSearchAction.INSTANCE, TransportGetAsyncSearchAction.class),
-            new ActionHandler<>(GetAsyncStatusAction.INSTANCE, TransportGetAsyncStatusAction.class)
+            new ActionHandler<>(GetAsyncStatusAction.INSTANCE, TransportGetAsyncStatusAction.class),
+            new ActionHandler<>(GetAsyncMyStatusAction.INSTANCE, TransportGetAsyncMyStatusAction.class)
         );
     }
 
@@ -60,6 +62,7 @@ public final class AsyncSearch extends Plugin implements ActionPlugin {
             new RestSubmitAsyncSearchAction(restController.getSearchUsageHolder(), namedWriteableRegistry, clusterSupportsFeature),
             new RestGetAsyncSearchAction(),
             new RestGetAsyncStatusAction(),
+            new RestGetAsyncMyStatusAction(),
             new RestDeleteAsyncSearchAction()
         );
     }

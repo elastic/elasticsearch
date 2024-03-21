@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -18,22 +20,44 @@ import java.util.List;
 public class EsqlUnresolvedRelation extends UnresolvedRelation {
 
     private final List<Attribute> metadataFields;
+    @Nullable
+    private final EsSourceOptions esSourceOptions;
 
-    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields, String unresolvedMessage) {
+    public EsqlUnresolvedRelation(
+        Source source,
+        TableIdentifier table,
+        List<Attribute> metadataFields,
+        EsSourceOptions esSourceOptions,
+        String unresolvedMessage
+    ) {
         super(source, table, "", false, unresolvedMessage);
         this.metadataFields = metadataFields;
+        this.esSourceOptions = esSourceOptions;
+    }
+
+    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields, String unresolvedMessage) {
+        this(source, table, metadataFields, null, unresolvedMessage);
+    }
+
+    public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields, EsSourceOptions esSourceOptions) {
+        this(source, table, metadataFields, esSourceOptions, null);
     }
 
     public EsqlUnresolvedRelation(Source source, TableIdentifier table, List<Attribute> metadataFields) {
-        this(source, table, metadataFields, null);
+        this(source, table, metadataFields, null, null);
     }
 
     public List<Attribute> metadataFields() {
         return metadataFields;
     }
 
+    @Nullable
+    public EsSourceOptions esSourceOptions() {
+        return esSourceOptions;
+    }
+
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, EsqlUnresolvedRelation::new, table(), metadataFields(), unresolvedMessage());
+        return NodeInfo.create(this, EsqlUnresolvedRelation::new, table(), metadataFields(), esSourceOptions(), unresolvedMessage());
     }
 }

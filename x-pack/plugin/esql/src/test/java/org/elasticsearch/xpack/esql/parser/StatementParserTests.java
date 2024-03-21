@@ -53,6 +53,7 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -587,7 +588,7 @@ public class StatementParserTests extends ESTestCase {
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
         expectError(
             "explain [from foo] metadata _index",
-            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'metadata'}"
+            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'options', 'metadata'}"
         );
     }
 
@@ -609,6 +610,68 @@ public class StatementParserTests extends ESTestCase {
 
     public void testMetadataFieldNotFoundNormalField() {
         expectError("from test metadata emp_no", "line 1:21: unsupported metadata field [emp_no]");
+    }
+
+    public void testFromOptionsUnknownName() {
+        expectError("from test options \"foo\"=\"oof\",\"bar\"=\"rab\"", "line 1:20: invalid options provided: unknown option named [foo]");
+    }
+
+    public void testFromOptionsPartialInvalid() {
+        expectError(
+            "from test options \"allow_no_indices\"=\"true\",\"bar\"=\"rab\"",
+            "line 1:46: invalid options provided: unknown option named [bar]"
+        );
+    }
+
+    public void testFromOptionsUnquotedName() {
+        expectError("from test options allow_no_indices=\"oof\"", "line 1:19: mismatched input 'allow_no_indices' expecting STRING");
+    }
+
+    public void testFromOptionsUnquotedValue() {
+        expectError("from test options \"allow_no_indices\"=oof", "line 1:38: mismatched input 'oof' expecting STRING");
+    }
+
+    public void testFromOptionsDuplicates() {
+        expectError(
+            "from test options \"allow_no_indices\"=\"false\",\"allow_no_indices\"=\"true\"",
+            "line 1:47: invalid options provided: option [allow_no_indices] has already been provided"
+        );
+    }
+
+    public void testFromOptionsValues() {
+        boolean allowNoIndices = randomBoolean();
+        boolean ignoreUnavailable = randomBoolean();
+        String idsList = String.join(",", randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 25)));
+        String preference = randomFrom(
+            "_only_local",
+            "_local",
+            "_only_nodes:" + idsList,
+            "_prefer_nodes:" + idsList,
+            "_shards:" + idsList,
+            randomAlphaOfLengthBetween(1, 25)
+        );
+        List<String> options = new ArrayList<>(3);
+        options.add("\"allow_no_indices\"=\"" + allowNoIndices + "\"");
+        options.add("\"ignore_unavailable\"=\"" + ignoreUnavailable + "\"");
+        options.add("\"preference\"=\"" + preference + "\"");
+        Collections.shuffle(options);
+        String optionsList = String.join(",", options);
+
+        var plan = statement("FROM test OPTIONS " + optionsList);
+        var unresolved = as(plan, EsqlUnresolvedRelation.class);
+        assertNotNull(unresolved.esSourceOptions());
+        assertThat(unresolved.esSourceOptions().indicesOptions().allowNoIndices(), is(allowNoIndices));
+        assertThat(unresolved.esSourceOptions().indicesOptions().ignoreUnavailable(), is(ignoreUnavailable));
+        assertThat(unresolved.esSourceOptions().preference(), is(preference));
+    }
+
+    public void testFromOptionsWithMetadata() {
+        var plan = statement("FROM test OPTIONS \"preference\"=\"foo\" METADATA _id");
+        var unresolved = as(plan, EsqlUnresolvedRelation.class);
+        assertNotNull(unresolved.esSourceOptions());
+        assertThat(unresolved.esSourceOptions().preference(), is("foo"));
+        assertFalse(unresolved.metadataFields().isEmpty());
+        assertThat(unresolved.metadataFields().get(0).qualifiedName(), is("_id"));
     }
 
     public void testDissectPattern() {

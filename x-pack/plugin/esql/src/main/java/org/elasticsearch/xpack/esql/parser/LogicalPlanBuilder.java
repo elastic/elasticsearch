@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
+import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.parser.ParserUtils;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -209,7 +210,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)));
+        EsSourceOptions esSourceOptions = null;
+        if (ctx.fromOptions() != null) {
+            esSourceOptions = new EsSourceOptions();
+            for (var o : ctx.fromOptions().configOption()) {
+                var nameContext = o.string().get(0);
+                String name = visitString(nameContext).fold().toString();
+                String value = visitString(o.string().get(1)).fold().toString();
+                try {
+                    esSourceOptions.addOption(name, value);
+                } catch (IllegalArgumentException iae) {
+                    throw new ParsingException(source(nameContext), "invalid options provided: " + iae.getMessage());
+                }
+            }
+        }
+        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), esSourceOptions);
     }
 
     @Override

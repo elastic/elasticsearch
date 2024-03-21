@@ -24,7 +24,17 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * This response is used by {@link PutDataStreamGlobalRetentionAction} and {@link DeleteDataStreamGlobalRetentionAction} to
+ * communicate to the user the result of a global retention update and the affected data streams.
+ */
 public final class UpdateDataStreamGlobalRetentionResponse extends ActionResponse implements ChunkedToXContentObject {
+
+    public static final UpdateDataStreamGlobalRetentionResponse FAILED = new UpdateDataStreamGlobalRetentionResponse(
+        false,
+        false,
+        List.of()
+    );
 
     private final boolean acknowledged;
     private final boolean dryRun;
@@ -37,22 +47,8 @@ public final class UpdateDataStreamGlobalRetentionResponse extends ActionRespons
         affectedDataStreams = in.readCollectionAsImmutableList(AffectedDataStream::read);
     }
 
-    public UpdateDataStreamGlobalRetentionResponse(boolean acknowledged, boolean dryRun) {
-        this.acknowledged = acknowledged;
-        this.dryRun = dryRun;
-        this.affectedDataStreams = List.of();
-    }
-
-    public UpdateDataStreamGlobalRetentionResponse(boolean acknowledged) {
-        this.acknowledged = acknowledged;
-        this.dryRun = false;
-        this.affectedDataStreams = List.of();
-    }
-
     public UpdateDataStreamGlobalRetentionResponse(boolean acknowledged, List<AffectedDataStream> affectedDataStreams) {
-        this.acknowledged = acknowledged;
-        this.dryRun = false;
-        this.affectedDataStreams = affectedDataStreams;
+        this(acknowledged, false, affectedDataStreams);
     }
 
     public UpdateDataStreamGlobalRetentionResponse(boolean acknowledged, boolean dryRun, List<AffectedDataStream> affectedDataStreams) {

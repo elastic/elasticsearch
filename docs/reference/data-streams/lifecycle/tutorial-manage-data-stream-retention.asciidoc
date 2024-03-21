@@ -103,7 +103,7 @@ You can use the <<indices-put-template,create index template API>>, for example:
 +
 [source,console]
 --------------------------------------------------
-PUT _index_template/my-index-template
+PUT _index_template/template
 {
   "index_patterns": ["my-data-stream*"],
   "data_stream": { },

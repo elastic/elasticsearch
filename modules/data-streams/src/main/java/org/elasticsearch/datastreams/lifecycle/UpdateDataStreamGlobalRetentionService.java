@@ -32,6 +32,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * This service manages the global retention configuration, it provides an API to set or remove global retention
+ * from the cluster state.
+ */
 public class UpdateDataStreamGlobalRetentionService {
 
     private final MasterServiceTaskQueue<UpsertGlobalDataStreamMetadataTask> taskQueue;
@@ -144,17 +148,17 @@ public class UpdateDataStreamGlobalRetentionService {
 
         @Override
         public void onAllNodesAcked() {
-            listener.onResponse(new UpdateDataStreamGlobalRetentionResponse(true, affectedDataStreams));
+            listener.onResponse(UpdateDataStreamGlobalRetentionResponse.FAILED);
         }
 
         @Override
         public void onAckFailure(Exception e) {
-            listener.onResponse(new UpdateDataStreamGlobalRetentionResponse(false));
+            listener.onFailure(e);
         }
 
         @Override
         public void onAckTimeout() {
-            listener.onResponse(new UpdateDataStreamGlobalRetentionResponse(false));
+            listener.onResponse(UpdateDataStreamGlobalRetentionResponse.FAILED);
         }
 
         @Override

@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Sets the global retention for data streams (if it's not a dry run) and it returns the affected data streams.
+ * Deletes the global retention for data streams (if it's not a dry run) and it returns the affected data streams.
  */
 public class DeleteDataStreamGlobalRetentionAction {
 

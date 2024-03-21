@@ -67,7 +67,7 @@ public class MvSlice extends ScalarFunction implements OptionalArgument, Evaluat
     public MvSlice(
         Source source,
         @Param(
-            name = "v",
+            name = "field",
             type = {
                 "boolean",
                 "cartesian_point",

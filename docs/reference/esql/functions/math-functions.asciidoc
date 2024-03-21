@@ -31,8 +31,8 @@
 * <<esql-tau>>
 // end::math_list[]
 
-include::abs.asciidoc[]
-include::acos.asciidoc[]
+include::layout/abs.asciidoc[]
+include::layout/acos.asciidoc[]
 include::asin.asciidoc[]
 include::atan.asciidoc[]
 include::atan2.asciidoc[]

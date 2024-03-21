@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the substring that extracts 'length' chars from 'str' starting from the left.
+Returns the substring that extracts 'length' chars from 'string' starting from the left.

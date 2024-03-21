@@ -1,10 +1,10 @@
 *Parameters*
 
-`str`::
+`string`::
 
 
 `regex`::
 
 
-`newStr`::
+`newString`::
 

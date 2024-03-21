@@ -1,6 +1,6 @@
 *Parameters*
 
-`value`::
+`number`::
 The numeric value to round
 
 `decimals`::

@@ -358,6 +358,7 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106618")
     public void testScheduledFixedDelayRejection() {
         final String name = "fixed-bounded";
         final ThreadPool threadPool = new TestThreadPool(

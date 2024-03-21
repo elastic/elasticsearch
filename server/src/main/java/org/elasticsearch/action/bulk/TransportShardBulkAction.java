@@ -689,9 +689,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),
-                    indexRequest.routing(),
-                    Map.of(),
-                    DocumentSizeObserver.EMPTY_INSTANCE
+                    indexRequest.routing()
                 );
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),

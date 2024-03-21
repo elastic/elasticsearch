@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 public class Avg extends AggregateFunction implements SurrogateExpression {
 
     @FunctionInfo(returnType = "double", description = "The average of a numeric field.", isAggregation = true)
-    public Avg(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
+    public Avg(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 

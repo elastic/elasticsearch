@@ -33,7 +33,7 @@ public class ToCartesianPoint extends AbstractConvertFunction {
     );
 
     @FunctionInfo(returnType = "cartesian_point", description = "Converts an input value to a point value.")
-    public ToCartesianPoint(Source source, @Param(name = "v", type = { "cartesian_point", "keyword", "text" }) Expression field) {
+    public ToCartesianPoint(Source source, @Param(name = "field", type = { "cartesian_point", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 

@@ -1415,6 +1415,26 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
+    /**
+     * Creates mappers for fields that can act as time-series dimensions.
+     */
+    public abstract static class DimensionBuilder extends Builder {
+
+        private boolean inheritDimensionParameterFromParentObject = false;
+
+        public DimensionBuilder(String name) {
+            super(name);
+        }
+
+        void setInheritDimensionParameterFromParentObject() {
+            this.inheritDimensionParameterFromParentObject = true;
+        }
+
+        protected boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
+            return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
+        }
+    }
+
     public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {
         return (n, c) -> {
             if (c.isWithinMultiField()) {

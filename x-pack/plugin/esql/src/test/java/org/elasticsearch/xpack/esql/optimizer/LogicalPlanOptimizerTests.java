@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Grea
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
@@ -59,7 +57,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -132,6 +132,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.ql.TestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
@@ -176,7 +177,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public static void init() {
         parser = new EsqlParser();
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        enrichResolution = AnalyzerTestUtils.loadEnrichPolicyResolution("languages_idx", "id", "languages_idx", "mapping-languages.json");
+        enrichResolution = new EnrichResolution();
+        AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
 
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
         mapping = loadMapping("mapping-basic.json");
@@ -313,6 +315,39 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.name(condition.right()), equalTo("1 + 4"));
         var con = as(condition.right(), Literal.class);
         assertThat(con.value(), equalTo(5));
+    }
+
+    public void testCombineDisjunctionToInEquals() {
+        LogicalPlan plan = plan("""
+            from test
+            | where emp_no == 1 or emp_no == 2
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var condition = as(filter.condition(), In.class);
+        assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
+    }
+
+    public void testCombineDisjunctionToInMixed() {
+        LogicalPlan plan = plan("""
+            from test
+            | where emp_no == 1 or emp_no in (2)
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var condition = as(filter.condition(), In.class);
+        assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
+    }
+
+    public void testCombineDisjunctionToInFromIn() {
+        LogicalPlan plan = plan("""
+            from test
+            | where emp_no in (1) or emp_no in (2)
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var condition = as(filter.condition(), In.class);
+        assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
     }
 
     public void testCombineProjectionWithPruning() {
@@ -3405,6 +3440,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testPartiallyFoldCase() {
+        var plan = optimizedPlan("""
+              FROM test
+            | EVAL c = CASE(true, emp_no, salary)
+            """);
+
+        var eval = as(plan, Eval.class);
+        var languages = as(Alias.unwrap(eval.expressions().get(0)), FieldAttribute.class);
+        assertThat(languages.name(), is("emp_no"));
+    }
+
     private LogicalPlan optimizedPlan(String query) {
         return plan(query);
     }
@@ -3428,15 +3474,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private void assertNullLiteral(Expression expression) {
         assertEquals(Literal.class, expression.getClass());
         assertNull(expression.fold());
-    }
-
-    // TODO: move these from org.elasticsearch.xpack.ql.optimizer.OptimizerRulesTests to org.elasticsearch.xpack.ql.TestUtils
-    public static FieldAttribute getFieldAttribute(String name) {
-        return getFieldAttribute(name, INTEGER);
-    }
-
-    private static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {

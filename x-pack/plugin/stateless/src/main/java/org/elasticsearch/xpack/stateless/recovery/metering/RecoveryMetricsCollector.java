@@ -75,7 +75,9 @@ public class RecoveryMetricsCollector implements IndexEventListener {
             "primary",
             indexShard.routingEntry().primary(),
             "allocationId",
-            indexShard.routingEntry().allocationId() != null ? indexShard.routingEntry().allocationId().getId() : "unknown"
+            indexShard.routingEntry().allocationId() != null ? indexShard.routingEntry().allocationId().getId() : "unknown",
+            "recoveryType",
+            indexShard.recoveryState().getRecoverySource().getType().name()
         );
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -31,7 +32,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.findMapper;
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.createSemanticFieldContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -219,7 +220,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     static void assertSemanticTextField(MapperService mapperService, String fieldName, boolean expectedModelSettings) {
-        var res = findMapper(mapperService.mappingLookup().getMapping().getRoot(), fieldName);
+        InferenceMetadataFieldMapper.SemanticTextMapperContext res = createSemanticFieldContext(
+            MapperBuilderContext.root(false, false),
+            mapperService.mappingLookup().getMapping().getRoot(),
+            fieldName,
+            fieldName.split("\\.")
+        );
         Mapper mapper = res.mapper();
         assertNotNull(mapper);
         assertThat(mapper, instanceOf(SemanticTextFieldMapper.class));

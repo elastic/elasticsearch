@@ -932,16 +932,29 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    public void testStopLogsProgress() {
+    public void testStopLogsProgress() throws Exception {
+        TestHttpChannel httpChannel = new TestHttpChannel();
+        var doneWithRequest = new CountDownLatch(1);
         try (var wait = LogExpectation.expectUpdate(1); var transport = new TestHttpServerTransport(gracePeriod(SHORT_GRACE_PERIOD_MS))) {
-            TestHttpChannel httpChannel = new TestHttpChannel();
+
+            httpChannel.blockSendResponse();
+            var inResponse = httpChannel.notifyInSendResponse();
+
             transport.serverAcceptedChannel(httpChannel);
-            transport.incomingRequest(testHttpRequest(), httpChannel);
+            new Thread(() -> {
+                transport.incomingRequest(testHttpRequest(), httpChannel);
+                doneWithRequest.countDown();
+            }, "testStopLogsProgress -> incomingRequest").start();
+
+            inResponse.await();
 
             transport.doStop();
             assertFalse(transport.testHttpServerChannel.isOpen());
             assertFalse(httpChannel.isOpen());
             wait.assertExpectationsMatched();
+        } finally {
+            httpChannel.allowSendResponse();
+            doneWithRequest.await();
         }
     }
 

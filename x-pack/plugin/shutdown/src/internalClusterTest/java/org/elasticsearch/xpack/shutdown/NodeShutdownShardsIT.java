@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -51,7 +50,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * reverting to `NOT_STARTED` (this was a bug in the initial implementation).
      */
     public void testShardStatusStaysCompleteAfterNodeLeaves() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
@@ -71,7 +69,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * registered. This may happen if {@link NodeSeenService} isn't working as expected.
      */
     public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
@@ -99,7 +96,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * (this was a bug in the initial implementation).
      */
     public void testShardStatusIsCompleteOnNonDataNodes() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToShutDownName = internalCluster().startMasterOnlyNode();
         internalCluster().startMasterOnlyNode(); // Just to have at least one other node
         final String nodeToRestartId = getNodeId(nodeToShutDownName);

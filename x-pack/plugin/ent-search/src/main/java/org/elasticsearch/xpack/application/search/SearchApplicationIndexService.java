@@ -333,14 +333,14 @@ public class SearchApplicationIndexService {
         );
         client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
             @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
+            public void onResponse(IndicesAliasesResponse acknowledgedResponse) {
+                listener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
             }
 
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof ResourceNotFoundException) {
-                    listener.onResponse(AcknowledgedResponse.TRUE);
+                    listener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
                 } else {
                     listener.onFailure(e);
                 }

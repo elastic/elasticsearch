@@ -23,11 +23,11 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
+import co.elastic.elasticsearch.stateless.utils.IndexingShardRecoveryComparator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -90,7 +90,7 @@ public class SharedBlobCacheWarmingService {
     public void warmCacheForIndexingShardRecovery(IndexShard indexShard, StatelessCompoundCommit commit) {
         final long started = threadPool.rawRelativeTimeInMillis();
         logger.debug("{} warming", indexShard.shardId());
-        warmCache(indexShard, commit, new IndexingShardRecoveryComparator(), ActionListener.running(() -> {
+        warmCache(indexShard, commit, Map.Entry.comparingByKey(new IndexingShardRecoveryComparator()), ActionListener.running(() -> {
             final long finished = threadPool.rawRelativeTimeInMillis();
             logger.debug("{} warming completed in {} ms", indexShard.shardId(), finished - started);
         }));
@@ -302,110 +302,5 @@ public class SharedBlobCacheWarmingService {
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    /**
-     * Order commit files in an optimized order for indexing shard recoveries
-     */
-    private static class IndexingShardRecoveryComparator implements Comparator<Map.Entry<String, BlobLocation>> {
-
-        @Override
-        public int compare(Map.Entry<String, BlobLocation> first, Map.Entry<String, BlobLocation> second) {
-            final String fileName1 = first.getKey();
-            final String fileName2 = second.getKey();
-
-            // The segment_N file is usually the first file Lucene reads, so it is always prewarmed first.
-            boolean segments1 = fileName1.startsWith(IndexFileNames.SEGMENTS);
-            boolean segments2 = fileName2.startsWith(IndexFileNames.SEGMENTS);
-            var compare = Boolean.compare(segments2, segments1);
-            if (compare != 0) {
-                return compare;
-            }
-
-            // Lucene then usually reads segment core info files (.si), so we prioritize them over other type of files.
-            var si = LuceneFilesExtensions.SI.getExtension();
-            boolean segmentInfo1 = IndexFileNames.matchesExtension(fileName1, si);
-            boolean segmentInfo2 = IndexFileNames.matchesExtension(fileName2, si);
-            compare = Boolean.compare(segmentInfo2, segmentInfo1);
-            if (compare != 0) {
-                return compare;
-            }
-
-            final var blobLocation1 = first.getValue();
-            final var blobLocation2 = second.getValue();
-
-            // Special case of two .si files: we sort them by blob locations (most recent first) and then by offsets within same blob
-            // location.
-            if (segmentInfo1 && segmentInfo2) {
-                compare = Long.compare(blobLocation2.compoundFileGeneration(), blobLocation1.compoundFileGeneration());
-                if (compare == 0) {
-                    return Long.compare(blobLocation1.offset(), blobLocation2.offset());
-                }
-                return compare;
-            }
-
-            // Lucene usually reads generational files when opening the IndexWriter
-            var isGenerationalFile1 = StatelessCommitService.isGenerationalFile(fileName1);
-            var isGenerationalFile2 = StatelessCommitService.isGenerationalFile(fileName2);
-            compare = Boolean.compare(isGenerationalFile2, isGenerationalFile1);
-            if (compare != 0) {
-                return compare;
-            }
-
-            // Lucene loads a global field map when initializing the IndexWriter, so we want to prewarm .fnm files before other type of
-            // files.
-            var fnm = LuceneFilesExtensions.FNM.getExtension();
-            boolean fields1 = IndexFileNames.matchesExtension(fileName1, fnm);
-            boolean fields2 = IndexFileNames.matchesExtension(fileName2, fnm);
-            compare = Boolean.compare(fields2, fields1);
-            if (compare != 0) {
-                return compare;
-            }
-
-            // Special case of two .fnm files: we sort them by blob locations (most recent first) and then by offsets within same blob
-            // location.
-            if (fields1 && fields2) {
-                compare = Long.compare(blobLocation2.compoundFileGeneration(), blobLocation1.compoundFileGeneration());
-                if (compare == 0) {
-                    return Long.compare(blobLocation1.offset(), blobLocation2.offset());
-                }
-                return compare;
-            }
-
-            // Lucene usually parses segment core info files (.si) in the order they are serialized in the segment_N file. We don't have
-            // this exact order today (but we could add it this information in the compound commit blob in the future) so we use the segment
-            // names (parsed as longs) to order them.
-            var segmentName1 = IndexFileNames.parseGeneration(fileName1);
-            var segmentName2 = IndexFileNames.parseGeneration(fileName2);
-            compare = Long.compare(segmentName1, segmentName2);
-            if (compare != 0) {
-                return compare;
-            }
-
-            // Sort files belonging to the same segment core are sorted in a pre-defined order (see #getExtensionOrder)
-            var extension1 = getExtensionOrder(fileName1);
-            var extension2 = getExtensionOrder(fileName2);
-            return Integer.compare(extension1, extension2);
-        }
-    }
-
-    private static int getExtensionOrder(String fileName) {
-        var ext = LuceneFilesExtensions.fromFile(fileName);
-        assert ext != null : fileName;
-        // basically the order in which files are accessed when SegmentCoreReaders and SegmentReader are instantiated
-        return switch (ext) {
-            case SI -> 0;
-            case FNM -> 1;
-            case CFE, CFS -> 2;
-            case BFM, BFI, DOC, POS, PAY, CMP, LKP, TMD, TIM, TIP -> 3;
-            case NVM, NVD -> 4;
-            case FDM, FDT, FDX -> 5;
-            case TVM, TVD, TVX, TVF -> 6;
-            case KDM, KDI, KDD, DIM, DII -> 7;
-            case VEC, VEX, VEM, VEMF, VEMQ, VEQ -> 8;
-            case LIV -> 9;
-            case DVM, DVD -> 10;
-            default -> Integer.MAX_VALUE;
-        };
     }
 }

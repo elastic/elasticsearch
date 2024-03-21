@@ -29,10 +29,9 @@ To run a single-node {es} cluster in Docker, with security disabled, run the fol
 
 [source,sh,subs="attributes"]
 ----
-docker run -p 9200:9200 -d --name elasticsearch \
+docker run -p 127.0.0.1:9200:9200 -d --name elasticsearch \
   -e "discovery.type=single-node" \
   -e "xpack.security.enabled=false" \
-  -e "xpack.security.http.ssl.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
   {docker-image}
 ----

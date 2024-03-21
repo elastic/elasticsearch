@@ -154,7 +154,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final Parameter<VectorSimilarity> similarity;
         private final Parameter<IndexOptions> indexOptions = new Parameter<>(
             "index_options",
-            false,
+            true,
             () -> null,
             (n, c, o) -> o == null ? null : parseIndexOptions(n, o),
             m -> toType(m).indexOptions,

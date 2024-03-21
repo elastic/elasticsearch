@@ -12,6 +12,7 @@ import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.model.AbstractResponse;
+import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
@@ -167,6 +168,12 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
     @Override
     public AsnResponse getAsn(InetAddress ipAddress) {
         return getResponse(ipAddress, DatabaseReader::tryAsn);
+    }
+
+    @Nullable
+    @Override
+    public AnonymousIpResponse getAnonymousIp(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::tryAnonymousIp);
     }
 
     boolean preLookup() {

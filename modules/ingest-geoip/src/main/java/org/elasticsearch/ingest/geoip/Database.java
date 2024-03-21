@@ -55,11 +55,24 @@ enum Database {
     Asn(
         Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK),
         Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
+    ),
+    AnonymousIp(
+        Set.of(
+            Property.IP,
+            Property.IS_HOSTING_PROVIDER,
+            Property.IS_TOR_EXIT_NODE,
+            Property.IS_ANONYMOUS_VPN,
+            Property.IS_ANONYMOUS,
+            Property.IS_PUBLIC_PROXY,
+            Property.IS_RESIDENTIAL_PROXY
+        ),
+        Set.of(Property.IS_ANONYMOUS)
     );
 
     private static final String CITY_DB_SUFFIX = "-City";
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";
+    private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
 
     /**
      * Parses the passed-in databaseType (presumably from the passed-in databaseFile) and return the Database instance that is
@@ -79,6 +92,8 @@ enum Database {
                 database = Database.Country;
             } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
                 database = Database.Asn;
+            } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
+                database = Database.AnonymousIp;
             }
         }
 
@@ -147,7 +162,13 @@ enum Database {
         LOCATION,
         ASN,
         ORGANIZATION_NAME,
-        NETWORK;
+        NETWORK,
+        IS_HOSTING_PROVIDER,
+        IS_TOR_EXIT_NODE,
+        IS_ANONYMOUS_VPN,
+        IS_ANONYMOUS,
+        IS_PUBLIC_PROXY,
+        IS_RESIDENTIAL_PROXY;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

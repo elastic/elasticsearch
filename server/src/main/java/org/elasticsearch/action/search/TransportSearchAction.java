@@ -290,7 +290,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
+        ActionListener<SearchResponse> loggingAndMetrics = ActionListener.wrap(searchResponse -> {
             searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
             if (searchResponse.isTimedOut()) {
                 searchResponseMetrics.countTimeout();
@@ -309,15 +309,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
                 }
             }
-            l.onResponse(searchResponse);
-        });
-        loggingAndMetrics = loggingAndMetrics.delegateResponse((l, e) -> {
+            listener.onResponse(searchResponse);
+        }, e -> {
             Throwable cause = e.getCause();
             if (cause instanceof SearchTimeoutException) {
                 this.searchResponseMetrics.countTimeout();
             }
-            l.onFailure(e);
+            listener.onFailure(e);
         });
+
         executeRequest((SearchTask) task, searchRequest, loggingAndMetrics, AsyncSearchActionProvider::new);
     }
 

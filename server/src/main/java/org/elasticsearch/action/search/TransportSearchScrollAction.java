@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -55,8 +56,11 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
+        ActionListener<SearchResponse> loggingAndMetrics = ActionListener.wrap(searchResponse -> {
             searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+            if (searchResponse.isTimedOut()) {
+                searchResponseMetrics.countTimeout();
+            }
             if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
                 ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
                 for (ShardOperationFailedException f : groupedFailures) {
@@ -67,7 +71,13 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     }
                 }
             }
-            l.onResponse(searchResponse);
+            listener.onResponse(searchResponse);
+        }, e -> {
+            Throwable cause = e.getCause();
+            if (cause instanceof SearchTimeoutException) {
+                this.searchResponseMetrics.countTimeout();
+            }
+            listener.onFailure(e);
         });
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());

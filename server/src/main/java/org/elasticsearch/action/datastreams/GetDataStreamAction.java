@@ -218,7 +218,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @SuppressWarnings("unchecked")
             DataStreamInfo(StreamInput in) throws IOException {
                 this(
-                    new DataStream(in),
+                    DataStream.read(in),
                     ClusterHealthStatus.readFrom(in),
                     in.readOptionalString(),
                     in.readOptionalString(),

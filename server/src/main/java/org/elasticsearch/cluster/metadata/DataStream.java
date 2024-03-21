@@ -113,8 +113,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final DataStreamLifecycle lifecycle;
     private final boolean rolloverOnWrite;
     private final boolean failureStore;
-    private final long failureStoreGeneration;
     private final List<Index> failureIndices;
+    private final long failureStoreGeneration;
     private volatile Set<String> failureStoreLookup;
     @Nullable
     private final DataStreamAutoShardingEvent autoShardingEvent;
@@ -132,8 +132,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamLifecycle lifecycle,
         boolean failureStore,
         List<Index> failureIndices,
-        @Nullable DataStreamAutoShardingEvent autoShardingEvent,
-        long failureStoreGeneration
+        long failureStoreGeneration,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         this(
             name,
@@ -149,9 +149,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
+            failureStoreGeneration,
             false,
-            autoShardingEvent,
-            failureStoreGeneration
+            autoShardingEvent
         );
     }
 
@@ -168,9 +168,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamLifecycle lifecycle,
         boolean failureStore,
         List<Index> failureIndices,
+        long failureStoreGeneration,
         boolean rolloverOnWrite,
-        @Nullable DataStreamAutoShardingEvent autoShardingEvent,
-        long failureStoreGeneration
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         this(
             name,
@@ -186,9 +186,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
+            failureStoreGeneration,
             rolloverOnWrite,
-            autoShardingEvent,
-            failureStoreGeneration
+            autoShardingEvent
         );
     }
 
@@ -207,9 +207,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamLifecycle lifecycle,
         boolean failureStore,
         List<Index> failureIndices,
+        long failureStoreGeneration,
         boolean rolloverOnWrite,
-        @Nullable DataStreamAutoShardingEvent autoShardingEvent,
-        long failureStoreGeneration
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         this.name = name;
         this.indices = List.copyOf(indices);
@@ -257,8 +257,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             null,
             false,
             List.of(),
-            null,
-            1
+            1,
+            null
         );
     }
 
@@ -532,8 +532,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
-            autoShardingEvent,
-            failureStoreGeneration
+            failureStoreGeneration,
+            autoShardingEvent
         );
     }
 
@@ -612,8 +612,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
-            autoShardingEvent,
-            failureStoreGeneration
+            failureStoreGeneration,
+            autoShardingEvent
         );
     }
 
@@ -659,8 +659,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
-            autoShardingEvent,
-            failureStoreGeneration
+            failureStoreGeneration,
+            autoShardingEvent
         );
     }
 
@@ -721,8 +721,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
-            autoShardingEvent,
-            failureStoreGeneration
+            failureStoreGeneration,
+            autoShardingEvent
         );
     }
 
@@ -741,9 +741,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
+            failureStoreGeneration,
             rolloverOnWrite,
-            autoShardingEvent,
-            failureStoreGeneration
+            autoShardingEvent
         );
     }
 
@@ -780,8 +780,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
-            autoShardingEvent,
-            failureStoreGeneration
+            failureStoreGeneration,
+            autoShardingEvent
         );
     }
 
@@ -986,25 +986,44 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         );
     }
 
-    public DataStream(StreamInput in) throws IOException {
-        this(
-            readName(in),
-            readIndices(in),
-            in.readVLong(),
-            in.readGenericMap(),
-            in.readBoolean(),
-            in.readBoolean(),
-            in.readBoolean(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
-            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of(),
-            in.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)
-                ? in.readOptionalWriteable(DataStreamAutoShardingEvent::new)
-                : null,
-            in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_GENERATION) ? in.readVLong() : 1
+    public static DataStream read(StreamInput in) throws IOException {
+        var name = readName(in);
+        var indices = readIndices(in);
+        var generation = in.readVLong();
+        var metadata = in.readGenericMap();
+        var hidden = in.readBoolean();
+        var replicated = in.readBoolean();
+        var system = in.readBoolean();
+        var allowCustomRouting = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false;
+        var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
+        var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
+            ? in.readOptionalWriteable(DataStreamLifecycle::new)
+            : null;
+        var failureStore = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? in.readBoolean() : false;
+        var failureIndices = in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)
+            ? readIndices(in)
+            : List.<Index>of();
+        var rolloverOnWrite = in.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED) ? in.readBoolean() : false;
+        var autoShardingEvent = in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)
+            ? in.readOptionalWriteable(DataStreamAutoShardingEvent::new)
+            : null;
+        var failureStoreGeneration = in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_GENERATION) ? in.readVLong() : 1;
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            failureStoreGeneration,
+            rolloverOnWrite,
+            autoShardingEvent
         );
     }
 
@@ -1019,7 +1038,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
-        return SimpleDiffable.readDiffFrom(DataStream::new, in);
+        return SimpleDiffable.readDiffFrom(DataStream::read, in);
     }
 
     @Override
@@ -1093,9 +1112,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (DataStreamLifecycle) args[9],
             failureStoreEnabled,
             failureStoreIndices,
+            failureStoreGeneration,
             args[10] != null && (boolean) args[10],
-            (DataStreamAutoShardingEvent) args[11],
-            failureStoreGeneration
+            (DataStreamAutoShardingEvent) args[11]
         );
     });
 

@@ -213,8 +213,8 @@ public class MetadataDataStreamsService {
                     lifecycle,
                     dataStream.isFailureStore(),
                     dataStream.getFailureIndices(),
-                    dataStream.getAutoShardingEvent(),
-                    dataStream.getFailureStoreGeneration()
+                    dataStream.getFailureStoreGeneration(),
+                    dataStream.getAutoShardingEvent()
                 )
             );
         }
@@ -251,9 +251,9 @@ public class MetadataDataStreamsService {
                 dataStream.getLifecycle(),
                 dataStream.isFailureStore(),
                 dataStream.getFailureIndices(),
+                dataStream.getFailureStoreGeneration(),
                 rolloverOnWrite,
-                dataStream.getAutoShardingEvent(),
-                dataStream.getFailureStoreGeneration()
+                dataStream.getAutoShardingEvent()
             )
         );
         return ClusterState.builder(currentState).metadata(builder.build()).build();

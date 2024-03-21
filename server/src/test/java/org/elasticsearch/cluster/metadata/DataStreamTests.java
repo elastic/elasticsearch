@@ -74,7 +74,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     @Override
     protected Writeable.Reader<DataStream> instanceReader() {
-        return DataStream::new;
+        return DataStream::read;
     }
 
     @Override
@@ -156,8 +156,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             lifecycle,
             failureStore,
             failureIndices,
-            autoShardingEvent,
-            failureStoreGeneration
+            failureStoreGeneration,
+            autoShardingEvent
         );
     }
 
@@ -215,8 +215,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ds.getLifecycle(),
             ds.isFailureStore(),
             ds.getFailureIndices(),
-            ds.getAutoShardingEvent(),
-            ds.getFailureStoreGeneration()
+            ds.getFailureStoreGeneration(),
+            ds.getAutoShardingEvent()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -244,8 +244,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             ds.getLifecycle(),
             ds.isFailureStore(),
             ds.getFailureIndices(),
-            ds.getAutoShardingEvent(),
-            ds.getFailureStoreGeneration()
+            ds.getFailureStoreGeneration(),
+            ds.getAutoShardingEvent()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -608,8 +608,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             preSnapshotDataStream.getLifecycle(),
             preSnapshotDataStream.isFailureStore(),
             preSnapshotDataStream.getFailureIndices(),
-            preSnapshotDataStream.getAutoShardingEvent(),
-            preSnapshotDataStream.getFailureStoreGeneration()
+            preSnapshotDataStream.getFailureStoreGeneration(),
+            preSnapshotDataStream.getAutoShardingEvent()
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
@@ -650,8 +650,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             preSnapshotDataStream.getLifecycle(),
             preSnapshotDataStream.isFailureStore(),
             preSnapshotDataStream.getFailureIndices(),
-            preSnapshotDataStream.getAutoShardingEvent(),
-            preSnapshotDataStream.getFailureStoreGeneration()
+            preSnapshotDataStream.getFailureStoreGeneration(),
+            preSnapshotDataStream.getAutoShardingEvent()
         );
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));
@@ -1697,9 +1697,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             lifecycle,
             failureStore,
             failureIndices,
+            failureIndices.size() + 1,
             false,
-            null,
-            failureIndices.size() + 1
+            null
         );
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
@@ -1887,9 +1887,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             DataStreamLifecycleTests.randomLifecycle(),
             false,
             null,
+            1,
             randomBoolean(),
-            null,
-            1
+            null
         );
         assertThat(noFailureStoreDataStream.getFailureStoreWriteIndex(), nullValue());
 
@@ -1907,9 +1907,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             DataStreamLifecycleTests.randomLifecycle(),
             true,
             List.of(),
+            1,
             randomBoolean(),
-            null,
-            1
+            null
         );
         assertThat(failureStoreDataStreamWithEmptyFailureIndices.getFailureStoreWriteIndex(), nullValue());
 
@@ -1934,9 +1934,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             DataStreamLifecycleTests.randomLifecycle(),
             true,
             failureIndices,
+            failureIndices.size() + 1,
             randomBoolean(),
-            null,
-            failureIndices.size() + 1
+            null
         );
         assertThat(failureStoreDataStream.getFailureStoreWriteIndex(), is(writeFailureIndex));
     }
@@ -1959,9 +1959,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             DataStreamLifecycleTests.randomLifecycle(),
             false,
             null,
+            1,
             randomBoolean(),
-            null,
-            1
+            null
         );
         assertThat(
             noFailureStoreDataStream.isFailureStoreIndex(backingIndices.get(randomIntBetween(0, backingIndices.size() - 1)).getName()),
@@ -1983,9 +1983,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             DataStreamLifecycleTests.randomLifecycle(),
             true,
             List.of(),
+            1,
             randomBoolean(),
-            null,
-            1
+            null
         );
         assertThat(
             failureStoreDataStreamWithEmptyFailureIndices.isFailureStoreIndex(
@@ -2016,9 +2016,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             DataStreamLifecycleTests.randomLifecycle(),
             true,
             failureIndices,
+            failureIndices.size() + 1,
             randomBoolean(),
-            null,
-            failureIndices.size() + 1
+            null
         );
         assertThat(failureStoreDataStream.isFailureStoreIndex(writeFailureIndex.getName()), is(true));
         assertThat(

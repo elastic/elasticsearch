@@ -143,8 +143,8 @@ public final class DataStreamTestHelper {
             lifecycle,
             false,
             List.of(),
-            autoShardingEvent,
-            1
+            1,
+            autoShardingEvent
         );
     }
 
@@ -170,8 +170,8 @@ public final class DataStreamTestHelper {
             lifecycle,
             failureStores.size() > 0,
             failureStores,
-            null,
-            failureStores.size() + 1
+            failureStores.size() + 1,
+            null
         );
     }
 
@@ -354,6 +354,7 @@ public final class DataStreamTestHelper {
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
             failureIndices,
+            failureIndices.size() + 1,
             randomBoolean(),
             randomBoolean()
                 ? new DataStreamAutoShardingEvent(
@@ -361,8 +362,7 @@ public final class DataStreamTestHelper {
                     randomIntBetween(1, 10),
                     randomMillisUpToYear9999()
                 )
-                : null,
-            failureIndices.size() + 1
+                : null
         );
     }
 

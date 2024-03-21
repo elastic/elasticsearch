@@ -340,8 +340,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.getLifecycle(),
                 remoteDataStream.isFailureStore(),
                 remoteDataStream.getFailureIndices(),
-                remoteDataStream.getAutoShardingEvent(),
-                remoteDataStream.getFailureStoreGeneration()
+                remoteDataStream.getFailureStoreGeneration(),
+                remoteDataStream.getAutoShardingEvent()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -395,8 +395,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.getLifecycle(),
                 localDataStream.isFailureStore(),
                 localDataStream.getFailureIndices(),
-                localDataStream.getAutoShardingEvent(),
-                localDataStream.getFailureStoreGeneration()
+                localDataStream.getFailureStoreGeneration(),
+                localDataStream.getAutoShardingEvent()
             );
         }
     }

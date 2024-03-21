@@ -158,7 +158,7 @@ public class SemanticTextModelSettings implements ToXContentObject {
                         + TASK_TYPE_FIELD.getPreferredName()
                         + "], expected "
                         + TEXT_EMBEDDING
-                        + "or "
+                        + " or "
                         + SPARSE_EMBEDDING
                         + ", got "
                         + taskType.name()

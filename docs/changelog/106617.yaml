@@ -1,0 +1,5 @@
+pr: 106617
+summary: Fix possible NPE when calling `populateFieldLookup`
+area: "Search, Logs"
+type: bug
+issues: []

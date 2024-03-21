@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncMyStatusAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 
+import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
@@ -108,6 +109,13 @@ public class TransportGetAsyncMyStatusAction extends HandledTransportAction<GetA
                     }
                 }));
             } else {
+                // ensure that the user requesting status is the same one that created the search
+                // TODO: this works only while the task is running - once it completes, other users can access the status
+                try {
+                    store.getTaskAndCheckAuthentication(taskManager, searchId, AsyncSearchTask.class);
+                } catch (IOException ioe) {
+                    throw new IllegalStateException(ioe);
+                }
                 store.retrieveStatus(
                     request,
                     taskManager,

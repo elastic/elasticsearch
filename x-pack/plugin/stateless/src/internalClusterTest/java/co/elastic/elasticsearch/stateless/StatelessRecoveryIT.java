@@ -2232,7 +2232,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    public void testRecoveryMetricPublicationWhileRecoveringIndexShard() throws Exception {
+    public void testRecoveryMetricPublicationOnIndexingShardRelocation() throws Exception {
 
         var indexingNode1 = startIndexNode();
         var indexingNode2 = startIndexNode();
@@ -2248,8 +2248,8 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2))
         );
 
-        int numDocsRound1 = randomIntBetween(100, 1000);
-        indexDocs(indexName, numDocsRound1);
+        int numDocs = randomIntBetween(100, 1000);
+        indexDocs(indexName, numDocs);
         refresh(indexName);
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
@@ -2275,12 +2275,87 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             assertThat(metric.attributes().get("indexName"), equalTo(indexName));
             assertThat(metric.attributes().get("shardId"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
         });
     }
 
-    public void testRecoveryMetricPublicationWhileRecoveringSearchShard() throws Exception {
+    public void testRecoveryMetricPublicationOnIndexingShardStartedAndThenRecovered() throws Exception {
 
-        startIndexNode();
+        var indexingNode1 = startIndexNode();
+
+        final TestTelemetryPlugin pluginOnNode1 = internalCluster().getInstance(PluginsService.class, indexingNode1)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        pluginOnNode1.resetMeter();
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        // check that a brand new shard went thru `EMPTY_STORE` recovery type
+        assertBusy(() -> {
+            final List<Measurement> measurements = pluginOnNode1.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC
+            );
+            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
+            assertThat(metric.attributes().get("shardId"), equalTo(0));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recoveryType"), equalTo("EMPTY_STORE"));
+        });
+
+        // ensure that index shard is allocated on `indexingNode1` only
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", indexingNode1))
+        );
+
+        int numDocs = randomIntBetween(100, 1000);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+
+        internalCluster().stopNode(indexingNode1);
+
+        // master only node exists
+        assertBusy(() -> assertThat(internalCluster().size(), equalTo(1)));
+
+        var indexingNode2 = startIndexNode();
+
+        final TestTelemetryPlugin pluginOnNode2 = internalCluster().getInstance(PluginsService.class, indexingNode2)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        pluginOnNode2.resetMeter();
+
+        // start recovery of the shard on a new node
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name"))
+        );
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC
+            );
+            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThan(0L));
+            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
+            assertThat(metric.attributes().get("shardId"), equalTo(0));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recoveryType"), equalTo("EXISTING_STORE"));
+        });
+    }
+
+    public void testRecoveryMetricPublicationOnSearchingShardStart() throws Exception {
+
+        var indexNode = startIndexNode();
 
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
@@ -2290,25 +2365,16 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, numDocs);
         refresh(indexName);
 
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
-        // no search shard exist yet
-        ensureYellow(indexName);
+        var searchNode = startSearchNode();
 
-        var searchNode1 = startSearchNode();
-        ensureGreen(indexName);
-        // sanity check
-        assertBusy(() -> assertHitCount(prepareSearch(indexName), numDocs));
-
-        var searchNode2 = startSearchNode();
-
-        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, searchNode2)
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, searchNode)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
         plugin.resetMeter();
 
-        // initiate recovery on `searchNode2`
-        internalCluster().stopNode(searchNode1);
+        // initiate allocation and shard recovery on `searchNode`
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
 
         assertBusy(() -> {
             final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC);
@@ -2319,6 +2385,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             assertThat(metric.attributes().get("indexName"), equalTo(indexName));
             assertThat(metric.attributes().get("shardId"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(false));
+            assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
         });
     }
 }

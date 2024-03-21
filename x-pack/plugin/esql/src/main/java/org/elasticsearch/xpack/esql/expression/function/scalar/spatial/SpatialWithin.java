@@ -15,7 +15,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
@@ -49,26 +48,20 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
  * Here we simply wire the rules together specific to ST_WITHIN and QueryRelation.WITHIN.
  */
 public class SpatialWithin extends SpatialRelatesFunction implements SurrogateExpression {
-    public static final SpatialRelationsWithin GEO = new SpatialRelationsWithin(
+    // public for test access with reflection
+    public static final SpatialRelations GEO = new SpatialRelations(
+        ShapeField.QueryRelation.WITHIN,
         SpatialCoordinateTypes.GEO,
         CoordinateEncoder.GEO,
         new GeoShapeIndexer(Orientation.CCW, "ST_Within")
     );
-    public static final SpatialRelationsWithin CARTESIAN = new SpatialRelationsWithin(
+    // public for test access with reflection
+    public static final SpatialRelations CARTESIAN = new SpatialRelations(
+        ShapeField.QueryRelation.WITHIN,
         SpatialCoordinateTypes.CARTESIAN,
         CoordinateEncoder.CARTESIAN,
         new CartesianShapeIndexer("ST_Within")
     );
-
-    /**
-     * We override the normal behaviour for WITHIN because we need to test each component separately.
-     * This applies to multi-component geometries (MultiPolygon, etc.) as well as polygons that cross the dateline.
-     */
-    static final class SpatialRelationsWithin extends SpatialRelations {
-        SpatialRelationsWithin(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
-            super(ShapeField.QueryRelation.WITHIN, spatialCoordinateType, encoder, shapeIndexer);
-        }
-    }
 
     @FunctionInfo(returnType = { "boolean" }, description = "Returns whether the first geometry is within the second geometry.")
     public SpatialWithin(

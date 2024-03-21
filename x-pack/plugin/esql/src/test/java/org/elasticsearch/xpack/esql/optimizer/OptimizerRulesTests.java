@@ -53,6 +53,7 @@ public class OptimizerRulesTests extends ESTestCase {
     private static LessThan lessThanOf(Expression left, Expression right) {
         return new LessThan(EMPTY, left, right, null);
     }
+
     public static GreaterThan greaterThanOf(Expression left, Expression right) {
         return new GreaterThan(EMPTY, left, right, randomZone());
     }
@@ -68,6 +69,7 @@ public class OptimizerRulesTests extends ESTestCase {
     public static LessThanOrEqual lessThanOrEqualOf(Expression left, Expression right) {
         return new LessThanOrEqual(EMPTY, left, right, randomZone());
     }
+
     public static GreaterThanOrEqual greaterThanOrEqualOf(Expression left, Expression right) {
         return new GreaterThanOrEqual(EMPTY, left, right, randomZone());
     }
@@ -75,6 +77,7 @@ public class OptimizerRulesTests extends ESTestCase {
     private static FieldAttribute getFieldAttribute() {
         return TestUtils.getFieldAttribute("a");
     }
+
     //
     // CombineDisjunction in Equals
     //
@@ -176,6 +179,7 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(fa, in.value());
         assertThat(in.list(), contains(ONE, THREE));
     }
+
     // a == 1 AND a == 2 -> FALSE
     public void testDualEqualsConjunction() {
         FieldAttribute fa = getFieldAttribute();
@@ -186,6 +190,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression exp = rule.rule(new And(EMPTY, eq1, eq2));
         assertEquals(FALSE, exp);
     }
+
     // a <=> 1 AND a <=> 2 -> FALSE
     public void testDualNullEqualsConjunction() {
         FieldAttribute fa = getFieldAttribute();

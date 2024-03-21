@@ -116,7 +116,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_inference";
     public static final String CONTENT_TYPE = "_inference";
 
-    private static final String INFERENCE_ID = "inference_id";
+    public static final String INFERENCE_ID = "inference_id";
     public static final String RESULTS = "results";
     public static final String INFERENCE_CHUNKS_RESULTS = "inference";
     public static final String INFERENCE_CHUNKS_TEXT = "text";
@@ -206,8 +206,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
             }
             SemanticTextFieldMapper newMapper = new SemanticTextFieldMapper.Builder(
                 original.simpleName(),
-                docContext.indexSettings().getIndexVersionCreated(),
-                docContext.indexAnalyzers()
+                docContext.indexSettings().getIndexVersionCreated()
             ).setInferenceId(original.fieldType().getInferenceId()).setModelSettings(modelSettings).build(mapperBuilderContext);
             docContext.addDynamicMapper(newMapper);
             return newMapper.getSubMappers();
@@ -227,7 +226,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         XContentParser parser = context.parser();
         String fieldName = parser.currentName();
         var res = findMapper(context.mappingLookup().getMapping().getRoot(), fieldName);
-        if (res == null || res.mapper == null || res.mapper instanceof SemanticTextFieldMapper == false) {
+        if (res == null || res.mapper instanceof SemanticTextFieldMapper == false) {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
                 Strings.format("Field [%s] is not registered as a [%s] field type", fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
@@ -240,7 +239,6 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         XContentLocation xContentLocation = parser.getTokenLocation();
         // parse eagerly to extract the inference id and the model settings first
         Map<String, Object> map = parser.mapOrdered();
-        logger.info("map=" + map.toString());
 
         // inference_id
         Object inferenceIdObj = map.remove(INFERENCE_ID);

@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.inference.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.InferenceModelFieldType;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -61,13 +60,12 @@ public class SemanticTextFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()),
+        (n, c) -> new Builder(n, c.indexVersionCreated()),
         notInMultiFields(CONTENT_TYPE)
     );
 
     private final IndexVersion indexVersionCreated;
     private final SemanticTextModelSettings modelSettings;
-    private final IndexAnalyzers indexAnalyzers;
     private final NestedObjectMapper subMappers;
 
     private SemanticTextFieldMapper(
@@ -75,13 +73,11 @@ public class SemanticTextFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         CopyTo copyTo,
         IndexVersion indexVersionCreated,
-        IndexAnalyzers indexAnalyzers,
         SemanticTextModelSettings modelSettings,
         NestedObjectMapper subMappers
     ) {
         super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
         this.indexVersionCreated = indexVersionCreated;
-        this.indexAnalyzers = indexAnalyzers;
         this.modelSettings = modelSettings;
         this.subMappers = subMappers;
     }
@@ -95,7 +91,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexVersionCreated, indexAnalyzers).init(this);
+        return new Builder(simpleName(), indexVersionCreated).init(this);
     }
 
     @Override
@@ -124,7 +120,6 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
         private final IndexVersion indexVersionCreated;
-        private final IndexAnalyzers indexAnalyzers;
 
         private final Parameter<String> inferenceId = Parameter.stringParam(
             "inference_id",
@@ -149,10 +144,9 @@ public class SemanticTextFieldMapper extends FieldMapper {
         ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name, IndexVersion indexVersionCreated, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
-            this.indexAnalyzers = indexAnalyzers;
         }
 
         public Builder setInferenceId(String id) {
@@ -175,11 +169,9 @@ public class SemanticTextFieldMapper extends FieldMapper {
             final String fullName = context.buildFullName(name());
             NestedObjectMapper.Builder nestedBuilder = new NestedObjectMapper.Builder(RESULTS, indexVersionCreated);
             nestedBuilder.dynamic(ObjectMapper.Dynamic.FALSE);
-            TextFieldMapper.Builder textMapperBuilder = new TextFieldMapper.Builder(
-                INFERENCE_CHUNKS_TEXT,
-                indexVersionCreated,
-                indexAnalyzers
-            ).index(false).store(false);
+            KeywordFieldMapper.Builder textMapperBuilder = new KeywordFieldMapper.Builder(INFERENCE_CHUNKS_TEXT, indexVersionCreated)
+                .indexed(false)
+                .docValues(false);
             if (modelSettings.get() != null) {
                 nestedBuilder.add(createInferenceMapperBuilder(INFERENCE_CHUNKS_RESULTS, modelSettings.get(), indexVersionCreated));
             }
@@ -191,7 +183,6 @@ public class SemanticTextFieldMapper extends FieldMapper {
                 new SemanticTextFieldType(fullName, inferenceId.getValue(), modelSettings.getValue(), subMappers, meta.getValue()),
                 copyTo,
                 indexVersionCreated,
-                indexAnalyzers,
                 modelSettings.getValue(),
                 subMappers
             );

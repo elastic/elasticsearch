@@ -102,8 +102,8 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
             final String fieldName1 = randomFieldName(depth);
             final String fieldName2 = randomFieldName(depth + 1);
 
-            Model model1 = randomModel();
-            Model model2 = randomModel();
+            Model model1 = randomModel(TaskType.SPARSE_EMBEDDING);
+            Model model2 = randomModel(TaskType.SPARSE_EMBEDDING);
             XContentBuilder mapping = mapping(b -> {
                 addSemanticTextMapping(b, fieldName1, model1.getInferenceEntityId());
                 addSemanticTextMapping(b, fieldName2, model2.getInferenceEntityId());
@@ -216,7 +216,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
 
     public void testMissingSubfields() throws IOException {
         final String fieldName = randomAlphaOfLengthBetween(5, 15);
-        final Model model = randomModel();
+        final Model model = randomModel(randomBoolean() ? TaskType.SPARSE_EMBEDDING : TaskType.TEXT_EMBEDDING);
 
         DocumentMapper documentMapper = createDocumentMapper(
             mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId()))
@@ -283,7 +283,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
 
     public void testExtraSubfields() throws IOException {
         final String fieldName = randomAlphaOfLengthBetween(5, 15);
-        final Model model = randomModel();
+        final Model model = randomModel(randomBoolean() ? TaskType.SPARSE_EMBEDDING : TaskType.TEXT_EMBEDDING);
         final List<SemanticTextInferenceResults> semanticTextInferenceResultsList = List.of(
             randomSemanticTextInferenceResults(fieldName, model, List.of("a b"))
         );
@@ -388,7 +388,13 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
                 source(
                     b -> addSemanticTextInferenceResults(
                         b,
-                        List.of(randomSemanticTextInferenceResults(fieldName, randomModel(), List.of("a b")))
+                        List.of(
+                            randomSemanticTextInferenceResults(
+                                fieldName,
+                                randomModel(randomFrom(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)),
+                                List.of("a b")
+                            )
+                        )
                     )
                 )
             )
@@ -401,6 +407,64 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
         );
     }
 
+    public void testMissingInferenceId() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id")));
+        IllegalArgumentException ex = expectThrows(
+            DocumentParsingException.class,
+            IllegalArgumentException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> b.startObject(InferenceMetadataFieldMapper.NAME)
+                        .startObject("field")
+                        .startObject(SemanticTextModelSettings.NAME)
+                        .field(SemanticTextModelSettings.TASK_TYPE_FIELD.getPreferredName(), TaskType.SPARSE_EMBEDDING)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            )
+        );
+        assertThat(ex.getMessage(), containsString("required [inference_id] is missing"));
+    }
+
+    public void testMissingModelSettings() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id")));
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            DocumentParsingException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> b.startObject(InferenceMetadataFieldMapper.NAME)
+                        .startObject("field")
+                        .field(InferenceMetadataFieldMapper.INFERENCE_ID, "my_id")
+                        .endObject()
+                        .endObject()
+                )
+            )
+        );
+        assertThat(ex.getMessage(), containsString("Missing required [model_settings] for field [field] of type [semantic_text]"));
+    }
+
+    public void testMissingTaskType() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id")));
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            DocumentParsingException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> b.startObject(InferenceMetadataFieldMapper.NAME)
+                        .startObject("field")
+                        .field(InferenceMetadataFieldMapper.INFERENCE_ID, "my_id")
+                        .startObject(SemanticTextModelSettings.NAME)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            )
+        );
+        assertThat(ex.getCause().getMessage(), containsString(" Failed to parse [model_settings], required [task_type] is missing"));
+    }
+
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {
         mappingBuilder.startObject(fieldName);
         mappingBuilder.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
@@ -408,10 +472,10 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
         mappingBuilder.endObject();
     }
 
-    public static ChunkedTextEmbeddingResults randomTextEmbeddings(List<String> inputs) {
+    public static ChunkedTextEmbeddingResults randomTextEmbeddings(Model model, List<String> inputs) {
         List<org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            double[] values = new double[5];
+            double[] values = new double[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomDouble();
             }
@@ -437,7 +501,12 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
         Model model,
         List<String> chunks
     ) {
-        return new SemanticTextInferenceResults(semanticTextFieldName, model, randomSparseEmbeddings(chunks), chunks);
+        ChunkedInferenceServiceResults chunkedResults = switch (model.getTaskType()) {
+            case TEXT_EMBEDDING -> randomTextEmbeddings(model, chunks);
+            case SPARSE_EMBEDDING -> randomSparseEmbeddings(chunks);
+            default -> throw new AssertionError("unkwnown task type: " + model.getTaskType().name());
+        };
+        return new SemanticTextInferenceResults(semanticTextFieldName, model, chunkedResults, chunks);
     }
 
     private static void addSemanticTextInferenceResults(
@@ -495,12 +564,12 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
         return builder.toString();
     }
 
-    private static Model randomModel() {
+    private static Model randomModel(TaskType taskType) {
         String serviceName = randomAlphaOfLengthBetween(5, 10);
         String inferenceId = randomAlphaOfLengthBetween(5, 10);
         return new TestModel(
             inferenceId,
-            TaskType.SPARSE_EMBEDDING,
+            taskType,
             serviceName,
             new TestModel.TestServiceSettings("my-model"),
             new TestModel.TestTaskSettings(randomIntBetween(1, 100)),

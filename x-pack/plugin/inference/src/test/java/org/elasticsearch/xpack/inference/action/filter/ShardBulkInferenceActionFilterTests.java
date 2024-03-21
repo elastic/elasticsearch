@@ -285,7 +285,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             final ChunkedInferenceServiceResults results;
             switch (taskType) {
                 case TEXT_EMBEDDING:
-                    results = randomTextEmbeddings(chunks);
+                    results = randomTextEmbeddings(model, chunks);
                     break;
 
                 case SPARSE_EMBEDDING:

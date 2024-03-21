@@ -11,6 +11,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -18,7 +19,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -240,8 +240,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(nestedObjectMapper, equalTo(semanticFieldMapper.getSubMappers()));
         Mapper textMapper = nestedObjectMapper.getMapper(InferenceMetadataFieldMapper.INFERENCE_CHUNKS_TEXT);
         assertNotNull(textMapper);
-        assertThat(textMapper, instanceOf(TextFieldMapper.class));
-        TextFieldMapper textFieldMapper = (TextFieldMapper) textMapper;
+        assertThat(textMapper, instanceOf(KeywordFieldMapper.class));
+        KeywordFieldMapper textFieldMapper = (KeywordFieldMapper) textMapper;
         assertFalse(textFieldMapper.fieldType().isIndexed());
         assertFalse(textFieldMapper.fieldType().hasDocValues());
         if (expectedModelSettings) {

@@ -161,11 +161,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentBuilder::field,
             Objects::toString
         ).setSerializerCheck((id, ic, v) -> v != null)
-            .setMergeValidator((previous, current, c) ->
-                    previous == null || Objects.equals(previous, current) || previous.type.equals(VectorIndexType.FLAT.name) ||
-                    previous.type.equals(VectorIndexType.HNSW.name) && current.type.equals(VectorIndexType.INT8_HNSW.name) ||
-                    previous.type.equals(VectorIndexType.INT8_FLAT.name) && current.type.equals(VectorIndexType.HNSW.name) ||
-                    previous.type.equals(VectorIndexType.INT8_FLAT.name) && current.type.equals(VectorIndexType.INT8_HNSW.name));
+            .setMergeValidator(
+                (previous, current, c) -> previous == null
+                    || Objects.equals(previous, current)
+                    || previous.type.equals(VectorIndexType.FLAT.name)
+                    || previous.type.equals(VectorIndexType.HNSW.name) && current.type.equals(VectorIndexType.INT8_HNSW.name)
+                    || previous.type.equals(VectorIndexType.INT8_FLAT.name) && current.type.equals(VectorIndexType.HNSW.name)
+                    || previous.type.equals(VectorIndexType.INT8_FLAT.name) && current.type.equals(VectorIndexType.INT8_HNSW.name)
+            );
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 

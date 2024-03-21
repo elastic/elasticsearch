@@ -10,10 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;

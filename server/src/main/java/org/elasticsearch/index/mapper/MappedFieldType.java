@@ -197,6 +197,13 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * @return true if field has script values.
+     */
+    public boolean hasScriptValues() {
+        return false;
+    }
+
+    /**
      * @return a list of dimension fields. Expected to be used by fields that have
      * nested fields or that, in some way, identify a collection of fields by means
      * of a top level field (like flattened fields).
@@ -623,16 +630,26 @@ public abstract class MappedFieldType {
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.
      */
     public void validateMatchedRoutingPath(String routingPath) {
-        throw new IllegalArgumentException(
-            "All fields that match routing_path "
-                + "must be keywords with [time_series_dimension: true] "
-                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                + "without the [script] parameter. ["
-                + name()
-                + "] was ["
-                + typeName()
-                + "]."
-        );
+        if (hasScriptValues()) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] has a [script] parameter."
+            );
+        }
+
+        if (isDimension() == false) {
+            throw new IllegalArgumentException(
+                "All fields that match routing_path "
+                    + "must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. ["
+                    + name()
+                    + "] was not a dimension."
+            );
+        }
     }
 
     /**

@@ -1017,7 +1017,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         @Override
-        public String getLogString(final Settings settings) {
+        String getLogString(final Settings settings) {
             Settings filteredAffixSetting = settings.filter(this::match);
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder();

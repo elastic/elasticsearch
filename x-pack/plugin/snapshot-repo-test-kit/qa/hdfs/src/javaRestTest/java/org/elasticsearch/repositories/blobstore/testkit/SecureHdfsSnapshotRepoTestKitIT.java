@@ -7,10 +7,6 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
-//import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-//import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction;
-//ThreadLeakScope;
-
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.common.settings.Settings;
@@ -20,11 +16,12 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.hdfs.HdfsClientThreadLeakFilter;
 import org.elasticsearch.test.fixtures.hdfs.HdfsFixture;
 import org.elasticsearch.test.fixtures.krb5kdc.Krb5kDcContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-@ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
+@ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class, TestContainersThreadFilter.class })
 public class SecureHdfsSnapshotRepoTestKitIT extends AbstractHdfsSnapshotRepoTestKitIT {
 
     public static Krb5kDcContainer krb5Fixture = new Krb5kDcContainer();

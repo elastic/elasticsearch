@@ -352,12 +352,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 statsCollectors.collectors.keySet().stream().map(S3BlobStore.StatsKey::toString).collect(Collectors.toUnmodifiableSet())
             )
         );
-        // fine stats are equal to coarse grained stats by aggregation
+        // fine stats are equal to coarse grained stats (without entries with value 0) by aggregation
         assertThat(
             fineStats.entrySet()
                 .stream()
                 .collect(Collectors.groupingBy(entry -> entry.getKey().split("_", 2)[1], Collectors.summingLong(Map.Entry::getValue))),
-            equalTo(newStats)
+            equalTo(
+                newStats.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue() != 0L)
+                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+            )
         );
 
         final Set<String> operationsSeenForTheNewPurpose = statsCollectors.collectors.keySet()

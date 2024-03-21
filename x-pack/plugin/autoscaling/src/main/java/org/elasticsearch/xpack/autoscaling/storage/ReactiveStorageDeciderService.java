@@ -827,6 +827,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
                     .index(stream.getWriteIndex().getName())
                     .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))
+                    .state(IndexMetadata.State.OPEN)
                     .build();
                 long size = Math.min(avgSizeCeil, scaledTotalSize - (avgSizeCeil * i));
                 assert size > 0;

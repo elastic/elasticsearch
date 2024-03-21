@@ -68,6 +68,10 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             0,
             randomBoolean()
         );
+        Metadata metadata = originalState.getMetadata();
+        metadata.indices().put("test-close",IndexMetadata.builder("test-close").state(IndexMetadata.State.CLOSE).build());
+
+
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
         stateBuilder.routingTable(

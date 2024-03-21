@@ -29,11 +29,7 @@ public class SearchResponseMetrics {
                 "The SearchResponse.took durations in milliseconds, expressed as a histogram",
                 "millis"
             ),
-            meterRegistry.registerLongCounter(
-                TIMEOUT_NAME,
-                "Count of SearchResponse instances that have reported timeout",
-                "count"
-            )
+            meterRegistry.registerLongCounter(TIMEOUT_NAME, "Count of SearchResponse instances that have reported timeout", "count")
         );
     }
 

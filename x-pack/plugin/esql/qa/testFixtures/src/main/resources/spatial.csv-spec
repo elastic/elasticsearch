@@ -515,20 +515,58 @@ ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 wkt:keyword   | pt:geo_point
 ;
 
-literalPolygonContainsLiteralPointOneRow#[skip:-8.13.99, reason:st_intersects added in 8.14]
-ROW intersects = ST_CONTAINS(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
+literalPolygonContainsLiteralPointOneRow#[skip:-8.13.99, reason:st_contains added in 8.14]
+ROW contains = ST_CONTAINS(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
 ;
 
-intersects:boolean
+contains:boolean
 true
 ;
 
-literalPointDoesNotContainLiteralPolygonOneRow#[skip:-8.13.99, reason:st_intersects added in 8.14]
-ROW intersects = ST_CONTAINS(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+literalPointDoesNotContainLiteralPolygonOneRow#[skip:-8.13.99, reason:st_contains added in 8.14]
+ROW contains = ST_CONTAINS(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
 ;
 
-intersects:boolean
+contains:boolean
 false
+;
+
+literalPolygonNotWithinLiteralPoint#[skip:-8.13.99, reason:st_within added in 8.14]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_WITHIN(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword   | pt:geo_point
+;
+
+literalPointWithinLiteralPolygon#[skip:-8.13.99, reason:st_within added in 8.14]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_WITHIN(pt, TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+literalPolygonNotWithinLiteralPointOneRow#[skip:-8.13.99, reason:st_within added in 8.14]
+ROW within = ST_WITHIN(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
+;
+
+within:boolean
+false
+;
+
+literalPointWithinLiteralPolygonOneRow#[skip:-8.13.99, reason:st_within added in 8.14]
+ROW within = ST_WITHIN(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+within:boolean
+true
 ;
 
 geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]

@@ -227,6 +227,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         longAwait(barrier);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1532")
     public void testAverageWriteLoadSamplerDynamicEwmaAlphaSetting() throws Exception {
         startMasterOnlyNode();
         // Reduce the time between publications, so we can expect at least one publication per second.

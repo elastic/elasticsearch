@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -251,9 +251,18 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 if (newAggs.isEmpty() == false) {
                     plan = new Aggregate(source, aggregate.child(), aggregate.groupings(), newAggs);
                 } else {
-                    // All aggs actually have been surrogates for evals - empty aggregation, but there still needs to be 1 row.
-                    // Put a bogus literal into the row since empty rows are not allowed.
-                    plan = new Row(source, List.of(new Alias(Source.EMPTY, "$$placeholder", Literal.NULL)));
+                    // All aggs actually have been surrogates for (foldable) expressions, e.g.
+                    //
+                    // ...
+                    // | STATS a = AVG([1,2]), m = min([1,2,3])
+                    //
+                    // The output needs to be 1 row containing the results of the folding.
+                    // To achieve this, we replace the aggregation with a single row and let the subsequent Eval produce the values, so
+                    // the plan becomes essentially
+                    //
+                    // ROW placeholder = null
+                    // | EVAL a = MV_AVG([1,2]), m = MV_MIN([1,2,3])
+                    plan = emptyRow(source);
                 }
                 // 5. force the initial projection in place
                 if (transientEval.isEmpty() == false) {
@@ -266,6 +275,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
 
             return plan;
+        }
+
+        private static Block SINGLE_NULL_VALUE = BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1);
+
+        /**
+         * Create an (essentially) empty row; the row still has 1 placeholder attribute since plans with empty schemas are pruned.
+         */
+        private static LocalRelation emptyRow(Source source) {
+            Block block = SINGLE_NULL_VALUE;
+            block.incRef();
+            return new LocalRelation(source, List.of(new EmptyAttribute(Source.EMPTY)), LocalSupplier.of(new Block[] { block }));
         }
 
         static String temporaryName(Expression inner, Expression outer, int suffix) {

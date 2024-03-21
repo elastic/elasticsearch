@@ -3337,7 +3337,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7]]
      *     \_Eval[[MVAVG([1, 2][INTEGER]) AS s, MVAVG(314.0[DOUBLE] / 100[INTEGER]) AS s_expr, MVAVG(null[NULL]) AS s_null]]
-     *       \_Row[[null[NULL] AS $$placeholder]]
+     *       \_LocalRelation[[{e}#21],[ConstantNullBlock[positions=1]]]
      */
     public void testAggOfLiteral() {
         for (AggOfLiteralTestCase testCase : AGG_OF_CONST_CASES) {
@@ -3355,9 +3355,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var esqlProject = as(limit.child(), EsqlProject.class);
             var project = as(esqlProject.child(), Project.class);
             var eval = as(project.child(), Eval.class);
-            var row = as(eval.child(), Row.class);
-            assertThat(row.fields().size(), equalTo(1));
-            assertThat(row.fields().get(0).child(), equalTo(NULL));
+            var singleRowRelation = as(eval.child(), LocalRelation.class);
+            var singleRow = singleRowRelation.supplier().get();
+            assertThat(singleRow.length, equalTo(1));
+            assertThat(singleRow[0].getPositionCount(), equalTo(1));
 
             var exprs = eval.fields();
             var s = as(exprs.get(0), Alias.class);

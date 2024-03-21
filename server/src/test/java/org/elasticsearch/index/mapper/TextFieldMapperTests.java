@@ -1233,7 +1233,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                         + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
                 );
                 return List.of(
-                    new SyntheticSourceInvalidExample(err, b -> { b.field("type", "text"); }),
+                    new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
                     new SyntheticSourceInvalidExample(err, b -> {
                         b.field("type", "text");
                         b.startObject("fields");

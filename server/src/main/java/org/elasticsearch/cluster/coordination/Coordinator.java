@@ -772,9 +772,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     /**
      * Processes the request to join the cluster. Received by the node running for election to master.
-     *
-     * @param joinRequest
-     * @param joinListener
      */
     private void processJoinRequest(JoinRequest joinRequest, ActionListener<Void> joinListener) {
         assert Transports.assertNotTransportThread("blocking on coordinator mutex and maybe doing IO to increase term");

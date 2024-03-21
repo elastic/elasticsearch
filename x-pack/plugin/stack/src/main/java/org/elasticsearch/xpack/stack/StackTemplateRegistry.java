@@ -332,6 +332,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     protected boolean isClusterReady(ClusterChangedEvent event) {
         // Ensure current version of the components are installed only after versions that support data stream lifecycle
         // due to .kibana-reporting making use of the feature
-        return featureService.clusterHasFeature(event.state(), SUPPORTS_DATA_STREAM_LIFECYCLE);
+        return featureService.clusterHasFeature(event.state(), DATA_STREAM_LIFECYCLE);
     }
 }

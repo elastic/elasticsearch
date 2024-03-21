@@ -40,7 +40,6 @@ public interface LeafFieldLookupProvider {
                 if (storedFields == null) {
                     storedFields = ctx.reader().storedFields();
                 }
-
                 // TODO can we remember which fields have been loaded here and get them eagerly next time?
                 // likelihood is if a script is loading several fields on one doc they will load the same
                 // set of fields next time round

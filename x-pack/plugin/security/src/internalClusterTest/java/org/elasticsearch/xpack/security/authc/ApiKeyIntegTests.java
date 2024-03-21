@@ -471,7 +471,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             refreshSecurityIndex();
 
             // Get API keys to make sure remover didn't remove any yet
-            assertThat(getAllApiKeyInfo(client, false, randomBoolean()).size(), equalTo(3));
+            assertThat(getAllApiKeyInfo(client, false).size(), equalTo(3));
 
             // Invalidate another key
             listener = new PlainActionFuture<>();
@@ -481,7 +481,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             refreshSecurityIndex();
 
             // Get API keys to make sure remover didn't remove any yet (shouldn't be removed because of the long DELETE_INTERVAL)
-            assertThat(getAllApiKeyInfo(client, false, randomBoolean()).size(), equalTo(3));
+            assertThat(getAllApiKeyInfo(client, false).size(), equalTo(3));
 
             // Update DELETE_INTERVAL to every 0 ms
             builder = Settings.builder();
@@ -499,7 +499,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             // Make sure all keys except the last invalidated one are deleted
             // There is a (tiny) risk that the remover runs after the invalidation and therefore deletes the key that was just
             // invalidated, so 0 or 1 keys can be returned from the get api
-            assertThat(getAllApiKeyInfo(client, false, randomBoolean()).size(), in(Set.of(0, 1)));
+            assertThat(getAllApiKeyInfo(client, false).size(), in(Set.of(0, 1)));
         } finally {
             final Settings.Builder builder = Settings.builder();
             builder.putNull(ApiKeyService.DELETE_INTERVAL.getKey());
@@ -1308,7 +1308,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             metadatas,
             List.of(DEFAULT_API_KEY_ROLE_DESCRIPTOR),
             expectedLimitedByRoleDescriptorsLookup,
-            getAllApiKeyInfo(client, withLimitedBy, randomBoolean()),
+            getAllApiKeyInfo(client, withLimitedBy),
             allApiKeys.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
             null
         );

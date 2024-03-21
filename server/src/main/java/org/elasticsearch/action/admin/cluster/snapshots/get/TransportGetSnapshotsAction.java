@@ -481,9 +481,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
             cancellableTask.ensureNotCancelled();
             int remaining = 0;
-            assert allSnapshotInfos.stream().allMatch(s -> s.allMatch(this::assertSatisfiesAllPredicates));
             final var resultsStream = allSnapshotInfos.stream()
                 .flatMap(Function.identity())
+                .peek(this::assertSatisfiesAllPredicates)
                 .sorted(sortBy.getSnapshotInfoComparator(order))
                 .skip(offset);
             final List<SnapshotInfo> snapshotInfos;
@@ -509,11 +509,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             );
         }
 
-        private boolean assertSatisfiesAllPredicates(SnapshotInfo snapshotInfo) {
+        private void assertSatisfiesAllPredicates(SnapshotInfo snapshotInfo) {
             assert matchesPredicates(snapshotInfo);
             assert afterPredicate.test(snapshotInfo);
             assert indices || snapshotInfo.indices().isEmpty();
-            return true;
         }
 
         private boolean matchesPredicates(SnapshotId snapshotId, RepositoryData repositoryData) {

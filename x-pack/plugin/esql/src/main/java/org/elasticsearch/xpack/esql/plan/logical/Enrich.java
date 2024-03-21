@@ -11,7 +11,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
@@ -82,15 +81,6 @@ public class Enrich extends UnaryPlan {
 
     public List<NamedExpression> enrichFields() {
         return enrichFields;
-    }
-
-    @Override
-    public AttributeSet references() {
-        if (lazyReferences == null) {
-            lazyReferences = new AttributeSet();
-            lazyReferences.addAll(matchField.references());
-        }
-        return lazyReferences;
     }
 
     public EnrichPolicy policy() {

@@ -29,12 +29,15 @@
         "ecs.version": {
           "type": "keyword"
         },
-        "host.id": {
-          "type": "keyword"
-        },
         "@timestamp": {
           "type": "date",
           "format": "epoch_second"
+        },
+        "host.id": {
+          "type": "keyword"
+        },
+        "host.arch": {
+          "type": "keyword"
         },
         "profiling": {
           "properties": {

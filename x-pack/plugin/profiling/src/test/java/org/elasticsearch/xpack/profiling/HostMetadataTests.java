@@ -15,7 +15,7 @@ import java.util.Map;
 public class HostMetadataTests extends ESTestCase {
     public void testCreateFromSourceAWS() {
         final String hostID = "1440256254710195396";
-        final String machine = "x86_64";
+        final String arch = "x86_64";
         final String provider = "aws";
         final String region = "eu-west-1";
         final String instanceType = "md5x.large";
@@ -24,7 +24,7 @@ public class HostMetadataTests extends ESTestCase {
         HostMetadata host = HostMetadata.fromSource(
             Map.of(
                 "host.id", hostID,
-                "profiling.host.machine", machine,
+                "host.arch", arch,
                 "ec2.instance_type", instanceType,
                 "ec2.placement.region", region
             )
@@ -32,7 +32,7 @@ public class HostMetadataTests extends ESTestCase {
         // end::noformat
 
         assertEquals(hostID, host.hostID);
-        assertEquals(machine, host.profilingHostMachine);
+        assertEquals(arch, host.hostArchitecture);
         assertEquals(provider, host.instanceType.provider);
         assertEquals(region, host.instanceType.region);
         assertEquals(instanceType, host.instanceType.name);
@@ -40,7 +40,7 @@ public class HostMetadataTests extends ESTestCase {
 
     public void testCreateFromSourceGCP() {
         final String hostID = "1440256254710195396";
-        final String machine = "x86_64";
+        final String arch = "x86_64";
         final String provider = "gcp";
         final String[] regions = { "", "", "europe-west1", "europewest", "europe-west1" };
         final String[] zones = {
@@ -58,14 +58,14 @@ public class HostMetadataTests extends ESTestCase {
             HostMetadata host = HostMetadata.fromSource(
                 Map.of(
                     "host.id", hostID,
-                    "profiling.host.machine", machine,
+                    "host.arch", arch,
                     "gce.instance.zone", zone
                 )
             );
             // end::noformat
 
             assertEquals(hostID, host.hostID);
-            assertEquals(machine, host.profilingHostMachine);
+            assertEquals(arch, host.hostArchitecture);
             assertEquals(provider, host.instanceType.provider);
             assertEquals(region, host.instanceType.region);
             assertEquals("", host.instanceType.name);
@@ -74,7 +74,7 @@ public class HostMetadataTests extends ESTestCase {
 
     public void testCreateFromSourceGCPZoneFuzzer() {
         final String hostID = "1440256254710195396";
-        final String machine = "x86_64";
+        final String arch = "x86_64";
         final String provider = "gcp";
         final Character[] chars = new Character[] { '/', '-', 'a' };
 
@@ -92,14 +92,14 @@ public class HostMetadataTests extends ESTestCase {
                 HostMetadata host = HostMetadata.fromSource(
                     Map.of(
                         "host.id", hostID,
-                        "profiling.host.machine", machine,
+                        "host.arch", arch,
                         "gce.instance.zone", zone
                     )
                 );
                 // end::noformat
 
                 assertEquals(hostID, host.hostID);
-                assertEquals(machine, host.profilingHostMachine);
+                assertEquals(arch, host.hostArchitecture);
                 assertEquals(provider, host.instanceType.provider);
                 assertNotNull(host.instanceType.region);
                 assertEquals("", host.instanceType.name);
@@ -110,7 +110,7 @@ public class HostMetadataTests extends ESTestCase {
 
     public void testCreateFromSourceAzure() {
         final String hostID = "1440256254710195396";
-        final String machine = "x86_64";
+        final String arch = "amd64";
         final String provider = "azure";
         final String region = "eastus2";
 
@@ -118,14 +118,14 @@ public class HostMetadataTests extends ESTestCase {
         HostMetadata host = HostMetadata.fromSource(
             Map.of(
                 "host.id", hostID,
-                "profiling.host.machine", machine,
+                "host.arch", arch,
                 "azure.compute.location", region
             )
         );
         // end::noformat
 
         assertEquals(hostID, host.hostID);
-        assertEquals(machine, host.profilingHostMachine);
+        assertEquals(arch, host.hostArchitecture);
         assertEquals(provider, host.instanceType.provider);
         assertEquals(region, host.instanceType.region);
         assertEquals("", host.instanceType.name);
@@ -133,7 +133,7 @@ public class HostMetadataTests extends ESTestCase {
 
     public void testCreateFromSourceECS() {
         final String hostID = "1440256254710195396";
-        final String machine = "x86_64";
+        final String arch = "amd64";
         final String provider = "any-provider";
         final String region = "any-region";
 
@@ -141,7 +141,7 @@ public class HostMetadataTests extends ESTestCase {
         HostMetadata host = HostMetadata.fromSource(
             Map.of(
                 "host.id", hostID,
-                "profiling.host.machine", machine,
+                "host.arch", arch,
                 "profiling.host.tags", Arrays.asList(
                     "cloud_provider:"+provider, "cloud_environment:qa", "cloud_region:"+region)
             )
@@ -149,7 +149,7 @@ public class HostMetadataTests extends ESTestCase {
         // end::noformat
 
         assertEquals(hostID, host.hostID);
-        assertEquals(machine, host.profilingHostMachine);
+        assertEquals(arch, host.hostArchitecture);
         assertEquals(provider, host.instanceType.provider);
         assertEquals(region, host.instanceType.region);
         assertEquals("", host.instanceType.name);
@@ -157,10 +157,31 @@ public class HostMetadataTests extends ESTestCase {
 
     public void testCreateFromSourceNoProvider() {
         final String hostID = "1440256254710195396";
+        final String arch = "amd64";
+
+        // tag::noformat
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
+                "host.id", hostID,
+                "host.arch", arch
+            )
+        );
+        // end::noformat
+
+        assertEquals(hostID, host.hostID);
+        assertEquals(arch, host.hostArchitecture);
+        assertEquals("", host.instanceType.provider);
+        assertEquals("", host.instanceType.region);
+        assertEquals("", host.instanceType.name);
+    }
+
+    public void testCreateFromSourceArchitectureFallback() {
+        final String hostID = "1440256254710195396";
         final String machine = "x86_64";
 
         // tag::noformat
         HostMetadata host = HostMetadata.fromSource(
+            // Missing host.arch field, pre-8.14.0 architecture value
             Map.of(
                 "host.id", hostID,
                 "profiling.host.machine", machine
@@ -169,7 +190,7 @@ public class HostMetadataTests extends ESTestCase {
         // end::noformat
 
         assertEquals(hostID, host.hostID);
-        assertEquals(machine, host.profilingHostMachine);
+        assertEquals(machine, host.hostArchitecture);
         assertEquals("", host.instanceType.provider);
         assertEquals("", host.instanceType.region);
         assertEquals("", host.instanceType.name);

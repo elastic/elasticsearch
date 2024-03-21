@@ -135,6 +135,11 @@ a list of relevant text passages. All unique passages, along with their IDs,
 have been extracted from that data set and compiled into a
 https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
 
+IMOPRTANT: The `msmarco-passagetest2019-top1000` dataset was not utilized to
+train the model. It is only used in this tutorial as a sample dataset that is
+easily accessible for demonstration purposes. You can use a different data set
+to test the workflow and become familiar with it.
+
 Download the file and upload it to your cluster using the
 {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer]
 in the {ml-app} UI. Assign the name `id` to the first column and `content` to

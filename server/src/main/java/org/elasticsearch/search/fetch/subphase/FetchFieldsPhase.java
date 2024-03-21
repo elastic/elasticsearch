@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -42,13 +43,18 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
+        final StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
 
         final List<FieldAndFormat> fetchFields = fetchFieldsContext == null ? Collections.emptyList()
             : fetchFieldsContext.fields() == null ? Collections.emptyList()
             : fetchFieldsContext.fields();
+
+        boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
+
         final FieldFetcher fieldFetcher = FieldFetcher.create(
             fetchContext.getSearchExecutionContext(),
-            Stream.concat(fetchFields.stream(), METADATA_FIELDS.stream()).toList()
+            Stream.concat(fetchFields.stream(), METADATA_FIELDS.stream()).toList(),
+            fetchStoredFields
         );
 
         return new FetchSubPhaseProcessor() {

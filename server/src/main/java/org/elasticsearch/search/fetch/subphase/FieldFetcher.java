@@ -44,9 +44,18 @@ public class FieldFetcher {
     ) {}
 
     /**
-     * Build a FieldFetcher for a given search context and collection of fields and formats
+     * Build a FieldFetcher for a given search context and collection of fields and formats.
+     *
+     * @param context The {@link SearchExecutionContext} used to retrieve the {@link MappedFieldType}.
+     * @param fieldAndFormats field names to fetch and their display format.
+     * @param fetchStoredFields whether stored fields should be fetched or not.
+     * @return an instance of {@link FieldFetcher} which we can use to fetch fields calling {@link FieldFetcher#fetch(Source, int)}.
      */
-    public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
+    public static FieldFetcher create(
+        SearchExecutionContext context,
+        Collection<FieldAndFormat> fieldAndFormats,
+        boolean fetchStoredFields
+    ) {
 
         List<String> unmappedFetchPattern = new ArrayList<>();
         List<ResolvedField> resolvedFields = new ArrayList<>();
@@ -62,6 +71,9 @@ public class FieldFetcher {
                 MappedFieldType ft = context.getFieldType(field);
                 // we want to skip metadata fields if we have a wildcard pattern
                 if (context.isMetadataField(field) && matchingPattern != null) {
+                    continue;
+                }
+                if (ft.isStored() && fetchStoredFields == false) {
                     continue;
                 }
                 resolvedFields.add(

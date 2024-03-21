@@ -245,7 +245,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                     mapperService,
                     (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
                 ),
-                fieldList
+                fieldList,
+                true
             );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
@@ -313,7 +314,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 return sourceFilter.filterBytes(this);
             }
         };
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of(), false);
         FieldFetcher.DocAndMetaFields fields = fieldFetcher.fetch(s, 0);
         assertThat(fields.documentFields().size(), equalTo(0));
 
@@ -1537,7 +1538,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
         );
         withLuceneIndex(mapperService, iw -> iw.addDocument(new LuceneDocument()), iw -> {
-            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("runtime_field", null, false));
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                searchExecutionContext,
+                fieldAndFormatList("runtime_field", null, false),
+                false
+            );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
@@ -1570,7 +1575,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("{}"));
             iw.addDocument(parsedDocument.rootDoc());
         }, iw -> {
-            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("_id", null, false));
+            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("_id", null, false), true);
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
@@ -1583,7 +1588,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testStoredFieldsSpec() throws IOException {
         List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields, false);
         assertEquals(StoredFieldsSpec.NEEDS_SOURCE, fieldFetcher.storedFieldsSpec());
     }
 
@@ -1604,13 +1609,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         Source s = source == null
             ? Source.empty(randomFrom(XContentType.values()))
             : Source.fromBytes(BytesReference.bytes(source), source.contentType());
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields, true);
         return fieldFetcher.fetch(s, -1);
     }
 
     private static FieldFetcher.DocAndMetaFields fetchFields(MapperService mapperService, String source, List<FieldAndFormat> fields)
         throws IOException {
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields, false);
         return fieldFetcher.fetch(Source.fromBytes(new BytesArray(source), XContentType.JSON), -1);
     }
 

@@ -481,3 +481,60 @@ emp_no:integer | salary_change:double    | sa:double               | sd:double
 10008          | [-2.92,0.75,3.54,12.68] | [-2.92,0.75,3.54,12.68] | [12.68,3.54,0.75,-2.92]
 10009          | null                    | null                    | null
 ;
+
+values
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS h=MV_SORT(VALUES(height))
+;
+
+   h:double
+[1.56, 1.7, 1.78, 1.83, 1.85, 2.03, 2.05, 2.08, 2.1]
+;
+
+valuesGrouped
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS h=MV_SORT(VALUES(height)) BY first_letter
+| SORT first_letter
+;
+
+   h:double | first_letter:keyword
+       1.56 | A
+       2.08 | B
+       1.78 | C
+       2.03 | G
+       2.05 | K
+       1.83 | P
+[1.85, 2.1] | S
+       1.70 | T
+;
+
+valuesGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS h=MV_SORT(VALUES(height)) BY job_positions
+| SORT job_positions
+;
+
+         h:double | job_positions:keyword
+             2.03 | Accountant
+             1.78 | Head Human Resources
+      [1.85, 2.1] | Internship
+              2.1 | Junior Developer
+             1.56 | Principal Support Engineer
+              2.1 | Purchase Manager
+             1.78 | Reporting Analyst
+[1.85, 2.03, 2.1] | Senior Python Developer
+     [1.56, 2.08] | Senior Team Lead
+             1.78 | Support Engineer
+     [1.56, 1.78] | Tech Lead
+[1.7, 1.83, 2.05] | null
+;

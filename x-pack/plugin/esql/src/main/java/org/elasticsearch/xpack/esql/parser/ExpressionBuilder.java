@@ -128,7 +128,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (InvalidArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
-                return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
+                return new Literal(source, EsqlDataTypeConverter.stringToDouble(text), DataTypes.DOUBLE);
             } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());

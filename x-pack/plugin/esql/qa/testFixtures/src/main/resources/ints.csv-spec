@@ -160,7 +160,7 @@ ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 // end::to_long-str[]
 ;
 warning:Line 2:62: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:62: java.lang.NumberFormatException: For input string: \"foo\"
+warning:Line 2:62: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [foo]
 
 
 // tag::to_long-str-result[]

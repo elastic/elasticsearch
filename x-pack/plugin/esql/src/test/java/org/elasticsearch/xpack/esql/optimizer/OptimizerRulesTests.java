@@ -292,7 +292,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, TWO);
 
-        org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq, gte));
         assertEquals(eq, exp);
     }

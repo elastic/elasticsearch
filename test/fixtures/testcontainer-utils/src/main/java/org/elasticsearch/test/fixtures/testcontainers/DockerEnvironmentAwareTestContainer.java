@@ -47,8 +47,7 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
     private static boolean isDockerAvailable() {
         try {
             LOGGER.info("Probing docker environment...");
-            DockerClientFactory instance = DockerClientFactory.instance();
-            instance.client();
+            DockerClientFactory.instance().client();
             LOGGER.info("Probing docker environment successful");
             return true;
         } catch (Throwable ex) {

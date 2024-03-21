@@ -46,11 +46,8 @@ dependencies {
   api 'javax.servlet:javax.servlet-api:3.1.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
-  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
-
-//    krb5Keytabs project(path: ':test:fixtures:krb5kdc-fixture', configuration: 'krb5KeytabsHdfsDir')
-//    krb5Config project(path: ':test:fixtures:krb5kdc-fixture', configuration: 'krb5ConfHdfsFile')
-
+  //  https://github.com/elastic/elasticsearch/issues/93714
+  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
 
   testImplementation(project(':test:fixtures:hdfs-fixture')) {
     transitive = false
@@ -65,9 +62,6 @@ dependencies {
   javaRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
   javaRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
-
-  hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
-  hdfsFixture3 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadow')
   yamlRestTestCompileOnly(project(':test:fixtures:hdfs-fixture')) {
     transitive = false
   }
@@ -76,6 +70,9 @@ dependencies {
   yamlRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
   yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
   yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+
+  hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
+  hdfsFixture3 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadow')
 }
 
 restResources {

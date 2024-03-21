@@ -8,7 +8,6 @@ import org.gradle.api.services.internal.BuildServiceRegistryInternal
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.cache-test-fixtures'
 apply plugin: 'elasticsearch.deploy-test-fixtures'
@@ -21,35 +20,10 @@ dockerFixtures {
   }
 }
 
-List<String> services = ["peppa", "hdfs"]
-
-tasks.named("preProcessFixture").configure {
-  doLast {
-    // We need to create these up-front because if docker creates them they will be owned by root and we won't be
-    // able to clean them up
-    services.each { fixturesDir.dir("shared/${it}").get().getAsFile().mkdirs() }
-  }
-}
-
-tasks.named("postProcessFixture").configure { task ->
-  inputs.dir(fixturesDir.dir('shared').get().getAsFile())
-  services.each { service ->
-    File confTemplate = fixturesDir.file("shared/${service}/krb5.conf.template").get().asFile
-    File confFile = fixturesDir.file("shared/${service}/krb5.conf").get().asFile
-    outputs.file(confFile)
-    doLast {
-      assert confTemplate.exists()
-      String confContents = confTemplate.text
-        .replace("\${MAPPED_PORT}", "${ext."test.fixtures.${service}.udp.88"}")
-      confFile.text = confContents
-    }
-  }
-}
-
-project.ext.krb5Conf = { s -> file("$testFixturesDir/shared/${s}/krb5.conf") }
-project.ext.krb5Keytabs = { s, fileName -> file("$testFixturesDir/shared/${s}/keytabs/${fileName}") }
-
 configurations {
+  all {
+    transitive = false
+  }
   krb5ConfHdfsFile {
     canBeConsumed = true
     canBeResolved = false
@@ -58,10 +32,6 @@ configurations {
     canBeConsumed = true
     canBeResolved = false
   }
-}
-
-configurations.all {
-  transitive = false
 }
 
 dependencies {
@@ -84,14 +54,4 @@ dependencies {
   // ensure we have proper logging during when used in tests
   runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
   runtimeOnly "org.hamcrest:hamcrest:${versions.hamcrest}"
-}
-
-
-artifacts {
-  krb5ConfHdfsFile(krb5Conf('hdfs')) {
-    builtBy("postProcessFixture")
-  }
-  krb5KeytabsHdfsDir(file("$testFixturesDir/shared/hdfs/keytabs/")) {
-    builtBy("postProcessFixture")
-  }
 }

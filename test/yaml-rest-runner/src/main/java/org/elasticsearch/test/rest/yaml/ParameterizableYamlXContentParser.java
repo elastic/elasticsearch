@@ -24,11 +24,14 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class ParameterizableYamlXContent implements XContentParser {
+/**
+ * a wrapper around YamlXContentParser that allows for parameter replacement in the yaml file
+ */
+public class ParameterizableYamlXContentParser implements XContentParser {
     private final XContentParser delegate;
     private final Map<String, ?> params;
 
-    public ParameterizableYamlXContent(XContentParser delegate, Map<String, ?> params) {
+    public ParameterizableYamlXContentParser(XContentParser delegate, Map<String, ?> params) {
         this.delegate = delegate;
         this.params = params.entrySet().stream().collect(Collectors.toMap(e -> "@" + e.getKey() + "@", Map.Entry::getValue));
     }

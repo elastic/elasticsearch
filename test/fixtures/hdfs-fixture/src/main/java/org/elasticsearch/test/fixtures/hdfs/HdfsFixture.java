@@ -8,8 +8,6 @@
 
 package org.elasticsearch.test.fixtures.hdfs;
 
-import hdfs.MiniHDFS;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
@@ -261,9 +259,9 @@ public class HdfsFixture extends ExternalResource {
             // Install a pre-existing repository into HDFS
             String directoryName = "readonly-repository";
             String archiveName = directoryName + ".tar.gz";
-            URL readOnlyRepositoryArchiveURL = MiniHDFS.class.getClassLoader().getResource(archiveName);
+            URL readOnlyRepositoryArchiveURL = getClass().getClassLoader().getResource(archiveName);
             if (readOnlyRepositoryArchiveURL != null) {
-                Path tempDirectory = Files.createTempDirectory(MiniHDFS.class.getName());
+                Path tempDirectory = Files.createTempDirectory(getClass().getName());
                 File readOnlyRepositoryArchive = tempDirectory.resolve(archiveName).toFile();
                 FileUtils.copyURLToFile(readOnlyRepositoryArchiveURL, readOnlyRepositoryArchive);
                 FileUtil.unTar(readOnlyRepositoryArchive, tempDirectory.toFile());

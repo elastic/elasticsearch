@@ -10,7 +10,7 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.test.rest.yaml.ParameterizableYamlXContent;
+import org.elasticsearch.test.rest.yaml.ParameterizableYamlXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -71,7 +71,7 @@ public class ClientYamlTestSuite {
                     XContentParserConfiguration.EMPTY.withRegistry(executeableSectionRegistry),
                     Files.newInputStream(file)
                 )
-                : new ParameterizableYamlXContent(
+                : new ParameterizableYamlXContentParser(
                     YamlXContent.yamlXContent.createParser(
                         XContentParserConfiguration.EMPTY.withRegistry(executeableSectionRegistry),
                         Files.newInputStream(file)

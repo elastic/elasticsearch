@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-v | result
+field | result
 geo_point | geo_shape
 geo_shape | geo_shape
 keyword | geo_shape

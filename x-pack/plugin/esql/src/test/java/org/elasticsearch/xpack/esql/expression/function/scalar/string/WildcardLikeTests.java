@@ -31,7 +31,12 @@ public class WildcardLikeTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return RLikeTests.parameters(() -> "*");
+        return RLikeTests.parameters(str -> {
+            for (String syntax : new String[] { "\\", ".", "*" }) {
+                str = str.replace(syntax, "\\" + syntax);
+            }
+            return str;
+        }, () -> "*");
     }
 
     @Override

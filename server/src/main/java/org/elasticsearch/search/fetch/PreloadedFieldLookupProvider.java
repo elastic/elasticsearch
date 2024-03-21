@@ -34,6 +34,7 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
         if (storedFields == null) {
             loadDirect(fieldLookup, doc);
+            return;
         }
         final String field = fieldLookup.fieldType().name();
         if (storedFields.containsKey(field)) {

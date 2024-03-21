@@ -26,13 +26,16 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -92,6 +95,20 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     for (StatelessCompoundCommit compoundCommit : deserializedBatchedCompoundCommit.compoundCommits()) {
                         // Update uploaded blob locations that can be used in the next batched compound commits
                         uploadedBlobLocations.putAll(compoundCommit.commitFiles());
+
+                        Map<String, BlobLocation> commitFiles = compoundCommit.commitFiles();
+                        // Make sure that all internal files are on the same blob
+                        Set<String> internalFiles = compoundCommit.getInternalFiles();
+                        internalFiles.forEach(f -> assertEquals(virtualBatchedCompoundCommit.getBlobName(), commitFiles.get(f).blobName()));
+                        // Check that internalFiles in the ascending order by offset are sorted according to the FILE_NAME_COMPARATOR
+                        assertThat(
+                            internalFiles.stream()
+                                .map(e -> Tuple.tuple(e, commitFiles.get(e)))
+                                .sorted(Comparator.comparingLong(e -> e.v2().offset()))
+                                .map(Tuple::v1)
+                                .toList(),
+                            equalTo(internalFiles.stream().sorted(StatelessCompoundCommit.InternalFile.INTERNAL_FILES_COMPARATOR).toList())
+                        );
 
                         for (Map.Entry<String, BlobLocation> commitFileBlobLocation : compoundCommit.commitFiles().entrySet()) {
                             var fileName = commitFileBlobLocation.getKey();

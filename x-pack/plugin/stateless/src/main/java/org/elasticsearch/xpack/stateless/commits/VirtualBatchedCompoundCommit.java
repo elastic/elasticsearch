@@ -240,7 +240,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 internalFiles.add(new StatelessCompoundCommit.InternalFile(commitFile, commitRef.getDirectory().fileLength(commitFile)));
             }
         }
-        // Ensure that we get stable ordering until we get ES-7665 implemented
         Collections.sort(internalFiles);
         return Collections.unmodifiableList(internalFiles);
     }

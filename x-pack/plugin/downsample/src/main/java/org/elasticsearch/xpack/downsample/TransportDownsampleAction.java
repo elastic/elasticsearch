@@ -115,6 +115,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
     private final PersistentTasksService persistentTasksService;
+    private final DownsampleMetrics metrics;
 
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
@@ -153,7 +154,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
-        PersistentTasksService persistentTasksService
+        PersistentTasksService persistentTasksService,
+        DownsampleMetrics metrics
     ) {
         super(
             DownsampleAction.NAME,
@@ -173,6 +175,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         this.threadContext = threadPool.getThreadContext();
         this.taskQueue = clusterService.createTaskQueue("downsample", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
         this.persistentTasksService = persistentTasksService;
+        this.metrics = metrics;
     }
 
     @Override

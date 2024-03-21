@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -48,6 +49,13 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
     public static final String DOWNSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
     private static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
     public static final String DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME = "downsample.min_number_of_replicas";
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        var metrics = new DownsampleMetrics(services.telemetryProvider().getMeterRegistry());
+
+        return List.of(metrics);
+    }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {

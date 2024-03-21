@@ -1318,8 +1318,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster.bootstrapIfNecessary();
 
-            // Run the cluster for 10 seconds to give the cluster some time to elect a master.
-            // It's possible stabilisation takes longer, but that's unlikely.
+            // Run the cluster for 10 seconds to give the cluster time to elect a master.
+            // It's possible stabilisation takes longer, but essentially impossible that it _always_ takes longer.
             cluster.runFor(10000, "failing join validation");
 
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));

@@ -157,7 +157,6 @@ setup:
         refresh: true
         body: |
           {"index":{}}
-
           {"timestamp": 1516729294000, "node": "a", "region": "west-1" }
           {"index":{}}
           {"timestamp": 1516642894000, "node": "b", "region": "west-2" }

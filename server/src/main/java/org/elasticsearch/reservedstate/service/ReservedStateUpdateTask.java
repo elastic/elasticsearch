@@ -169,6 +169,11 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             return false;
         }
 
+        // Version -1 is special, it means "empty"
+        if (reservedStateVersion.version() == -1L) {
+            return true;
+        }
+
         // Version 0 is special, snapshot restores will reset to 0.
         if (reservedStateVersion.version() <= 0L) {
             logger.warn(

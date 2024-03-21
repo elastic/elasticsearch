@@ -283,6 +283,31 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         assertNull(s.boundAddress());
     }
 
+    public void testReadyWhenMissingFileSettings() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+
+        final String masterNode = internalCluster().startMasterOnlyNode(
+            Settings.builder().put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode);
+
+        // we need this after we setup the listener above, in case the node started and processed
+        // settings before we set our listener to cluster state changes.
+        causeClusterStateUpdate();
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertTrue(masterFileSettingsService.watching());
+
+        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        assertTrue(awaitSuccessful);
+
+        ReadinessService s = internalCluster().getInstance(ReadinessService.class, masterNode);
+        assertNotNull(s.boundAddress());
+    }
+
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
@@ -292,12 +317,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
                 if (reservedState != null) {
-                    ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedClusterSettingsAction.NAME);
-                    if (handlerMetadata != null && handlerMetadata.keys().contains("indices.recovery.max_bytes_per_sec")) {
-                        clusterService.removeListener(this);
-                        metadataVersion.set(event.state().metadata().version());
-                        savedClusterState.countDown();
-                    }
+                    clusterService.removeListener(this);
+                    metadataVersion.set(event.state().metadata().version());
+                    savedClusterState.countDown();
                 }
             }
         });

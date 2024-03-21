@@ -60,11 +60,19 @@ public class EsqlFeatures implements FeatureSpecification {
     // */
     // private static final NodeFeature GEO_SHAPE_SUPPORT = new NodeFeature("esql.geo_shape");
 
+    /**
+     * The introduction of the {@code VALUES} agg.
+     */
+    private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
+
+    /**
+     * Does ESQL support async queries.
+     */
     public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(ASYNC_QUERY, MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y);
+        return Set.of(ASYNC_QUERY, AGG_VALUES, MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y);
     }
 
     @Override

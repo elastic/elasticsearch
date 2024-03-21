@@ -2830,6 +2830,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3),
+            null, // TODO: add similar tests below (but keep this null)
             RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );
     }
@@ -2844,6 +2845,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
+            null,
             null,
             RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );

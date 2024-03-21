@@ -44,6 +44,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
     private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
+    private List<RoleDescriptor.RemoteClusterPrivileges> remoteClusterPrivileges = new ArrayList<>();
 
     public PutRoleRequest(StreamInput in) throws IOException {
         super(in);
@@ -61,6 +62,9 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         metadata = in.readGenericMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             remoteIndicesPrivileges = in.readCollectionAsList(RoleDescriptor.RemoteIndicesPrivileges::new);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
+            // TODO:
         }
     }
 
@@ -96,6 +100,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
+    public void addRemoteCluster(RoleDescriptor.RemoteClusterPrivileges... privileges) {
+        remoteClusterPrivileges.addAll(Arrays.asList(privileges));
+    }
+
     public void addRemoteIndex(
         final String[] remoteClusters,
         final String[] indices,
@@ -115,6 +123,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 .allowRestrictedIndices(allowRestrictedIndices)
                 .build()
         );
+    }
+
+    public void addRemoteCluster(final String[] privileges, final String[] remoteClusters) {
+        remoteClusterPrivileges.add(new RoleDescriptor.RemoteClusterPrivileges(remoteClusters, privileges));
     }
 
     public void addIndex(
@@ -184,6 +196,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         return false == remoteIndicesPrivileges.isEmpty();
     }
 
+    public boolean hasRemoteClusterPrivileges() {
+        return false == remoteClusterPrivileges.isEmpty();
+    }
+
     public List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges() {
         return Collections.unmodifiableList(applicationPrivileges);
     }
@@ -238,6 +254,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             metadata,
             Collections.emptyMap(),
             remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]),
+            remoteClusterPrivileges.toArray(new RoleDescriptor.RemoteClusterPrivileges[0]),
             null
         );
     }

@@ -205,6 +205,9 @@ public class TransportVersions {
      * In branches 8.7-8.10 see server/src/main/java/org/elasticsearch/TransportVersion.java for the equivalent definitions.
      */
 
+    // FIXME: don't commit with this this here...this is a hack to avoid the never ending set of conflicts in this file.
+    public static final TransportVersion ROLE_REMOTE_CLUSTER_PRIVS = def(8_699_00_0);
+
     /**
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.

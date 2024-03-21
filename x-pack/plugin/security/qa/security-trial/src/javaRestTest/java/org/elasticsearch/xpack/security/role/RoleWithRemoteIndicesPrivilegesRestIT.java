@@ -88,6 +88,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .privileges("read")
                         .grantedFields("field")
                         .build() },
+                null,
                 null
             )
         );
@@ -161,6 +162,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .query("{\"match\":{\"field\":\"a\"}}")
                         .grantedFields("field")
                         .build() },
+                null,
                 null
             )
         );

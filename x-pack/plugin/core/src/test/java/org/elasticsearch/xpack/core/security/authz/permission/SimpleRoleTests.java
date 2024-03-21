@@ -253,6 +253,7 @@ public class SimpleRoleTests extends ESTestCase {
                 null,
                 null,
                 null,
+                null,
                 new RoleDescriptor.Restriction(new String[] { WorkflowResolver.SEARCH_APPLICATION_QUERY_WORKFLOW.name() })
             ),
             new FieldPermissionsCache(Settings.EMPTY),
@@ -267,7 +268,7 @@ public class SimpleRoleTests extends ESTestCase {
 
     public void testForWorkflowWithoutRestriction() {
         final SimpleRole role = Role.buildFromRoleDescriptor(
-            new RoleDescriptor("r1", null, null, null, null, null, null, null, null, null),
+            new RoleDescriptor("r1", null, null, null, null, null, null, null, null, null, null),
             new FieldPermissionsCache(Settings.EMPTY),
             RESTRICTED_INDICES,
             List.of()

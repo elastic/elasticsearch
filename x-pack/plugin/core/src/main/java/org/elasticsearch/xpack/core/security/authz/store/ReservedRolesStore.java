@@ -94,6 +94,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 "*"
             ) },
+        new RoleDescriptor.RemoteClusterPrivileges[] {
+            new RoleDescriptor.RemoteClusterPrivileges(new String[] { "monitor_enrich" }, new String[] { "*" }) },
         null
     );
 
@@ -192,6 +194,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         getRemoteIndicesReadPrivileges(".monitoring-*"),
                         getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/"),
                         getRemoteIndicesReadPrivileges("metricbeat-*") },
+                    null,
                     null
                 )
             ),

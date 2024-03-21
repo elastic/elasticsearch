@@ -130,6 +130,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            null,
             null
         );
         assertFalse(flsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -146,6 +147,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            null,
             null
         );
         assertFalse(dlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -167,6 +169,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            null,
             null
         );
         assertFalse(flsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -181,6 +184,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            null,
             null
         );
         assertFalse(noFlsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
@@ -277,6 +281,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
+            null,
             RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
         );
 
@@ -427,6 +432,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() },
+            null,
             null
         );
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();

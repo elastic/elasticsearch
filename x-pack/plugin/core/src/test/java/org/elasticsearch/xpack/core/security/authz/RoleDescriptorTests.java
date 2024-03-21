@@ -548,6 +548,7 @@ public class RoleDescriptorTests extends ESTestCase {
                         descriptor.getMetadata(),
                         descriptor.getTransientMetadata(),
                         null,
+                        null,
                         descriptor.getRestriction()
                     )
                 )
@@ -590,6 +591,7 @@ public class RoleDescriptorTests extends ESTestCase {
                         descriptor.getMetadata(),
                         descriptor.getTransientMetadata(),
                         descriptor.getRemoteIndicesPrivileges(),
+                        descriptor.getRemoteClusterPrivileges(),
                         null
                     )
                 )
@@ -996,6 +998,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 new HashMap<>(),
                 new HashMap<>(),
                 new RoleDescriptor.RemoteIndicesPrivileges[0],
+                new RoleDescriptor.RemoteClusterPrivileges[0],
                 null
             ).isEmpty()
         );
@@ -1035,6 +1038,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 ? new RoleDescriptor.RemoteIndicesPrivileges[0]
                 : new RoleDescriptor.RemoteIndicesPrivileges[] {
                     RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() },
+            null, // TODO: add tests here
             booleans.get(7) ? null : RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
         );
 
@@ -1051,6 +1055,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 "name",
                 null,
                 randomBoolean() ? null : randomIndicesPrivileges(1, 5),
+                null,
                 null,
                 null,
                 null,
@@ -1103,6 +1108,7 @@ public class RoleDescriptorTests extends ESTestCase {
             randomRoleDescriptorMetadata(allowReservedMetadata),
             Map.of(),
             remoteIndexPrivileges,
+            null, // TODO: add tests here
             allowWorkflows ? RoleRestrictionTests.randomWorkflowsRestriction(1, 3) : null
         );
     }

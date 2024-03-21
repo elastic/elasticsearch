@@ -63,6 +63,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private final ApplicationResourcePrivileges[] applicationPrivileges;
     private final String[] runAs;
     private final RemoteIndicesPrivileges[] remoteIndicesPrivileges;
+    private final RemoteClusterPrivileges[] remoteClusterPrivileges;
     private final Restriction restriction;
     private final Map<String, Object> metadata;
     private final Map<String, Object> transientMetadata;
@@ -89,7 +90,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     /**
      * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[],
-     * ConfigurableClusterPrivilege[], String[], Map, Map, RemoteIndicesPrivileges[], Restriction)}
+     * ConfigurableClusterPrivilege[], String[], Map, Map, RemoteIndicesPrivileges[], RemoteClusterPrivileges[], Restriction)}
      */
     @Deprecated
     public RoleDescriptor(
@@ -104,7 +105,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     /**
      * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[],
-     * ConfigurableClusterPrivilege[], String[], Map, Map, RemoteIndicesPrivileges[], Restriction)}
+     * ConfigurableClusterPrivilege[], String[], Map, Map, RemoteIndicesPrivileges[], RemoteClusterPrivileges[], Restriction)}
      */
     @Deprecated
     public RoleDescriptor(
@@ -125,6 +126,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             metadata,
             transientMetadata,
             RemoteIndicesPrivileges.NONE,
+            RemoteClusterPrivileges.NONE,
             Restriction.NONE
         );
     }
@@ -149,6 +151,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             metadata,
             transientMetadata,
             RemoteIndicesPrivileges.NONE,
+            RemoteClusterPrivileges.NONE,
             Restriction.NONE
         );
     }
@@ -163,6 +166,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         @Nullable Map<String, Object> metadata,
         @Nullable Map<String, Object> transientMetadata,
         @Nullable RemoteIndicesPrivileges[] remoteIndicesPrivileges,
+        @Nullable RemoteClusterPrivileges[] remoteClusterPrivileges,
         @Nullable Restriction restriction
     ) {
         this.name = name;
@@ -176,6 +180,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             ? Collections.unmodifiableMap(transientMetadata)
             : Collections.singletonMap("enabled", true);
         this.remoteIndicesPrivileges = remoteIndicesPrivileges != null ? remoteIndicesPrivileges : RemoteIndicesPrivileges.NONE;
+        this.remoteClusterPrivileges = remoteClusterPrivileges != null ? remoteClusterPrivileges : RemoteClusterPrivileges.NONE;
         this.restriction = restriction != null ? restriction : Restriction.NONE;
     }
 
@@ -203,6 +208,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         } else {
             this.restriction = Restriction.NONE;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
+            this.remoteClusterPrivileges = null; // TODO: in.readArray(RemoteClusterPrivileges::new, RemoteClusterPrivileges[]::new);
+        } else {
+            this.remoteClusterPrivileges = RemoteClusterPrivileges.NONE;
+        }
     }
 
     public String getName() {
@@ -227,6 +237,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     public boolean hasRemoteIndicesPrivileges() {
         return remoteIndicesPrivileges.length != 0;
+    }
+
+    public RemoteClusterPrivileges[] getRemoteClusterPrivileges() {
+        return this.remoteClusterPrivileges;
     }
 
     public ApplicationResourcePrivileges[] getApplicationPrivileges() {
@@ -256,6 +270,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             || hasRunAs()
             || hasRemoteIndicesPrivileges()
             || hasWorkflowsRestriction();
+        // TODO: add here
     }
 
     public String[] getRunAs() {
@@ -305,7 +320,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         sb.append(metadata);
         sb.append("]");
         sb.append(", remoteIndicesPrivileges=[");
-        for (RemoteIndicesPrivileges group : remoteIndicesPrivileges) {
+        for (RemoteIndicesPrivileges group : remoteIndicesPrivileges) { // TODO: add here
             sb.append(group.toString()).append(",");
         }
         sb.append("], restriction=").append(restriction);
@@ -460,6 +475,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         String currentFieldName = null;
         IndicesPrivileges[] indicesPrivileges = null;
         RemoteIndicesPrivileges[] remoteIndicesPrivileges = null;
+        RemoteClusterPrivileges[] remoteClusterPrivileges = null;
         String[] clusterPrivileges = null;
         List<ConfigurableClusterPrivilege> configurableClusterPrivileges = Collections.emptyList();
         ApplicationResourcePrivileges[] applicationPrivileges = null;
@@ -503,6 +519,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         }
                     } else if (Fields.REMOTE_INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
                         remoteIndicesPrivileges = parseRemoteIndices(name, parser);
+                    } else if (Fields.REMOTE_CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
+                        remoteClusterPrivileges = parseRemoteCluster(name, parser);
                     } else if (allowRestriction && Fields.RESTRICTION.match(currentFieldName, parser.getDeprecationHandler())) {
                         restriction = Restriction.parse(name, parser);
                     } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -521,6 +539,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             metadata,
             null,
             remoteIndicesPrivileges,
+            remoteClusterPrivileges,
             restriction
         );
     }
@@ -678,6 +697,52 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             );
         }
         return new RemoteIndicesPrivileges(parsed.indicesPrivileges(), parsed.remoteClusters());
+    }
+
+    private static RoleDescriptor.RemoteClusterPrivileges[] parseRemoteCluster(final String roleName, final XContentParser parser)
+        throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            throw new ElasticsearchParseException(
+                "failed to parse remote cluster privileges for role [{}]. expected field [{}] value "
+                    + "to be an array, but found [{}] instead",
+                roleName,
+                parser.currentName(),
+                parser.currentToken()
+            );
+        }
+        final List<RoleDescriptor.RemoteClusterPrivileges> remoteClusterPrivileges = new ArrayList<>();
+        String[] privileges = null;
+        String[] clusters = null;
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
+                    privileges = readStringArray(roleName, parser, false);
+                    if (privileges.length != 1 && "monitor_enrich".equals(privileges[0]) == false) {
+                        throw new ElasticsearchParseException(
+                            "failed to parse remote cluster privileges for role [{}]. "
+                                + "[\"monitor_enrich\"] is the only value is allowed for [{}]",
+                            roleName,
+                            currentFieldName
+                        );
+                    }
+                } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
+                    clusters = readStringArray(roleName, parser, false);
+
+                } else {
+                    throw new ElasticsearchParseException(
+                        "failed to parse remote cluster privileges for role [{}]. unexpected field [{}]",
+                        roleName,
+                        currentFieldName
+                    );
+                }
+            }
+            remoteClusterPrivileges.add(new RemoteClusterPrivileges(privileges, clusters));
+        }
+        return remoteClusterPrivileges.toArray(new RemoteClusterPrivileges[0]);
     }
 
     private record IndicesPrivilegesWithOptionalRemoteClusters(IndicesPrivileges indicesPrivileges, String[] remoteClusters) {}
@@ -998,6 +1063,29 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             );
         }
         return builder.build();
+    }
+
+    public static final class RemoteClusterPrivileges implements Writeable, ToXContentObject {
+
+        private static final RemoteClusterPrivileges[] NONE = new RemoteClusterPrivileges[0];
+        private final String[] clusterPrivileges;
+        private final String[] remoteClusters;
+
+        public RemoteClusterPrivileges(String[] clusterPrivileges, String[] remoteClusters) {
+            this.clusterPrivileges = clusterPrivileges;
+            this.remoteClusters = remoteClusters;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            // TODO
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            // TODO
+        }
     }
 
     public static final class RemoteIndicesPrivileges implements Writeable, ToXContentObject {
@@ -1677,6 +1765,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField INDEX = new ParseField("index");
         ParseField INDICES = new ParseField("indices");
         ParseField REMOTE_INDICES = new ParseField("remote_indices");
+        ParseField REMOTE_CLUSTER = new ParseField("remote_cluster");
         ParseField APPLICATIONS = new ParseField("applications");
         ParseField RUN_AS = new ParseField("run_as");
         ParseField NAMES = new ParseField("names");

@@ -33,7 +33,7 @@ public class ToVersion extends AbstractConvertFunction {
     );
 
     @FunctionInfo(returnType = "version", description = "Converts an input string to a version value.")
-    public ToVersion(Source source, @Param(name = "v", type = { "keyword", "text", "version" }) Expression v) {
+    public ToVersion(Source source, @Param(name = "field", type = { "keyword", "text", "version" }) Expression v) {
         super(source, v);
     }
 

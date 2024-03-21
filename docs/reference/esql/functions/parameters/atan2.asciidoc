@@ -1,7 +1,7 @@
 *Parameters*
 
-`y`::
+`y_coordinate`::
 y coordinate
 
-`x`::
+`x_coordinate`::
 x coordinate

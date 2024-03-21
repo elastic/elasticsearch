@@ -2,4 +2,4 @@
 
 *Description*
 
-The arccosine of an angle, expressed in radians.
+Returns the {wikipedia}/Inverse_trigonometric_functions[arccosine] of `n` as an angle, expressed in radians.

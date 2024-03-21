@@ -35,7 +35,7 @@ public class MvAvg extends AbstractMultivalueFunction {
         returnType = "double",
         description = "Converts a multivalued field into a single valued field containing the average of all of the values."
     )
-    public MvAvg(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public MvAvg(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 

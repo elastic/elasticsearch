@@ -1385,32 +1385,32 @@ emp_no:integer | min_plus_max:integer | are_equal:boolean
 ;
 
 docsAbs
-//tag::docsAbs[]
+//tag::abs[]
 ROW number = -1.0 
 | EVAL abs_number = ABS(number)
-//end::docsAbs[]
+//end::abs[]
 ;
 
-//tag::docsAbs-result[]
-number:double  |  abs_number:double
--1.0           |1.0    
-//end::docsAbs-result[]
+//tag::abs-result[]
+number:double  | abs_number:double
+-1.0           | 1.0
+//end::abs-result[]
 ;
 
 docsAbsEmployees
-//tag::docsAbsEmployees[]
+//tag::abs-employees[]
 FROM employees
 | KEEP first_name, last_name, height
 | EVAL abs_height = ABS(0.0 - height)
-//end::docsAbsEmployees[]
+//end::abs-employees[]
 | SORT first_name
 | LIMIT 3
 ;
 
-//tag::docsAbsEmployees-result[]
+//tag::abs-employees-result[]
 first_name:keyword   |   last_name:keyword | height:double  |  abs_height:double
 Alejandro      |McAlpine       |1.48           |1.48           
 Amabile        |Gomatam        |2.09           |2.09           
 Anneke         |Preusig        |1.56           |1.56     
-//end::docsAbsEmployees-result[]
+//end::abs-employees-result[]
 ;

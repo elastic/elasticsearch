@@ -71,6 +71,9 @@ public class FieldFetcher {
 
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
+                if (ft == null) { // unmapped field
+                    continue;
+                }
                 if ("_size".equals(field) && includeSizeMetadataField == false) {
                     continue;
                 }

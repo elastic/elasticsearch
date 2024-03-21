@@ -25,7 +25,8 @@ or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 [[put-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+* Requires the `manage_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` role grants this privilege)
 
 
 [discrete]
@@ -100,6 +101,7 @@ the same name and the updated API key.
 (Optional, string)
 Specifies the types of embeddings you want to get back. Defaults to `float`.
 Valid values are:
+  * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`). 
   * `float`: use it for the default float embeddings.
   * `int8`: use it for signed int8 embeddings.
 
@@ -256,9 +258,7 @@ PUT _inference/text_embedding/cohere-embeddings
     "service_settings": {
         "api_key": "<api_key>",
         "model": "embed-english-light-v3.0",
-        "embedding_type": "int8"
-    },
-    "task_settings": {
+        "embedding_type": "byte"
     }
 }
 ------------------------------------------------------------

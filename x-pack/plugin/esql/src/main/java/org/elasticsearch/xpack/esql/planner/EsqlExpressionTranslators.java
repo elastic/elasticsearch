@@ -57,6 +57,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
@@ -177,13 +179,13 @@ public final class EsqlExpressionTranslators {
             if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
                 DateFormatter formatter;
                 if (value instanceof ZonedDateTime) {
-                    formatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+                    formatter = DEFAULT_DATE_TIME_FORMATTER;
                     // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime instance
                     // which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
                     // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
                     value = formatter.format((ZonedDateTime) value);
                 } else {
-                    formatter = DateFormatter.forPattern("strict_hour_minute_second_fraction");
+                    formatter = HOUR_MINUTE_SECOND;
                     value = formatter.format((OffsetTime) value);
                 }
                 format = formatter.pattern();

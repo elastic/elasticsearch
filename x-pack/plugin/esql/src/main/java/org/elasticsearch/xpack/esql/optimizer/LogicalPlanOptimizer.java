@@ -177,6 +177,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return asList(substitutions(), operators(), skip, cleanup(), defaultTopN, label);
     }
 
+    /**
+     * Currently this works similarly to SurrogateExpression, leaving the logic inside the expressions,
+     * so each can decide for itself whether or not to change to a surrogate expression.
+     * But what is actually being done is similar to LiteralsOnTheRight. We can consider in the future moving
+     * this in either direction, reducing the number of rules, but for now,
+     * it's a separate rule to reduce the risk of unintended interactions with other rules.
+     */
     static class SubstituteSpatialSurrogates extends OptimizerRules.OptimizerExpressionRule<SpatialRelatesFunction> {
 
         SubstituteSpatialSurrogates() {

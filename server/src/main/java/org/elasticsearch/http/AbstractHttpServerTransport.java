@@ -288,9 +288,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         long startPollTimeMillis = System.currentTimeMillis();
         do {
             try {
-                logger.info("waiting");
                 FutureUtils.get(allClientsClosedListener, pollTimeMillis, TimeUnit.MILLISECONDS);
-                logger.info("done waiting");
                 closed = true;
             } catch (ElasticsearchTimeoutException t) {
                 logger.info(format("still waiting on %d client connections to close", httpChannels.size()));

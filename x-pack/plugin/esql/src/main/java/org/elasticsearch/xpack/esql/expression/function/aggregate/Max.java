@@ -66,9 +66,6 @@ public class Max extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Expression surrogate() {
-        if (field().foldable()) {
-            return new MvMax(source(), field());
-        }
-        return null;
+        return field().foldable() ? new MvMax(source(), field()) : null;
     }
 }

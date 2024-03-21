@@ -61,9 +61,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     public Expression surrogate() {
         var s = source();
         var field = field();
-        if (field.foldable()) {
-            return new MvAvg(s, field);
-        }
-        return new Div(s, new Sum(s, field), new Count(s, field), dataType());
+
+        return field().foldable() ? new MvAvg(s, field) : new Div(s, new Sum(s, field), new Count(s, field), dataType());
     }
 }

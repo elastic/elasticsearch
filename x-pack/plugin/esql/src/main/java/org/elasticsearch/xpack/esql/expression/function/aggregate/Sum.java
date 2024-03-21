@@ -72,15 +72,12 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Expression surrogate() {
-        // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
-        if (field().foldable()) {
-            return new Mul(
-                source(),
-                new MvSum(Source.EMPTY, field()),
-                new Count(Source.EMPTY, new Literal(Source.EMPTY, StringUtils.WILDCARD, DataTypes.KEYWORD))
-            );
-        }
+        var s = source();
+        var field = field();
 
-        return null;
+        // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
+        return field.foldable()
+            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataTypes.KEYWORD)))
+            : null;
     }
 }

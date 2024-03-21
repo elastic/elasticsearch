@@ -66,9 +66,6 @@ public class Min extends NumericAggregate implements SurrogateExpression {
 
     @Override
     public Expression surrogate() {
-        if (field().foldable()) {
-            return new MvMin(source(), field());
-        }
-        return null;
+        return field().foldable() ? new MvMin(source(), field()) : null;
     }
 }

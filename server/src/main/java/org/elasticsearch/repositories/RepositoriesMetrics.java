@@ -13,6 +13,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 public record RepositoriesMetrics(
+    MeterRegistry meterRegistry,
     LongCounter requestCounter,
     LongCounter exceptionCounter,
     LongCounter throttleCounter,
@@ -36,6 +37,7 @@ public record RepositoriesMetrics(
 
     public RepositoriesMetrics(MeterRegistry meterRegistry) {
         this(
+            meterRegistry,
             meterRegistry.registerLongCounter(METRIC_REQUESTS_TOTAL, "repository request counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_EXCEPTIONS_TOTAL, "repository request exception counter", "unit"),
             meterRegistry.registerLongCounter(METRIC_THROTTLES_TOTAL, "repository request throttle counter", "unit"),

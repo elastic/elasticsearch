@@ -76,7 +76,7 @@ public class MultivalueDedupeDouble {
                             writeUniquedWork(builder);
                         } else {
                             copyAndSort(first, count);
-                            writeSortedWork(builder);
+                            deduplicatedSortedWork(builder);
                         }
                     }
                 }
@@ -105,7 +105,7 @@ public class MultivalueDedupeDouble {
                     case 1 -> builder.appendDouble(block.getDouble(first));
                     default -> {
                         copyAndSort(first, count);
-                        writeSortedWork(builder);
+                        deduplicatedSortedWork(builder);
                     }
                 }
             }
@@ -136,6 +136,27 @@ public class MultivalueDedupeDouble {
                     default -> {
                         copyMissing(first, count);
                         writeUniquedWork(builder);
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Sort values from each position and write the results to a {@link Block}.
+     */
+    public DoubleBlock sortToBlock(BlockFactory blockFactory, boolean ascending) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(block.getPositionCount())) {
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int count = block.getValueCount(p);
+                int first = block.getFirstValueIndex(p);
+                switch (count) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendDouble(block.getDouble(first));
+                    default -> {
+                        copyAndSort(first, count);
+                        writeSortedWork(builder, ascending);
                     }
                 }
             }
@@ -289,11 +310,7 @@ public class MultivalueDedupeDouble {
     /**
      * Writes a sorted {@link #work} to a {@link DoubleBlock.Builder}, skipping duplicates.
      */
-    private void writeSortedWork(DoubleBlock.Builder builder) {
-        if (w == 1) {
-            builder.appendDouble(work[0]);
-            return;
-        }
+    private void deduplicatedSortedWork(DoubleBlock.Builder builder) {
         builder.beginPositionEntry();
         double prev = work[0];
         builder.appendDouble(prev);
@@ -301,6 +318,21 @@ public class MultivalueDedupeDouble {
             if (prev != work[i]) {
                 prev = work[i];
                 builder.appendDouble(prev);
+            }
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Writes a {@link #work} to a {@link DoubleBlock.Builder}.
+     */
+    private void writeSortedWork(DoubleBlock.Builder builder, boolean ascending) {
+        builder.beginPositionEntry();
+        for (int i = 0; i < w; i++) {
+            if (ascending) {
+                builder.appendDouble(work[i]);
+            } else {
+                builder.appendDouble(work[w - i - 1]);
             }
         }
         builder.endPositionEntry();

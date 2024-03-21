@@ -57,8 +57,8 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T> impleme
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        return visitor.visit(this);
+    public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+        visitor.visit(this);
     }
 
     @Override

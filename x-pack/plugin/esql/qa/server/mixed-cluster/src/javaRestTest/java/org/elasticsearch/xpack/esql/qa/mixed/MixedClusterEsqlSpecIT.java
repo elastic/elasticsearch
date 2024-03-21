@@ -8,10 +8,16 @@
 package org.elasticsearch.xpack.esql.qa.mixed;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.ClassRule;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.ASYNC;
@@ -26,6 +32,32 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+
+    private static final Set<String> oldClusterFeatures = new HashSet<>();
+    private static boolean oldClusterFeaturesInitialized = false;
+
+    @Before
+    public void extractOldClusterFeatures() {
+        if (oldClusterFeaturesInitialized == false) {
+            oldClusterFeatures.addAll(testFeatureService.getAllSupportedFeatures());
+            oldClusterFeaturesInitialized = true;
+        }
+    }
+
+    protected static boolean oldClusterHasFeature(String featureId) {
+        assert oldClusterFeaturesInitialized;
+        return oldClusterFeatures.contains(featureId);
+    }
+
+    protected static boolean oldClusterHasFeature(NodeFeature feature) {
+        return oldClusterHasFeature(feature.id());
+    }
+
+    @AfterClass
+    public static void cleanUp() {
+        oldClusterFeaturesInitialized = false;
+        oldClusterFeatures.clear();
+    }
 
     public MixedClusterEsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         super(fileName, groupName, testName, lineNumber, testCase, mode);
@@ -42,6 +74,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsAsync() {
-        return bwcVersion.onOrAfter(Version.V_8_13_0);
+        return oldClusterHasFeature(ASYNC_QUERY_FEATURE_ID);
     }
 }

@@ -22,7 +22,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -627,7 +627,7 @@ public final class NodeEnvironment implements Closeable {
                 assert nodeIds.isEmpty() : nodeIds;
                 // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
                 // when we are starting a new node and there are no indices to worry about.
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, IndexVersion.current());
+                metadata = new NodeMetadata(generateNodeId(settings), BuildVersion.current(), IndexVersion.current());
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;
@@ -635,7 +635,7 @@ public final class NodeEnvironment implements Closeable {
         }
 
         metadata = metadata.upgradeToCurrentVersion();
-        assert metadata.nodeVersion().equals(Version.CURRENT) : metadata.nodeVersion() + " != " + Version.CURRENT;
+        assert metadata.nodeVersion().equals(BuildVersion.current()) : metadata.nodeVersion() + " != " + Build.current();
 
         return metadata;
     }
@@ -1119,7 +1119,7 @@ public final class NodeEnvironment implements Closeable {
      * Returns all folder names in ${data.paths}/indices folder
      */
     public Set<String> availableIndexFolders() throws IOException {
-        return availableIndexFolders(p -> false);
+        return availableIndexFolders(Predicates.never());
     }
 
     /**
@@ -1147,7 +1147,7 @@ public final class NodeEnvironment implements Closeable {
      * @throws IOException if an I/O exception occurs traversing the filesystem
      */
     public Set<String> availableIndexFoldersForPath(final DataPath dataPath) throws IOException {
-        return availableIndexFoldersForPath(dataPath, p -> false);
+        return availableIndexFoldersForPath(dataPath, Predicates.never());
     }
 
     /**

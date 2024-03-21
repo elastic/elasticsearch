@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -239,9 +240,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         logger.debug("[{}] start called with state [{}].", getTransformId(), getState());
         if (context.getTaskState() == TransformTaskState.FAILED) {
             listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
-                    RestStatus.CONFLICT
+                new CannotStartFailedTransformException(
+                    TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason())
                 )
             );
             return;
@@ -607,7 +607,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     }
 
     public static Collection<PersistentTask<?>> findAllTransformTasks(ClusterState clusterState) {
-        return findTransformTasks(task -> true, clusterState);
+        return findTransformTasks(Predicates.always(), clusterState);
     }
 
     public static Collection<PersistentTask<?>> findTransformTasks(Set<String> transformIds, ClusterState clusterState) {
@@ -616,7 +616,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ClusterState clusterState) {
         Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> taskMatcher = transformIdPattern == null
-            || Strings.isAllOrWildcard(transformIdPattern) ? t -> true : t -> {
+            || Strings.isAllOrWildcard(transformIdPattern) ? Predicates.always() : t -> {
                 TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
                 return Regex.simpleMatch(transformIdPattern, transformParams.getId());
             };

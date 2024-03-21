@@ -27,6 +27,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ECSJsonLayout;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -46,6 +47,13 @@ import static org.elasticsearch.xpack.deprecation.Deprecation.WRITE_DEPRECATION_
  * It also starts and stops the appender
  */
 public class DeprecationIndexingComponent extends AbstractLifecycleComponent implements ClusterStateListener {
+
+    public static final Setting<TimeValue> DEPRECATION_INDEXING_FLUSH_INTERVAL = Setting.timeSetting(
+        "cluster.deprecation_indexing.flush_interval",
+        TimeValue.timeValueSeconds(5),
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
 
     private final DeprecationIndexingAppender appender;
@@ -190,6 +198,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
      * @return an initialised bulk processor
      */
     private BulkProcessor2 getBulkProcessor(Client client, Settings settings) {
+        TimeValue flushInterval = DEPRECATION_INDEXING_FLUSH_INTERVAL.get(settings);
         BulkProcessor2.Listener listener = new DeprecationBulkListener();
         return BulkProcessor2.builder((bulkRequest, actionListener) -> {
             /*
@@ -198,13 +207,16 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
              * in-flight-bytes limit has been exceeded. This means that we don't have to worry about bounding pendingRequestsBuffer.
              */
             if (flushEnabled.get()) {
+                logger.trace("Flush is enabled, sending a bulk request");
                 client.bulk(bulkRequest, actionListener);
                 flushBuffer(); // just in case something was missed after the first flush
             } else {
+                logger.trace("Flush is disabled, scheduling a bulk request");
+
                 // this is an unbounded queue, so the entry will always be accepted
                 pendingRequestsBuffer.offer(() -> client.bulk(bulkRequest, actionListener));
             }
-        }, listener, client.threadPool()).setMaxNumberOfRetries(3).setFlushInterval(TimeValue.timeValueSeconds(5)).build();
+        }, listener, client.threadPool()).setMaxNumberOfRetries(3).setFlushInterval(flushInterval).build();
     }
 
     private static class DeprecationBulkListener implements BulkProcessor2.Listener {

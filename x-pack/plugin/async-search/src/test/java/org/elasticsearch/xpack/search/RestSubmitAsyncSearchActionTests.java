@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,7 +29,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104838")
 public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
     private RestSubmitAsyncSearchAction action;

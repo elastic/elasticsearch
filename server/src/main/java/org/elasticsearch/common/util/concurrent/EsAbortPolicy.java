@@ -14,24 +14,26 @@ public class EsAbortPolicy extends EsRejectedExecutionHandler {
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-        if (executor.isShutdown() == false && r instanceof AbstractRunnable abstractRunnable) {
-            if (abstractRunnable.isForceExecution()) {
-                if (executor.getQueue() instanceof SizeBlockingQueue<Runnable> sizeBlockingQueue) {
-                    try {
-                        sizeBlockingQueue.forcePut(r);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException("forced execution, but got interrupted", e);
-                    }
-                    if ((executor.isShutdown() && sizeBlockingQueue.remove(r)) == false) {
-                        return;
-                    } // else fall through and reject the task since the executor is shut down
-                } else {
-                    throw new IllegalStateException("expected but did not find SizeBlockingQueue: " + executor);
+        if (executor.isShutdown() == false && isForceExecution(r)) {
+            if (executor.getQueue() instanceof SizeBlockingQueue<Runnable> sizeBlockingQueue) {
+                try {
+                    sizeBlockingQueue.forcePut(r);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("forced execution, but got interrupted", e);
                 }
+                if ((executor.isShutdown() && sizeBlockingQueue.remove(r)) == false) {
+                    return;
+                } // else fall through and reject the task since the executor is shut down
+            } else {
+                throw new IllegalStateException("expected but did not find SizeBlockingQueue: " + executor);
             }
         }
         incrementRejections();
         throw newRejectedException(r, executor, executor.isShutdown());
+    }
+
+    private static boolean isForceExecution(Runnable r) {
+        return r instanceof AbstractRunnable abstractRunnable && abstractRunnable.isForceExecution();
     }
 }

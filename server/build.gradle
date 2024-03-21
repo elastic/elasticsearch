@@ -152,7 +152,7 @@ if (BuildParams.isSnapshotBuild() == false) {
 }
 
 tasks.named("test").configure {
-    systemProperty 'es.insecure_network_trace_enabled', 'true'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("thirdPartyAudit").configure {

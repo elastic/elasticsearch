@@ -1,0 +1,5 @@
+pr: 106057
+summary: Avoid computing `currentInferenceProcessors` on every cluster state
+area: Machine Learning
+type: bug
+issues: []

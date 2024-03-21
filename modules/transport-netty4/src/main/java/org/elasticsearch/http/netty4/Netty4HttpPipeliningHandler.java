@@ -133,46 +133,34 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws IOException {
+    public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
         assert msg instanceof Netty4HttpResponse : "Invalid message type: " + msg.getClass();
-        boolean success = false;
-        try {
-            final Netty4HttpResponse restResponse = (Netty4HttpResponse) msg;
-            if (restResponse.getSequence() != writeSequence) {
-                assert restResponse.getSequence() > writeSequence
-                    : "response sequence [" + restResponse.getSequence() + "] we below write sequence [" + writeSequence + "]";
-                if (outboundHoldingQueue.size() >= maxEventsHeld) {
-                    int eventCount = outboundHoldingQueue.size() + 1;
-                    throw new IllegalStateException(
-                        "Too many pipelined events [" + eventCount + "]. Max events allowed [" + maxEventsHeld + "]."
-                    );
-                }
-                // response is not at the current sequence number so we add it to the outbound queue and return
-                assert outboundHoldingQueue.stream().noneMatch(t -> t.v1().getSequence() == writeSequence)
-                    : "duplicate outbound entries for seqno " + writeSequence;
-                outboundHoldingQueue.add(new Tuple<>(restResponse, promise));
-                success = true;
-                return;
-            }
-
-            // response is at the current sequence number and does not need to wait for any other response to be written so we write
-            // it out directly
+        final Netty4HttpResponse restResponse = (Netty4HttpResponse) msg;
+        if (restResponse.getSequence() != writeSequence) {
+            // response is not at the current sequence number so we add it to the outbound queue
+            enqueuePipelinedResponse(ctx, restResponse, promise);
+        } else {
+            // response is at the current sequence number and does not need to wait for any other response to be written
             doWrite(ctx, restResponse, promise);
-            success = true;
             // see if we have any queued up responses that became writeable due to the above write
             doWriteQueued(ctx);
-        } catch (IllegalStateException e) {
-            ctx.channel().close();
-        } finally {
-            if (success == false && promise.isDone() == false) {
-                // The preceding failure may already have failed the promise; use tryFailure() to avoid log noise about double-completion,
-                // but also check isDone() first to avoid even constructing another exception in most cases.
-                promise.tryFailure(new ClosedChannelException());
-            }
         }
     }
 
-    private void doWriteQueued(ChannelHandlerContext ctx) throws IOException {
+    private void enqueuePipelinedResponse(ChannelHandlerContext ctx, Netty4HttpResponse restResponse, ChannelPromise promise) {
+        assert restResponse.getSequence() > writeSequence
+            : "response sequence [" + restResponse.getSequence() + "] we below write sequence [" + writeSequence + "]";
+        if (outboundHoldingQueue.size() >= maxEventsHeld) {
+            ctx.channel().close();
+            promise.tryFailure(new ClosedChannelException());
+        } else {
+            assert outboundHoldingQueue.stream().noneMatch(t -> t.v1().getSequence() == restResponse.getSequence())
+                : "duplicate outbound entries for seqno " + restResponse.getSequence();
+            outboundHoldingQueue.add(new Tuple<>(restResponse, promise));
+        }
+    }
+
+    private void doWriteQueued(ChannelHandlerContext ctx) {
         while (outboundHoldingQueue.isEmpty() == false && outboundHoldingQueue.peek().v1().getSequence() == writeSequence) {
             final Tuple<? extends Netty4HttpResponse, ChannelPromise> top = outboundHoldingQueue.poll();
             assert top != null : "we know the outbound holding queue to not be empty at this point";

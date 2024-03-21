@@ -12,8 +12,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -39,10 +41,29 @@ public class DriverStatus implements Task.Status {
      * The session for this driver.
      */
     private final String sessionId;
+
+    /**
+     * Milliseconds since epoch when this driver started.
+     */
+    private final long started;
+
     /**
      * When this status was generated.
      */
     private final long lastUpdated;
+
+    /**
+     * Nanos this {@link Driver} has been running on the cpu. Does not
+     * include async or waiting time.
+     */
+    private final long cpuNanos;
+
+    /**
+     * The number of times the driver has moved a single page up the
+     * chain of operators as far as it'll go.
+     */
+    private final long iterations;
+
     /**
      * The state of the overall driver - queue, starting, running, finished.
      */
@@ -60,13 +81,19 @@ public class DriverStatus implements Task.Status {
 
     DriverStatus(
         String sessionId,
+        long started,
         long lastUpdated,
+        long cpuTime,
+        long iterations,
         Status status,
         List<OperatorStatus> completedOperators,
         List<OperatorStatus> activeOperators
     ) {
         this.sessionId = sessionId;
+        this.started = started;
         this.lastUpdated = lastUpdated;
+        this.cpuNanos = cpuTime;
+        this.iterations = iterations;
         this.status = status;
         this.completedOperators = completedOperators;
         this.activeOperators = activeOperators;
@@ -74,7 +101,10 @@ public class DriverStatus implements Task.Status {
 
     public DriverStatus(StreamInput in) throws IOException {
         this.sessionId = in.readString();
+        this.started = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readLong() : 0;
         this.lastUpdated = in.readLong();
+        this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
+        this.iterations = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
         this.status = Status.valueOf(in.readString());
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
@@ -87,7 +117,14 @@ public class DriverStatus implements Task.Status {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+            out.writeLong(started);
+        }
         out.writeLong(lastUpdated);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+            out.writeVLong(cpuNanos);
+            out.writeVLong(iterations);
+        }
         out.writeString(status.toString());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeCollection(completedOperators);
@@ -108,10 +145,33 @@ public class DriverStatus implements Task.Status {
     }
 
     /**
+     * When this {@link Driver} was started.
+     */
+    public long started() {
+        return started;
+    }
+
+    /**
      * When this status was generated.
      */
     public long lastUpdated() {
         return lastUpdated;
+    }
+
+    /**
+     * Nanos this {@link Driver} has been running on the cpu. Does not
+     * include async or waiting time.
+     */
+    public long cpuNanos() {
+        return cpuNanos;
+    }
+
+    /**
+     * The number of times the driver has moved a single page up the
+     * chain of operators as far as it'll go.
+     */
+    public long iterations() {
+        return iterations;
     }
 
     /**
@@ -139,7 +199,13 @@ public class DriverStatus implements Task.Status {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("sessionId", sessionId);
+        builder.field("started", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(started));
         builder.field("last_updated", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lastUpdated));
+        builder.field("cpu_nanos", cpuNanos);
+        if (builder.humanReadable()) {
+            builder.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
+        }
+        builder.field("iterations", iterations);
         builder.field("status", status.toString().toLowerCase(Locale.ROOT));
         builder.startArray("completed_operators");
         for (OperatorStatus completed : completedOperators) {
@@ -160,7 +226,10 @@ public class DriverStatus implements Task.Status {
         if (o == null || getClass() != o.getClass()) return false;
         DriverStatus that = (DriverStatus) o;
         return sessionId.equals(that.sessionId)
+            && started == that.started
             && lastUpdated == that.lastUpdated
+            && cpuNanos == that.cpuNanos
+            && iterations == that.iterations
             && status == that.status
             && completedOperators.equals(that.completedOperators)
             && activeOperators.equals(that.activeOperators);
@@ -168,7 +237,7 @@ public class DriverStatus implements Task.Status {
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, lastUpdated, status, completedOperators, activeOperators);
+        return Objects.hash(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators);
     }
 
     @Override
@@ -204,7 +273,7 @@ public class DriverStatus implements Task.Status {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(operator);
-            out.writeOptionalNamedWriteable(status);
+            out.writeOptionalNamedWriteable(status != null && VersionedNamedWriteable.shouldSerialize(out, status) ? status : null);
         }
 
         public String operator() {

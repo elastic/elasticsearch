@@ -2033,6 +2033,11 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return trackedRef;
         }
 
+        @Override
+        public int pageSize() {
+            return delegate.pageSize();
+        }
+
         /**
          * Release all tracked refs as if the node rebooted.
          */

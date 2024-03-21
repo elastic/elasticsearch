@@ -62,7 +62,11 @@ public class NestedObjectMapper extends ObjectMapper {
                     this.includeInRoot = Explicit.IMPLICIT_FALSE;
                 }
             }
-            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(context.buildFullName(name()), parentIncludedInRoot);
+            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
+                context.buildFullName(name()),
+                parentIncludedInRoot,
+                context.getDynamic(dynamic)
+            );
             final String fullPath = context.buildFullName(name());
             final String nestedTypePath;
             if (indexCreatedVersion.before(IndexVersions.V_8_0_0)) {
@@ -117,14 +121,14 @@ public class NestedObjectMapper extends ObjectMapper {
 
         final boolean parentIncludedInRoot;
 
-        NestedMapperBuilderContext(String path, boolean parentIncludedInRoot) {
-            super(path);
+        NestedMapperBuilderContext(String path, boolean parentIncludedInRoot, Dynamic dynamic) {
+            super(path, false, false, false, dynamic);
             this.parentIncludedInRoot = parentIncludedInRoot;
         }
 
         @Override
-        public MapperBuilderContext createChildContext(String name) {
-            return new NestedMapperBuilderContext(buildFullName(name), parentIncludedInRoot);
+        public MapperBuilderContext createChildContext(String name, Dynamic dynamic) {
+            return new NestedMapperBuilderContext(buildFullName(name), parentIncludedInRoot, getDynamic(dynamic));
         }
     }
 
@@ -280,7 +284,11 @@ public class NestedObjectMapper extends ObjectMapper {
             parentIncludedInRoot |= this.includeInParent.value();
         }
         return mapperMergeContext.createChildContext(
-            new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot)
+            new NestedMapperBuilderContext(
+                mapperBuilderContext.buildFullName(name),
+                parentIncludedInRoot,
+                mapperBuilderContext.getDynamic(dynamic)
+            )
         );
     }
 

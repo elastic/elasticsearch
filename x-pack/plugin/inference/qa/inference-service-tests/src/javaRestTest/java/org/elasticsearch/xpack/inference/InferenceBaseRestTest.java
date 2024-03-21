@@ -50,11 +50,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    static String mockServiceModelConfig() {
-        return mockServiceModelConfig(null);
+    static String mockSparseServiceModelConfig() {
+        return mockSparseServiceModelConfig(null);
     }
 
-    static String mockServiceModelConfig(@Nullable TaskType taskTypeInBody) {
+    static String mockSparseServiceModelConfig(@Nullable TaskType taskTypeInBody) {
         var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
         return Strings.format("""
             {
@@ -72,7 +72,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, taskType);
     }
 
-    static String mockServiceModelConfig(@Nullable TaskType taskTypeInBody, boolean shouldReturnHiddenField) {
+    static String mockSparseServiceModelConfig(@Nullable TaskType taskTypeInBody, boolean shouldReturnHiddenField) {
         var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
         return Strings.format("""
             {
@@ -89,6 +89,22 @@ public class InferenceBaseRestTest extends ESRestTestCase {
               }
             }
             """, taskType, shouldReturnHiddenField);
+    }
+
+    static String mockDenseServiceModelConfig() {
+        return """
+            {
+              "task_type": "text_embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64",
+                "dimensions": 246
+              },
+              "task_settings": {
+              }
+            }
+            """;
     }
 
     protected void deleteModel(String modelId) throws IOException {
@@ -200,11 +216,16 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
-        if (taskType == TaskType.SPARSE_EMBEDDING) {
-            var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
-            assertThat(results, hasSize(expectedNumberOfResults));
-        } else {
-            fail("test with task type [" + taskType + "] are not supported yet");
+        switch (taskType) {
+            case SPARSE_EMBEDDING -> {
+                var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
+                assertThat(results, hasSize(expectedNumberOfResults));
+            }
+            case TEXT_EMBEDDING -> {
+                var results = (List<Map<String, Object>>) resultMap.get(TaskType.TEXT_EMBEDDING.toString());
+                assertThat(results, hasSize(expectedNumberOfResults));
+            }
+            default -> fail("test with task type [" + taskType + "] are not supported yet");
         }
     }
 

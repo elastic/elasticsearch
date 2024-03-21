@@ -175,8 +175,7 @@ public class MasterServiceTests extends ESTestCase {
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
-                .execute(() -> publishListener.onResponse(null));
+            randomExecutor(threadPool).execute(() -> publishListener.onResponse(null));
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();
@@ -2125,7 +2124,7 @@ public class MasterServiceTests extends ESTestCase {
 
         final var source = randomIdentifier();
         final var taskDescription = randomIdentifier();
-        final var timeout = TimeValue.timeValueMillis(between(0, 100000));
+        final var timeout = TimeValue.timeValueMillis(between(1, 100000));
 
         final var actionCount = new AtomicInteger();
         final var deterministicTaskQueue = new DeterministicTaskQueue();

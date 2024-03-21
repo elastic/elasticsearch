@@ -16,6 +16,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.hamcrest.CoreMatchers;
@@ -77,7 +78,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     model
                 )
             ),
-            true
+            ConfigurationParseContext.REQUEST
         );
 
         MatcherAssert.assertThat(
@@ -107,7 +108,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     model
                 )
             ),
-            false
+            ConfigurationParseContext.PERSISTENT
         );
 
         MatcherAssert.assertThat(
@@ -139,7 +140,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
                     model
                 )
             ),
-            false
+            ConfigurationParseContext.PERSISTENT
         );
 
         MatcherAssert.assertThat(
@@ -149,14 +150,14 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
-        var serviceSettings = CohereServiceSettings.fromMap(new HashMap<>(Map.of()), false);
+        var serviceSettings = CohereServiceSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
         assertNull(serviceSettings.getUri());
     }
 
     public void testFromMap_EmptyUrl_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")), false)
+            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")), ConfigurationParseContext.PERSISTENT)
         );
 
         MatcherAssert.assertThat(
@@ -174,7 +175,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         var url = "https://www.abc^.com";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)), false)
+            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)), ConfigurationParseContext.PERSISTENT)
         );
 
         MatcherAssert.assertThat(
@@ -187,7 +188,10 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
         var similarity = "by_size";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> CohereServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)), false)
+            () -> CohereServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.SIMILARITY, similarity)),
+                ConfigurationParseContext.PERSISTENT
+            )
         );
 
         MatcherAssert.assertThat(

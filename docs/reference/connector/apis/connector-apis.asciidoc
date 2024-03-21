@@ -3,7 +3,14 @@
 
 preview::[]
 
-The connector and sync jobs API provides a convenient way to create and manage Elastic {enterprise-search-ref}/connectors.html[connectors^] and sync jobs in an internal index.
+The connector and sync jobs APIs provide a convenient way to create and manage Elastic {enterprise-search-ref}/connectors.html[connectors^] and sync jobs in an internal index.
+
+Connectors are third-party {es} integrations which can be deployed on {ecloud} or hosted on your own infrastructure:
+
+* *Native connectors* are a managed service on {ecloud}
+* *Connector clients* are self-managed on your infrastructure
+
+Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
 
 This API provides an alternative to relying solely on {kib} UI for connector and sync job management. The API comes with a set of
 validations and assertions to ensure that the state representation in the internal index remains valid.
@@ -26,6 +33,7 @@ Use the following APIs to manage connectors:
 * <<get-connector-api>>
 * <<list-connector-api>>
 * <<check-in-connector-api>>
+* <<update-connector-api-key-id-api>>
 * <<update-connector-configuration-api>>
 * <<update-connector-error-api>>
 * <<update-connector-filtering-api>>
@@ -70,6 +78,7 @@ include::list-connectors-api.asciidoc[]
 include::list-connector-sync-jobs-api.asciidoc[]
 include::set-connector-sync-job-error-api.asciidoc[]
 include::set-connector-sync-job-stats-api.asciidoc[]
+include::update-connector-api-key-id-api.asciidoc[]
 include::update-connector-configuration-api.asciidoc[]
 include::update-connector-error-api.asciidoc[]
 include::update-connector-filtering-api.asciidoc[]

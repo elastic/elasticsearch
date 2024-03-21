@@ -11,12 +11,14 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.DeleteStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
@@ -37,6 +39,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTempl
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getBackingIndices;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getTemplate;
@@ -45,6 +48,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCond
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class TimeSeriesDataStreamsIT extends ESRestTestCase {
@@ -301,6 +305,48 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             Exception e = expectThrows(Exception.class, () -> client().performRequest(r));
             assertThat(e.getMessage(), containsString("no such index [" + dataStream + "]"));
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDataStreamWithMultipleIndicesAndWriteIndexInDeletePhase() throws Exception {
+        createComposableTemplate(client(), template, dataStream + "*", new Template(null, null, null, null));
+        indexDocument(client(), dataStream, true);
+
+        createNewSingletonPolicy(client(), policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE);
+        // let's update the index template so the new write index (after rollover) is managed by an ILM policy that sents it to the
+        // delete step - note that we'll have here a data stream with generation 000001 not managed and the write index 000002 in the
+        // delete phase (the write index in this case, being not the only backing index must NOT be deleted).
+        createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
+
+        client().performRequest(new Request("POST", dataStream + "/_rollover"));
+        indexDocument(client(), dataStream, true);
+
+        String secondGenerationIndex = getBackingIndices(client(), dataStream).get(1);
+        assertBusy(() -> {
+            Request explainRequest = new Request("GET", "/_data_stream/" + dataStream);
+            Response response = client().performRequest(explainRequest);
+            Map<String, Object> responseMap;
+            try (InputStream is = response.getEntity().getContent()) {
+                responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            }
+
+            List<Object> dataStreams = (List<Object>) responseMap.get("data_streams");
+            assertThat(dataStreams.size(), is(1));
+            Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
+
+            List<Object> indices = (List<Object>) dataStream.get("indices");
+            // no index should be deleted
+            assertThat(indices.size(), is(2));
+
+            Map<String, Object> explainIndex = explainIndex(client(), secondGenerationIndex);
+            assertThat(explainIndex.get("failed_step"), is(DeleteStep.NAME));
+            assertThat((Integer) explainIndex.get("failed_step_retry_count"), is(greaterThan(1)));
+        });
+
+        // rolling the data stream again would see 000002 not be the write index anymore and should be deleted automatically
+        client().performRequest(new Request("POST", dataStream + "/_rollover"));
+
+        assertBusy(() -> assertThat(indexExists(secondGenerationIndex), is(false)));
     }
 
 }

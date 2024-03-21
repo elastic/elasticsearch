@@ -73,8 +73,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
@@ -89,7 +95,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -98,7 +104,6 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 public final class EsqlFunctionRegistry extends FunctionRegistry {
 
@@ -173,7 +178,11 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(Now.class, Now::new, "now") },
             // spatial
-            new FunctionDefinition[] { def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid") },
+            new FunctionDefinition[] {
+                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid"),
+                def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
+                def(StX.class, StX::new, "st_x"),
+                def(StY.class, StY::new, "st_y") },
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // null
@@ -208,6 +217,9 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(MvMax.class, MvMax::new, "mv_max"),
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMin.class, MvMin::new, "mv_min"),
+                def(MvSort.class, MvSort::new, "mv_sort"),
+                def(MvSlice.class, MvSlice::new, "mv_slice"),
+                def(MvZip.class, MvZip::new, "mv_zip"),
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") } };
     }
@@ -233,7 +245,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
     ) {
         public String fullSignature() {
             StringBuilder builder = new StringBuilder();
-            builder.append(ShowFunctions.withPipes(returnType));
+            builder.append(MetaFunctions.withPipes(returnType));
             builder.append(" ");
             builder.append(name);
             builder.append("(");
@@ -250,16 +262,25 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                     builder.append("...");
                 }
                 builder.append(":");
-                builder.append(ShowFunctions.withPipes(arg.type()));
+                builder.append(MetaFunctions.withPipes(arg.type()));
             }
             builder.append(")");
             return builder.toString();
         }
 
+        /**
+         * The name of every argument.
+         */
         public List<String> argNames() {
-            return args.stream().map(ArgSignature::name).collect(Collectors.toList());
+            return args.stream().map(ArgSignature::name).toList();
         }
 
+        /**
+         * The description of every argument.
+         */
+        public List<String> argDescriptions() {
+            return args.stream().map(ArgSignature::description).toList();
+        }
     }
 
     public static FunctionDescription description(FunctionDefinition def) {
@@ -268,7 +289,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             return new FunctionDescription(def.name(), List.of(), null, null, false, false);
         }
         Constructor<?> constructor = constructors[0];
-        FunctionInfo functionInfo = constructor.getAnnotation(FunctionInfo.class);
+        FunctionInfo functionInfo = functionInfo(def);
         String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
         String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
         var params = constructor.getParameters(); // no multiple c'tors supported
@@ -291,4 +312,12 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
     }
 
+    public static FunctionInfo functionInfo(FunctionDefinition def) {
+        var constructors = def.clazz().getConstructors();
+        if (constructors.length == 0) {
+            return null;
+        }
+        Constructor<?> constructor = constructors[0];
+        return constructor.getAnnotation(FunctionInfo.class);
+    }
 }

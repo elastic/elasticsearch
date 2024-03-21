@@ -31,7 +31,6 @@ import org.elasticsearch.common.inject.binder.AnnotatedBindingBuilder;
 import org.elasticsearch.common.inject.internal.AbstractBindingBuilder;
 import org.elasticsearch.common.inject.internal.BindingBuilder;
 import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.ProviderMethodsModule;
 import org.elasticsearch.common.inject.internal.SourceProvider;
 
 import java.lang.annotation.Annotation;
@@ -135,7 +134,6 @@ public final class Elements {
                         addError(e);
                     }
                 }
-                binder.install(ProviderMethodsModule.forModule(module));
             }
         }
 
@@ -190,12 +188,6 @@ public final class Elements {
 
             SourceProvider newSourceProvider = sourceProvider.plusSkippedClasses(classesToSkip);
             return new RecordingBinder(this, null, newSourceProvider);
-        }
-
-        @Override
-        public void expose(Key<?> key) {
-            addError("Cannot expose %s on a standard binder. " + "Exposed bindings are only applicable to private binders.", key);
-
         }
 
         private static final Logger logger = LogManager.getLogger(Elements.class);

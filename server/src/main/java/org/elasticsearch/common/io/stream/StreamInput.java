@@ -58,6 +58,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
  *
@@ -445,7 +448,10 @@ public abstract class StreamInput extends InputStream {
 
     public String readString() throws IOException {
         final int charCount = readArraySize();
+        return doReadString(charCount);
+    }
 
+    protected String doReadString(final int charCount) throws IOException {
         final char[] charBuffer = charCount > SMALL_STRING_LIMIT ? ensureLargeSpare(charCount) : smallSpare.get();
 
         int charsOffset = 0;
@@ -529,6 +535,60 @@ public abstract class StreamInput extends InputStream {
             }
         }
         return new String(charBuffer, 0, charCount);
+    }
+
+    protected String tryReadStringFromBytes(final byte[] bytes, final int start, final int limit, final int chars) throws IOException {
+        final int end = start + chars;
+        if (limit < end) {
+            return null; // not enough bytes to read chars
+        }
+        for (int pos = start; pos < end; pos++) {
+            if ((bytes[pos] & 0x80) != 0) {
+                // not an ASCII char, fall back to reading a UTF-8 string
+                return tryReadUtf8StringFromBytes(bytes, start, limit, pos, end - pos);
+            }
+        }
+        skip(chars); // skip the number of chars (equals bytes) on the stream input
+        // We already validated the top bit is never set (so there's no negatives).
+        // Using ISO_8859_1 over US_ASCII safes another scan to check just that and is equivalent otherwise.
+        return new String(bytes, start, chars, ISO_8859_1);
+    }
+
+    private String tryReadUtf8StringFromBytes(final byte[] bytes, final int start, final int limit, int pos, int chars) throws IOException {
+        while (pos < limit && chars-- > 0) {
+            int c = bytes[pos] & 0xff;
+            switch (c >> 4) {
+                case 0, 1, 2, 3, 4, 5, 6, 7 -> pos++;
+                case 12, 13 -> pos += 2;
+                case 14 -> {
+                    // surrogate pairs are incorrectly encoded, these can't be directly read from bytes
+                    if (maybeHighSurrogate(bytes, pos, limit)) return null;
+                    pos += 3;
+                }
+                default -> throwOnBrokenChar(c);
+            }
+        }
+
+        if (chars == 0 && pos <= limit) {
+            pos = pos - start;
+            skip(pos); // skip the number of bytes relative to start on the stream input
+            return new String(bytes, start, pos, UTF_8);
+        }
+
+        // not enough bytes to read all chars from array
+        return null;
+    }
+
+    private static boolean maybeHighSurrogate(final byte[] bytes, final int pos, final int limit) {
+        if (pos + 2 >= limit) {
+            return true; // beyond limit, we can't tell
+        }
+        int c1 = bytes[pos] & 0xff;
+        int c2 = bytes[pos + 1] & 0xff;
+        int c3 = bytes[pos + 2] & 0xff;
+        int surrogateCandidate = ((c1 & 0x0F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+        // check if in the high surrogate range
+        return surrogateCandidate >= 0xD800 && surrogateCandidate <= 0xDBFF;
     }
 
     private static void throwOnBrokenChar(int c) throws IOException {
@@ -629,6 +689,20 @@ public abstract class StreamInput extends InputStream {
     public byte[] readOptionalByteArray() throws IOException {
         if (readBoolean()) {
             return readByteArray();
+        }
+        return null;
+    }
+
+    /**
+     * Reads an optional float array. It's effectively the same as readFloatArray, except
+     * it supports null.
+     * @return a float array or null
+     * @throws IOException
+     */
+    @Nullable
+    public float[] readOptionalFloatArray() throws IOException {
+        if (readBoolean()) {
+            return readFloatArray();
         }
         return null;
     }

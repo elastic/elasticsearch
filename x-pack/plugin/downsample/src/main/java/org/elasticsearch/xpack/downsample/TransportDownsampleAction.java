@@ -236,12 +236,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TaskId parentTask = new TaskId(clusterService.localNode().getId(), task.getId());
         // Short circuit if target index has been downsampled:
         final String downsampleIndexName = request.getTargetIndex();
-        IndexMetadata downsampleIndex = state.getMetadata().index(downsampleIndexName);
-        if (downsampleIndex != null) {
-            if (canShortCircuit(downsampleIndex, parentTask, request.getWaitTimeout(), listener)) {
-                logger.info("Skipping downsampling, because a previous execution already completed downsampling");
-                return;
-            }
+        if (canShortCircuit(downsampleIndexName, parentTask, request.getWaitTimeout(), state.metadata(), listener)) {
+            logger.info("Skipping downsampling, because a previous execution already completed downsampling");
+            return;
         }
         try {
             MetadataCreateIndexService.validateIndexName(downsampleIndexName, state);
@@ -326,7 +323,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             request,
                             delegate,
                             sourceIndexMetadata,
-                            null,
                             downsampleIndexName,
                             parentTask,
                             metricFields,
@@ -338,12 +334,15 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     }
                 }, e -> {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        var targetIndexMetadata = state.getMetadata().index(downsampleIndexName);
+                        var metadata = clusterService.state().metadata();
+                        if (canShortCircuit(request.getTargetIndex(), parentTask, request.getWaitTimeout(), metadata, listener)) {
+                            logger.info("Downsample tasks are not created, because a previous execution already completed downsampling");
+                            return;
+                        }
                         performShardDownsampling(
                             request,
                             delegate,
                             sourceIndexMetadata,
-                            targetIndexMetadata,
                             downsampleIndexName,
                             parentTask,
                             metricFields,
@@ -362,11 +361,17 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
      * Shortcircuit when another downsample api invocation already completed successfully.
      */
     private boolean canShortCircuit(
-        IndexMetadata targetIndexMetadata,
+        String targetIndexName,
         TaskId parentTask,
         TimeValue waitTimeout,
+        Metadata metadata,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        IndexMetadata targetIndexMetadata = metadata.index(targetIndexName);
+        if (targetIndexMetadata == null) {
+            return false;
+        }
+
         var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(targetIndexMetadata.getSettings());
         if (downsampleStatus == DownsampleTaskStatus.UNKNOWN) {
             // This isn't a downsample index, so fail:
@@ -398,20 +403,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener,
         IndexMetadata sourceIndexMetadata,
-        IndexMetadata targetIndexMetadata,
         String downsampleIndexName,
         TaskId parentTask,
         List<String> metricFields,
         List<String> labelFields,
         List<String> dimensionFields
     ) {
-        if (targetIndexMetadata != null) {
-            if (canShortCircuit(targetIndexMetadata, parentTask, request.getWaitTimeout(), listener)) {
-                logger.info("Downsample tasks are not created, because a previous execution already completed downsampling");
-                return;
-            }
-        }
-
         final int numberOfShards = sourceIndexMetadata.getNumberOfShards();
         final Index sourceIndex = sourceIndexMetadata.getIndex();
         // NOTE: before we set the number of replicas to 0, as a result here we are

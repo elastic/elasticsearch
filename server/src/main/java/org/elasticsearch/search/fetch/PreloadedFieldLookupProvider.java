@@ -40,7 +40,6 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
             fieldLookup.setValues(storedFields.get(field));
             return;
         }
-        // stored field not preloaded, go and get it directly
         loadDirect(fieldLookup, doc);
     }
 

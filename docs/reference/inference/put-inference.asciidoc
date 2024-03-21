@@ -165,7 +165,7 @@ the same name and the updated API key.
 
 `model_id`:::
 (Optional, string)
-The name of the model to use for the {infer} task. Referto the
+The name of the model to use for the {infer} task. Refer to the
 https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
 for the list of available text embedding models.
 

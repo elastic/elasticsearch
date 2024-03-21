@@ -167,7 +167,7 @@ class OptimizerRules {
      * already be verified in the analyzer.
      */
     public static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<Or> {
-        public CombineDisjunctionsToIn() {
+        CombineDisjunctionsToIn() {
             super(org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP);
         }
 

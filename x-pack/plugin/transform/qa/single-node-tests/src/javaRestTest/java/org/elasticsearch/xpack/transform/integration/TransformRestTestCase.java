@@ -31,6 +31,7 @@ import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -733,5 +734,27 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                 throw new AssertionError("Failed to retrieve audit logs", e);
             }
         }, 5, TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected List<String> getTransformTasks() throws IOException {
+        final Request tasksRequest = new Request("GET", "/_tasks");
+        tasksRequest.addParameter("actions", TransformField.TASK_NAME + "*");
+        Map<String, Object> tasksResponse = entityAsMap(client().performRequest(tasksRequest));
+
+        Map<String, Object> nodes = (Map<String, Object>) tasksResponse.get("nodes");
+        if (nodes == null) {
+            return List.of();
+        }
+
+        List<String> foundTasks = new ArrayList<>();
+        for (Map.Entry<String, Object> node : nodes.entrySet()) {
+            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
+            Map<String, Object> tasks = (Map<String, Object>) nodeInfo.get("tasks");
+            if (tasks != null) {
+                foundTasks.addAll(tasks.keySet());
+            }
+        }
+        return foundTasks;
     }
 }

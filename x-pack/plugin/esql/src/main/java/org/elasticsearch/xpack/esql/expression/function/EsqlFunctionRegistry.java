@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -104,7 +105,6 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 public final class EsqlFunctionRegistry extends FunctionRegistry {
 
@@ -128,7 +128,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(MedianAbsoluteDeviation.class, MedianAbsoluteDeviation::new, "median_absolute_deviation"),
                 def(Min.class, Min::new, "min"),
                 def(Percentile.class, Percentile::new, "percentile"),
-                def(Sum.class, Sum::new, "sum") },
+                def(Sum.class, Sum::new, "sum"),
+                def(Values.class, Values::new, "values") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
@@ -269,10 +270,19 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             return builder.toString();
         }
 
+        /**
+         * The name of every argument.
+         */
         public List<String> argNames() {
-            return args.stream().map(ArgSignature::name).collect(Collectors.toList());
+            return args.stream().map(ArgSignature::name).toList();
         }
 
+        /**
+         * The description of every argument.
+         */
+        public List<String> argDescriptions() {
+            return args.stream().map(ArgSignature::description).toList();
+        }
     }
 
     public static FunctionDescription description(FunctionDefinition def) {
@@ -281,7 +291,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             return new FunctionDescription(def.name(), List.of(), null, null, false, false);
         }
         Constructor<?> constructor = constructors[0];
-        FunctionInfo functionInfo = constructor.getAnnotation(FunctionInfo.class);
+        FunctionInfo functionInfo = functionInfo(def);
         String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
         String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
         var params = constructor.getParameters(); // no multiple c'tors supported
@@ -304,4 +314,12 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
     }
 
+    public static FunctionInfo functionInfo(FunctionDefinition def) {
+        var constructors = def.clazz().getConstructors();
+        if (constructors.length == 0) {
+            return null;
+        }
+        Constructor<?> constructor = constructors[0];
+        return constructor.getAnnotation(FunctionInfo.class);
+    }
 }

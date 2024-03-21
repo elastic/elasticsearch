@@ -789,3 +789,174 @@ warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [1002000
 
 x:long
 ;
+
+valuesLong
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.long))
+;
+
+   l:long
+[1, 2, 3, 4, 5]
+;
+
+valuesLongGrouped
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=MV_SORT(VALUES(languages.long)) BY first_letter
+| SORT first_letter
+;
+
+   l:long | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [1, 2] | S
+        4 | T
+;
+
+valuesLongGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.long)) BY job_positions
+| SORT job_positions
+;
+
+      l:long | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [1, 2] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
+           5 | Support Engineer
+      [3, 5] | Tech Lead
+      [1, 4] | null
+;
+
+valuesInt
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages))
+;
+
+   l:integer
+[1, 2, 3, 4, 5]
+;
+
+valuesIntGrouped
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=MV_SORT(VALUES(languages)) BY first_letter
+| SORT first_letter
+;
+
+l:integer | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [1, 2] | S
+        4 | T
+;
+
+valuesIntGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages)) BY job_positions
+| SORT job_positions
+;
+
+   l:integer | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [1, 2] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
+           5 | Support Engineer
+      [3, 5] | Tech Lead
+      [1, 4] | null
+;
+
+valuesShort
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.short))
+;
+
+   l:integer
+[1, 2, 3, 4, 5]
+;
+
+valuesShortGrouped
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=MV_SORT(VALUES(languages.short)) BY first_letter
+| SORT first_letter
+;
+
+l:integer | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [1, 2] | S
+        4 | T
+;
+
+valuesShortGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.short)) BY job_positions
+| SORT job_positions
+;
+
+   l:integer | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [1, 2] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
+           5 | Support Engineer
+      [3, 5] | Tech Lead
+      [1, 4] | null
+;

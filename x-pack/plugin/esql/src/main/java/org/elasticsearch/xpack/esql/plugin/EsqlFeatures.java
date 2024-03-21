@@ -12,6 +12,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
 import java.util.Map;
+import java.util.Set;
 
 public class EsqlFeatures implements FeatureSpecification {
     /**
@@ -42,6 +43,13 @@ public class EsqlFeatures implements FeatureSpecification {
     // */
     // private static final NodeFeature GEO_SHAPE_SUPPORT = new NodeFeature("esql.geo_shape");
 
+    /**
+     * The introduction of the {@code VALUES} agg.
+     */
+    private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
+
+    public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query");
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.ofEntries(
@@ -52,5 +60,10 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(POW_DOUBLE, Version.V_8_12_0)
             // Map.entry(GEO_SHAPE_SUPPORT, Version.V_8_13_0)
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(ASYNC_QUERY, AGG_VALUES);
     }
 }

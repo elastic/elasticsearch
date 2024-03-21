@@ -151,6 +151,8 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)));
         }
         final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
+        // wait for all threads to complete so that we get deterministic results
+        waitUntil(() -> tp.stats().stats().stream().allMatch(s -> s.active() == 0));
         ThreadPoolStats tps = tp.stats();
         plugin.collect();
         ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
@@ -163,13 +165,13 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, (long) stats.threads()),
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST, (long) stats.largest()),
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE, (long) stats.queue())
-            ).stream().collect(toUnmodifiableSortedMap(Entry::getKey, Entry::getValue));
+            ).stream().collect(toUnmodifiableSortedMap(e -> stats.name() + e.getKey(), Entry::getValue));
 
             Function<String, List<Long>> measurementExtractor = name -> {
-                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + stats.name() + name;
+                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + name;
                 assertThat(metricName, in(registeredMetrics));
 
-                List<Measurement> measurements = name.equals(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)
+                List<Measurement> measurements = name.endsWith(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)
                     ? plugin.getLongAsyncCounterMeasurement(metricName)
                     : plugin.getLongGaugeMeasurement(metricName);
                 return measurements.stream().map(Measurement::getLong).toList();
@@ -183,7 +185,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             logger.info("Measurements of `{}`: {}", stats.name(), measurements);
 
             threadPoolStats.forEach(
-                (metric, value) -> assertThat(measurements, hasEntry(equalTo(metric), contains(greaterThanOrEqualTo(value))))
+                (metric, value) -> assertThat(measurements, hasEntry(equalTo(metric), contains(equalTo(value))))
             );
         });
     }

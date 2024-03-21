@@ -1,10 +1,7 @@
 ---
 setup:
-  - requires:
-      cluster_features: ["cluster_desired_nodes_old"]
-      reason: "API added in in 8.1.0, modified in 8.3 and then again in 8.13.0"
   - skip:
-      cluster_features: ["cluster_desired_nodes"]
+      version: " - 8.12.99"
       reason: "API added in in 8.1.0, modified in 8.3 and then again in 8.13.0"
 ---
 teardown:

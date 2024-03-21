@@ -127,7 +127,6 @@ public class YamlTestLegacyFeatures implements FeatureSpecification {
             Map.entry(CLUSTER_DESIRED_NODES_OLD, Version.V_8_3_0),
             Map.entry(CLUSTER_DESIRED_NODES_DRY_RUN, Version.V_8_4_0),
             Map.entry(CLUSTER_DESIRED_NODES_NO_SETTINGS_VALIDATION, Version.V_8_10_0),
-            Map.entry(CLUSTER_DESIRED_NODES, Version.V_8_13_0),
 
             Map.entry(CLUSTER_HEALTH_INDICES_OPTIONS, Version.V_7_2_0),
 

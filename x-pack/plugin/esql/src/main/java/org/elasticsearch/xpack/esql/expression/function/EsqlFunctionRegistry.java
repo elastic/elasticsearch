@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -178,9 +179,11 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(Now.class, Now::new, "now") },
             // spatial
-            new FunctionDefinition[] { def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid") },
-            new FunctionDefinition[] { def(StX.class, StX::new, "st_x") },
-            new FunctionDefinition[] { def(StY.class, StY::new, "st_y") },
+            new FunctionDefinition[] {
+                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid"),
+                def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
+                def(StX.class, StX::new, "st_x"),
+                def(StY.class, StY::new, "st_y") },
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // null

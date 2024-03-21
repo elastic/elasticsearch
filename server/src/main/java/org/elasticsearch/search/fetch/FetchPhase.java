@@ -128,15 +128,15 @@ public final class FetchPhase {
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
                 Timer timer = profiler.startNextReader();
+                for (FetchSubPhaseProcessor processor : processors) {
+                    processor.setNextReader(ctx);
+                }
                 this.ctx = ctx;
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
                 this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
                 fieldLookupProvider.setNextReader(ctx);
-                for (FetchSubPhaseProcessor processor : processors) {
-                    processor.setNextReader(ctx);
-                }
                 if (timer != null) {
                     timer.stop();
                 }

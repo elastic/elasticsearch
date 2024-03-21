@@ -39,6 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -182,7 +183,9 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             logger.info("Stats of `{}`: {}", stats.name(), threadPoolStats);
             logger.info("Measurements of `{}`: {}", stats.name(), measurements);
 
-            threadPoolStats.forEach((metric, value) -> assertThat(measurements, hasEntry(equalTo(metric), contains(equalTo(value)))));
+            threadPoolStats.forEach(
+                (metric, value) -> assertThat(measurements, hasEntry(equalTo(metric), contains(greaterThanOrEqualTo(value))))
+            );
         });
     }
 

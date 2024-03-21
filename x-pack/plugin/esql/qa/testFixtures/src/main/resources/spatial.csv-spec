@@ -493,6 +493,44 @@ location:geo_point  | city_location:geo_point  |  count:long
 POINT (0 0)         | POINT (0 0)              |  1
 ;
 
+literalPolygonContainsLiteralPoint#[skip:-8.13.99, reason:st_contains added in 8.14]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+literalPointDoesNotContainLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_CONTAINS(pt, TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:geo_point
+;
+
+literalPolygonContainsLiteralPointOneRow#[skip:-8.13.99, reason:st_intersects added in 8.14]
+ROW intersects = ST_CONTAINS(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
+;
+
+intersects:boolean
+true
+;
+
+literalPointDoesNotContainLiteralPolygonOneRow#[skip:-8.13.99, reason:st_intersects added in 8.14]
+ROW intersects = ST_CONTAINS(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+intersects:boolean
+false
+;
+
 geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
 // tag::to_geopoint-equals[]
 ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]

@@ -15,9 +15,9 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
-import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -33,35 +33,41 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
 /**
- * This is the primary class for supporting the function ST_INTERSECTS.
+ * This is the primary class for supporting the function ST_WITHIN.
  * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
  * which supports all the relations in the ShapeField.QueryRelation enum.
- * Here we simply wire the rules together specific to ST_INTERSECTS and QueryRelation.INTERSECTS.
+ * Here we simply wire the rules together specific to ST_WITHIN and QueryRelation.WITHIN.
  */
-public class SpatialIntersects extends SpatialRelatesFunction {
-    public static final SpatialRelations GEO = new SpatialRelations(
-        ShapeField.QueryRelation.INTERSECTS,
+public class SpatialWithin extends SpatialRelatesFunction {
+    public static final SpatialRelationsWithin GEO = new SpatialRelationsWithin(
         SpatialCoordinateTypes.GEO,
         CoordinateEncoder.GEO,
-        new GeoShapeIndexer(Orientation.CCW, "ST_Intersects")
+        new GeoShapeIndexer(Orientation.CCW, "ST_Within")
     );
-    public static final SpatialRelations CARTESIAN = new SpatialRelations(
-        ShapeField.QueryRelation.INTERSECTS,
+    public static final SpatialRelationsWithin CARTESIAN = new SpatialRelationsWithin(
         SpatialCoordinateTypes.CARTESIAN,
         CoordinateEncoder.CARTESIAN,
-        new CartesianShapeIndexer("ST_Intersects")
+        new CartesianShapeIndexer("ST_Within")
     );
 
-    @FunctionInfo(returnType = { "boolean" }, description = "Returns whether the two geometries or geometry columns intersect.")
-    public SpatialIntersects(
+    /**
+     * We override the normal behaviour for WITHIN because we need to test each component separately.
+     * This applies to multi-component geometries (MultiPolygon, etc.) as well as polygons that cross the dateline.
+     */
+    static final class SpatialRelationsWithin extends SpatialRelations {
+        SpatialRelationsWithin(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
+            super(ShapeField.QueryRelation.WITHIN, spatialCoordinateType, encoder, shapeIndexer);
+        }
+    }
+
+    @FunctionInfo(returnType = { "boolean" }, description = "Returns whether the first geometry is within the second geometry.")
+    public SpatialWithin(
         Source source,
         @Param(
             name = "geomA",
@@ -77,44 +83,31 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         this(source, left, right, false, false);
     }
 
-    private SpatialIntersects(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
+    SpatialWithin(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
     }
 
     @Override
     public ShapeField.QueryRelation queryRelation() {
-        return ShapeField.QueryRelation.INTERSECTS;
+        return ShapeField.QueryRelation.WITHIN;
     }
 
     @Override
-    public SpatialIntersects withDocValues(Set<FieldAttribute> attributes) {
+    public SpatialWithin withDocValues(Set<FieldAttribute> attributes) {
         // Only update the docValues flags if the field is found in the attributes
         boolean leftDV = leftDocValues || foundField(left(), attributes);
         boolean rightDV = rightDocValues || foundField(right(), attributes);
-        return new SpatialIntersects(source(), left(), right(), leftDV, rightDV);
+        return new SpatialWithin(source(), left(), right(), leftDV, rightDV);
     }
 
     @Override
-    protected SpatialIntersects replaceChildren(Expression newLeft, Expression newRight) {
-        return new SpatialIntersects(source(), newLeft, newRight, leftDocValues, rightDocValues);
+    protected SpatialWithin replaceChildren(Expression newLeft, Expression newRight) {
+        return new SpatialWithin(source(), newLeft, newRight, leftDocValues, rightDocValues);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, SpatialIntersects::new, left(), right());
-    }
-
-    @Override
-    public Object fold() {
-        try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
-            Component2D component2D = asLuceneComponent2D(crsType, right());
-            return (crsType == SpatialCrsType.GEO)
-                ? GEO.geometryRelatesGeometry(docValueReader, component2D)
-                : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
-        }
+        return NodeInfo.create(this, SpatialWithin::new, left(), right());
     }
 
     @Override
@@ -124,12 +117,12 @@ public class SpatialIntersects extends SpatialRelatesFunction {
 
     @Override
     public boolean isCommutative() {
-        return true;
+        return false;
     }
 
     @Override
     public SpatialRelatesFunction invert() {
-        return new SpatialIntersects(source(), right(), left(), rightDocValues, leftDocValues);
+        return new SpatialContains(source(), right(), left(), rightDocValues, leftDocValues);
     }
 
     private static final Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorMap = new HashMap<>();
@@ -140,25 +133,23 @@ public class SpatialIntersects extends SpatialRelatesFunction {
             for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialIntersectsGeoSourceAndSourceEvaluator.Factory::new)
+                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialWithinGeoSourceAndSourceEvaluator.Factory::new)
                 );
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                        SpatialIntersectsGeoSourceAndConstantEvaluator.Factory::new
-                    )
+                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(SpatialWithinGeoSourceAndConstantEvaluator.Factory::new)
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            SpatialIntersectsGeoPointDocValuesAndSourceEvaluator.Factory::new
+                            SpatialWithinGeoPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                            SpatialIntersectsGeoPointDocValuesAndConstantEvaluator.Factory::new
+                            SpatialWithinGeoPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
                 }
@@ -171,26 +162,26 @@ public class SpatialIntersects extends SpatialRelatesFunction {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                        SpatialIntersectsCartesianSourceAndSourceEvaluator.Factory::new
+                        SpatialWithinCartesianSourceAndSourceEvaluator.Factory::new
                     )
                 );
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                        SpatialIntersectsCartesianSourceAndConstantEvaluator.Factory::new
+                        SpatialWithinCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator.Factory::new
+                            SpatialWithinCartesianPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                            SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator.Factory::new
+                            SpatialWithinCartesianPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
                 }

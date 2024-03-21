@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -120,7 +121,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
             new ReplaceAliasingEvalWithProject(),
-            new SkipQueryOnEmptyMappings()
+            new SkipQueryOnEmptyMappings(),
+            new InvertSpatialFunctions()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }
@@ -173,6 +175,45 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
         return asList(substitutions(), operators(), skip, cleanup(), defaultTopN, label);
+    }
+
+    static class InvertSpatialFunctions extends OptimizerRules.OptimizerRule<UnaryPlan> {
+
+        InvertSpatialFunctions() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            if (plan instanceof Filter filter) {
+                var condition = filter.condition().transformDown(SpatialRelatesFunction.class, this::invertIfNecessary);
+                if (filter.condition().equals(condition) == false) {
+                    plan = new Filter(filter.source(), filter.child(), condition);
+                }
+            }
+            if (plan instanceof Eval eval) {
+                List<Alias> fields = eval.fields();
+                List<Alias> changed = fields.stream()
+                    .map(f -> (Alias) f.transformDown(SpatialRelatesFunction.class, this::invertIfNecessary))
+                    .toList();
+                if (changed.equals(fields) == false) {
+                    plan = new Eval(eval.source(), eval.child(), changed);
+                }
+            }
+            return plan;
+        }
+
+        private SpatialRelatesFunction invertIfNecessary(SpatialRelatesFunction srf) {
+            if (srf.isCommutative()) {
+                // Never bother to invert commutative functions
+                return srf;
+            }
+            if (srf.left().foldable() && srf.right().foldable() == false) {
+                // If we have a constant on the left, and a field on the right, invert the function
+                return srf.invert();
+            }
+            return srf;
+        }
     }
 
     // TODO: currently this rule only works for aggregate functions (AVG)

@@ -110,7 +110,7 @@ public class SpatialContains extends SpatialRelatesFunction {
         this(source, left, right, false, false);
     }
 
-    private SpatialContains(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
+    SpatialContains(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
     }
 
@@ -154,6 +154,16 @@ public class SpatialContains extends SpatialRelatesFunction {
     @Override
     Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
         return evaluatorMap;
+    }
+
+    @Override
+    public boolean isCommutative() {
+        return false;
+    }
+
+    @Override
+    public SpatialRelatesFunction invert() {
+        return new SpatialWithin(source(), right(), left(), rightDocValues, leftDocValues);
     }
 
     private static final Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorMap = new HashMap<>();

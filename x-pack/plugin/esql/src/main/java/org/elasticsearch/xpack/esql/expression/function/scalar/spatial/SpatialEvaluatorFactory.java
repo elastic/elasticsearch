@@ -38,10 +38,11 @@ abstract class SpatialEvaluatorFactory<V, T> {
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     );
 
-    public static EvalOperator.ExpressionEvaluator.Factory makeSpatialEvaluator(
+    static EvalOperator.ExpressionEvaluator.Factory makeSpatialEvaluator(
         SpatialSourceSupplier s,
         Map<SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules,
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        boolean isCommutative
     ) {
         var evaluatorKey = new SpatialEvaluatorKey(
             s.crsType(),
@@ -52,8 +53,10 @@ abstract class SpatialEvaluatorFactory<V, T> {
         );
         SpatialEvaluatorFactory<?, ?> factory = evaluatorRules.get(evaluatorKey);
         if (factory == null) {
-            evaluatorKey = evaluatorKey.swapSides();
-            factory = evaluatorRules.get(evaluatorKey);
+            if (isCommutative) {
+                evaluatorKey = evaluatorKey.swapSides();
+                factory = evaluatorRules.get(evaluatorKey);
+            }
             if (factory == null) {
                 throw evaluatorKey.unsupported();
             }

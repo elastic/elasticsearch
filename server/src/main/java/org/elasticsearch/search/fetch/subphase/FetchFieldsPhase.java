@@ -33,7 +33,8 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     private static final List<FieldAndFormat> METADATA_FIELDS = List.of(
         new FieldAndFormat(IgnoredFieldMapper.NAME, null),
         new FieldAndFormat(RoutingFieldMapper.NAME, null),
-        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
+        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null),
+        new FieldAndFormat("_size", null)
     );
 
     public static boolean isMetadataField(final String field) {
@@ -50,11 +51,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             : fetchFieldsContext.fields();
 
         boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
-
         final FieldFetcher fieldFetcher = FieldFetcher.create(
             fetchContext.getSearchExecutionContext(),
             Stream.concat(fetchFields.stream(), METADATA_FIELDS.stream()).toList(),
-            fetchStoredFields
+            fetchStoredFields,
+            includeSizeMetadataField(fetchFields)
         );
 
         return new FetchSubPhaseProcessor() {
@@ -74,5 +75,16 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 hitContext.hit().addDocumentFields(fields.documentFields(), fields.metadataFields());
             }
         };
+    }
+
+    /**
+     * _size must be excluded from metadata fields returned if the requests filters 'fields' using a wildcard.
+     * Put it another way, _size is returned only if requested explicitly through 'fields' or if the wildcard
+     * filter is used in combination with 'stored_fields'.
+     * @param fields List of fields requested as plain field names or including the wildcard character
+     * @return if we have to include the _size field or not
+     */
+    private static boolean includeSizeMetadataField(final List<FieldAndFormat> fields) {
+        return fields.stream().map(field -> field.field).noneMatch("*"::equals);
     }
 }

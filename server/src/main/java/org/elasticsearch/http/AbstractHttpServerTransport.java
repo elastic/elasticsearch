@@ -284,8 +284,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         } else {
             logger.debug("waiting indefinitely for clients to close connections");
         }
-
-        // use a fixed time of 5 minutes for when to report how many connections remain
+        
         long startPollTimeMillis = System.currentTimeMillis();
         do {
             try {

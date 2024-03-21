@@ -82,11 +82,16 @@ public class MetaFunctions extends LeafPlan {
             return result;
         }
 
+        List<EsqlFunctionRegistry.ArgSignature> args = signature.args();
         List<?> result = signature.args().stream().map(x).collect(Collectors.toList());
-        if (result.isEmpty() == false && result.get(0) instanceof String[]) {
-            List<String> newResult = new ArrayList<>();
-            for (Object item : result) {
-                newResult.add(withPipes((String[]) item));
+        boolean withPipes = result.get(0) instanceof String[];
+        if (result.isEmpty() == false) {
+            List<Object> newResult = new ArrayList<>();
+            for (int i = 0; i < result.size(); i++) {
+                if (signature.variadic() && args.get(i).optional()) {
+                    continue;
+                }
+                newResult.add(withPipes ? withPipes((String[]) result.get(i)) : result.get(i));
             }
             return newResult;
         }

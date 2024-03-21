@@ -196,7 +196,10 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is("Validation Failed: 1: [service_settings] Unknown similarity measure [by_size];")
+            is(
+                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
+                    + "must be one of [cosine, dot_product, l2_norm];"
+            )
         );
     }
 

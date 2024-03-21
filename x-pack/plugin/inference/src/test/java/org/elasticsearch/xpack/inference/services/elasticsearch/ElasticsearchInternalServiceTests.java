@@ -19,6 +19,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -26,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResultsTests;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.util.ArrayList;
@@ -37,6 +39,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings.DEFAULT_SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings.DIMENSIONS;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -92,7 +96,10 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                // should set the similarity to the default if not specified
+                DEFAULT_SIMILARITY,
+                MultilingualE5SmallInternalServiceSettings.DIMENSIONS
             );
 
             service.parseRequestConfig(
@@ -229,14 +236,24 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        ServiceFields.SIMILARITY,
+                        SimilarityMeasure.L2_NORM.toString()
+                    )
                 )
             );
 
             var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                SimilarityMeasure.L2_NORM,
+                // should override the dimensions with the hardcoded value
+                MultilingualE5SmallInternalServiceSettings.DIMENSIONS
             );
 
             expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
@@ -284,7 +301,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         InternalServiceSettings.MODEL_ID,
-                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                        ServiceFields.DIMENSIONS,
+                        1
                     )
                 )
             );
@@ -292,7 +311,10 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
                 1,
                 4,
-                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                DEFAULT_SIMILARITY,
+                // when parsing the persistent config we use what was persisted instead of default it
+                1
             );
 
             MultilingualE5SmallModel parsedModel = (MultilingualE5SmallModel) service.parsePersistedConfig(
@@ -366,7 +388,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.TEXT_EMBEDDING,
             "e5",
-            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform")
+            new MultilingualE5SmallInternalServiceSettings(1, 1, "cross-platform", DEFAULT_SIMILARITY, DIMENSIONS)
         );
         var service = createService(client);
 

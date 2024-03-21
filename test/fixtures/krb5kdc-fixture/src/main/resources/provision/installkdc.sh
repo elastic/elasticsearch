@@ -85,4 +85,3 @@ kadmin.local -q "ktadd -k /etc/admin.keytab admin/admin@$REALM_NAME"
 
 # Create a link so addprinc.sh is on path
 ln -s $PROV_DIR/addprinc.sh /usr/bin/
-chmod +x $PROV_DIR/addprinc.sh

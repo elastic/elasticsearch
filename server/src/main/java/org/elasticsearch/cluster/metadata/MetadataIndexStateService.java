@@ -1125,6 +1125,13 @@ public class MetadataIndexStateService {
                 final Index index = indexMetadata.getIndex();
                 if (indexMetadata.getState() != IndexMetadata.State.OPEN) {
                     final Settings.Builder updatedSettings = Settings.builder().put(indexMetadata.getSettings());
+
+                    // record the highest version to read this index
+                    IndexVersion version = IndexMetadata.SETTING_INDEX_VERSION_UPDATED.get(indexMetadata.getSettings());
+                    if (version.before(IndexVersion.current())) {
+                        updatedSettings.put(IndexMetadata.SETTING_INDEX_VERSION_UPDATED.getKey(), IndexVersion.current());
+                    }
+
                     updatedSettings.remove(VERIFIED_BEFORE_CLOSE_SETTING.getKey());
 
                     IndexMetadata newIndexMetadata = IndexMetadata.builder(indexMetadata)

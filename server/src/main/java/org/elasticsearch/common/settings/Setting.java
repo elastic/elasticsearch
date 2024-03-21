@@ -1311,6 +1311,10 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, Integer.toString(defaultValue.id()), s -> parseVersion.apply(Integer.parseInt(s)), properties);
     }
 
+    public static <T extends VersionId<T>> Setting<T> versionIdSetting(String key, Setting<T> fallbackSetting, Property... properties) {
+        return new Setting<>(key, fallbackSetting, fallbackSetting.parser, properties);
+    }
+
     public static <T extends VersionId<T>> Setting<T> versionIdSetting(
         final String key,
         Setting<T> fallbackSetting,

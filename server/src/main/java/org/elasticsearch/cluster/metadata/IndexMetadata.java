@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -350,7 +351,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.PrivateIndex
     );
 
+    public static final String SETTING_VERSION_UPDATED = "index.version.updated";
+
+    public static final Setting<IndexVersion> SETTING_INDEX_VERSION_UPDATED = Setting.versionIdSetting(
+        SETTING_VERSION_UPDATED,
+        SETTING_INDEX_VERSION_CREATED,
+        Property.IndexScope,
+        Property.PrivateIndex
+    );
+
     public static final String SETTING_VERSION_CREATED_STRING = "index.version.created_string";
+    public static final String SETTING_VERSION_UPDATED_STRING = "index.version.updated_string";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
 
     /**
@@ -358,8 +369,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * to retain compatibility with old indexes. TODO: remove in 9.0.
      */
     @Deprecated
+    @UpdateForV9
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     @Deprecated
+    @UpdateForV9
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
 
     public static final String SETTING_VERSION_COMPATIBILITY = "index.version.compatibility";
@@ -2680,9 +2693,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public static Settings addHumanReadableSettings(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
-        IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(settings);
-        if (version.equals(IndexVersions.ZERO) == false) {
-            builder.put(SETTING_VERSION_CREATED_STRING, version.toString());
+        IndexVersion createdVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
+        if (createdVersion.equals(IndexVersions.ZERO) == false) {
+            builder.put(SETTING_VERSION_CREATED_STRING, createdVersion.toString());
+        }
+        IndexVersion updatedVersion = SETTING_INDEX_VERSION_UPDATED.get(settings);
+        if (updatedVersion.equals(IndexVersions.ZERO) == false) {
+            builder.put(SETTING_VERSION_UPDATED_STRING, updatedVersion.toString());
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);
         if (creationDate != null) {

@@ -24,10 +24,12 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -122,6 +124,20 @@ public class StatelessMockRepositoryStrategy {
         boolean failIfAlreadyExists
     ) throws IOException {
         originalRunnable.run();
+    }
+
+    /**
+     * Called in {@link BlobContainer#writeMetadataBlob(OperationPurpose, String, boolean, boolean, CheckedConsumer)}.
+     */
+    public void blobContainerWriteMetadataBlob(
+        CheckedRunnable<IOException> original,
+        OperationPurpose purpose,
+        String blobName,
+        boolean failIfAlreadyExists,
+        boolean atomic,
+        CheckedConsumer<OutputStream, IOException> writer
+    ) throws IOException {
+        original.run();
     }
 
     /**

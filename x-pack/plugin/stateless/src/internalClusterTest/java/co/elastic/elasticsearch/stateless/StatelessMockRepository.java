@@ -28,6 +28,7 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -36,6 +37,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -170,6 +172,24 @@ public class StatelessMockRepository extends FsRepository {
                     blobName,
                     bytes,
                     failIfAlreadyExists
+                );
+            }
+
+            @Override
+            public void writeMetadataBlob(
+                OperationPurpose purpose,
+                String blobName,
+                boolean failIfAlreadyExists,
+                boolean atomic,
+                CheckedConsumer<OutputStream, IOException> writer
+            ) throws IOException {
+                getStrategy().blobContainerWriteMetadataBlob(
+                    () -> super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer),
+                    purpose,
+                    blobName,
+                    failIfAlreadyExists,
+                    atomic,
+                    writer
                 );
             }
 

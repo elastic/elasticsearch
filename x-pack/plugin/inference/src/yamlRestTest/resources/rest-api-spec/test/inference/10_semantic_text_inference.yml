@@ -343,3 +343,38 @@ setup:
   - exists: _source._inference.top_level_field\.semantic_multifield.results.0.inference
 
 
+---
+"semantic_text copy_to calculate inference for source fields":
+  - do:
+      indices.create:
+        index: test-copy-to-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                model_id: dense-inference-id
+              source_field:
+                type: text
+                copy_to: inference_field
+
+  - do:
+      index:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          source_field: "copy_to inference test"
+          inference_field: "inference test"
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match: { _source.inference_field: "inference test" }
+  - length: {_source._inference.inference_field.results: 2}
+  - match: { _source._inference.inference_field.results.0.text: "inference test" }
+  - match: { _source._inference.inference_field.results.1.text: "copy_to inference test" }
+
+  - exists: _source._inference.inference_field.results.0.inference
+  - exists: _source._inference.inference_field.results.1.inference

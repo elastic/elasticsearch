@@ -22,6 +22,8 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
+import java.util.Objects;
+
 public final class TimeSeriesBlockHash extends BlockHash {
 
     private final int tsHashChannel;
@@ -46,23 +48,15 @@ public final class TimeSeriesBlockHash extends BlockHash {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BytesRefBlock tsHashBlock = page.getBlock(tsHashChannel);
+        BytesRefVector tsHashVector = Objects.requireNonNull(tsHashBlock.asVector());
         LongBlock timestampIntervalBlock = page.getBlock(timestampChannel);
+        LongVector timestampIntervalVector = Objects.requireNonNull(timestampIntervalBlock.asVector());
 
-        BytesRefVector tsHashVector = tsHashBlock.asVector();
-        if (tsHashVector != null) {
-            addVector(addInput, tsHashVector, timestampIntervalBlock.asVector());
-        } else {
-            addBlock(addInput, tsHashBlock, timestampIntervalBlock);
-        }
-    }
-
-    private void addVector(GroupingAggregatorFunction.AddInput addInput, BytesRefVector tsHashVector, LongVector timestampIntervalVector) {
         try (var ordsBuilder = driverContext.blockFactory().newIntVectorBuilder(tsHashVector.getPositionCount())) {
             BytesRef spare = new BytesRef();
             if (preparedRounding != null) {
@@ -79,36 +73,6 @@ public final class TimeSeriesBlockHash extends BlockHash {
             } else {
                 for (int i = 0; i < tsHashVector.getPositionCount(); i++) {
                     BytesRef tsHash = tsHashVector.getBytesRef(i, spare);
-                    if (tsHash.equals(previousTsidHash) == false) {
-                        tsidOrdinal++;
-                        previousTsidHash = BytesRef.deepCopyOf(tsHash);
-                    }
-                    ordsBuilder.appendInt(Math.toIntExact(tsidOrdinal));
-                }
-            }
-            try (var ords = ordsBuilder.build()) {
-                addInput.add(0, ords);
-            }
-        }
-    }
-
-    private void addBlock(GroupingAggregatorFunction.AddInput addInput, BytesRefBlock tsHashBlock, LongBlock timestampIntervalBlock) {
-        try (var ordsBuilder = driverContext.blockFactory().newIntVectorBuilder(tsHashBlock.getPositionCount())) {
-            BytesRef spare = new BytesRef();
-            if (preparedRounding != null) {
-                for (int i = 0; i < tsHashBlock.getPositionCount(); i++) {
-                    BytesRef tsHash = tsHashBlock.getBytesRef(i, spare);
-                    long timestampInterval = preparedRounding.round(timestampIntervalBlock.getLong(i));
-                    if (tsHash.equals(previousTsidHash) == false || timestampInterval != previousTimestamp) {
-                        tsidOrdinal++;
-                        previousTsidHash = BytesRef.deepCopyOf(tsHash);
-                        previousTimestamp = timestampInterval;
-                    }
-                    ordsBuilder.appendInt(Math.toIntExact(tsidOrdinal));
-                }
-            } else {
-                for (int i = 0; i < tsHashBlock.getPositionCount(); i++) {
-                    BytesRef tsHash = tsHashBlock.getBytesRef(i, spare);
                     if (tsHash.equals(previousTsidHash) == false) {
                         tsidOrdinal++;
                         previousTsidHash = BytesRef.deepCopyOf(tsHash);

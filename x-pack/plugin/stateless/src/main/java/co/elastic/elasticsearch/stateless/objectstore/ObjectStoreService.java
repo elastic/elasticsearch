@@ -672,12 +672,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRun() {
-            AtomicReference<BatchedCompoundCommit> batchedCompoundCommitRef = new AtomicReference<>();
+            BatchedCompoundCommit result = null;
             try {
                 var before = threadPool.relativeTimeInMillis();
                 // TODO: Ensure that out usage of this method for writing files is appropriate. The javadoc is a bit concerning. "This
                 // method is only used for streaming serialization of repository metadata that is known to be of limited size at any point
                 // in time and across all concurrent invocations of this method."
+                AtomicReference<BatchedCompoundCommit> batchedCompoundCommitRef = new AtomicReference<>();
                 blobContainer.writeMetadataBlob(OperationPurpose.INDICES, virtualBatchedCompoundCommit.getBlobName(), false, true, out -> {
                     var batchedCommit = virtualBatchedCompoundCommit.writeToStore(out);
                     batchedCompoundCommitRef.set(batchedCommit);
@@ -695,12 +696,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 );
                 assert batchedCompoundCommitRef.get() != null;
                 assert batchedCompoundCommitRef.get().getLast() != null;
+                // assign this last, since it is used as a flag to successfully complete the listener below.
+                // this is critically important, since completing the listener successfully for a failed write can lead to
+                // erroneously deleted files.
+                result = batchedCompoundCommitRef.get();
             } catch (IOException e) {
                 // TODO GoogleCloudStorageBlobStore should throw IOException too (https://github.com/elastic/elasticsearch/issues/92357)
                 onFailure(e);
             } finally {
-                if (batchedCompoundCommitRef.get() != null) {
-                    listener.onResponse(batchedCompoundCommitRef.get());
+                if (result != null) {
+                    listener.onResponse(result);
                 }
             }
         }

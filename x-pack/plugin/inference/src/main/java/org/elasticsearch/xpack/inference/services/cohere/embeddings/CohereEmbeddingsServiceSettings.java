@@ -12,7 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -22,31 +22,30 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
 
     static final String EMBEDDING_TYPE = "embedding_type";
-    static final String EMBEDDING_TYPE_BYTE = "byte";
 
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = CohereServiceSettings.fromMap(map, context);
-        translateEmbeddingType(map, context);
 
-        CohereEmbeddingType embeddingTypes = extractOptionalEnum(
-            map,
-            EMBEDDING_TYPE,
-            ModelConfigurations.SERVICE_SETTINGS,
-            CohereEmbeddingType::fromString,
-            EnumSet.allOf(CohereEmbeddingType.class),
-            validationException
+        CohereEmbeddingType embeddingTypes = Objects.requireNonNullElse(
+            extractOptionalEnum(
+                map,
+                EMBEDDING_TYPE,
+                ModelConfigurations.SERVICE_SETTINGS,
+                CohereEmbeddingType::fromString,
+                EnumSet.allOf(CohereEmbeddingType.class),
+                validationException
+            ),
+            CohereEmbeddingType.FLOAT
         );
 
         if (validationException.validationErrors().isEmpty() == false) {
@@ -56,37 +55,17 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
         return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes);
     }
 
-    private static void translateEmbeddingType(Map<String, Object> map, ConfigurationParseContext context) {
-        if (ConfigurationParseContext.isRequestContext(context) == false || map.containsKey(EMBEDDING_TYPE) == false) {
-            return;
-        }
-
-        ValidationException validationException = new ValidationException();
-
-        String embeddingType = extractRequiredString(map, EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        assert embeddingType != null;
-        if (embeddingType.toLowerCase(Locale.ROOT).equals(EMBEDDING_TYPE_BYTE)) {
-            map.put(EMBEDDING_TYPE, CohereEmbeddingType.INT8.toString());
-        } else {
-            map.put(EMBEDDING_TYPE, embeddingType);
-        }
-    }
-
     private final CohereServiceSettings commonSettings;
     private final CohereEmbeddingType embeddingType;
 
-    public CohereEmbeddingsServiceSettings(CohereServiceSettings commonSettings, @Nullable CohereEmbeddingType embeddingType) {
+    public CohereEmbeddingsServiceSettings(CohereServiceSettings commonSettings, CohereEmbeddingType embeddingType) {
         this.commonSettings = commonSettings;
-        this.embeddingType = embeddingType;
+        this.embeddingType = Objects.requireNonNull(embeddingType);
     }
 
     public CohereEmbeddingsServiceSettings(StreamInput in) throws IOException {
         commonSettings = new CohereServiceSettings(in);
-        embeddingType = in.readOptionalEnum(CohereEmbeddingType.class);
+        embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(CohereEmbeddingType.class), CohereEmbeddingType.FLOAT);
     }
 
     public CohereServiceSettings getCommonSettings() {
@@ -95,6 +74,11 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
 
     public CohereEmbeddingType getEmbeddingType() {
         return embeddingType;
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return embeddingType == null ? DenseVectorFieldMapper.ElementType.FLOAT : embeddingType.toElementType();
     }
 
     @Override
@@ -107,7 +91,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
         builder.startObject();
 
         commonSettings.toXContentFragment(builder);
-        builder.field(EMBEDDING_TYPE, embeddingType);
+        builder.field(EMBEDDING_TYPE, embeddingType.toElementType());
 
         builder.endObject();
         return builder;
@@ -126,7 +110,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
-        out.writeOptionalEnum(embeddingType);
+        out.writeOptionalEnum(CohereEmbeddingType.translateToVersion(embeddingType, out.getTransportVersion()));
     }
 
     @Override

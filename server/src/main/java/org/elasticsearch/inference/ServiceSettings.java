@@ -9,6 +9,7 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteable {
@@ -36,4 +37,12 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
         return null;
     }
 
+    /**
+     * The data type for the embeddings this service works with. Defaults to null.
+     *
+     * @return the element type
+     */
+    default DenseVectorFieldMapper.ElementType elementType() {
+        return null;
+    }
 }

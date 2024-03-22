@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+
 import java.util.Locale;
 
 /**
@@ -20,11 +24,21 @@ public enum CohereEmbeddingType {
     /**
      * Use this when you want to get back the default float embeddings. Valid for all models.
      */
-    FLOAT,
+    FLOAT(DenseVectorFieldMapper.ElementType.FLOAT),
     /**
      * Use this when you want to get back signed int8 embeddings. Valid for only v3 models.
      */
-    INT8;
+    INT8(DenseVectorFieldMapper.ElementType.BYTE),
+    /**
+     * This is a synonym for INT8
+     */
+    BYTE(DenseVectorFieldMapper.ElementType.BYTE);
+
+    private final DenseVectorFieldMapper.ElementType elementType;
+
+    CohereEmbeddingType(DenseVectorFieldMapper.ElementType elementType) {
+        this.elementType = elementType;
+    }
 
     @Override
     public String toString() {
@@ -37,5 +51,25 @@ public enum CohereEmbeddingType {
 
     public static CohereEmbeddingType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
+    }
+
+    public DenseVectorFieldMapper.ElementType toElementType() {
+        return elementType;
+    }
+
+    /**
+     * Returns an embedding type that is known based on the transport version provided. If the embedding type enum was not yet
+     * introduced it will be defaulted INT8.
+     *
+     * @param embeddingType the value to translate if necessary
+     * @param version the version that dictates the translation
+     * @return the embedding type that is known to the version passed in
+     */
+    public static CohereEmbeddingType translateToVersion(CohereEmbeddingType embeddingType, TransportVersion version) {
+        if (version.before(TransportVersions.ML_INFERENCE_EMBEDDING_BYTE_ADDED) && embeddingType == BYTE) {
+            return INT8;
+        }
+
+        return embeddingType;
     }
 }

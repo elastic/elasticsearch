@@ -3385,23 +3385,51 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     public static List<ApiKey> getAllApiKeyInfo(Client client, boolean withLimitedBy) {
         if (randomBoolean()) {
-            final PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 GetApiKeyAction.INSTANCE,
                 GetApiKeyRequest.builder().withLimitedBy(withLimitedBy).withProfileUid(randomBoolean()).build(),
                 future
             );
-            final GetApiKeyResponse getApiKeyResponse = future.actionGet();
+            GetApiKeyResponse getApiKeyResponse = future.actionGet();
             return getApiKeyResponse.getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList();
         } else {
-            final PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 QueryApiKeyAction.INSTANCE,
                 new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, null, 1000, null, null, withLimitedBy, randomBoolean()),
                 future
             );
-            final QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
+            QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
             return queryApiKeyResponse.getApiKeyInfoList().stream().map(QueryApiKeyResponse.Item::apiKeyInfo).toList();
+        }
+    }
+
+    public static List<Tuple<ApiKey, String>> getAllApiKeyInfoWithProfileUid(Client client) {
+        if (randomBoolean()) {
+            PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                GetApiKeyAction.INSTANCE,
+                GetApiKeyRequest.builder().withLimitedBy(randomBoolean()).withProfileUid(true).build(),
+                future
+            );
+            GetApiKeyResponse getApiKeyResponse = future.actionGet();
+            return getApiKeyResponse.getApiKeyInfoList()
+                .stream()
+                .map(item -> new Tuple<>(item.apiKeyInfo(), item.ownerProfileUid()))
+                .toList();
+        } else {
+            PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
+            client.execute(
+                QueryApiKeyAction.INSTANCE,
+                new QueryApiKeyRequest(QueryBuilders.matchAllQuery(), null, null, 1000, null, null, randomBoolean(), true),
+                future
+            );
+            QueryApiKeyResponse queryApiKeyResponse = future.actionGet();
+            return queryApiKeyResponse.getApiKeyInfoList()
+                .stream()
+                .map(item -> new Tuple<>(item.apiKeyInfo(), item.ownerProfileUid()))
+                .toList();
         }
     }
 

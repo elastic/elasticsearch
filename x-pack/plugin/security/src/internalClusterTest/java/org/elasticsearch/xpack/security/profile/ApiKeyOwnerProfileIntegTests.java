@@ -24,12 +24,14 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.authc.ApiKeyIntegTests;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
@@ -121,6 +123,19 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         Tuple<ApiKey, String> apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(client, keyId, ownKey || randomBoolean());
         assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
         assertThat(apiKeyWithProfileUid.v2(), is(userWithManageOwnProfile.uid()));
+        // manage_api_key user can similarly observe the API key with the profile uid
+        if (ownKey) {
+            client = client().filterWithHeader(
+                Map.of(
+                    "Authorization",
+                    basicAuthHeaderValue("user_with_manage_api_key_role", randomFrom(FILE_USER_TEST_PASSWORD, NATIVE_USER_TEST_PASSWORD))
+                )
+            );
+            List<Tuple<ApiKey, String>> allApiKeysWithProfileUid = ApiKeyIntegTests.getAllApiKeyInfoWithProfileUid(client);
+            assertThat(allApiKeysWithProfileUid, iterableWithSize(1));
+            assertThat(allApiKeysWithProfileUid.get(0).v1().getId(), is(keyId));
+            assertThat(allApiKeysWithProfileUid.get(0).v2(), is(userWithManageOwnProfile.uid()));
+        }
     }
 
     public void testApiKeyOwnerJoinsDomain() throws Exception {
@@ -164,6 +179,7 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
                 return Settings.builder().put("xpack.security.authc.domains.my_domain.realms", "file,index").build();
             }
         });
+        ensureGreen();
         client1 = client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, password1)));
         apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
             client1,
@@ -173,6 +189,17 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
         // API key owner (username1) now has a profile uid
         assertThat(apiKeyWithProfileUid.v2(), is(user2Profile.uid()));
+        // manage all api key can similarly see the key with the profile uid
+        client1 = client().filterWithHeader(
+            Map.of(
+                "Authorization",
+                basicAuthHeaderValue("user_with_manage_api_key_role", randomFrom(FILE_USER_TEST_PASSWORD, NATIVE_USER_TEST_PASSWORD))
+            )
+        );
+        List<Tuple<ApiKey, String>> allApiKeysWithProfileUid = ApiKeyIntegTests.getAllApiKeyInfoWithProfileUid(client1);
+        assertThat(allApiKeysWithProfileUid, iterableWithSize(1));
+        assertThat(allApiKeysWithProfileUid.get(0).v1().getId(), is(keyId));
+        assertThat(allApiKeysWithProfileUid.get(0).v2(), is(user2Profile.uid()));
     }
 
     public void testDifferentKeyOwnersSameProfile() throws Exception {
@@ -184,6 +211,7 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
                 return Settings.builder().put("xpack.security.authc.domains.one_domain.realms", "file,index").build();
             }
         });
+        ensureGreen();
         String username = randomFrom("user_with_manage_own_api_key_role", "user_with_manage_api_key_role");
         SecureString password1;
         SecureString password2;

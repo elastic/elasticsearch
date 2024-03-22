@@ -239,6 +239,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return remoteIndicesPrivileges.length != 0;
     }
 
+    public boolean hasRemoteClusterPrivileges() {
+        return remoteClusterPrivileges.length != 0;
+    }
+
     public RemoteClusterPrivileges[] getRemoteClusterPrivileges() {
         return this.remoteClusterPrivileges;
     }
@@ -407,6 +411,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
         if (hasRemoteIndicesPrivileges()) {
             builder.xContentList(Fields.REMOTE_INDICES.getPreferredName(), remoteIndicesPrivileges);
+        }
+        if (hasRemoteClusterPrivileges()) {
+            builder.xContentList(Fields.REMOTE_CLUSTER.getPreferredName(), remoteClusterPrivileges);
         }
         if (hasRestriction()) {
             builder.field(Fields.RESTRICTION.getPreferredName(), restriction);
@@ -703,8 +710,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
-                "failed to parse remote_cluster for role [{}]. expected field [{}] value "
-                    + "to be an array, but found [{}] instead",
+                "failed to parse remote_cluster for role [{}]. expected field [{}] value " + "to be an array, but found [{}] instead",
                 roleName,
                 parser.currentName(),
                 parser.currentToken()
@@ -723,8 +729,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     privileges = readStringArray(roleName, parser, false);
                     if (privileges.length != 1 || "monitor_enrich".equals(privileges[0].trim()) == false) {
                         throw new ElasticsearchParseException(
-                            "failed to parse remote_cluster for role [{}]. "
-                                + "[monitor_enrich] is the only value allowed for [{}]",
+                            "failed to parse remote_cluster for role [{}]. " + "[monitor_enrich] is the only value allowed for [{}]",
                             roleName,
                             currentFieldName
                         );
@@ -1078,8 +1083,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            // TODO
-            return null;
+            builder.startObject();
+            builder.array(Fields.PRIVILEGES.getPreferredName(), clusterPrivileges);
+            builder.array(Fields.CLUSTERS.getPreferredName(), remoteClusters);
+            builder.endObject();
+            return builder;
         }
 
         @Override

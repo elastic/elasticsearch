@@ -28,10 +28,10 @@ it easier to develop the skills needed to read and understand all the asynchrono
 certainly not easy in an absolute sense. Finally, it has allowed us to build a rich library for working with `ActionListener` instances
 themselves, creating new instances out of existing ones and completing them in interesting ways. See for instance:
 
-- all the static methods on [ActionListener](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java) itself
-- [`ThreadedActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/ThreadedActionListener.java) for forking work elsewhere
-- [`RefCountingListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/RefCountingListener.java) for running work in parallel
-- [`SubscribableListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java) for constructing flexible workflows
+- all the static methods on [ActionListener](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/ActionListener.java) itself
+- [`ThreadedActionListener`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/ThreadedActionListener.java) for forking work elsewhere
+- [`RefCountingListener`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/RefCountingListener.java) for running work in parallel
+- [`SubscribableListener`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java) for constructing flexible workflows
 
 Callback-based asynchronous code can easily call regular synchronous code, but synchronous code cannot run callback-based asynchronous code
 without blocking the calling thread until the callback is called back. This blocking is at best undesirable (threads are too expensive to
@@ -55,7 +55,7 @@ CPS is strictly more expressive than direct style: direct code can be mechanical
 enables all sorts of other useful control structures such as forking work onto separate threads, possibly to be executed in parallel,
 perhaps even across multiple nodes, or possibly collecting a list of continuations all waiting for the same condition to be satisfied before
 proceeding (e.g.
-[`SubscribableListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java)
+[`SubscribableListener`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java)
 amongst many others). Some languages have first-class support for continuations (e.g. the `async` and `await` primitives in C#) allowing the
 programmer to write code in direct style away from those exotic control structures, but Java does not. That's why we have to manipulate all
 the callbacks ourselves.
@@ -68,7 +68,7 @@ permit some methods to throw an exception, using things like
 (or an equivalent `try ... catch ...` block) further up the stack to handle it. Some methods also take (and may execute) an ActionListener parameter, but still return a value separately for other local synchronous work.
 
 This pattern is often used in the transport action layer with the use of the
-[ChannelActionListener](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/ChannelActionListener.java)
+[ChannelActionListener](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/ChannelActionListener.java)
 class, which wraps a `TransportChannel` produced by the transport layer. `TransportChannel` implementations can hold a reference to a Netty
 channel with which to pass the response back to the network caller. Netty has a many-to-one association of network callers to channels, so a
 call taking a long time generally won't hog resources: it's cheap. A transport action can take hours to respond and that's alright, barring

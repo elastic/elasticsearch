@@ -166,7 +166,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             SimilarityMeasure similarity = null;
             String similarityStr = (String) map.remove("similarity");
             if (similarityStr != null) {
-                similarity = SimilarityMeasure.valueOf(similarityStr);
+                similarity = SimilarityMeasure.fromString(similarityStr);
             }
 
             return new TestServiceSettings(model, dimensions, similarity);

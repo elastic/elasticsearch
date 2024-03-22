@@ -226,6 +226,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106457")
     public void testReadFromPositionLargerThanBlobLength() {
         final var blobName = randomIdentifier();
         final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));

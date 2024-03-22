@@ -19,8 +19,6 @@ The input type must be a string or a `geo_point`.
 
 Converts an input value to a `geo_point` value.
 
-*Supported types*
-
 include::types/to_geopoint.asciidoc[]
 
 A string will only be successfully converted if it respects the

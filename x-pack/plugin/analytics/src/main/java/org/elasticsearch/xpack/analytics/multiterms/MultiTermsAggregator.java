@@ -12,12 +12,12 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -237,33 +237,40 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
             int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
-            PriorityQueue<InternalMultiTerms.Bucket> ordered = new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
-            InternalMultiTerms.Bucket spare = null;
-            BytesRef spareKey = null;
-            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-            while (ordsEnum.next()) {
-                long docCount = bucketDocCount(ordsEnum.ord());
-                otherDocCounts[ordIdx] += docCount;
-                if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                    continue;
+            try (
+                ObjectArrayPriorityQueue<InternalMultiTerms.Bucket> ordered = new BucketPriorityQueue<>(
+                    size,
+                    bigArrays(),
+                    partiallyBuiltBucketComparator
+                )
+            ) {
+                InternalMultiTerms.Bucket spare = null;
+                BytesRef spareKey = null;
+                BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+                while (ordsEnum.next()) {
+                    long docCount = bucketDocCount(ordsEnum.ord());
+                    otherDocCounts[ordIdx] += docCount;
+                    if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                        continue;
+                    }
+                    if (spare == null) {
+                        spare = new InternalMultiTerms.Bucket(null, 0, null, showTermDocCountError, 0, formats, keyConverters);
+                        spareKey = new BytesRef();
+                    }
+                    ordsEnum.readValue(spareKey);
+                    spare.terms = unpackTerms(spareKey);
+                    spare.docCount = docCount;
+                    spare.bucketOrd = ordsEnum.ord();
+                    spare = ordered.insertWithOverflow(spare);
                 }
-                if (spare == null) {
-                    spare = new InternalMultiTerms.Bucket(null, 0, null, showTermDocCountError, 0, formats, keyConverters);
-                    spareKey = new BytesRef();
-                }
-                ordsEnum.readValue(spareKey);
-                spare.terms = unpackTerms(spareKey);
-                spare.docCount = docCount;
-                spare.bucketOrd = ordsEnum.ord();
-                spare = ordered.insertWithOverflow(spare);
-            }
 
-            // Get the top buckets
-            InternalMultiTerms.Bucket[] bucketsForOrd = new InternalMultiTerms.Bucket[ordered.size()];
-            topBucketsPerOrd[ordIdx] = bucketsForOrd;
-            for (int b = ordered.size() - 1; b >= 0; --b) {
-                topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                // Get the top buckets
+                InternalMultiTerms.Bucket[] bucketsForOrd = new InternalMultiTerms.Bucket[(int) ordered.size()];
+                topBucketsPerOrd[ordIdx] = bucketsForOrd;
+                for (int b = (int) ordered.size() - 1; b >= 0; --b) {
+                    topBucketsPerOrd[ordIdx][b] = ordered.pop();
+                    otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                }
             }
         }
 

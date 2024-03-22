@@ -22,8 +22,6 @@ Converts an input value to a `cartesian_shape` value.
 A string will only be successfully converted if it respects the
 {wikipedia}/Well-known_text_representation_of_geometry[WKT] format.
 
-*Supported types*
-
 include::types/to_cartesianshape.asciidoc[]
 
 *Example*

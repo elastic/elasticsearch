@@ -496,4 +496,24 @@ public class RestTable {
             return reverse;
         }
     }
+
+    /**
+     * A formatted number, such that it sorts according to its numeric value but captures a specific string representation too
+     */
+    record FormattedDouble(String displayValue, double numericValue) implements Comparable<FormattedDouble> {
+
+        static FormattedDouble format2DecimalPlaces(double numericValue) {
+            return new FormattedDouble(Strings.format("%.2f", numericValue), numericValue);
+        }
+
+        @Override
+        public int compareTo(FormattedDouble other) {
+            return Double.compare(numericValue, other.numericValue);
+        }
+
+        @Override
+        public String toString() {
+            return displayValue;
+        }
+    }
 }

@@ -63,6 +63,10 @@ public class BlobCacheUtils {
         );
     }
 
+    public static ByteRange computeRange(long rangeSize, long position, long size) {
+        return ByteRange.of((position / rangeSize) * rangeSize, (((position + size - 1) / rangeSize) + 1) * rangeSize);
+    }
+
     public static void ensureSlice(String sliceName, long sliceOffset, long sliceLength, IndexInput input) {
         if (sliceOffset < 0 || sliceLength < 0 || sliceOffset + sliceLength > input.length()) {
             throw new IllegalArgumentException(

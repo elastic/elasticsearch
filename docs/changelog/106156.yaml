@@ -1,0 +1,6 @@
+pr: 106156
+summary: Disable parallel collection for terms aggregation with `min_doc_count` equals
+  to 0
+area: Aggregations
+type: bug
+issues: []

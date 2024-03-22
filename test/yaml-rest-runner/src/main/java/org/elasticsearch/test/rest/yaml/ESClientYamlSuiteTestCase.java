@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
@@ -192,6 +193,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+    }
+
+    @Override
+    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+        return List.of(new YamlTestLegacyFeatures());
     }
 
     /**

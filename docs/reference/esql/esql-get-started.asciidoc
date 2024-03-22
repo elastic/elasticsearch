@@ -9,6 +9,11 @@ preview::["Do not use {esql} on production environments. This functionality is i
 
 This guide shows how you can use {esql} to query and aggregate your data.
 
+[TIP]
+====
+This getting started is also available as an https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/esql/esql-getting-started.ipynb[interactive Python notebook] in the `elasticsearch-labs` GitHub repository.
+====
+
 [discrete]
 [[esql-getting-started-prerequisites]]
 === Prerequisites

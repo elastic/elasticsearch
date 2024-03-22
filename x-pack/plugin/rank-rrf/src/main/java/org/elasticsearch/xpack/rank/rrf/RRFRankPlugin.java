@@ -41,4 +41,9 @@ public class RRFRankPlugin extends Plugin implements SearchPlugin {
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(NAME), RRFRankBuilder::fromXContent));
     }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return List.of(new RetrieverSpec<>(new ParseField(NAME), RRFRetrieverBuilder::fromXContent));
+    }
 }

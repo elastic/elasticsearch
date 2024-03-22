@@ -239,4 +239,12 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             ConstantNullBlock.ENTRY
         );
     }
+
+    /**
+     * Serialization type for blocks: 0 and 1 replace false/true used in pre-8.14
+     */
+    byte SERIALIZE_BLOCK_VALUES = 0;
+    byte SERIALIZE_BLOCK_VECTOR = 1;
+    byte SERIALIZE_BLOCK_ARRAY = 2;
+    byte SERIALIZE_BLOCK_BIG_ARRAY = 3;
 }

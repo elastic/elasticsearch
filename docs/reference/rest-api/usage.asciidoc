@@ -228,7 +228,8 @@ GET /_xpack/usage
       "keep" : 0,
       "enrich" : 0,
       "from" : 0,
-      "row" : 0
+      "row" : 0,
+      "meta" : 0
     },
     "queries" : {
       "rest" : {

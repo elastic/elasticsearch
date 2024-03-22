@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -25,7 +24,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
@@ -33,7 +31,6 @@ import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.rollup.Rollup;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
@@ -127,7 +124,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             String mapping = requestCaptor.getValue().mappings();
 
             // Make sure the version is present, and we have our date template (the most important aspects)
-            assertThat(mapping, containsString("\"rollup-version\":\"" + Version.CURRENT.toString() + "\""));
+            assertThat(mapping, containsString("\"rollup-version\":\"\""));
             assertThat(mapping, containsString("\"path_match\":\"*.date_histogram.timestamp\""));
 
             listenerCaptor.getValue().onFailure(new ResourceAlreadyExistsException(job.getConfig().getRollupIndex()));
@@ -246,38 +243,6 @@ public class PutJobStateMachineTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testNoMappingVersion() {
-        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
-
-        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
-            fail("Listener success should not have been triggered.");
-        }, e -> {
-            assertThat(
-                e.getMessage(),
-                equalTo("Could not determine version of existing rollup metadata for index [" + job.getConfig().getRollupIndex() + "]")
-            );
-        });
-
-        Logger logger = mock(Logger.class);
-        Client client = mock(Client.class);
-
-        ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
-        doAnswer(invocation -> {
-            GetMappingsResponse response = mock(GetMappingsResponse.class);
-            Map<String, Object> m = Maps.newMapWithExpectedSize(2);
-            m.put(RollupField.ROLLUP_META, Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
-            MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
-
-            when(response.getMappings()).thenReturn(Map.of(job.getConfig().getRollupIndex(), meta));
-            requestCaptor.getValue().onResponse(response);
-            return null;
-        }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
-
-        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
-        verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testJobAlreadyInMapping() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
 
@@ -299,7 +264,6 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             Map<String, Object> m = Maps.newMapWithExpectedSize(2);
-            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
@@ -339,7 +303,6 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             Map<String, Object> m = Maps.newMapWithExpectedSize(2);
-            m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(unrelatedJob.getId(), unrelatedJob));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 

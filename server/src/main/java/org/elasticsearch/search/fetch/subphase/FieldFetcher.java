@@ -71,7 +71,9 @@ public class FieldFetcher {
 
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
-                if (ft == null) { // unmapped field when field included in `stored_fields`
+                // NOTE: unmapped field when field included in `stored_fields`, can't use ValueFetcher.
+                // The field will be fetched as part of the `StoredFieldsPhase`
+                if (ft == null) {
                     continue;
                 }
                 if ("_size".equals(field) && includeSizeMetadataField == false) {

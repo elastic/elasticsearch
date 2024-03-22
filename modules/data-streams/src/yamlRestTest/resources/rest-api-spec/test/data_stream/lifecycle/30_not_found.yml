@@ -23,6 +23,9 @@ setup:
 
 ---
 "Get data stream lifecycle":
+  - skip:
+      version: " - 8.13.99"
+      reason: "Data stream lifecycle with effective retention was released in 8.14"
 
   - do:
       indices.get_data_lifecycle:
@@ -45,7 +48,9 @@ setup:
 
 ---
 "Put data stream lifecycle does not succeed when at lease one data stream does not exist":
-
+  - skip:
+      version: " - 8.13.99"
+      reason: "Data stream lifecycle with effective retention was released in 8.14"
   - do:
       catch:  missing
       indices.put_data_lifecycle:
@@ -66,7 +71,9 @@ setup:
 
 ---
 "Delete data stream lifecycle does not succeed when at lease one data stream does not exist":
-
+  - skip:
+      version: " - 8.13.99"
+      reason: "Data stream lifecycle with effective retention was released in 8.14"
   - do:
       catch:  missing
       indices.delete_data_lifecycle:

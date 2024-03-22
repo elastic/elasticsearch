@@ -40,6 +40,9 @@ setup:
 
 ---
 "Get data stream lifecycle":
+  - skip:
+      version: " - 8.13.99"
+      reason: "Data stream lifecycle with effective retention was released in 8.14"
 
   - do:
       indices.get_data_lifecycle:
@@ -112,6 +115,9 @@ setup:
 
 ---
 "Enable lifecycle":
+  - skip:
+      version: " - 8.13.99"
+      reason: "Data stream lifecycle with effective retention was released in 8.14"
 
   - do:
       indices.put_data_lifecycle:
@@ -136,7 +142,9 @@ setup:
 
 ---
 "Get data stream lifecycle with defaults":
-
+  - skip:
+      version: " - 8.13.99"
+      reason: "Data stream lifecycle with effective retention was released in 8.14"
   - do:
       indices.get_data_lifecycle:
         name: "data-stream-with-lifecycle"
@@ -150,6 +158,9 @@ setup:
 
 ---
 "Delete data stream lifecycle from the data streams":
+  - skip:
+      version: " - 8.13.99"
+      reason: "Data stream lifecycle with effective retention was released in 8.14"
   - do:
       indices.put_data_lifecycle:
         name: "simple-data-stream1"

@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.function.DoubleSupplier;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
@@ -124,40 +123,12 @@ public class GeoPointParsingTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field [location] not supported - must be one of: lon, lat, z, type, coordinates, geohash"));
+            assertThat(e.getMessage(), is("field [location] not supported - must be one of: lon, lat, z, type, coordinates"));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field [location] not supported - must be one of: lon, lat, z, type, coordinates, geohash"));
-        }
-    }
-
-    public void testInvalidPointHashMix() throws IOException {
-        HashMap<String, Object> otherFields = new HashMap<>();
-        otherFields.put("lat", 0);
-        otherFields.put("lon", 0);
-        otherFields.put("type", "Point");
-        otherFields.put("coordinates", new double[] { 0.0, 0.0 });
-        for (String other : otherFields.keySet()) {
-            XContentBuilder content = JsonXContent.contentBuilder();
-            content.startObject();
-            content.field(other, otherFields.get(other)).field("geohash", stringEncode(0d, 0d));
-            content.endObject();
-
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-                parser.nextToken();
-                Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-                assertThat(e.getMessage(), is("field must be either lat/lon, geohash string or type/coordinates"));
-            }
-            try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-                parser2.nextToken();
-                Exception e = expectThrows(
-                    ElasticsearchParseException.class,
-                    () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean())
-                );
-                assertThat(e.getMessage(), is("field must be either lat/lon, geohash string or type/coordinates"));
-            }
+            assertThat(e.getMessage(), is("field [location] not supported - must be one of: lon, lat, z, type, coordinates"));
         }
     }
 
@@ -170,27 +141,13 @@ public class GeoPointParsingTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field [test] not supported - must be one of: lon, lat, z, type, coordinates, geohash"));
+            assertThat(e.getMessage(), is("field [test] not supported - must be one of: lon, lat, z, type, coordinates"));
         }
 
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field [test] not supported - must be one of: lon, lat, z, type, coordinates, geohash"));
-        }
-    }
-
-    public void testInvalidGeoHash() throws IOException {
-        XContentBuilder content = JsonXContent.contentBuilder();
-        content.startObject();
-        content.field("geohash", "!!!!");
-        content.endObject();
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
-            parser.nextToken();
-
-            Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("unsupported symbol [!] in geohash [!!!!]"));
+            assertThat(e.getMessage(), is("field [test] not supported - must be one of: lon, lat, z, type, coordinates"));
         }
     }
 

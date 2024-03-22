@@ -89,11 +89,10 @@ public final class InnerHitsPhase implements FetchSubPhase {
             for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
                 docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
             }
-            innerHitsContext.docIdsToLoad(docIdsToLoad);
             innerHitsContext.setRootId(hit.getId());
             innerHitsContext.setRootLookup(rootSource);
 
-            fetchPhase.execute(innerHitsContext);
+            fetchPhase.execute(innerHitsContext, docIdsToLoad);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
             SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
             for (int j = 0; j < internalHits.length; j++) {
@@ -104,7 +103,9 @@ public final class InnerHitsPhase implements FetchSubPhase {
                     searchHitFields.sortValues(fieldDoc.fields, innerHitsContext.sort().formats);
                 }
             }
-            results.put(entry.getKey(), fetchResult.hits());
+            var h = fetchResult.hits();
+            results.put(entry.getKey(), h);
+            h.mustIncRef();
         }
     }
 }

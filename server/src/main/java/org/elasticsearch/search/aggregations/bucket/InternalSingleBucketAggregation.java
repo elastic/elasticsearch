@@ -9,8 +9,11 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
+import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -91,16 +94,27 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     protected abstract InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations);
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        long docCount = 0L;
-        List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());
-        for (InternalAggregation aggregation : aggregations) {
-            assert aggregation.getName().equals(getName());
-            docCount += ((InternalSingleBucketAggregation) aggregation).docCount;
-            subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).aggregations);
-        }
-        final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
-        return newAggregation(getName(), docCount, aggs);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            long docCount = 0L;
+            final AggregatorsReducer subAggregatorReducer = new AggregatorsReducer(reduceContext, size);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                docCount += ((InternalSingleBucketAggregation) aggregation).docCount;
+                subAggregatorReducer.accept(((InternalSingleBucketAggregation) aggregation).aggregations);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return newAggregation(getName(), docCount, subAggregatorReducer.get());
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(subAggregatorReducer);
+            }
+        };
     }
 
     /**
@@ -117,9 +131,9 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         InternalAggregation reduced = this;
         if (pipelineTree.hasSubTrees()) {
             List<InternalAggregation> aggs = new ArrayList<>();
-            for (Aggregation agg : getAggregations().asList()) {
+            for (InternalAggregation agg : getAggregations().asList()) {
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
-                aggs.add(((InternalAggregation) agg).reducePipelines((InternalAggregation) agg, reduceContext, subTree));
+                aggs.add(agg.reducePipelines(agg, reduceContext, subTree));
             }
             InternalAggregations reducedSubAggs = InternalAggregations.from(aggs);
             reduced = create(reducedSubAggs);

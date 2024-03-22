@@ -104,10 +104,6 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
         return this;
     }
 
-    public double sigma() {
-        return sigma;
-    }
-
     @Override
     protected ExtendedStatsAggregatorFactory innerBuild(
         AggregationContext context,
@@ -142,11 +138,6 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

@@ -199,4 +199,21 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         indexReader.close();
         directory.close();
     }
+
+    public void testSupportsParallelCollection() {
+        DiversifiedAggregationBuilder sampler = new DiversifiedAggregationBuilder("name");
+        if (randomBoolean()) {
+            sampler.field("field");
+        }
+        if (randomBoolean()) {
+            sampler.maxDocsPerValue(randomIntBetween(1, 1000));
+        }
+        if (randomBoolean()) {
+            sampler.subAggregation(new TermsAggregationBuilder("name").field("field"));
+        }
+        if (randomBoolean()) {
+            sampler.shardSize(randomIntBetween(1, 1000));
+        }
+        assertFalse(sampler.supportsParallelCollection(null));
+    }
 }

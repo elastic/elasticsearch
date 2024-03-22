@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotInfoUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -106,13 +107,11 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             Settings.EMPTY,
             Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.of(SLM_HISTORY_INDEX_ENABLED_SETTING))
         );
-        try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings);
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings)) {
             VerifyingClient client = new VerifyingClient(threadPool, (a, r, l) -> {
                 fail("should not have tried to take a snapshot");
                 return null;
-            })
-        ) {
+            });
             SnapshotHistoryStore historyStore = new VerifyingHistoryStore(
                 null,
                 clusterService,
@@ -173,8 +172,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         final AtomicBoolean clientCalled = new AtomicBoolean(false);
         final SetOnce<String> snapshotName = new SetOnce<>();
-        try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings);
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings)) {
             // This verifying client will verify that we correctly invoked
             // client.admin().createSnapshot(...) with the appropriate
             // request. It also returns a mock real response
@@ -197,13 +195,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 assertThat(req.includeGlobalState(), equalTo(globalState));
 
                 try {
-                    return CreateSnapshotResponse.fromXContent(createParser(JsonXContent.jsonXContent, createSnapResponse));
+                    return SnapshotInfoUtils.createSnapshotResponseFromXContent(
+                        createParser(JsonXContent.jsonXContent, createSnapResponse)
+                    );
                 } catch (IOException e) {
                     fail("failed to parse snapshot response");
                     return null;
                 }
-            })
-        ) {
+            });
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
             SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, item -> {
                 assertFalse(historyStoreCalled.getAndSet(true));
@@ -247,8 +246,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         );
         final AtomicBoolean clientCalled = new AtomicBoolean(false);
         final SetOnce<String> snapshotName = new SetOnce<>();
-        try (
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings);
+        try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool, settings)) {
             VerifyingClient client = new VerifyingClient(threadPool, (action, request, listener) -> {
                 assertFalse(clientCalled.getAndSet(true));
                 assertThat(action, instanceOf(CreateSnapshotAction.class));
@@ -285,8 +283,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                         Collections.emptyMap()
                     )
                 );
-            })
-        ) {
+            });
+
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
             SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, clusterService, item -> {
                 assertFalse(historyStoreCalled.getAndSet(true));

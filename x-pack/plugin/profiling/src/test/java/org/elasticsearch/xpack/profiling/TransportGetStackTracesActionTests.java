@@ -17,6 +17,13 @@ public class TransportGetStackTracesActionTests extends ESTestCase {
         assertEquals(List.of(List.of()), TransportGetStackTracesAction.sliced(Collections.emptyList(), 4));
     }
 
+    public void testSingleSlice() {
+        List<String> input = randomList(2, 5, () -> randomAlphaOfLength(3));
+        List<List<String>> sliced = TransportGetStackTracesAction.sliced(input, 1);
+        assertEquals(1, sliced.size());
+        assertEquals(input, sliced.get(0));
+    }
+
     public void testSliceListSmallerOrEqualToSliceCount() {
         int slices = 7;
         List<String> input = randomList(0, slices, () -> randomAlphaOfLength(3));

@@ -29,6 +29,9 @@ Requires the `manage_search_query_rules` privilege.
 `rules`::
 (Required, array of objects) The specific rules included in this query ruleset.
 
+There is a limit of 100 rules per ruleset.
+This can be increased up to 1000 using the `xpack.applications.rules.max_rules_per_ruleset` cluster setting.
+
 Each rule must have the following information:
 
 - `rule_id` (Required, string) A unique identifier for this rule.

@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -63,7 +64,7 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
             indexDoc("test-idx", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(client.prepareSearch("test-idx").setSize(0), 100);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -107,11 +108,10 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
             .prepareRestoreSnapshot("url-repo", "test-snap")
             .setWaitForCompletion(true)
             .setIndices("test-idx")
-            .execute()
-            .actionGet();
+            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertHitCount(client.prepareSearch("test-idx").setSize(0), 100);
 
         logger.info("--> list available shapshots");
         GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
@@ -124,5 +124,18 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
         logger.info("--> list available shapshot again, no snapshots should be returned");
         getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
+    }
+
+    public void testUrlRepositoryPermitsShutdown() throws Exception {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository("url-repo")
+                .setType(URLRepository.TYPE)
+                .setVerify(false)
+                .setSettings(Settings.builder().put(URLRepository.URL_SETTING.getKey(), "http://localhost/"))
+        );
+
+        internalCluster().fullRestart(); // just checking that URL repositories don't block node shutdown
     }
 }

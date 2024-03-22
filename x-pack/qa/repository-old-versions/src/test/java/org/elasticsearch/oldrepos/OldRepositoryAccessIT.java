@@ -29,6 +29,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -80,7 +81,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         runTest(true);
     }
 
-    @SuppressWarnings("removal")
     public void runTest(boolean sourceOnlyRepository) throws IOException {
         boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
         String repoLocation = System.getProperty("tests.repo.location");
@@ -129,7 +129,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         ensureGreen("mounted_shared_cache_" + indexName);
     }
 
-    @SuppressWarnings("removal")
     private void beforeRestart(
         boolean sourceOnlyRepository,
         String repoLocation,
@@ -267,7 +266,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         return "{\"test\":\"test" + i + "\",\"val\":" + i + ",\"create_date\":\"2020-01-" + Strings.format("%02d", i + 1) + "\"}";
     }
 
-    @SuppressWarnings("removal")
     private void restoreMountAndVerify(
         int numDocs,
         Set<String> expectedIds,
@@ -359,7 +357,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertDocs("mounted_shared_cache_" + indexName, numDocs, expectedIds, sourceOnlyRepository, oldVersion, numberOfShards);
     }
 
-    @SuppressWarnings("removal")
     private void assertDocs(
         String index,
         int numDocs,
@@ -374,22 +371,24 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             .build();
         RequestOptions randomRequestOptions = randomBoolean() ? RequestOptions.DEFAULT : v7RequestOptions;
 
-        SearchResponse searchResponse;
-
         // run a search against the index
-        searchResponse = search(index, null, randomRequestOptions);
-        logger.info(searchResponse);
-        // check hit count
-        assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
-        // check that _index is properly set
-        assertTrue(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).allMatch(index::equals));
-        // check that all _ids are there
-        assertEquals(expectedIds, Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet()));
-        // check that _source is present
-        assertTrue(Arrays.stream(searchResponse.getHits().getHits()).allMatch(SearchHit::hasSource));
-        // check that correct _source present for each document
-        for (SearchHit h : searchResponse.getHits().getHits()) {
-            assertEquals(sourceForDoc(getIdAsNumeric(h.getId())), h.getSourceAsString());
+        SearchResponse searchResponse = search(index, null, randomRequestOptions);
+        try {
+            logger.info(searchResponse);
+            // check hit count
+            assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+            // check that _index is properly set
+            assertTrue(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).allMatch(index::equals));
+            // check that all _ids are there
+            assertEquals(expectedIds, Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet()));
+            // check that _source is present
+            assertTrue(Arrays.stream(searchResponse.getHits().getHits()).allMatch(SearchHit::hasSource));
+            // check that correct _source present for each document
+            for (SearchHit h : searchResponse.getHits().getHits()) {
+                assertEquals(sourceForDoc(getIdAsNumeric(h.getId())), h.getSourceAsString());
+            }
+        } finally {
+            searchResponse.decRef();
         }
 
         String id = randomFrom(expectedIds);
@@ -402,10 +401,14 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 .runtimeMappings(Map.of("val", Map.of("type", "long"))),
             randomRequestOptions
         );
-        logger.info(searchResponse);
-        assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        assertEquals(id, searchResponse.getHits().getHits()[0].getId());
-        assertEquals(sourceForDoc(num), searchResponse.getHits().getHits()[0].getSourceAsString());
+        try {
+            logger.info(searchResponse);
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+            assertEquals(id, searchResponse.getHits().getHits()[0].getId());
+            assertEquals(sourceForDoc(num), searchResponse.getHits().getHits()[0].getSourceAsString());
+        } finally {
+            searchResponse.decRef();
+        }
 
         if (sourceOnlyRepository == false) {
             // search using reverse sort on val
@@ -416,12 +419,16 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     .sort(SortBuilders.fieldSort("val").order(SortOrder.DESC)),
                 randomRequestOptions
             );
-            logger.info(searchResponse);
-            // check sort order
-            assertEquals(
-                expectedIds.stream().sorted(Comparator.comparingInt(this::getIdAsNumeric).reversed()).toList(),
-                Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).toList()
-            );
+            try {
+                logger.info(searchResponse);
+                // check sort order
+                assertEquals(
+                    expectedIds.stream().sorted(Comparator.comparingInt(this::getIdAsNumeric).reversed()).toList(),
+                    Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).toList()
+                );
+            } finally {
+                searchResponse.decRef();
+            }
 
             // look up postings
             searchResponse = search(
@@ -429,9 +436,13 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("test", "test" + num)),
                 randomRequestOptions
             );
-            logger.info(searchResponse);
-            // check match
-            ElasticsearchAssertions.assertSearchHits(searchResponse, id);
+            try {
+                logger.info(searchResponse);
+                // check match
+                ElasticsearchAssertions.assertSearchHits(searchResponse, id);
+            } finally {
+                searchResponse.decRef();
+            }
 
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 // search on _type and check that results contain _type information
@@ -442,13 +453,17 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("_type", randomType)),
                     randomRequestOptions
                 );
-                logger.info(searchResponse);
-                assertEquals(typeCount, searchResponse.getHits().getTotalHits().value);
-                for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    DocumentField typeField = hit.field("_type");
-                    assertNotNull(typeField);
-                    assertThat(typeField.getValue(), instanceOf(String.class));
-                    assertEquals(randomType, typeField.getValue());
+                try {
+                    logger.info(searchResponse);
+                    assertEquals(typeCount, searchResponse.getHits().getTotalHits().value);
+                    for (SearchHit hit : searchResponse.getHits().getHits()) {
+                        DocumentField typeField = hit.field("_type");
+                        assertNotNull(typeField);
+                        assertThat(typeField.getValue(), instanceOf(String.class));
+                        assertEquals(randomType, typeField.getValue());
+                    }
+                } finally {
+                    searchResponse.decRef();
                 }
             }
 
@@ -464,11 +479,15 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 SearchSourceBuilder.searchSource().query(QueryBuilders.rangeQuery("create_date").from("2020-02-01")),
                 randomRequestOptions
             );
-            logger.info(searchResponse);
-            assertEquals(0, searchResponse.getHits().getTotalHits().value);
-            assertEquals(numberOfShards, searchResponse.getSuccessfulShards());
-            // When all shards are skipped, at least one of them is queried in order to provide a proper search response.
-            assertEquals(numberOfShards - 1, searchResponse.getSkippedShards());
+            try {
+                logger.info(searchResponse);
+                assertEquals(0, searchResponse.getHits().getTotalHits().value);
+                assertEquals(numberOfShards, searchResponse.getSuccessfulShards());
+                // When all shards are skipped, at least one of them is queried in order to provide a proper search response.
+                assertEquals(numberOfShards - 1, searchResponse.getSkippedShards());
+            } finally {
+                searchResponse.decRef();
+            }
         }
     }
 
@@ -478,7 +497,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             request.setJsonEntity(builder.toString());
         }
         request.setOptions(options);
-        return SearchResponse.fromXContent(responseAsParser(client().performRequest(request)));
+        return SearchResponseUtils.parseSearchResponse(responseAsParser(client().performRequest(request)));
     }
 
     private int getIdAsNumeric(String id) {

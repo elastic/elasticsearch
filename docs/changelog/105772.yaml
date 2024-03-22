@@ -1,0 +1,5 @@
+pr: 105772
+summary: "[ILM] Delete step deletes data stream with only one index"
+area: ILM+SLM
+type: bug
+issues: []

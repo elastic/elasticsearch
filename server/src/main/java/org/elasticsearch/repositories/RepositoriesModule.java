@@ -35,7 +35,6 @@ import java.util.function.BiConsumer;
  */
 public final class RepositoriesModule {
 
-    public static final String METRIC_REQUESTS_COUNT = "repositories.requests.count";
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(
@@ -48,7 +47,7 @@ public final class RepositoriesModule {
         RecoverySettings recoverySettings,
         TelemetryProvider telemetryProvider
     ) {
-        telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
+        final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(telemetryProvider.getMeterRegistry());
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,
@@ -61,7 +60,8 @@ public final class RepositoriesModule {
                 namedXContentRegistry,
                 clusterService,
                 bigArrays,
-                recoverySettings
+                recoverySettings,
+                repositoriesMetrics
             );
             for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
                 if (factories.put(entry.getKey(), entry.getValue()) != null) {

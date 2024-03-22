@@ -18,8 +18,9 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.MapParsingUtils;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -41,14 +42,17 @@ public class TestModel extends Model {
     }
 
     public TestModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         TestServiceSettings serviceSettings,
         TestTaskSettings taskSettings,
         TestSecretSettings secretSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secretSettings)
+        );
     }
 
     @Override
@@ -73,12 +77,10 @@ public class TestModel extends Model {
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String model = MapParsingUtils.removeAsType(map, "model", String.class);
+            String model = ServiceUtils.removeAsType(map, "model", String.class);
 
             if (model == null) {
-                validationException.addValidationError(
-                    MapParsingUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS)
-                );
+                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS));
             }
 
             if (validationException.validationErrors().isEmpty() == false) {
@@ -114,6 +116,11 @@ public class TestModel extends Model {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(model);
         }
+
+        @Override
+        public ToXContentObject getFilteredXContentObject() {
+            return this;
+        }
     }
 
     public record TestTaskSettings(Integer temperature) implements TaskSettings {
@@ -121,7 +128,7 @@ public class TestModel extends Model {
         private static final String NAME = "test_task_settings";
 
         public static TestTaskSettings fromMap(Map<String, Object> map) {
-            Integer temperature = MapParsingUtils.removeAsType(map, "temperature", Integer.class);
+            Integer temperature = ServiceUtils.removeAsType(map, "temperature", Integer.class);
             return new TestTaskSettings(temperature);
         }
 
@@ -162,10 +169,10 @@ public class TestModel extends Model {
         public static TestSecretSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String apiKey = MapParsingUtils.removeAsType(map, "api_key", String.class);
+            String apiKey = ServiceUtils.removeAsType(map, "api_key", String.class);
 
             if (apiKey == null) {
-                validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
+                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

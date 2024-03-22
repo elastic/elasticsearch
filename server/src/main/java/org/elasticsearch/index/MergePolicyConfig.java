@@ -111,17 +111,33 @@ public final class MergePolicyConfig {
     private final Logger logger;
     private final boolean mergesEnabled;
     private volatile Type mergePolicyType;
+    private final ByteSizeValue defaultMaxMergedSegment;
+    private final ByteSizeValue defaultMaxTimeBasedMergedSegment;
 
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
     public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.MB);
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
     public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
+    public static final Setting<ByteSizeValue> DEFAULT_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
+        "indices.merge.policy.max_merged_segment",
+        DEFAULT_MAX_MERGED_SEGMENT,
+        ByteSizeValue.ofBytes(1L),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Setting.Property.NodeScope
+    );
     /**
      * Time-based data generally gets rolled over, so there is not much value in enforcing a maximum segment size, which has the side effect
      * of merging fewer segments together than the merge factor, which in-turn increases write amplification. So we set an arbitrarily high
      * roof that serves as a protection that we expect to never hit.
      */
     public static final ByteSizeValue DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT = new ByteSizeValue(100, ByteSizeUnit.GB);
+    public static final Setting<ByteSizeValue> DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
+        "indices.merge.policy.max_time_based_merged_segment",
+        DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT,
+        ByteSizeValue.ofBytes(1L),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Setting.Property.NodeScope
+    );
     public static final double DEFAULT_SEGMENTS_PER_TIER = 10.0d;
     /**
      * A default value for {@link LogByteSizeMergePolicy}'s merge factor: 32. This default value differs from the Lucene default of 10 in
@@ -262,8 +278,8 @@ public final class MergePolicyConfig {
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);
-        // TODO is this really a good default number for max_merge_segment, what happens for large indices,
-        // won't they end up with many segments?
+        this.defaultMaxMergedSegment = DEFAULT_MAX_MERGED_SEGMENT_SETTING.get(indexSettings.getNodeSettings());
+        this.defaultMaxTimeBasedMergedSegment = DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING.get(indexSettings.getNodeSettings());
         ByteSizeValue maxMergedSegment = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING);
         double segmentsPerTier = indexSettings.getValue(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING);
         int mergeFactor = indexSettings.getValue(INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING);
@@ -315,8 +331,8 @@ public final class MergePolicyConfig {
     void setMaxMergedSegment(ByteSizeValue maxMergedSegment) {
         // We use 0 as a placeholder for "unset".
         if (maxMergedSegment.getBytes() == 0) {
-            tieredMergePolicy.setMaxMergedSegmentMB(DEFAULT_MAX_MERGED_SEGMENT.getMbFrac());
-            timeBasedMergePolicy.setMaxMergeMB(DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT.getMbFrac());
+            tieredMergePolicy.setMaxMergedSegmentMB(defaultMaxMergedSegment.getMbFrac());
+            timeBasedMergePolicy.setMaxMergeMB(defaultMaxTimeBasedMergedSegment.getMbFrac());
         } else {
             tieredMergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
             timeBasedMergePolicy.setMaxMergeMB(maxMergedSegment.getMbFrac());

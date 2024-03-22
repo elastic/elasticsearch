@@ -1,5 +1,0 @@
-pr: 101727
-summary: Fix listeners in `SharedBlobCacheService.readMultiRegions`
-area: Distributed
-type: bug
-issues: []

@@ -6,6 +6,11 @@
           "name": "metrics"
         },
         "codec": "best_compression",
+        "mapping": {
+          "total_fields": {
+            "ignore_dynamic_beyond_limit": true
+          }
+        },
         "query": {
           "default_field": ["message"]
         }
@@ -16,5 +21,6 @@
     "description": "default settings for the metrics index template installed by x-pack",
     "managed": true
   },
-  "version": ${xpack.stack.template.version}
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
 }

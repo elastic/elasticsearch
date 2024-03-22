@@ -89,7 +89,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         try {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
-            PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
+            PlainActionFuture<Boolean> f = new PlainActionFuture<>();
             PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
             postWriteRefresh.refreshShard(
                 WriteRequest.RefreshPolicy.WAIT_UNTIL,
@@ -114,7 +114,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         try {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
-            PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
+            PlainActionFuture<Boolean> f = new PlainActionFuture<>();
             PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
             postWriteRefresh.refreshShard(
                 WriteRequest.RefreshPolicy.IMMEDIATE,
@@ -138,7 +138,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         try {
             String id = "0";
             Engine.IndexResult result = indexDoc(primary, "_doc", id);
-            PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
+            PlainActionFuture<Boolean> f = new PlainActionFuture<>();
             PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
 
             ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
@@ -188,7 +188,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         try {
             String id = "0";
             Engine.IndexResult result = indexDoc(replica, "_doc", id);
-            PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
+            PlainActionFuture<Boolean> f = new PlainActionFuture<>();
             PostWriteRefresh.refreshReplicaShard(WriteRequest.RefreshPolicy.WAIT_UNTIL, replica, result.getTranslogLocation(), f);
             Releasable releasable = simulateScheduledRefresh(replica, false);
             f.actionGet();
@@ -207,7 +207,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         try {
             String id = "0";
             Engine.IndexResult result = indexDoc(replica, "_doc", id);
-            PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
+            PlainActionFuture<Boolean> f = new PlainActionFuture<>();
             PostWriteRefresh.refreshReplicaShard(WriteRequest.RefreshPolicy.IMMEDIATE, replica, result.getTranslogLocation(), f);
             f.actionGet();
             assertEngineContainsIdNoRefresh(replica, id);
@@ -221,7 +221,7 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         recoverShardFromStore(primary);
         ReplicationGroup realReplicationGroup = primary.getReplicationGroup();
         try {
-            PlainActionFuture<Boolean> f = PlainActionFuture.newFuture();
+            PlainActionFuture<Boolean> f = new PlainActionFuture<>();
             PostWriteRefresh postWriteRefresh = new PostWriteRefresh(transportService);
 
             ReplicationGroup replicationGroup = mock(ReplicationGroup.class);

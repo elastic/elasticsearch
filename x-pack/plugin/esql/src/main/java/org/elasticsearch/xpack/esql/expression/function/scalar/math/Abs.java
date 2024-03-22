@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -22,15 +22,21 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 import java.util.function.Function;
 
-public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
-    @FunctionInfo(returnType = { "integer", "long", "double", "unsigned_long" })
-    public Abs(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+public class Abs extends UnaryScalarFunction {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Returns the absolute value.",
+        examples = { @Example(file = "math", tag = "abs"), @Example(file = "math", tag = "abs-employees") }
+    )
+    public Abs(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression. If `null`, the function returns `null`."
+        ) Expression n
+    ) {
         super(source, n);
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "Double")
@@ -52,16 +58,16 @@ public class Abs extends UnaryScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var field = toEvaluator.apply(field());
         if (dataType() == DataTypes.DOUBLE) {
-            return new AbsDoubleEvaluator.Factory(field);
+            return new AbsDoubleEvaluator.Factory(source(), field);
         }
         if (dataType() == DataTypes.UNSIGNED_LONG) {
             return field;
         }
         if (dataType() == DataTypes.LONG) {
-            return new AbsLongEvaluator.Factory(field);
+            return new AbsLongEvaluator.Factory(source(), field);
         }
         if (dataType() == DataTypes.INTEGER) {
-            return new AbsIntEvaluator.Factory(field);
+            return new AbsIntEvaluator.Factory(source(), field);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType());
     }

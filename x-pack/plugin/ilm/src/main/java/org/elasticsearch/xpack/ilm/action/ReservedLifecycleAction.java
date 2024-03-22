@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,12 +56,12 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
     }
 
     @SuppressWarnings("unchecked")
-    public Collection<PutLifecycleAction.Request> prepare(Object input) throws IOException {
-        List<PutLifecycleAction.Request> result = new ArrayList<>();
+    public Collection<PutLifecycleRequest> prepare(Object input) throws IOException {
+        List<PutLifecycleRequest> result = new ArrayList<>();
         List<LifecyclePolicy> policies = (List<LifecyclePolicy>) input;
 
         for (var policy : policies) {
-            PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
+            PutLifecycleRequest request = new PutLifecycleRequest(policy);
             validate(request);
             result.add(request);
         }

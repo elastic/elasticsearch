@@ -152,6 +152,11 @@ public class NettyAllocator {
                     }
                 };
             }
+
+            @Override
+            public int pageSize() {
+                return PageCacheRecycler.BYTE_PAGE_SIZE;
+            }
         };
     }
 
@@ -197,7 +202,7 @@ public class NettyAllocator {
         if (userForcedUnpooled()) {
             return true;
         } else if (userForcedPooled()) {
-            return true;
+            return false;
         } else if (heapSizeInBytes <= 1 << 30) {
             // If the heap is 1GB or less we use unpooled
             return true;

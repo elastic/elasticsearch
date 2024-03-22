@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.ml.action.TransportStopDataFrameAnalyticsAction.AnalyticsByTaskState;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -84,7 +85,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
         if (state != null) {
             builder.updateTaskState(
                 MlTasks.dataFrameAnalyticsTaskId(analyticsId),
-                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId(), null)
+                new DataFrameAnalyticsTaskState(state, builder.getLastAllocationId(), null, Instant.now())
             );
         }
     }

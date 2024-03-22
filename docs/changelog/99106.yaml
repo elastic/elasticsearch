@@ -1,6 +1,0 @@
-pr: 99106
-summary: "Add support for Persian language stemmer"
-area: Analysis
-type: feature
-issues:
- - 98911

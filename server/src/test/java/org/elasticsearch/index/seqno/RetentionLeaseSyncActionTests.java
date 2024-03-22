@@ -150,7 +150,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
-        PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = new PlainActionFuture<>();
         action.dispatchedShardOperationOnReplica(request, indexShard, listener);
         final TransportReplicationAction.ReplicaResult result = listener.actionGet();
         // the retention leases on the shard should be updated

@@ -20,7 +20,6 @@ import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -63,42 +62,18 @@ public class ClientYamlTestClient implements Closeable {
 
     private final ClientYamlSuiteRestSpec restSpec;
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
-    private final Version esVersion;
-    private final Version masterVersion;
-    private final String os;
     private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes;
 
     ClientYamlTestClient(
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
         final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os,
         final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
     ) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
-        this.esVersion = esVersion;
-        this.masterVersion = masterVersion;
-        this.os = os;
         this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
-    }
-
-    /**
-     * @return the version of the oldest node in the cluster
-     */
-    public Version getEsVersion() {
-        return esVersion;
-    }
-
-    public Version getMasterVersion() {
-        return masterVersion;
-    }
-
-    public String getOs() {
-        return os;
     }
 
     /**
@@ -176,7 +151,7 @@ public class ClientYamlTestClient implements Closeable {
                 // We prepend "/" to the path part to handle parts that start with - or other invalid characters.
                 URI uri = new URI(null, null, null, -1, "/" + pathPart.getValue(), null, null);
                 // manually escape any slash that each part may contain
-                String encodedPathPart = uri.getRawPath().substring(1).replaceAll("/", "%2F");
+                String encodedPathPart = uri.getRawPath().substring(1).replace("/", "%2F");
                 finalPath = finalPath.replace("{" + pathPart.getKey() + "}", encodedPathPart);
             } catch (URISyntaxException e) {
                 throw new RuntimeException("unable to build uri", e);

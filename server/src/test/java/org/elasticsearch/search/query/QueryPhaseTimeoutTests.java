@@ -128,20 +128,22 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
     private void scorerTimeoutTest(int size, CheckedConsumer<LeafReaderContext, IOException> timeoutTrigger) throws IOException {
         {
             TimeoutQuery query = newMatchAllScorerTimeoutQuery(timeoutTrigger, false);
-            SearchContext context = createSearchContext(query, size);
-            QueryPhase.executeQuery(context);
-            assertFalse(context.queryResult().searchTimedOut());
-            assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value);
-            assertEquals(size, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            try (SearchContext context = createSearchContext(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertFalse(context.queryResult().searchTimedOut());
+                assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value);
+                assertEquals(size, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
         }
         {
             TimeoutQuery query = newMatchAllScorerTimeoutQuery(timeoutTrigger, true);
-            SearchContext context = createSearchContextWithTimeout(query, size);
-            QueryPhase.executeQuery(context);
-            assertTrue(context.queryResult().searchTimedOut());
-            int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-            assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value);
-            assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
+            try (SearchContext context = createSearchContextWithTimeout(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertTrue(context.queryResult().searchTimedOut());
+                int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
+                assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value);
+                assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
         }
     }
 
@@ -174,20 +176,22 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         int size = randomBoolean() ? 0 : randomIntBetween(100, 500);
         {
             TimeoutQuery query = newMatchAllBulkScorerTimeoutQuery(false);
-            SearchContext context = createSearchContext(query, size);
-            QueryPhase.executeQuery(context);
-            assertFalse(context.queryResult().searchTimedOut());
-            assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value);
-            assertEquals(size, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            try (SearchContext context = createSearchContext(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertFalse(context.queryResult().searchTimedOut());
+                assertEquals(numDocs, context.queryResult().topDocs().topDocs.totalHits.value);
+                assertEquals(size, context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
         }
         {
             TimeoutQuery query = newMatchAllBulkScorerTimeoutQuery(true);
-            SearchContext context = createSearchContextWithTimeout(query, size);
-            QueryPhase.executeQuery(context);
-            assertTrue(context.queryResult().searchTimedOut());
-            int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
-            assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value);
-            assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
+            try (SearchContext context = createSearchContextWithTimeout(query, size)) {
+                QueryPhase.executeQuery(context);
+                assertTrue(context.queryResult().searchTimedOut());
+                int firstSegmentMaxDoc = reader.leaves().get(0).reader().maxDoc();
+                assertEquals(Math.min(2048, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.totalHits.value);
+                assertEquals(Math.min(size, firstSegmentMaxDoc), context.queryResult().topDocs().topDocs.scoreDocs.length);
+            }
         }
     }
 

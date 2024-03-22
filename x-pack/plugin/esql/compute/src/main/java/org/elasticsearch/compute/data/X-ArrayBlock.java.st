@@ -10,36 +10,33 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
 $endif$
+import java.io.IOException;
 import java.util.BitSet;
 
 /**
- * Block implementation that stores an array of $type$.
+ * Block implementation that stores values in a {@link $Type$ArrayVector}.
+$if(BytesRef)$
+ * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
+$endif$
  * This class is generated. Do not edit it.
  */
-public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
+final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
 
-$if(BytesRef)$
-    private final BytesRefArray values;
+    private final $Type$ArrayVector vector;
 
-$else$
-    private final $type$[] values;
-$endif$
-
-    public $Type$ArrayBlock($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        this(values, positionCount, firstValueIndexes, nulls, mvOrdering, BlockFactory.getNonBreakingInstance());
-    }
-
-    public $Type$ArrayBlock(
+    $Type$ArrayBlock(
         $if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values,
         int positionCount,
         int[] firstValueIndexes,
@@ -47,8 +44,50 @@ $endif$
         MvOrdering mvOrdering,
         BlockFactory blockFactory
     ) {
-        super(positionCount, firstValueIndexes, nulls, mvOrdering, blockFactory);
-        this.values = values;
+        this(
+            new $Type$ArrayVector(values, firstValueIndexes == null ? positionCount : firstValueIndexes[positionCount], blockFactory),
+            positionCount,
+            firstValueIndexes,
+            nulls,
+            mvOrdering
+        );
+    }
+
+    private $Type$ArrayBlock(
+        $Type$ArrayVector vector, // stylecheck
+        int positionCount,
+        int[] firstValueIndexes,
+        BitSet nulls,
+        MvOrdering mvOrdering
+    ) {
+        super(positionCount, firstValueIndexes, nulls, mvOrdering);
+        this.vector = vector;
+        assert firstValueIndexes == null
+            ? vector.getPositionCount() == getPositionCount()
+            : firstValueIndexes[getPositionCount()] == vector.getPositionCount();
+    }
+
+    static $Type$ArrayBlock readArrayBlock(BlockFactory blockFactory, BlockStreamInput in) throws IOException {
+        final SubFields sub = new SubFields(blockFactory, in);
+        $Type$ArrayVector vector = null;
+        boolean success = false;
+        try {
+            vector = $Type$ArrayVector.readArrayVector(sub.vectorPositions(), in, blockFactory);
+            var block = new $Type$ArrayBlock(vector, sub.positionCount, sub.firstValueIndexes, sub.nullsMask, sub.mvOrdering);
+            blockFactory.adjustBreaker(block.ramBytesUsed() - vector.ramBytesUsed() - sub.bytesReserved);
+            success = true;
+            return block;
+        } finally {
+            if (success == false) {
+                Releasables.close(vector);
+                blockFactory.adjustBreaker(-sub.bytesReserved);
+            }
+        }
+    }
+
+    void writeArrayBlock(StreamOutput out) throws IOException {
+        writeSubFields(out);
+        vector.writeArrayVector(vector.getPositionCount(), out);
     }
 
     @Override
@@ -59,10 +98,10 @@ $endif$
     @Override
 $if(BytesRef)$
     public BytesRef getBytesRef(int valueIndex, BytesRef dest) {
-        return values.get(valueIndex, dest);
+        return vector.getBytesRef(valueIndex, dest);
 $else$
     public $type$ get$Type$(int valueIndex) {
-        return values[valueIndex];
+        return vector.get$Type$(valueIndex);
 $endif$
     }
 
@@ -71,7 +110,7 @@ $endif$
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$
-        try (var builder = blockFactory.new$Type$BlockBuilder(positions.length)) {
+        try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
                     builder.appendNull();
@@ -101,40 +140,39 @@ $endif$
     @Override
     public $Type$Block expand() {
         if (firstValueIndexes == null) {
+            incRef();
             return this;
         }
-        // TODO use reference counting to share the values
-$if(BytesRef)$
-        final BytesRef scratch = new BytesRef();
-$endif$
-        try (var builder = blockFactory.new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
-            for (int pos = 0; pos < getPositionCount(); pos++) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int first = getFirstValueIndex(pos);
-                int end = first + getValueCount(pos);
-                for (int i = first; i < end; i++) {
-$if(BytesRef)$
-                    builder.append$Type$(get$Type$(i, scratch));
-$else$
-                    builder.append$Type$(get$Type$(i));
-$endif$
-                }
-            }
-            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
+        if (nullsMask == null) {
+            vector.incRef();
+            return vector.asBlock();
         }
+
+        // The following line is correct because positions with multi-values are never null.
+        int expandedPositionCount = vector.getPositionCount();
+        long bitSetRamUsedEstimate = Math.max(nullsMask.size(), BlockRamUsageEstimator.sizeOfBitSet(expandedPositionCount));
+        blockFactory().adjustBreaker(bitSetRamUsedEstimate);
+
+        $Type$ArrayBlock expanded = new $Type$ArrayBlock(
+            vector,
+            expandedPositionCount,
+            null,
+            shiftNullsToExpandedPositions(),
+            MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
+        );
+        blockFactory().adjustBreaker(expanded.ramBytesUsedOnlyBlock() - bitSetRamUsedEstimate);
+        // We need to incRef after adjusting any breakers, otherwise we might leak the vector if the breaker trips.
+        vector.incRef();
+        return expanded;
     }
 
-    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int[] firstValueIndexes, BitSet nullsMask) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
+    private long ramBytesUsedOnlyBlock() {
+        return BASE_RAM_BYTES_USED + BlockRamUsageEstimator.sizeOf(firstValueIndexes) + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values, firstValueIndexes, nullsMask);
+        return ramBytesUsedOnlyBlock() + vector.ramBytesUsed();
     }
 
     @Override
@@ -157,27 +195,24 @@ $endif$
             + getPositionCount()
             + ", mvOrdering="
             + mvOrdering()
-$if(BytesRef)$
-            + ", values="
-            + values.size()
-$else$
-            + ", values="
-            + Arrays.toString(values)
-$endif$
+            + ", vector="
+            + vector
             + ']';
     }
 
     @Override
-    public void close() {
-        if (released) {
-            throw new IllegalStateException("can't release already released block [" + this + "]");
-        }
-        released = true;
-    $if(BytesRef)$
-        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
-        Releasables.closeExpectNoException(values);
-    $else$
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
-    $endif$
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
+    }
+
+    @Override
+    public void closeInternal() {
+        blockFactory().adjustBreaker(-ramBytesUsedOnlyBlock());
+        Releasables.closeExpectNoException(vector);
     }
 }

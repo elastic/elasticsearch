@@ -36,21 +36,11 @@ public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction
     LongVector vector = (LongVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return driverContext.blockFactory().newConstantNullBlock(positionCount);
-      }
+      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0), positionCount);
     }
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        try {
-          builder.appendBytesRef(evalValue(vector, p));
-        } catch (Exception e) {
-          registerException(e);
-          builder.appendNull();
-        }
+        builder.appendBytesRef(evalValue(vector, p));
       }
       return builder.build();
     }
@@ -73,17 +63,13 @@ public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            BytesRef value = evalValue(block, i);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendBytesRef(value);
-            valuesAppended = true;
-          } catch (Exception e) {
-            registerException(e);
+          BytesRef value = evalValue(block, i);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendBytesRef(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

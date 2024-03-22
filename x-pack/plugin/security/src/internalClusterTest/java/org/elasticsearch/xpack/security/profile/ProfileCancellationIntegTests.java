@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.profile;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -129,7 +129,11 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
             final List<String> taskActions = tasks.stream().map(Task::getAction).toList();
             assertThat(
                 taskActions,
-                hasItems(equalTo(SuggestProfilesAction.NAME), equalTo(SearchAction.NAME), startsWith(SearchAction.NAME))
+                hasItems(
+                    equalTo(SuggestProfilesAction.NAME),
+                    equalTo(TransportSearchAction.TYPE.name()),
+                    startsWith(TransportSearchAction.TYPE.name())
+                )
             );
             assertThat(isShardSearchBlocked(), is(true));
             tasks.forEach(t -> {

@@ -10,17 +10,17 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
     @Override
@@ -69,7 +69,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         ).execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
@@ -87,7 +87,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         ).execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         logger.info("Segments {}", Strings.toString(indicesAdmin().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
@@ -132,7 +132,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             )
             .execute();
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         ensureSearchWasCancelled(searchResponse);
     }
@@ -149,7 +149,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             .execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchAction.NAME);
+        cancelSearch(TransportSearchAction.TYPE.name());
         disableBlocks(plugins);
         SearchResponse response = ensureSearchWasCancelled(searchResponse);
         if (response != null) {
@@ -169,27 +169,31 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         logger.info("Executing search");
         TimeValue keepAlive = TimeValue.timeValueSeconds(5);
+        String scrollId;
         SearchResponse searchResponse = prepareSearch("test").setScroll(keepAlive)
             .setSize(2)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .get();
+        try {
+            assertNotNull(searchResponse.getScrollId());
 
-        assertNotNull(searchResponse.getScrollId());
+            // Enable block so the second request would block
+            for (ScriptedBlockPlugin plugin : plugins) {
+                plugin.reset();
+                plugin.enableBlock();
+            }
 
-        // Enable block so the second request would block
-        for (ScriptedBlockPlugin plugin : plugins) {
-            plugin.reset();
-            plugin.enableBlock();
+            scrollId = searchResponse.getScrollId();
+            logger.info("Executing scroll with id {}", scrollId);
+        } finally {
+            searchResponse.decRef();
         }
-
-        String scrollId = searchResponse.getScrollId();
-        logger.info("Executing scroll with id {}", scrollId);
         ActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
             .setScroll(keepAlive)
             .execute();
 
         awaitForBlock(plugins);
-        cancelSearch(SearchScrollAction.NAME);
+        cancelSearch(TransportSearchScrollAction.TYPE.name());
         disableBlocks(plugins);
 
         SearchResponse response = ensureSearchWasCancelled(scrollResponse);
@@ -204,7 +208,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
     public void testCancelMultiSearch() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
-        ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch()
+        ActionFuture<MultiSearchResponse> multiSearchResponse = client().prepareMultiSearch()
             .add(
                 prepareSearch("test").addScriptField(
                     "test_field",
@@ -212,21 +216,28 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                 )
             )
             .execute();
-        awaitForBlock(plugins);
-        cancelSearch(MultiSearchAction.NAME);
-        disableBlocks(plugins);
-        for (MultiSearchResponse.Item item : msearchResponse.actionGet()) {
-            if (item.getFailure() != null) {
-                assertThat(ExceptionsHelper.unwrap(item.getFailure(), TaskCancelledException.class), notNullValue());
-            } else {
-                assertFailures(item.getResponse());
-                for (ShardSearchFailure shardFailure : item.getResponse().getShardFailures()) {
-                    assertThat(ExceptionsHelper.unwrap(shardFailure.getCause(), TaskCancelledException.class), notNullValue());
+        MultiSearchResponse response = null;
+        try {
+            awaitForBlock(plugins);
+            cancelSearch(TransportMultiSearchAction.TYPE.name());
+            disableBlocks(plugins);
+            response = multiSearchResponse.actionGet();
+            for (MultiSearchResponse.Item item : response) {
+                if (item.getFailure() != null) {
+                    assertThat(ExceptionsHelper.unwrap(item.getFailure(), TaskCancelledException.class), notNullValue());
+                } else {
+                    assertFailures(item.getResponse());
+                    for (ShardSearchFailure shardFailure : item.getResponse().getShardFailures()) {
+                        assertThat(ExceptionsHelper.unwrap(shardFailure.getCause(), TaskCancelledException.class), notNullValue());
+                    }
                 }
             }
+        } finally {
+            if (response != null) response.decRef();
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99929")
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
         // are limited to 1
@@ -239,11 +250,10 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         Thread searchThread = new Thread(() -> {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
+                prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
                     .setAllowPartialSearchResults(false)
                     .setSize(1000)
-                    .get()
             );
             assertThat(e.getMessage(), containsString("Partial shards failure"));
         });
@@ -286,12 +296,11 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                     assertTrue("All SearchShardTasks should then be cancelled", shardQueryTask.isCancelled());
                 }
             }, 30, TimeUnit.SECONDS);
-            shardTaskLatch.countDown(); // unblock the shardTasks, allowing the test to conclude.
         } finally {
+            shardTaskLatch.countDown(); // unblock the shardTasks, allowing the test to conclude.
             searchThread.join();
-            for (ScriptedBlockPlugin plugin : plugins) {
-                plugin.setBeforeExecution(() -> {});
-            }
+            plugins.forEach(plugin -> plugin.setBeforeExecution(() -> {}));
+            searchShardBlockingPlugins.forEach(plugin -> plugin.setRunOnNewReaderContext((ReaderContext c) -> {}));
         }
     }
 
@@ -300,7 +309,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         for (String nodeName : internalCluster().getNodeNames()) {
             TransportService transportService = internalCluster().getInstance(TransportService.class, nodeName);
             for (Task task : transportService.getTaskManager().getCancellableTasks().values()) {
-                if (task.getAction().equals(SearchAction.NAME)) {
+                if (task.getAction().equals(TransportSearchAction.TYPE.name())) {
                     tasks.add((SearchTask) task);
                 }
             }

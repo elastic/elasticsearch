@@ -15,6 +15,10 @@ import java.util.Map;
 
 /**
  * An interface for storing blobs.
+ *
+ * Creates a {@link BlobContainer} for each given {@link BlobPath} on demand in {@link #blobContainer(BlobPath)}.
+ * In implementation/practice, BlobStore often returns a BlobContainer seeded with a reference to the BlobStore.
+ * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository} holds and manages a BlobStore.
  */
 public interface BlobStore extends Closeable {
 

@@ -9,6 +9,7 @@ package org.elasticsearch.lucene.grouping;
 
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -121,7 +122,7 @@ public final class TopFieldGroups extends TopFieldDocs {
             reverseMul = new int[sortFields.length];
             for (int compIDX = 0; compIDX < sortFields.length; compIDX++) {
                 final SortField sortField = sortFields[compIDX];
-                comparators[compIDX] = sortField.getComparator(1, false);
+                comparators[compIDX] = sortField.getComparator(1, Pruning.NONE);
                 reverseMul[compIDX] = sortField.getReverse() ? -1 : 1;
             }
         }

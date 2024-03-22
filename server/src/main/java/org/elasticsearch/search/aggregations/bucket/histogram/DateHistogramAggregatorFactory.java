@@ -52,6 +52,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                 order,
                 keyed,
                 minDocCount,
+                downsampledResultsOffset,
                 extendedBounds,
                 hardBounds,
                 valuesSourceConfig,
@@ -71,6 +72,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                     order,
                     keyed,
                     minDocCount,
+                    downsampledResultsOffset,
                     extendedBounds,
                     hardBounds,
                     valuesSourceConfig,
@@ -88,6 +90,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
+    private final boolean downsampledResultsOffset;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
     private final Rounding rounding;
@@ -98,6 +101,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         Rounding rounding,
         LongBounds extendedBounds,
         LongBounds hardBounds,
@@ -111,14 +115,11 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         this.aggregatorSupplier = aggregationSupplier;
         this.order = order;
         this.keyed = keyed;
+        this.downsampledResultsOffset = downsampledResultsOffset;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         this.rounding = rounding;
-    }
-
-    public long minDocCount() {
-        return minDocCount;
     }
 
     @Override
@@ -143,6 +144,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             config,
@@ -163,6 +165,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             config,

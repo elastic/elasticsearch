@@ -6,15 +6,21 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.OpenLdapTests;
+import org.elasticsearch.test.fixtures.idp.OpenLdapTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
+import org.junit.ClassRule;
 
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
@@ -24,10 +30,14 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     private static final String BRUCE_BANNER_DN = "uid=hulk,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("ldap", "my-ldap-realm");
+
+    @ClassRule
+    public static final OpenLdapTestContainer openLdapContainer = new OpenLdapTestContainer();
 
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
@@ -202,7 +212,7 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     @Override
     protected String ldapUrl() {
-        return OpenLdapTests.OPEN_LDAP_DNS_URL;
+        return openLdapContainer.getLdapUrl();
     }
 
     @Override
@@ -217,6 +227,12 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     @Override
     protected String trustPath() {
-        return "/ca.jks";
+        return "/openldap/certs/ca.jks";
+    }
+
+    @Override
+    protected void doSetupLdapConnection() throws Exception {
+        Path trustPath = openLdapContainer.getJavaKeyStorePath();
+        this.ldapConnection = LdapTestUtils.openConnection(ldapUrl(), bindDN(), bindPassword(), trustPath);
     }
 }

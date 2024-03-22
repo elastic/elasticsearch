@@ -32,7 +32,7 @@ public class CustomQueryParserIT extends ESIntegTestCase {
         super.setUp();
         createIndex("test");
         ensureGreen();
-        client().prepareIndex("index").setId("1").setSource("field", "value").get();
+        prepareIndex("index").setId("1").setSource("field", "value").get();
         refresh();
     }
 

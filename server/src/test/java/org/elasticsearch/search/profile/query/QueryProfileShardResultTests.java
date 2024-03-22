@@ -33,7 +33,9 @@ public class QueryProfileShardResultTests extends AbstractXContentSerializingTes
         if (randomBoolean()) {
             rewriteTime = rewriteTime % 1000; // make sure to often test this with small values too
         }
-        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector);
+
+        Long vectorOperationsCount = randomBoolean() ? null : randomNonNegativeLong();
+        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector, vectorOperationsCount);
     }
 
     @Override

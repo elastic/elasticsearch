@@ -252,3 +252,75 @@ emp_no:integer  | first_name:keyword | generate_mv:keyword
 10001           | Georgi             | foo
 10002           | Bezalel            | foo
 ;
+
+
+// see https://github.com/elastic/elasticsearch/issues/102120
+expandAfterDuplicateAggs#[skip:-8.11.99]
+row a = 1 |  stats  a = count(*), b = count(*) | mv_expand b;
+
+a:long | b:long 
+1      | 1
+;
+
+expandAfterDuplicateAggs2#[skip:-8.11.99]
+row a = 1 | stats a = count(*), b = count(*) | mv_expand a;
+
+a:long | b:long 
+1      | 1
+;
+
+
+expandAfterDuplicateAggsAndEval#[skip:-8.11.99]
+row a = 1 | stats  a = count(*), b = count(*) | eval c = 2 | mv_expand b;
+
+a:long | b:long | c:integer
+1      | 1      | 2
+;
+
+expandAfterDuplicateAggsComplex#[skip:-8.11.99]
+row x = [1, 2, 3] 
+| mv_expand x 
+| stats a = count(*), b = count(*), c = count(*) 
+| eval x  = a + c + b 
+| mv_expand a 
+| rename a AS a | drop a;
+
+b:long    | c:long    | x:long
+3         | 3         | 9
+;
+
+
+expandAfterDuplicateAggsMultirow#[skip:-8.11.99]
+from employees 
+| stats a = count(gender), b = count(*), c = count(*) by gender 
+| eval str = concat(to_string(b), ",", gender) 
+| mv_expand b 
+| eval x = split(str,",") 
+| mv_expand x 
+| sort x;
+
+a:long      | b:long      | c:long      | gender:keyword | str:keyword   | x:keyword       
+33          |33           |33           |F               |"33,F"         |33             
+57          |57           |57           |M               |"57,M"         |57             
+33          |33           |33           |F               |"33,F"         |F              
+57          |57           |57           |M               |"57,M"         |M              
+0           |10           |10           |null            |null         |null           
+;
+
+
+//see https://github.com/elastic/elasticsearch/issues/102912
+statsDissectThatOverwritesAndMvExpand#[skip:-8.11.99]
+row  a = "a", b = 1 | stats  e = min(b) by a | dissect a "%{e}" | mv_expand e;
+
+a:keyword | e:keyword
+a         | a
+;
+
+
+//see https://github.com/elastic/elasticsearch/issues/103331
+keepStarMvExpand#[skip:-8.12.99]
+from employees | where emp_no == 10001 | keep * |  mv_expand first_name;
+
+avg_worked_seconds:long | birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date           | is_rehired:boolean | job_positions:keyword                 | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean  
+268728049               | 1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 2.03          | 2.0299999713897705  | 2.029296875              | 2.0300000000000002         | 1986-06-26T00:00:00.000Z | [false, true]      | [Accountant, Senior Python Developer] | 2                 | 2                      | 2                   | 2                       | Facello           | 57305          | 1.19                 | 1                         | 1.19                          | 1                       | true           
+;

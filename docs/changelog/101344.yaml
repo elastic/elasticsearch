@@ -1,5 +1,0 @@
-pr: 101344
-summary: Register `repository_s3` settings
-area: Snapshot/Restore
-type: bug
-issues: []

@@ -45,7 +45,7 @@ public class Aggregator implements Releasable {
 
     public void evaluate(Block[] blocks, int offset, DriverContext driverContext) {
         if (mode.isOutputPartial()) {
-            aggregatorFunction.evaluateIntermediate(blocks, offset);
+            aggregatorFunction.evaluateIntermediate(blocks, offset, driverContext);
         } else {
             aggregatorFunction.evaluateFinal(blocks, offset, driverContext);
         }

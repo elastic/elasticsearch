@@ -79,7 +79,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         final String node2 = getLocalNodeId(server_2);
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-        clusterAdmin().prepareReroute().execute().actionGet();
+        clusterAdmin().prepareReroute().get();
 
         clusterHealth = clusterAdmin().health(
             new ClusterHealthRequest(new String[] {}).waitForGreenStatus().waitForNodes("2").waitForNoRelocatingShards(true)
@@ -120,7 +120,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         final String node3 = getLocalNodeId(server_3);
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
-        clusterAdmin().prepareReroute().execute().actionGet();
+        clusterAdmin().prepareReroute().get();
 
         clusterHealth = clusterAdmin().prepareHealth()
             .setWaitForGreenStatus()
@@ -203,7 +203,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Deleting index [test]");
         // last, lets delete the index
-        AcknowledgedResponse deleteIndexResponse = indicesAdmin().prepareDelete("test").execute().actionGet();
+        AcknowledgedResponse deleteIndexResponse = indicesAdmin().prepareDelete("test").get();
         assertThat(deleteIndexResponse.isAcknowledged(), equalTo(true));
 
         clusterState = clusterAdmin().prepareState().get().getState();

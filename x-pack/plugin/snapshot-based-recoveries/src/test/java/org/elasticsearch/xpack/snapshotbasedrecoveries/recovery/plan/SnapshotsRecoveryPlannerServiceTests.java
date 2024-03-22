@@ -462,7 +462,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     ) throws Exception {
         SnapshotsRecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService, () -> true);
 
-        PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<ShardRecoveryPlan> planFuture = new PlainActionFuture<>();
         recoveryPlannerService.computeRecoveryPlan(
             shardId,
             shardIdentifier,

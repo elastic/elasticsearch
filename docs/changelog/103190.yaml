@@ -1,0 +1,5 @@
+pr: 103190
+summary: ILM/SLM history policies forcemerge in hot and dsl configuration
+area: ILM+SLM
+type: enhancement
+issues: []

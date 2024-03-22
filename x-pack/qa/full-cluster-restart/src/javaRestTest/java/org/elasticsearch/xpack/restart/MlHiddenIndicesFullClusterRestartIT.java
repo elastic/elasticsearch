@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.restart;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -68,7 +68,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
             XPackRestTestHelper.waitForTemplates(
                 client(),
                 XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
-                getOldClusterVersion().onOrAfter(Version.V_7_8_0)
+                clusterHasFeature(RestTestLegacyFeatures.COMPONENT_TEMPLATE_SUPPORTED)
             );
         }
     }
@@ -79,7 +79,7 @@ public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullCluste
             createAnomalyDetectorJob(JOB_ID);
             openAnomalyDetectorJob(JOB_ID);
 
-            if (getOldClusterVersion().before(Version.V_7_7_0)) {
+            if (clusterHasFeature(RestTestLegacyFeatures.ML_INDICES_HIDDEN) == false) {
                 Map<String, Object> indexSettingsMap = contentAsMap(getMlIndicesSettings());
                 Map<String, Object> aliasesMap = contentAsMap(getMlAliases());
 

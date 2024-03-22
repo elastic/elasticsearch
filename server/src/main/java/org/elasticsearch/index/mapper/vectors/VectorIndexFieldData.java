@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
@@ -24,6 +25,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.function.Function;
+
 public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldData> {
 
     protected final String fieldName;
@@ -32,6 +35,7 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
     private final ElementType elementType;
     private final int dims;
     private final boolean indexed;
+    private final Function<LeafReader, LeafReader> readerWrapper;
 
     public VectorIndexFieldData(
         String fieldName,
@@ -39,7 +43,8 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
         IndexVersion indexVersion,
         ElementType elementType,
         int dims,
-        boolean indexed
+        boolean indexed,
+        Function<LeafReader, LeafReader> readerWrapper
     ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
@@ -47,6 +52,7 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
         this.elementType = elementType;
         this.dims = dims;
         this.indexed = indexed;
+        this.readerWrapper = readerWrapper;
     }
 
     @Override
@@ -82,7 +88,7 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
 
     @Override
     public VectorDVLeafFieldData load(LeafReaderContext context) {
-        return new VectorDVLeafFieldData(context.reader(), fieldName, indexVersion, elementType, dims, indexed);
+        return new VectorDVLeafFieldData(readerWrapper.apply(context.reader()), fieldName, indexVersion, elementType, dims, indexed);
     }
 
     @Override
@@ -97,6 +103,7 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
         private final ElementType elementType;
         private final int dims;
         private final boolean indexed;
+        private final Function<LeafReader, LeafReader> readerWrapper;
 
         public Builder(
             String name,
@@ -104,7 +111,8 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
             IndexVersion indexVersion,
             ElementType elementType,
             int dims,
-            boolean indexed
+            boolean indexed,
+            Function<LeafReader, LeafReader> readerWrapper
         ) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
@@ -112,11 +120,12 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
             this.elementType = elementType;
             this.dims = dims;
             this.indexed = indexed;
+            this.readerWrapper = readerWrapper;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new VectorIndexFieldData(name, valuesSourceType, indexVersion, elementType, dims, indexed);
+            return new VectorIndexFieldData(name, valuesSourceType, indexVersion, elementType, dims, indexed, readerWrapper);
         }
     }
 }

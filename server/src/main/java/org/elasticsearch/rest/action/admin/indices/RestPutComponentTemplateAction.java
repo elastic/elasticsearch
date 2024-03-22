@@ -43,7 +43,9 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", "api"));
-        putRequest.componentTemplate(ComponentTemplate.parse(request.contentParser()));
+        try (var parser = request.contentParser()) {
+            putRequest.componentTemplate(ComponentTemplate.parse(parser));
+        }
 
         return channel -> client.execute(PutComponentTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }

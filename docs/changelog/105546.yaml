@@ -1,0 +1,6 @@
+pr: 105546
+summary: '`GlobalOrdCardinalityAggregator` should use `HyperLogLogPlusPlus` instead
+  of `HyperLogLogPlusPlusSparse`'
+area: Aggregations
+type: bug
+issues: []

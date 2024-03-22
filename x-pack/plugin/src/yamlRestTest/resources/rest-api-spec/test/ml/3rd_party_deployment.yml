@@ -153,11 +153,11 @@ setup:
   - do:
       ml.get_trained_models:
         model_id: "bert_fill_mask_model"
-  - match: {trained_model_configs.0.inference_config.fill_mask.mask_token: "[MASK]"}
+  - match: { trained_model_configs.0.inference_config.fill_mask.mask_token: "[MASK]" }
   - do:
       ml.get_trained_models:
         model_id: "roberta_fill_mask_model"
-  - match: {trained_model_configs.0.inference_config.fill_mask.mask_token: "<mask>"}
+  - match: { trained_model_configs.0.inference_config.fill_mask.mask_token: "<mask>" }
   - do:
       catch: /IllegalArgumentException. Mask token requested was \[<mask>\] but must be \[\[MASK\]\] for this model/
       ml.put_trained_model:
@@ -215,6 +215,32 @@ setup:
       catch: /Could not find trained model definition \[distilbert-finetuned-sst\]/
       ml.start_trained_model_deployment:
         model_id: distilbert-finetuned-sst
+
+---
+"Test start deployment fails while model download in progress":
+  - do:
+      ml.put_trained_model:
+        model_id: .elser_model_2
+        body: >
+          {
+            "input": {
+          	"field_names": ["text_field"]
+            }
+          }
+  # Set a low timeout so the test doesn't actually wait
+  # for the model download to complete
+  - do:
+      catch: /Model download task is currently running\. Wait for trained model \[.elser_model_2\] download task to complete then try again/
+      ml.start_trained_model_deployment:
+        model_id: .elser_model_2
+        timeout: 1s
+  - do:
+      ml.delete_trained_model:
+        model_id: .elser_model_2
+  - do:
+      catch: /No known trained model with model_id \[.elser_model_2\]/
+      ml.start_trained_model_deployment:
+        model_id: .elser_model_2
 ---
 "Test start and stop deployment with no cache":
   - do:
@@ -222,9 +248,9 @@ setup:
         model_id: test_model
         cache_size: 0
         wait_for: started
-  - match: {assignment.assignment_state: started}
-  - match: {assignment.task_parameters.model_id: test_model}
-  - match: {assignment.task_parameters.cache_size: "0"}
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.cache_size: "0" }
 
   - do:
       ml.stop_trained_model_deployment:
@@ -240,9 +266,9 @@ setup:
         model_id: test_model
         cache_size: 10kb
         wait_for: started
-  - match: {assignment.assignment_state: started}
-  - match: {assignment.task_parameters.model_id: test_model}
-  - match: {assignment.task_parameters.cache_size: 10kb}
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.cache_size: 10kb }
 
   - do:
       allowed_warnings:
@@ -380,9 +406,9 @@ setup:
         deployment_id: test_model_deployment_cache_test
         cache_size: 10kb
         wait_for: started
-  - match: {assignment.assignment_state: started}
-  - match: {assignment.task_parameters.model_id: test_model}
-  - match: {assignment.task_parameters.cache_size: 10kb}
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.cache_size: 10kb }
 
   - do:
       allowed_warnings:
@@ -535,7 +561,7 @@ setup:
         model_id: test_model
         deployment_id: test_model_for_search
         wait_for: started
-  - match: {assignment.assignment_state: started}
+  - match: { assignment.assignment_state: started }
 
   - do:
       ml.stop_trained_model_deployment:
@@ -565,9 +591,9 @@ setup:
         deployment_id: test_model_for_search
         priority: low
         wait_for: started
-  - match: {assignment.assignment_state: started}
-  - match: {assignment.task_parameters.model_id: test_model}
-  - match: {assignment.task_parameters.deployment_id: test_model_for_search}
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.deployment_id: test_model_for_search }
   - do:
       allowed_warnings:
         - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
@@ -586,9 +612,9 @@ setup:
         deployment_id: test_model_for_ingest
         priority: low
         wait_for: started
-  - match: {assignment.assignment_state: started}
-  - match: {assignment.task_parameters.model_id: test_model}
-  - match: {assignment.task_parameters.deployment_id: test_model_for_ingest}
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.deployment_id: test_model_for_ingest }
   - do:
       allowed_warnings:
         - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
@@ -625,7 +651,7 @@ setup:
         model_id: test_model
         deployment_id: test_model_deployment
         wait_for: started
-  - match: {assignment.assignment_state: started}
+  - match: { assignment.assignment_state: started }
 
   - do:
       catch: /Could not start model deployment because an existing deployment with the same id \[test_model_deployment\] exist/
@@ -648,9 +674,9 @@ setup:
       ml.start_trained_model_deployment:
         model_id: test_model
         wait_for: started
-  - match: {assignment.assignment_state: started}
-  - match: {assignment.task_parameters.model_id: test_model}
-  - match: {assignment.task_parameters.deployment_id: test_model}
+  - match: { assignment.assignment_state: started }
+  - match: { assignment.task_parameters.model_id: test_model }
+  - match: { assignment.task_parameters.deployment_id: test_model }
 
 ---
 "Test cannot create model with a deployment Id":
@@ -659,10 +685,10 @@ setup:
         model_id: test_model
         wait_for: started
         deployment_id: test_model_deployment
-  - match: {assignment.assignment_state: started}
+  - match: { assignment.assignment_state: started }
 
   - do:
-      catch: /Cannot create model \[test_model_deployment\] the id is the same as an current model deployment/
+      catch: /Cannot create model \[test_model_deployment\] the model id is the same as the deployment id of a current model deployment/
       ml.put_trained_model:
         model_id: test_model_deployment
         body: >
@@ -695,3 +721,61 @@ setup:
               }
             }
           }
+
+---
+"Test put model config with prefix strings":
+  - do:
+      ml.put_trained_model:
+        model_id: model_with_prefixes
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "text_embedding": { }
+            },
+            "prefix_strings": {
+              "search": "this is a query",
+              "ingest": "this is a passage"
+            }
+          }
+  - match: { prefix_strings.search: "this is a query" }
+  - match: { prefix_strings.ingest: "this is a passage" }
+
+  - do:
+      ml.get_trained_models:
+        model_id: model_with_prefixes
+  - match: { trained_model_configs.0.prefix_strings.search: "this is a query" }
+  - match: { trained_model_configs.0.prefix_strings.ingest: "this is a passage" }
+
+
+  - do:
+      ml.put_trained_model:
+        model_id: model_with_search_prefix
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "text_embedding": { }
+            },
+            "prefix_strings": {
+              "search": "this is a query"
+            }
+          }
+  - match: { prefix_strings.search: "this is a query" }
+  - is_false: prefix_strings.ingest
+
+  - do:
+      ml.put_trained_model:
+        model_id: model_with_ingest_prefix
+        body: >
+          {
+            "model_type": "pytorch",
+            "inference_config": {
+              "text_embedding": { }
+            },
+            "prefix_strings": {
+              "ingest": "this is a passage"
+            }
+          }
+  - is_false: prefix_strings.search
+  - match: { prefix_strings.ingest: "this is a passage" }

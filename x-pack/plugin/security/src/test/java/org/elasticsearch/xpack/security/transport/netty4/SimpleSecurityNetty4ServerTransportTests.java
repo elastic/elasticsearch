@@ -196,7 +196,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 .roles(emptySet())
                 .version(version0)
                 .build();
-            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Transport.Connection> future = new PlainActionFuture<>();
             originalTransport.openConnection(node, connectionProfile, future);
             try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
                 assertEquals(TransportVersion.current(), connection.getTransportVersion());

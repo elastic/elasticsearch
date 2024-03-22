@@ -136,18 +136,13 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
 
         final DataFrameAnalyticsConfig config = request.getConfig();
 
-        ActionListener<Boolean> sourceDestValidationListener = ActionListener.wrap(
-            aBoolean -> putValidatedConfig(config, request.masterNodeTimeout(), listener),
-            listener::onFailure
-        );
-
         sourceDestValidator.validate(
             clusterService.state(),
             config.getSource().getIndex(),
             config.getDest().getIndex(),
             null,
             SourceDestValidations.ALL_VALIDATIONS,
-            sourceDestValidationListener
+            listener.delegateFailureAndWrap((l, aBoolean) -> putValidatedConfig(config, request.masterNodeTimeout(), l))
         );
     }
 
@@ -191,22 +186,20 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 }
                 privRequest.indexPrivileges(indicesPrivileges);
 
-                ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                    r -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener),
-                    listener::onFailure
+                client.execute(
+                    HasPrivilegesAction.INSTANCE,
+                    privRequest,
+                    listener.delegateFailureAndWrap(
+                        (l, r) -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener)
+                    )
                 );
-
-                client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
             });
         } else {
             updateDocMappingAndPutConfig(
                 preparedForPutConfig,
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
-                ActionListener.wrap(
-                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, finalConfig) -> l.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)))
             );
         }
     }
@@ -223,10 +216,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 memoryCappedConfig,
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
-                ActionListener.wrap(
-                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, finalConfig) -> l.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)))
             );
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -254,13 +244,13 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         TimeValue masterNodeTimeout,
         ActionListener<DataFrameAnalyticsConfig> listener
     ) {
-        ActionListener<DataFrameAnalyticsConfig> auditingListener = ActionListener.wrap(finalConfig -> {
+        ActionListener<DataFrameAnalyticsConfig> auditingListener = listener.delegateFailureAndWrap((delegate, finalConfig) -> {
             auditor.info(
                 finalConfig.getId(),
                 Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, finalConfig.getAnalysis().getWriteableName())
             );
-            listener.onResponse(finalConfig);
-        }, listener::onFailure);
+            delegate.onResponse(finalConfig);
+        });
 
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
@@ -274,7 +264,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             client,
             clusterState,
             masterNodeTimeout,
-            ActionListener.wrap(unused -> configProvider.put(config, headers, masterNodeTimeout, auditingListener), listener::onFailure),
+            auditingListener.delegateFailureAndWrap((l, unused) -> configProvider.put(config, headers, masterNodeTimeout, l)),
             MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }

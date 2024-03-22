@@ -179,9 +179,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return sourceFieldMapper;
         }
 
-        private IndexMode getIndexMode() {
-            return indexMode;
-        }
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
@@ -192,9 +189,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     );
 
     static final class SourceFieldType extends MappedFieldType {
+        private final boolean enabled;
 
         private SourceFieldType(boolean enabled) {
             super(NAME, false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
+            this.enabled = enabled;
         }
 
         @Override
@@ -215,6 +214,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new QueryShardException(context, "The _source field is not searchable");
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (enabled) {
+                return new SourceFieldBlockLoader();
+            }
+            return BlockLoader.CONSTANT_NULLS;
         }
     }
 

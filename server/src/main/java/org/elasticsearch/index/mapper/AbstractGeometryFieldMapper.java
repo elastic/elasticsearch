@@ -87,6 +87,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {
 
         protected final Parser<T> geometryParser;
+        protected final T nullValue;
 
         protected AbstractGeometryFieldType(
             String name,
@@ -94,9 +95,11 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             boolean stored,
             boolean hasDocValues,
             Parser<T> geometryParser,
+            T nullValue,
             Map<String, String> meta
         ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
+            this.nullValue = nullValue;
             this.geometryParser = geometryParser;
         }
 
@@ -125,9 +128,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             };
         }
 
-        public ValueFetcher valueFetcher(Set<String> sourcePaths, Object nullValue, String format) {
+        public ValueFetcher valueFetcher(Set<String> sourcePaths, T nullValue, String format) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
-            return new ArraySourceValueFetcher(sourcePaths, nullValue) {
+            return new ArraySourceValueFetcher(sourcePaths, nullValueAsSource(nullValue)) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     final List<T> values = new ArrayList<>();
@@ -136,6 +139,20 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                 }
             };
         }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // Currently we can only load from source in ESQL
+            return blockLoaderFromSource(blContext);
+        }
+
+        protected BlockLoader blockLoaderFromSource(BlockLoaderContext blContext) {
+            ValueFetcher fetcher = valueFetcher(blContext.sourcePaths(name()), nullValue, GeometryFormatterFactory.WKB);
+            // TODO consider optimization using BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+            return new BlockSourceReader.GeometriesBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
+        }
+
+        protected abstract Object nullValueAsSource(T nullValue);
     }
 
     private final Explicit<Boolean> ignoreMalformed;

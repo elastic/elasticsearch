@@ -31,7 +31,6 @@ public final class LoggingTaskListener<Response> implements ActionListener<Respo
     @Override
     public void onResponse(Response response) {
         logger.info("{} finished with response {}", task.getId(), response);
-
     }
 
     @Override

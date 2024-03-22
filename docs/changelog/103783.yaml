@@ -1,0 +1,5 @@
+pr: 103783
+summary: "[Profiling] Mark all templates as managed"
+area: Application
+type: enhancement
+issues: []

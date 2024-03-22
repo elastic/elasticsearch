@@ -16,34 +16,38 @@ import java.io.IOException;
 
 /**
  * Represents the action of requesting a join vote (see {@link Join}) from a node.
- * The source node represents the node that is asking for join votes.
+ *
+ * A {@link StartJoinRequest} is broadcast to each node in the cluster, requesting
+ * that each node join the new cluster formed around the master candidate node in a
+ * new term. The sender is either the new master candidate or the current master
+ * abdicating to another eligible node in the cluster.
  */
 public class StartJoinRequest extends TransportRequest {
 
-    private final DiscoveryNode sourceNode;
+    private final DiscoveryNode masterCandidateNode;
 
     private final long term;
 
-    public StartJoinRequest(DiscoveryNode sourceNode, long term) {
-        this.sourceNode = sourceNode;
+    public StartJoinRequest(DiscoveryNode masterCandidateNode, long term) {
+        this.masterCandidateNode = masterCandidateNode;
         this.term = term;
     }
 
     public StartJoinRequest(StreamInput input) throws IOException {
         super(input);
-        this.sourceNode = new DiscoveryNode(input);
+        this.masterCandidateNode = new DiscoveryNode(input);
         this.term = input.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        sourceNode.writeTo(out);
+        masterCandidateNode.writeTo(out);
         out.writeLong(term);
     }
 
-    public DiscoveryNode getSourceNode() {
-        return sourceNode;
+    public DiscoveryNode getMasterCandidateNode() {
+        return masterCandidateNode;
     }
 
     public long getTerm() {
@@ -52,7 +56,7 @@ public class StartJoinRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "StartJoinRequest{" + "term=" + term + ",node=" + sourceNode + "}";
+        return "StartJoinRequest{" + "term=" + term + ",node=" + masterCandidateNode + "}";
     }
 
     @Override
@@ -63,12 +67,12 @@ public class StartJoinRequest extends TransportRequest {
         StartJoinRequest that = (StartJoinRequest) o;
 
         if (term != that.term) return false;
-        return sourceNode.equals(that.sourceNode);
+        return masterCandidateNode.equals(that.masterCandidateNode);
     }
 
     @Override
     public int hashCode() {
-        int result = sourceNode.hashCode();
+        int result = masterCandidateNode.hashCode();
         result = 31 * result + (int) (term ^ (term >>> 32));
         return result;
     }

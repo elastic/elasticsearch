@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.security.action;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -29,7 +29,7 @@ public class SecurityActionMapper {
      */
     public static String action(String action, TransportRequest request) {
         switch (action) {
-            case ClearScrollAction.NAME -> {
+            case TransportClearScrollAction.NAME -> {
                 assert request instanceof ClearScrollRequest;
                 boolean isClearAllScrollRequest = ((ClearScrollRequest) request).scrollIds().contains("_all");
                 if (isClearAllScrollRequest) {

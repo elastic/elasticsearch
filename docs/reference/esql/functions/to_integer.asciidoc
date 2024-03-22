@@ -1,12 +1,37 @@
 [discrete]
 [[esql-to_integer]]
 === `TO_INTEGER`
+
+*Alias*
+
+`TO_INT`
+
+*Syntax*
+
+[source,esql]
+----
+TO_INTEGER(v)
+----
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+
+*Description*
+
 Converts an input value to an integer  value.
 
-The input can be a single- or multi-valued field or an expression. The input
-type must be of a boolean, date, string or numeric type.
+If the input parameter is of a date type, its value will be interpreted as
+milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to integer.
 
-Example:
+Boolean *true* will be converted to integer *1*, *false* to *0*.
+
+*Supported types*
+
+The input type must be of a boolean, date, string or numeric type.
+
+*Example*
 
 [source.merge.styled,esql]
 ----
@@ -26,13 +51,4 @@ provide information on the source of the failure:
 
 A following header will contain the failure reason and the offending value:
 
-`"org.elasticsearch.xpack.ql.QlIllegalArgumentException: [501379200000] out of [integer] range"`
-
-
-If the input parameter is of a date type, its value will be interpreted as
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch],
-converted to integer.
-
-Boolean *true* will be converted to integer *1*, *false* to *0*.
-
-Alias: TO_INT
+`"org.elasticsearch.xpack.ql.InvalidArgumentException: [501379200000] out of [integer] range"`

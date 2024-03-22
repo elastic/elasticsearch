@@ -1,0 +1,38 @@
+{
+  "connector.update_status": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-status-api.html",
+      "description": "Updates the status of the connector."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/{connector_id}/_status",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector to be updated."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "An object containing the connector's status.",
+      "required": true
+    }
+  }
+}

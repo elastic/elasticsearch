@@ -13,7 +13,9 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 
-public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
+public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse>
+    implements
+        RequestBuilder<Request, Response> {
 
     protected final ActionType<Response> action;
     protected final Request request;
@@ -45,13 +47,6 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
      * Short version of execute().actionGet().
      */
     public Response get(TimeValue timeout) {
-        return execute().actionGet(timeout);
-    }
-
-    /**
-     * Short version of execute().actionGet().
-     */
-    public Response get(String timeout) {
         return execute().actionGet(timeout);
     }
 

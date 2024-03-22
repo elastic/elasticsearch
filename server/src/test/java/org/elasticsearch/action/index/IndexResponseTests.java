@@ -29,6 +29,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.replication.ReplicationResponseTests.assertShardInfo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class IndexResponseTests extends ESTestCase {
@@ -51,7 +52,7 @@ public class IndexResponseTests extends ESTestCase {
         {
             IndexResponse indexResponse = new IndexResponse(new ShardId("index", "index_uuid", 0), "id", -1, 17, 7, true);
             indexResponse.setForcedRefresh(true);
-            indexResponse.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
+            indexResponse.setShardInfo(ReplicationResponse.ShardInfo.of(10, 5));
             String output = Strings.toString(indexResponse);
             assertEquals(XContentHelper.stripWhitespace("""
                 {
@@ -111,7 +112,7 @@ public class IndexResponseTests extends ESTestCase {
         }
         IndexResponse parsedIndexResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedIndexResponse = IndexResponse.fromXContent(parser);
+            parsedIndexResponse = parseInstanceFromXContent(parser);
             assertNull(parser.nextToken());
         }
 
@@ -119,6 +120,15 @@ public class IndexResponseTests extends ESTestCase {
         // because the random index response can contain shard failures with exceptions,
         // and those exceptions are not parsed back with the same types.
         assertDocWriteResponse(expectedIndexResponse, parsedIndexResponse);
+    }
+
+    private static IndexResponse parseInstanceFromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        IndexResponse.Builder context = new IndexResponse.Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            DocWriteResponse.parseInnerToXContent(parser, context);
+        }
+        return context.build();
     }
 
     public static void assertDocWriteResponse(DocWriteResponse expected, DocWriteResponse actual) {

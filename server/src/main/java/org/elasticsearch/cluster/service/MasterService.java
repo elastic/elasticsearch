@@ -1470,8 +1470,13 @@ public class MasterService extends AbstractLifecycleComponent {
 
         @Override
         public String toString() {
-            return Strings.format("master service timeout handler for [%s][%s] after [%s]", source, taskHolder.get(), timeout);
+            return getTimeoutTaskDescription(source, taskHolder.get(), timeout);
         }
+
+    }
+
+    static String getTimeoutTaskDescription(String source, Object task, TimeValue timeout) {
+        return Strings.format("master service timeout handler for [%s][%s] after [%s]", source, task, timeout);
     }
 
     /**
@@ -1522,11 +1527,25 @@ public class MasterService extends AbstractLifecycleComponent {
             final var taskHolder = new AtomicReference<>(task);
             final Scheduler.Cancellable timeoutCancellable;
             if (timeout != null && timeout.millis() > 0) {
-                timeoutCancellable = threadPool.schedule(
-                    new TaskTimeoutHandler<>(timeout, source, taskHolder),
-                    timeout,
-                    threadPool.generic()
-                );
+                try {
+                    timeoutCancellable = threadPool.schedule(
+                        new TaskTimeoutHandler<>(timeout, source, taskHolder),
+                        timeout,
+                        threadPool.generic()
+                    );
+                } catch (Exception e) {
+                    assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+                    task.onFailure(
+                        new FailedToCommitClusterStateException(
+                            "could not schedule timeout handler for [%s][%s] on queue [%s]",
+                            e,
+                            source,
+                            task,
+                            name
+                        )
+                    );
+                    return;
+                }
             } else {
                 timeoutCancellable = null;
             }

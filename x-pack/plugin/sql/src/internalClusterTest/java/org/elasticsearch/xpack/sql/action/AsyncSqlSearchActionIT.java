@@ -31,14 +31,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.sql.plugin.SqlAsyncGetResultsAction;
 import org.junit.After;
 
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -91,15 +90,14 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(
-                client().prepareIndex("test")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field("val", fieldValue)
-                            .field("event_type", "my_event")
-                            .field("@timestamp", "2020-04-09T12:35:48Z")
-                            .field("i", i)
-                            .endObject()
-                    )
+                prepareIndex("test").setSource(
+                    jsonBuilder().startObject()
+                        .field("val", fieldValue)
+                        .field("event_type", "my_event")
+                        .field("@timestamp", "2020-04-09T12:35:48Z")
+                        .field("i", i)
+                        .endObject()
+                )
             );
         }
         indexRandom(true, builders);
@@ -110,7 +108,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client()).query(query)
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
@@ -149,7 +147,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
         }
         AcknowledgedResponse deleteResponse = client().execute(
-            DeleteAsyncResultAction.INSTANCE,
+            TransportDeleteAsyncResultAction.TYPE,
             new DeleteAsyncResultRequest(response.id())
         ).actionGet();
         assertThat(deleteResponse.isAcknowledged(), equalTo(true));
@@ -160,7 +158,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client()).query(query)
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
@@ -216,7 +214,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client()).query(query)
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
@@ -242,13 +240,13 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         logger.trace("Block is established");
 
         ActionFuture<AcknowledgedResponse> deleteResponse = client().execute(
-            DeleteAsyncResultAction.INSTANCE,
+            TransportDeleteAsyncResultAction.TYPE,
             new DeleteAsyncResultRequest(response.id())
         );
         disableBlocks(plugins);
         assertThat(deleteResponse.actionGet().isAcknowledged(), equalTo(true));
 
-        deleteResponse = client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id()));
+        deleteResponse = client().execute(TransportDeleteAsyncResultAction.TYPE, new DeleteAsyncResultRequest(response.id()));
         assertFutureThrows(deleteResponse, ResourceNotFoundException.class);
     }
 
@@ -258,7 +256,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         boolean success = randomBoolean();
         boolean keepOnCompletion = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client()).query(query)
             .waitForCompletionTimeout(TimeValue.timeValueSeconds(10));
         if (keepOnCompletion || randomBoolean()) {
             builder.keepOnCompletion(keepOnCompletion);
@@ -284,7 +282,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
                 assertThat(storedResponse, equalTo(response));
 
                 AcknowledgedResponse deleteResponse = client().execute(
-                    DeleteAsyncResultAction.INSTANCE,
+                    TransportDeleteAsyncResultAction.TYPE,
                     new DeleteAsyncResultRequest(response.id())
                 ).actionGet();
                 assertThat(deleteResponse.isAcknowledged(), equalTo(true));
@@ -302,8 +300,12 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
                 String value = doc.getSource().get("result").toString();
                 try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
                     TransportVersion version = TransportVersion.readVersion(buf);
-                    final InputStream compressedIn = CompressorFactory.COMPRESSOR.threadLocalInputStream(buf);
-                    try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(compressedIn), registry)) {
+                    try (
+                        StreamInput in = new NamedWriteableAwareStreamInput(
+                            new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalStreamInput(buf)),
+                            registry
+                        )
+                    ) {
                         in.setTransportVersion(version);
                         return new StoredAsyncResponse<>(SqlQueryResponse::new, in);
                     }

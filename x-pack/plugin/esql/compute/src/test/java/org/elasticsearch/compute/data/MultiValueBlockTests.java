@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class MultiValueBlockTests extends SerializationTestCase {
 
     public void testIntBlockTrivial1() {
-        var blockBuilder = IntBlock.newBlockBuilder(4);
+        var blockBuilder = blockFactory.newIntBlockBuilder(4);
         blockBuilder.appendInt(10);
         blockBuilder.beginPositionEntry();
         blockBuilder.appendInt(21);
@@ -54,10 +54,11 @@ public class MultiValueBlockTests extends SerializationTestCase {
         // cannot get a Vector view
         assertNull(block.asVector());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, this::serializeDeserializeBlock, null, Releasable::close);
+        block.close();
     }
 
     public void testIntBlockTrivial() {
-        var blockBuilder = IntBlock.newBlockBuilder(10);
+        var blockBuilder = blockFactory.newIntBlockBuilder(10);
         blockBuilder.appendInt(1);
         blockBuilder.beginPositionEntry();
         blockBuilder.appendInt(21);
@@ -79,57 +80,66 @@ public class MultiValueBlockTests extends SerializationTestCase {
         assertThat(block.getInt(block.getFirstValueIndex(0)), is(1));
         assertNull(block.asVector());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(block, this::serializeDeserializeBlock, null, Releasable::close);
+        block.close();
     }
 
     public void testEmpty() {
         for (int initialSize : new int[] { 0, 10, 100, randomInt(512) }) {
-            IntBlock intBlock = IntBlock.newBlockBuilder(initialSize).build();
+            IntBlock intBlock = blockFactory.newIntBlockBuilder(initialSize).build();
             assertThat(intBlock.getPositionCount(), is(0));
             assertThat(intBlock.asVector(), is(notNullValue()));
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
+            intBlock.close();
 
-            LongBlock longBlock = LongBlock.newBlockBuilder(initialSize).build();
+            LongBlock longBlock = blockFactory.newLongBlockBuilder(initialSize).build();
             assertThat(longBlock.getPositionCount(), is(0));
             assertThat(longBlock.asVector(), is(notNullValue()));
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(longBlock, this::serializeDeserializeBlock, null, Releasable::close);
+            longBlock.close();
 
-            DoubleBlock doubleBlock = DoubleBlock.newBlockBuilder(initialSize).build();
+            DoubleBlock doubleBlock = blockFactory.newDoubleBlockBuilder(initialSize).build();
             assertThat(doubleBlock.getPositionCount(), is(0));
             assertThat(doubleBlock.asVector(), is(notNullValue()));
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(doubleBlock, this::serializeDeserializeBlock, null, Releasable::close);
+            doubleBlock.close();
 
-            BytesRefBlock bytesRefBlock = BytesRefBlock.newBlockBuilder(initialSize).build();
+            BytesRefBlock bytesRefBlock = blockFactory.newBytesRefBlockBuilder(initialSize).build();
             assertThat(bytesRefBlock.getPositionCount(), is(0));
             assertThat(bytesRefBlock.asVector(), is(notNullValue()));
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(bytesRefBlock, this::serializeDeserializeBlock, null, Releasable::close);
+            bytesRefBlock.close();
         }
     }
 
     public void testNullOnly() throws IOException {
         for (int initialSize : new int[] { 0, 10, 100, randomInt(512) }) {
-            IntBlock intBlock = IntBlock.newBlockBuilder(initialSize).appendNull().build();
+            IntBlock intBlock = blockFactory.newIntBlockBuilder(initialSize).appendNull().build();
             assertThat(intBlock.getPositionCount(), is(1));
             assertThat(intBlock.getValueCount(0), is(0));
             assertNull(intBlock.asVector());
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(intBlock, this::serializeDeserializeBlock, null, Releasable::close);
+            intBlock.close();
 
-            LongBlock longBlock = LongBlock.newBlockBuilder(initialSize).appendNull().build();
+            LongBlock longBlock = blockFactory.newLongBlockBuilder(initialSize).appendNull().build();
             assertThat(longBlock.getPositionCount(), is(1));
             assertThat(longBlock.getValueCount(0), is(0));
             assertNull(longBlock.asVector());
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(longBlock, this::serializeDeserializeBlock, null, Releasable::close);
+            longBlock.close();
 
-            DoubleBlock doubleBlock = DoubleBlock.newBlockBuilder(initialSize).appendNull().build();
+            DoubleBlock doubleBlock = blockFactory.newDoubleBlockBuilder(initialSize).appendNull().build();
             assertThat(doubleBlock.getPositionCount(), is(1));
             assertThat(doubleBlock.getValueCount(0), is(0));
             assertNull(doubleBlock.asVector());
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(doubleBlock, this::serializeDeserializeBlock, null, Releasable::close);
+            doubleBlock.close();
 
-            BytesRefBlock bytesRefBlock = BytesRefBlock.newBlockBuilder(initialSize).appendNull().build();
+            BytesRefBlock bytesRefBlock = blockFactory.newBytesRefBlockBuilder(initialSize).appendNull().build();
             assertThat(bytesRefBlock.getPositionCount(), is(1));
             assertThat(bytesRefBlock.getValueCount(0), is(0));
             assertNull(bytesRefBlock.asVector());
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(bytesRefBlock, this::serializeDeserializeBlock, null, Releasable::close);
+            bytesRefBlock.close();
         }
     }
 

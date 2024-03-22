@@ -1,0 +1,48 @@
+{
+  "simulate.ingest":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/simulate-ingest-api.html",
+      "description":"Simulates running ingest with example documents."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ingest/_simulate",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path":"/_ingest/{index}/_simulate",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"Default index for docs which don't provide one"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "pipeline":{
+        "type":"string",
+        "description":"The pipeline id to preprocess incoming documents with if no pipeline is given for a particular document"
+      }
+    },
+    "body":{
+      "description":"The simulate definition",
+      "required":true
+    }
+  }
+}

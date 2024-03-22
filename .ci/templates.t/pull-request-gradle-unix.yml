@@ -14,19 +14,17 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/{pr-job}.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/{pr-job}.*'
           github-hooks: true
           status-context: elasticsearch-ci/{pr-job}
           cancel-builds-on-update: true
           excluded-regions:
             - ^docs/.*
             - ^x-pack/docs/.*
-          black-list-labels:
-            - '>test-mute'
-            - 'buildkite-opt-in'
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             JAVA8_HOME=$HOME/.java/java8

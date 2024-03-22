@@ -64,7 +64,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     public MedianAbsoluteDeviationAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
         } else {
             executionHint = TDigestExecutionHint.HIGH_ACCURACY;
@@ -79,13 +79,6 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
         super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
         this.executionHint = clone.executionHint;
-    }
-
-    /**
-     * Returns the compression factor of the t-digest sketches used
-     */
-    public double compression() {
-        return compression;
     }
 
     /**
@@ -127,7 +120,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(executionHint);
         }
     }
@@ -185,11 +178,6 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

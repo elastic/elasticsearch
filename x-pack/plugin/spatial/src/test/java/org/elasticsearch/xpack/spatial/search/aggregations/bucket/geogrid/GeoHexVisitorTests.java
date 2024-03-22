@@ -22,10 +22,10 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class GeoHexVisitorTests extends ESTestCase {
         // we ignore polar cells are they are problematic and do not keep the relationships
         long h3 = randomValueOtherThanMany(
             l -> l == H3.geoToH3(90, 0, H3.getResolution(l)) || l == H3.geoToH3(-90, 0, H3.getResolution(l)),
-            () -> H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(2, 14))
+            () -> H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(2, 13))
         );
         long centerChild = H3.childPosToH3(h3, 0);
         // children position 3 is chosen so we never use a polar polygon

@@ -29,7 +29,7 @@ public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
 
         int docs = between(10, 100);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test-blocks").setId("" + i).setSource("test", "init").execute().actionGet();
+            prepareIndex("test-blocks").setId("" + i).setSource("test", "init").get();
         }
         indicesAdmin().prepareFlush("test-blocks").get();
 
@@ -42,7 +42,7 @@ public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
-                IndicesSegmentResponse response = indicesAdmin().prepareSegments("test-blocks").execute().actionGet();
+                IndicesSegmentResponse response = indicesAdmin().prepareSegments("test-blocks").get();
                 assertNoFailures(response);
             } finally {
                 disableIndexBlock("test-blocks", blockSetting);

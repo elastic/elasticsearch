@@ -138,10 +138,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete snap-${uuid}.dat file for this snapshot to simulate concurrent delete");
         IOUtils.rm(repoPath.resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat"));
 
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
-        );
+        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap"));
     }
 
     public void testExceptionOnMissingShardLevelSnapBlob() throws IOException {
@@ -170,10 +167,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 .resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat")
         );
 
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> clusterAdmin().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet()
-        );
+        expectThrows(SnapshotMissingException.class, clusterAdmin().prepareSnapshotStatus("test-repo").setSnapshots("test-snap"));
     }
 
     public void testGetSnapshotsWithoutIndices() throws Exception {
@@ -459,11 +453,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         expectThrows(
             SnapshotMissingException.class,
-            () -> clusterAdmin().prepareGetSnapshots("test-repo")
-                .setSnapshots(notExistedSnapshotName)
-                .setIgnoreUnavailable(false)
-                .execute()
-                .actionGet()
+            clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots(notExistedSnapshotName).setIgnoreUnavailable(false)
         );
 
         logger.info("--> unblock all data nodes");
@@ -506,7 +496,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> get snapshots on an empty repository");
         expectThrows(
             SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots(repositoryName).addSnapshots("non-existent-snapshot").get()
+            client.admin().cluster().prepareGetSnapshots(repositoryName).addSnapshots("non-existent-snapshot")
         );
         // with ignore unavailable set to true, should not throw an exception
         GetSnapshotsResponse getSnapshotsResponse = client.admin()
@@ -677,8 +667,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }, 60, TimeUnit.SECONDS);
 
         for (ActionFuture<SnapshotsStatusResponse> status : statuses) {
-            assertThat(status.get().getSnapshots(), hasSize(snapshots));
-            for (SnapshotStatus snapshot : status.get().getSnapshots()) {
+            var statusResponse = status.get();
+            assertThat(statusResponse.getSnapshots(), hasSize(snapshots));
+            for (SnapshotStatus snapshot : statusResponse.getSnapshots()) {
                 assertThat(snapshot.getState(), allOf(not(SnapshotsInProgress.State.FAILED), not(SnapshotsInProgress.State.ABORTED)));
                 for (final var shard : snapshot.getShards()) {
                     if (shard.getStage() == SnapshotIndexShardStage.DONE) {

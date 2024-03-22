@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
+
 /**
  * Creates all index-templates and ILM policies that are required for using Elastic Universal Profiling.
  */
@@ -42,21 +44,23 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 1: initial
     // version 2: Added 'profiling.host.machine' keyword mapping to profiling-hosts
     // version 3: Add optional component template 'profiling-ilm@custom' to all ILM-managed index templates
-    public static final int INDEX_TEMPLATE_VERSION = 3;
+    // version 4: Added 'service.name' keyword mapping to profiling-events
+    // version 5: Add optional component template '<idx-name>@custom' to all index templates that reference component templates
+    // version 6: Added 'host.arch' keyword mapping to profiling-hosts
+    // version 7: Added 'host.type', 'cloud.provider', 'cloud.region' keyword mappings to profiling-hosts
+    public static final int INDEX_TEMPLATE_VERSION = 7;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
-    public static final int PROFILING_EVENTS_VERSION = 1;
+    public static final int PROFILING_EVENTS_VERSION = 2;
     public static final int PROFILING_EXECUTABLES_VERSION = 1;
     public static final int PROFILING_METRICS_VERSION = 1;
-    public static final int PROFILING_HOSTS_VERSION = 1;
+    public static final int PROFILING_HOSTS_VERSION = 2;
     public static final int PROFILING_STACKFRAMES_VERSION = 1;
     public static final int PROFILING_STACKTRACES_VERSION = 1;
     public static final int PROFILING_SYMBOLS_VERSION = 1;
     public static final int PROFILING_RETURNPADS_PRIVATE_VERSION = 1;
     public static final int PROFILING_SQ_EXECUTABLES_VERSION = 1;
     public static final int PROFILING_SQ_LEAFFRAMES_VERSION = 1;
-    public static final int PROFILING_COSTS_VERSION = 1;
-
     public static final String PROFILING_TEMPLATE_VERSION_VARIABLE = "xpack.profiling.template.version";
 
     private volatile boolean templatesEnabled;
@@ -174,11 +178,8 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
                 indexVersion("symbols", PROFILING_SYMBOLS_VERSION)
             )
         )) {
-            try {
-                componentTemplates.put(
-                    config.getTemplateName(),
-                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
-                );
+            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
+                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -233,13 +234,6 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         // templates for regular indices
-        new IndexTemplateConfig(
-            "profiling-costs",
-            "/profiling/index-template/profiling-costs.json",
-            INDEX_TEMPLATE_VERSION,
-            PROFILING_TEMPLATE_VERSION_VARIABLE,
-            indexVersion("costs", PROFILING_COSTS_VERSION)
-        ),
         new IndexTemplateConfig(
             "profiling-returnpads-private",
             "/profiling/index-template/profiling-returnpads-private.json",

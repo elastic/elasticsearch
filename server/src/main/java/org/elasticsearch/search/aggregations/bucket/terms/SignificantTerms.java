@@ -47,10 +47,6 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
          */
         long getSupersetSize();
 
-        /**
-         * @return The key, expressed as a number
-         */
-        Number getKeyAsNumber();
     }
 
     @Override

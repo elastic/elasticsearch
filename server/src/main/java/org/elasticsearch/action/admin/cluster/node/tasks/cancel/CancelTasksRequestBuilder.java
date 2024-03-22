@@ -8,16 +8,17 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Builder for the request to cancel tasks running on the specified nodes
  */
-public class CancelTasksRequestBuilder extends TasksRequestBuilder<CancelTasksRequest, CancelTasksResponse, CancelTasksRequestBuilder> {
+public class CancelTasksRequestBuilder extends TasksRequestBuilder<CancelTasksRequest, ListTasksResponse, CancelTasksRequestBuilder> {
 
-    public CancelTasksRequestBuilder(ElasticsearchClient client, CancelTasksAction action) {
-        super(client, action, new CancelTasksRequest());
+    public CancelTasksRequestBuilder(ElasticsearchClient client) {
+        super(client, CancelTasksAction.INSTANCE, new CancelTasksRequest());
     }
 
     public CancelTasksRequestBuilder waitForCompletion(boolean waitForCompletion) {

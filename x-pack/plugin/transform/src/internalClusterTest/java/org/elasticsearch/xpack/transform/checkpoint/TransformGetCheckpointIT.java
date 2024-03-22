@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
@@ -25,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -46,6 +48,8 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
         final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             new String[] { indexNamePrefix + "*" },
             IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
             TimeValue.timeValueSeconds(5)
         );
 
@@ -61,7 +65,7 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
         for (int d = 0; d < docsToCreatePerShard; ++d) {
             for (int i = 0; i < indices; ++i) {
                 for (int j = 0; j < shards; ++j) {
-                    client().prepareIndex(indexNamePrefix + i).setSource("{" + "\"field\":" + j + "}", XContentType.JSON).get();
+                    prepareIndex(indexNamePrefix + i).setSource("{" + "\"field\":" + j + "}", XContentType.JSON).get();
                 }
             }
         }
@@ -99,6 +103,64 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
         );
     }
 
+    public void testGetCheckpointWithQueryThatFiltersOutEverything() throws Exception {
+        final String indexNamePrefix = "test_index-";
+        final int indices = randomIntBetween(1, 5);
+        final int shards = randomIntBetween(1, 5);
+        final int docsToCreatePerShard = randomIntBetween(0, 10);
+
+        for (int i = 0; i < indices; ++i) {
+            indicesAdmin().prepareCreate(indexNamePrefix + i)
+                .setSettings(indexSettings(shards, 1))
+                .setMapping("field", "type=long", "@timestamp", "type=date")
+                .get();
+            for (int j = 0; j < shards; ++j) {
+                for (int d = 0; d < docsToCreatePerShard; ++d) {
+                    client().prepareIndex(indexNamePrefix + i)
+                        .setSource(Strings.format("{ \"field\":%d, \"@timestamp\": %d }", j, 10_000_000 + d + i + j), XContentType.JSON)
+                        .get();
+                }
+            }
+        }
+        indicesAdmin().refresh(new RefreshRequest(indexNamePrefix + "*"));
+
+        final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+            new String[] { indexNamePrefix + "*" },
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            // This query does not match any documents
+            QueryBuilders.rangeQuery("@timestamp").gte(20_000_000),
+            null,
+            TimeValue.timeValueSeconds(5)
+        );
+
+        final GetCheckpointAction.Response response = client().execute(GetCheckpointAction.INSTANCE, request).get();
+        assertThat("Response was: " + response.getCheckpoints(), response.getCheckpoints(), is(anEmptyMap()));
+    }
+
+    public void testGetCheckpointWithMissingIndex() throws Exception {
+        GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+            new String[] { "test_index_missing" },
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
+            TimeValue.timeValueSeconds(5)
+        );
+
+        GetCheckpointAction.Response response = client().execute(GetCheckpointAction.INSTANCE, request).get();
+        assertThat("Response was: " + response.getCheckpoints(), response.getCheckpoints(), is(anEmptyMap()));
+
+        request = new GetCheckpointAction.Request(
+            new String[] { "test_index_missing-*" },
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
+            TimeValue.timeValueSeconds(5)
+        );
+
+        response = client().execute(GetCheckpointAction.INSTANCE, request).get();
+        assertThat("Response was: " + response.getCheckpoints(), response.getCheckpoints(), is(anEmptyMap()));
+    }
+
     public void testGetCheckpointTimeoutExceeded() throws Exception {
         final String indexNamePrefix = "test_index-";
         final int indices = 100;
@@ -111,6 +173,8 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
         final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             new String[] { indexNamePrefix + "*" },
             IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
             TimeValue.ZERO
         );
 

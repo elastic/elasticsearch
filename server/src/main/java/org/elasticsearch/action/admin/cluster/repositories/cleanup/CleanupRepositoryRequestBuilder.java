@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
@@ -16,8 +15,8 @@ public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestB
     CleanupRepositoryResponse,
     CleanupRepositoryRequestBuilder> {
 
-    public CleanupRepositoryRequestBuilder(ElasticsearchClient client, ActionType<CleanupRepositoryResponse> action, String repository) {
-        super(client, action, new CleanupRepositoryRequest(repository));
+    public CleanupRepositoryRequestBuilder(ElasticsearchClient client, String repository) {
+        super(client, CleanupRepositoryAction.INSTANCE, new CleanupRepositoryRequest(repository));
     }
 
     public CleanupRepositoryRequestBuilder setName(String repository) {

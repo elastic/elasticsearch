@@ -13,6 +13,7 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,6 +25,8 @@ import java.util.Map;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
+ *
+ * A BlobStore creates BlobContainers.
  */
 public interface BlobContainer {
 
@@ -116,6 +119,7 @@ public interface BlobContainer {
      */
     default void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
+        assert assertPurposeConsistency(purpose, blobName);
         writeBlob(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
     }
 
@@ -261,4 +265,33 @@ public interface BlobContainer {
         compareAndExchangeRegister(purpose, key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
     }
 
+    /**
+     * Verify that the {@link OperationPurpose} is (somewhat) suitable for the name of the blob to which it applies:
+     * <ul>
+     * <li>{@link OperationPurpose#SNAPSHOT_DATA} is not used for blobs that look like metadata blobs.</li>
+     * <li>{@link OperationPurpose#SNAPSHOT_METADATA} is not used for blobs that look like data blobs.</li>
+     * </ul>
+     */
+    // This is fairly lenient because we use a wide variety of blob names and purposes in tests in order to get good coverage. See
+    // BlobStoreRepositoryOperationPurposeIT for some stricter checks which apply during genuine snapshot operations.
+    static boolean assertPurposeConsistency(OperationPurpose purpose, String blobName) {
+        switch (purpose) {
+            case SNAPSHOT_DATA -> {
+                // must not be used for blobs with names that look like metadata blobs
+                assert (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)
+                    || blobName.startsWith(BlobStoreRepository.METADATA_PREFIX)
+                    || blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                    || blobName.equals(BlobStoreRepository.INDEX_LATEST_BLOB)) == false : blobName + " should not use purpose " + purpose;
+            }
+            case SNAPSHOT_METADATA -> {
+                // must not be used for blobs with names that look like data blobs
+                assert blobName.startsWith(BlobStoreRepository.UPLOADED_DATA_BLOB_PREFIX) == false
+                    : blobName + " should not use purpose " + purpose;
+            }
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG -> {
+                // no specific requirements
+            }
+        }
+        return true;
+    }
 }

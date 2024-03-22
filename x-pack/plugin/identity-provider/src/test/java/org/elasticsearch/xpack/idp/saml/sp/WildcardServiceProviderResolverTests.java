@@ -175,6 +175,11 @@ public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
         assertThat(sp4.getAssertionConsumerService().toString(), equalTo("https://saml.example.net/12345/acs"));
         assertThat(sp4.getName(), equalTo("12345 at example.net"));
         assertThat(sp4.getPrivileges().getResource(), equalTo("service2:example:12345"));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> resolver.resolve("https://zbcdef.example.com/", "https://abcdef.service.example.com/saml2/acs")
+        );
     }
 
     public void testCaching() throws IOException {

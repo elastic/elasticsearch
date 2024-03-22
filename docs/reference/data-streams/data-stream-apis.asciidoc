@@ -25,6 +25,8 @@ preview:[]
 preview:[]
 * <<data-streams-explain-lifecycle,Explain data stream lifecycle>>
 preview:[]
+* <<data-streams-get-lifecycle-stats, Get data stream lifecycle stats>>
+preview:[]
 
 The following API is available for <<tsds,time series data streams>>:
 
@@ -54,5 +56,7 @@ include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle.asciidoc[]
 include::{es-repo-dir}/data-streams/lifecycle/apis/delete-lifecycle.asciidoc[]
 
 include::{es-repo-dir}/data-streams/lifecycle/apis/explain-lifecycle.asciidoc[]
+
+include::{es-repo-dir}/data-streams/lifecycle/apis/get-lifecycle-stats.asciidoc[]
 
 include::{es-repo-dir}/indices/downsample-data-stream.asciidoc[]

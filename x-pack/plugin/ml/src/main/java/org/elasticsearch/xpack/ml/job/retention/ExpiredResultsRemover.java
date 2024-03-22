@@ -10,11 +10,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -22,6 +24,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -29,8 +32,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -47,7 +48,6 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -115,7 +115,23 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(new ElasticsearchException("Failed to remove expired results for job [" + job.getId() + "]", e));
+                if (e instanceof ElasticsearchException elasticsearchException) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Failed to remove expired results for job [" + job.getId() + "]",
+                            elasticsearchException.status(),
+                            elasticsearchException
+                        )
+                    );
+                } else {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "Failed to remove expired results for job [" + job.getId() + "]",
+                            RestStatus.TOO_MANY_REQUESTS,
+                            e
+                        )
+                    );
+                }
             }
         });
     }
@@ -179,25 +195,27 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.setParentTask(parentTaskId);
 
-        client.search(searchRequest, ActionListener.wrap(response -> {
+        client.search(searchRequest, listener.delegateFailureAndWrap((delegate, response) -> {
             SearchHit[] hits = response.getHits().getHits();
             if (hits.length == 0) {
                 // no buckets found
-                listener.onResponse(null);
+                delegate.onResponse(null);
             } else {
 
                 try (
-                    InputStream stream = hits[0].getSourceRef().streamInput();
-                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                        .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                        hits[0].getSourceRef(),
+                        XContentType.JSON
+                    )
                 ) {
                     Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
-                    listener.onResponse(bucket.getTimestamp().getTime());
+                    delegate.onResponse(bucket.getTimestamp().getTime());
                 } catch (IOException e) {
-                    listener.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
+                    delegate.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
                 }
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void auditResultsWereDeleted(String jobId, long cutoffEpochMs) {

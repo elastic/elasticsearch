@@ -1,0 +1,5 @@
+pr: 104150
+summary: Correct profiled rewrite time for knn with a pre-filter
+area: Search
+type: bug
+issues: []

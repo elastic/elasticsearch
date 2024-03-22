@@ -166,11 +166,6 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     public String getMinimumIntervalExpression() {
         return minimumIntervalExpression;
     }
@@ -178,7 +173,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
         if (minimumIntervalExpression != null && ALLOWED_INTERVALS.containsValue(minimumIntervalExpression) == false) {
             throw new IllegalArgumentException(
-                MINIMUM_INTERVAL_FIELD.getPreferredName() + " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]"
+                MINIMUM_INTERVAL_FIELD.getPreferredName() + " must be one of [" + ALLOWED_INTERVALS.values() + "]"
             );
         }
         this.minimumIntervalExpression = minimumIntervalExpression;
@@ -215,9 +210,8 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         int maxRoundingInterval = Arrays.stream(roundings, 0, roundings.length - 1)
             .map(rounding -> rounding.innerIntervals)
             .flatMapToInt(Arrays::stream)
-            .boxed()
             .reduce(Integer::max)
-            .get();
+            .getAsInt();
         Settings settings = context.getIndexSettings().getNodeSettings();
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
         int bucketCeiling = maxBuckets / maxRoundingInterval;
@@ -292,7 +286,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             this.innerIntervals = innerIntervals;
             Objects.requireNonNull(dateTimeUnit, "dateTimeUnit cannot be null");
             if (ALLOWED_INTERVALS.containsKey(dateTimeUnit) == false) {
-                throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet().toString());
+                throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet());
             }
             this.dateTimeUnit = ALLOWED_INTERVALS.get(dateTimeUnit);
         }

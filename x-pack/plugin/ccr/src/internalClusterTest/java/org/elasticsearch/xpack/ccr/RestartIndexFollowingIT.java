@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -78,9 +79,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
-        );
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), firstBatchNumDocs));
 
         getFollowerCluster().fullRestart();
         ensureFollowerGreen("index2");
@@ -115,7 +114,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
                     followerClient().execute(PutFollowAction.INSTANCE, putFollow("index1", "index2", ActiveShardCount.ALL)).actionGet();
                 }
             }
-            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(totalDocs));
+            assertHitCount(followerClient().prepareSearch("index2"), totalDocs);
         }, 30L, TimeUnit.SECONDS);
 
         cleanRemoteCluster();

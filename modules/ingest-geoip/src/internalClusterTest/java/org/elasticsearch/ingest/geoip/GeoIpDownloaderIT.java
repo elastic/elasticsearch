@@ -14,7 +14,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,7 +52,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -69,6 +67,7 @@ import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -87,7 +86,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
+        return List.of(
             ReindexPlugin.class,
             IngestGeoIpPlugin.class,
             GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class,
@@ -131,10 +130,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             for (GeoIpDownloaderStatsAction.NodeResponse nodeResponse : response.getNodes()) {
                 assertThat(nodeResponse.getConfigDatabases(), empty());
                 assertThat(nodeResponse.getDatabases(), empty());
-                assertThat(
-                    nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
-                    empty()
-                );
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
             }
         });
         assertBusy(() -> {
@@ -250,35 +246,43 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                         state.getDatabases().keySet()
                     );
                     GeoIpTaskState.Metadata metadata = state.get(id);
-                    BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
-                        .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true));
                     int size = metadata.lastChunk() - metadata.firstChunk() + 1;
-                    SearchResponse res = prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)
-                        .setQuery(queryBuilder)
-                        .addSort("chunk", SortOrder.ASC)
-                        .get();
-                    TotalHits totalHits = res.getHits().getTotalHits();
-                    assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
-                    assertEquals(size, totalHits.value);
-                    assertEquals(size, res.getHits().getHits().length);
+                    assertResponse(
+                        prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)
+                            .setQuery(
+                                new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
+                                    .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true))
+                            )
+                            .addSort("chunk", SortOrder.ASC),
+                        res -> {
+                            try {
+                                TotalHits totalHits = res.getHits().getTotalHits();
+                                assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
+                                assertEquals(size, totalHits.value);
+                                assertEquals(size, res.getHits().getHits().length);
 
-                    List<byte[]> data = new ArrayList<>();
+                                List<byte[]> data = new ArrayList<>();
 
-                    for (SearchHit hit : res.getHits().getHits()) {
-                        data.add((byte[]) hit.getSourceAsMap().get("data"));
-                    }
+                                for (SearchHit hit : res.getHits().getHits()) {
+                                    data.add((byte[]) hit.getSourceAsMap().get("data"));
+                                }
 
-                    TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
-                    TarInputStream.TarEntry entry;
-                    while ((entry = stream.getNextEntry()) != null) {
-                        if (entry.name().endsWith(".mmdb")) {
-                            break;
+                                TarInputStream stream = new TarInputStream(new GZIPInputStream(new MultiByteArrayInputStream(data)));
+                                TarInputStream.TarEntry entry;
+                                while ((entry = stream.getNextEntry()) != null) {
+                                    if (entry.name().endsWith(".mmdb")) {
+                                        break;
+                                    }
+                                }
+
+                                Path tempFile = createTempFile();
+                                Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+                                parseDatabase(tempFile);
+                            } catch (Exception e) {
+                                fail(e);
+                            }
                         }
-                    }
-
-                    Path tempFile = createTempFile();
-                    Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
-                    parseDatabase(tempFile);
+                    );
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }
@@ -378,7 +382,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
+                    List<String> files = list.map(Path::getFileName).map(Path::toString).toList();
                     assertThat(
                         files,
                         containsInAnyOrder(
@@ -409,7 +413,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoipTmpDir : geoipTmpDirs) {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).collect(Collectors.toList());
+                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).toList();
                     assertThat(files, empty());
                 }
             }
@@ -673,7 +677,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertThat(Files.exists(geoipBaseTmpDir), is(true));
         final List<Path> geoipTmpDirs;
         try (Stream<Path> files = Files.list(geoipBaseTmpDir)) {
-            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).collect(Collectors.toList());
+            geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).toList();
         }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
         return geoipTmpDirs;
@@ -710,10 +714,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     containsInAnyOrder("GeoLite2-Country.mmdb", "GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")
                 );
                 assertThat(nodeResponse.getDatabases(), empty());
-                assertThat(
-                    nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).collect(Collectors.toList()),
-                    empty()
-                );
+                assertThat(nodeResponse.getFilesInTemp().stream().filter(s -> s.endsWith(".txt") == false).toList(), empty());
             }
         });
     }

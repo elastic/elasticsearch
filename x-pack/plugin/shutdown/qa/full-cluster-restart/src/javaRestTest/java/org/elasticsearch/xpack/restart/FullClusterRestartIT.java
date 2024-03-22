@@ -8,23 +8,24 @@ package org.elasticsearch.xpack.restart;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -63,6 +64,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .keystore("xpack.watcher.encryption_key", Resource.fromClasspath("system_key"))
         .keystore("xpack.security.transport.ssl.secure_key_passphrase", "testnode")
         .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .build();
 
     public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -86,9 +88,11 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             .build();
     }
 
-    @BeforeClass
-    public static void checkClusterVersion() {
-        assumeTrue("no shutdown in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
+    @Before
+    public void checkClusterVersion() {
+        @UpdateForV9 // always true
+        var originalClusterSupportsShutdown = oldClusterHasFeature(RestTestLegacyFeatures.SHUTDOWN_SUPPORTED);
+        assumeTrue("no shutdown in versions before 7.15", originalClusterSupportsShutdown);
     }
 
     @SuppressWarnings("unchecked")

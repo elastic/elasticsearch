@@ -10,6 +10,8 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -19,6 +21,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -36,25 +40,58 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
-    public static final Version API_KEY_SUPPORT_REMOTE_INDICES_VERSION = Build.current().isSnapshot() ? Version.V_8_8_0 : Version.V_8_9_1;
+    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     private RestClient oldVersionClient = null;
     private RestClient newVersionClient = null;
 
+    public void testQueryRestTypeKeys() throws IOException {
+        assumeTrue(
+            "only API keys created pre-8.9 are relevant for the rest-type query bwc case",
+            UPGRADE_FROM_VERSION.before(Version.V_8_9_0)
+        );
+        switch (CLUSTER_TYPE) {
+            case OLD -> createOrGrantApiKey(client(), "query-test-rest-key-from-old-cluster", "{}");
+            case MIXED -> createOrGrantApiKey(client(), "query-test-rest-key-from-mixed-cluster", "{}");
+            case UPGRADED -> {
+                createOrGrantApiKey(client(), "query-test-rest-key-from-upgraded-cluster", "{}");
+                for (String query : List.of("""
+                    {"query": {"term": {"type": "rest" }}}""", """
+                    {"query": {"prefix": {"type": "re" }}}""", """
+                    {"query": {"wildcard": {"type": "r*t" }}}""", """
+                    {"query": {"range": {"type": {"gte": "raaa", "lte": "rzzz"}}}}""")) {
+                    assertQuery(client(), query, apiKeys -> {
+                        assertThat(
+                            apiKeys.stream().map(k -> (String) k.get("name")).toList(),
+                            hasItems(
+                                "query-test-rest-key-from-old-cluster",
+                                "query-test-rest-key-from-mixed-cluster",
+                                "query-test-rest-key-from-upgraded-cluster"
+                            )
+                        );
+                    });
+                }
+            }
+        }
+    }
+
     public void testCreatingAndUpdatingApiKeys() throws Exception {
         assumeTrue(
-            "The remote_indices for API Keys are not supported before version " + API_KEY_SUPPORT_REMOTE_INDICES_VERSION,
-            isOriginalClusterVersionAtLeast(API_KEY_SUPPORT_REMOTE_INDICES_VERSION) == false
+            "The remote_indices for API Keys are not supported before transport version "
+                + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
+            minimumTransportVersion().before(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -175,15 +212,18 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private Tuple<String, String> createOrGrantApiKey(RestClient client, String roles) throws IOException {
-        final String name = "test-api-key-" + randomAlphaOfLengthBetween(3, 5);
+        return createOrGrantApiKey(client, "test-api-key-" + randomAlphaOfLengthBetween(3, 5), roles);
+    }
+
+    private Tuple<String, String> createOrGrantApiKey(RestClient client, String name, String roles) throws IOException {
         final Request createApiKeyRequest;
         String body = Strings.format("""
             {
                 "name": "%s",
                 "role_descriptors": %s
             }""", name, roles);
-        // Grant API did not exist before 7.7.0
-        final boolean grantApiKey = randomBoolean() && isOriginalClusterVersionAtLeast(Version.V_7_7_0);
+
+        final boolean grantApiKey = randomBoolean();
         if (grantApiKey) {
             createApiKeyRequest = new Request("POST", "/_security/api_key/grant");
             createApiKeyRequest.setJsonEntity(org.elasticsearch.common.Strings.format("""
@@ -220,16 +260,16 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private boolean isUpdateApiSupported(RestClient client) {
         return switch (CLUSTER_TYPE) {
-            case OLD -> isOriginalClusterVersionAtLeast(Version.V_8_4_0); // Update API was introduced in 8.4.0.
-            case MIXED -> isOriginalClusterVersionAtLeast(Version.V_8_4_0) || client == newVersionClient;
+            case OLD -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_UPDATE_API_KEY); // Update API was introduced in 8.4.0.
+            case MIXED -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_UPDATE_API_KEY) || client == newVersionClient;
             case UPGRADED -> true;
         };
     }
 
     private boolean isBulkUpdateApiSupported(RestClient client) {
         return switch (CLUSTER_TYPE) {
-            case OLD -> isOriginalClusterVersionAtLeast(Version.V_8_5_0); // Bulk update API was introduced in 8.5.0.
-            case MIXED -> isOriginalClusterVersionAtLeast(Version.V_8_5_0) || client == newVersionClient;
+            case OLD -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_BULK_UPDATE_API_KEY); // Bulk update API was introduced in 8.5.0.
+            case MIXED -> clusterHasFeature(RestTestLegacyFeatures.SECURITY_BULK_UPDATE_API_KEY) || client == newVersionClient;
             case UPGRADED -> true;
         };
     }
@@ -304,10 +344,21 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     boolean nodeSupportApiKeyRemoteIndices(Map<String, Object> nodeDetails) {
-        // TODO[lor]: the method can be kept, but we need to replace version check with features checks
-        String versionString = (String) nodeDetails.get("version");
-        Version version = Version.fromString(versionString.replace("-SNAPSHOT", ""));
-        return version.onOrAfter(API_KEY_SUPPORT_REMOTE_INDICES_VERSION);
+        String nodeVersionString = (String) nodeDetails.get("version");
+        TransportVersion transportVersion = getTransportVersionWithFallback(
+            nodeVersionString,
+            nodeDetails.get("transport_version"),
+            () -> TransportVersions.ZERO
+        );
+
+        if (transportVersion.equals(TransportVersions.ZERO)) {
+            // In cases where we were not able to find a TransportVersion, a pre-8.8.0 node answered about a newer (upgraded) node.
+            // In that case, the node will be current (upgraded), and remote indices are supported for sure.
+            var nodeIsCurrent = nodeVersionString.equals(Build.current().version());
+            assertTrue(nodeIsCurrent);
+            return true;
+        }
+        return transportVersion.onOrAfter(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY);
     }
 
     private void createClientsByVersion() throws IOException {
@@ -377,5 +428,16 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             includeRemoteIndices ? RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null,
             null
         );
+    }
+
+    private void assertQuery(RestClient restClient, String body, Consumer<List<Map<String, Object>>> apiKeysVerifier) throws IOException {
+        final Request request = new Request("GET", "/_security/_query/api_key");
+        request.setJsonEntity(body);
+        final Response response = restClient.performRequest(request);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(response);
+        @SuppressWarnings("unchecked")
+        final List<Map<String, Object>> apiKeys = (List<Map<String, Object>>) responseMap.get("api_keys");
+        apiKeysVerifier.accept(apiKeys);
     }
 }

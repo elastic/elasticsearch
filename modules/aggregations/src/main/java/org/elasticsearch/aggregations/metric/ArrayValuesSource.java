@@ -19,7 +19,7 @@ import java.util.Map;
  * Class to encapsulate a set of ValuesSource objects labeled by field name
  */
 public abstract class ArrayValuesSource<VS extends ValuesSource> {
-    protected MultiValueMode multiValueMode;
+    protected final MultiValueMode multiValueMode;
     protected String[] names;
     protected VS[] values;
 

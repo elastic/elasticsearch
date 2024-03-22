@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -63,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -187,6 +189,10 @@ public class NodeTests extends ESTestCase {
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            // default the watermarks low values to prevent tests from failing on nodes without enough disk space
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")
             .put(dataNode());
     }
 
@@ -331,6 +337,13 @@ public class NodeTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
     }
 
+    public void testStartOnClosedTransport() throws IOException {
+        try (Node node = new MockNode(baseSettings().build(), basePlugins())) {
+            node.prepareForClose();
+            expectThrows(AssertionError.class, node::start);    // this would be IllegalStateException in a real Node with assertions off
+        }
+    }
+
     public void testCreateWithCircuitBreakerPlugins() throws IOException {
         Settings.Builder settings = baseSettings().put("breaker.test_breaker.limit", "50b");
         List<Class<? extends Plugin>> plugins = basePlugins();
@@ -366,8 +379,8 @@ public class NodeTests extends ESTestCase {
         Settings.Builder settings = baseSettings();
         try (Node node = new MockNode(settings.build(), basePlugins())) {
             final TransportService transportService = node.injector().getInstance(TransportService.class);
-            final List<String> taskHeaders = transportService.getTaskManager().getTaskHeaders();
-            assertThat(taskHeaders, containsInAnyOrder(Task.HEADERS_TO_COPY.toArray(new String[] {})));
+            final Set<String> taskHeaders = transportService.getTaskManager().getTaskHeaders();
+            assertThat(taskHeaders, containsInAnyOrder(Task.HEADERS_TO_COPY.toArray()));
         }
     }
 

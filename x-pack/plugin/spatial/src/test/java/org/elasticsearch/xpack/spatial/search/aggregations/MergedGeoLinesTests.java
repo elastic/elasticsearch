@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 
@@ -154,12 +155,13 @@ public class MergedGeoLinesTests extends ESTestCase {
         int finalLength = 25;  // should get entire 100 points simplified down to 25
         boolean simplify = true;
         for (SortOrder sortOrder : new SortOrder[] { SortOrder.ASC, SortOrder.DESC }) {
-            InternalAggregation empty = makeEmptyGeoLine(sortOrder, finalLength);
+            InternalGeoLine empty = makeEmptyGeoLine(sortOrder, finalLength);
             List<InternalGeoLine> sorted = makeGeoLines(docsPerLine, numLines, simplify, sortOrder);
             // Shuffle to ensure the tests cover geo_lines coming from data nodes in random order
             List<InternalGeoLine> shuffled = shuffleGeoLines(sorted);
+            shuffled.add(0, empty);
             ArrayList<InternalAggregation> aggregations = new ArrayList<>(shuffled);
-            InternalGeoLine reduced = (InternalGeoLine) empty.reduce(aggregations, null);
+            InternalGeoLine reduced = (InternalGeoLine) InternalAggregationTestCase.reduce(aggregations, null);
             assertLinesSimplified(sorted, sortOrder, finalLength, reduced.sortVals(), reduced.line());
         }
     }

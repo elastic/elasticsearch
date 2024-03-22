@@ -140,7 +140,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         FilterByFilterAggregator.AdapterBuilder<FilterByFilterAggregator> filterByFilterBuilder =
-            new FilterByFilterAggregator.AdapterBuilder<FilterByFilterAggregator>(
+            new FilterByFilterAggregator.AdapterBuilder<>(
                 name,
                 keyed,
                 keyedBucket,
@@ -214,7 +214,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 if (offsetInOwningOrd < filters.size()) {
                     return new InternalFilters.InternalBucket(
-                        filters.get(offsetInOwningOrd).key().toString(),
+                        filters.get(offsetInOwningOrd).key(),
                         docCount,
                         subAggregationResults,
                         keyed,
@@ -232,13 +232,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
         for (QueryToFilterAdapter filter : filters) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(
-                filter.key().toString(),
-                0,
-                subAggs,
-                keyed,
-                keyedBucket
-            );
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key(), 0, subAggs, keyed, keyedBucket);
             buckets.add(bucket);
         }
 
@@ -300,11 +294,17 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             final int numFilters = filters().size();
             List<FilterMatchingDisiWrapper> filterWrappers = new ArrayList<>();
             long totalCost = 0;
+            // trigger the parent circuit breaker to make sure we have enough heap to build the first scorer.
+            // note we might still fail if the scorer is huge.
+            addRequestCircuitBreakerBytes(0L);
             for (int filterOrd = 0; filterOrd < numFilters; filterOrd++) {
                 Scorer randomAccessScorer = filters().get(filterOrd).randomAccessScorer(aggCtx.getLeafReaderContext());
                 if (randomAccessScorer == null) {
                     continue;
                 }
+                // scorer can take a fair amount of heap, and we have no means to estimate the size, so
+                // we trigger the parent circuit breaker to at least fail if we are running out of heap
+                addRequestCircuitBreakerBytes(0L);
                 totalCost += randomAccessScorer.iterator().cost();
                 filterWrappers.add(
                     randomAccessScorer.twoPhaseIterator() == null

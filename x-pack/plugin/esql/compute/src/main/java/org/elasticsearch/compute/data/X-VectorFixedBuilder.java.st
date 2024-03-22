@@ -27,7 +27,7 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
 
     $Type$VectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
-        blockFactory.adjustBreaker(preAdjustedBytes, false);
+        blockFactory.adjustBreaker(preAdjustedBytes);
         this.blockFactory = blockFactory;
         this.values = new $type$[size];
     }
@@ -70,7 +70,7 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
             nextIndex = -1;
-            blockFactory.adjustBreaker(-preAdjustedBytes, false);
+            blockFactory.adjustBreaker(-preAdjustedBytes);
         }
     }
 

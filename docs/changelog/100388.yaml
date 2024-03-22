@@ -1,6 +1,0 @@
-pr: 100388
-summary: Fix for inference requests being sent to every node with a model allocation. If there are more nodes than items in the original request then empty requests were sent.
-area: Machine Learning
-type: bug
-issues:
- - 100180

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -106,7 +107,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         index = in.readStringArray();
         queryProvider = QueryProvider.fromStream(in);
         sourceFiltering = in.readOptionalWriteable(FetchSourceContext::readFrom);
-        runtimeMappings = in.readMap();
+        runtimeMappings = in.readGenericMap();
     }
 
     public DataFrameAnalyticsSource(DataFrameAnalyticsSource other) {
@@ -171,7 +172,11 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
             if (exception instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             } else {
-                throw new ElasticsearchException(queryProvider.getParsingException());
+                throw new ElasticsearchStatusException(
+                    queryProvider.getParsingException().getMessage(),
+                    RestStatus.BAD_REQUEST,
+                    queryProvider.getParsingException()
+                );
             }
         }
         return queryProvider.getParsedQuery();

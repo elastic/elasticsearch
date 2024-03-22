@@ -118,11 +118,6 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     protected RateAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,
@@ -201,7 +196,6 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
                 null,
                 null,
                 1.0,
-                null,
                 DocValueFormat.RAW,
                 context::nowInMillis
             );

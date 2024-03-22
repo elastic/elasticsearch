@@ -92,8 +92,6 @@ public class SearchCancellationTests extends ESTestCase {
 
         Runnable r = () -> {};
         searcher.addQueryCancellation(r);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> searcher.addQueryCancellation(r));
-        assertEquals("Cancellation runnable already added", iae.getMessage());
     }
 
     public void testCancellableCollector() throws IOException {

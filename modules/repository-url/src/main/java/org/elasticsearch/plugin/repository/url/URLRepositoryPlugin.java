@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugin.repository.url;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
 import org.elasticsearch.common.settings.Setting;
@@ -18,19 +17,20 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.url.URLRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
-    private final SetOnce<URLHttpClient.Factory> httpClientFactory = new SetOnce<>();
+    private final AtomicReference<URLHttpClient.Factory> httpClientFactory = new AtomicReference<>();
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -47,29 +47,21 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
-        return Collections.singletonMap(URLRepository.TYPE, metadata -> {
-            assert httpClientFactory.get() != null : "Expected to get a configured http client factory";
-            return new URLRepository(
+        return Collections.singletonMap(
+            URLRepository.TYPE,
+            metadata -> new URLRepository(
                 metadata,
                 env,
                 namedXContentRegistry,
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                httpClientFactory.get()
-            );
-        });
-    }
-
-    @Override
-    public Collection<?> createComponents(PluginServices services) {
-
-        final URLHttpClient.Factory apacheURLHttpClientFactory = new URLHttpClient.Factory();
-
-        httpClientFactory.set(apacheURLHttpClientFactory);
-        return List.of(apacheURLHttpClientFactory);
+                httpClientFactory.updateAndGet(factory -> factory == null ? new URLHttpClient.Factory() : factory)
+            )
+        );
     }
 
     @Override

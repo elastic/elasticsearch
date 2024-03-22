@@ -28,6 +28,7 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -78,7 +79,8 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
 
         // execute action
-        try (NoOpNodeClient nodeClient = buildNodeClient()) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = buildNodeClient(threadPool);
             action.handleRequest(getCatComponentTemplateRequest, channel, nodeClient);
         }
 
@@ -96,7 +98,8 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         FakeRestChannel channel = new FakeRestChannel(getCatComponentTemplateRequest, true, 0);
 
         // execute action
-        try (NoOpNodeClient nodeClient = buildNodeClient()) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = buildNodeClient(threadPool);
             action.handleRequest(getCatComponentTemplateRequest, channel, nodeClient);
         }
 
@@ -106,10 +109,10 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         assertThat(channel.capturedResponse().content().utf8ToString(), emptyString());
     }
 
-    private NoOpNodeClient buildNodeClient() {
+    private NoOpNodeClient buildNodeClient(ThreadPool threadPool) {
         ClusterStateResponse clusterStateResponse = new ClusterStateResponse(clusterName, clusterState, false);
 
-        return new NoOpNodeClient(getTestName()) {
+        return new NoOpNodeClient(threadPool) {
             @Override
             @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

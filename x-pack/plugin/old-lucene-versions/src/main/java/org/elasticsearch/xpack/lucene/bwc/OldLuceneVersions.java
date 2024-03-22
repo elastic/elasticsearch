@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -78,15 +77,14 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        ClusterService clusterService = services.clusterService();
         ThreadPool threadPool = services.threadPool();
 
-        this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
+        this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), services.rerouteService()));
         if (DiscoveryNode.isMasterNode(services.environment().settings())) {
             // We periodically look through the indices and identify if there are any archive indices,
             // then marking the feature as used. We do this on each master node so that if one master fails, the
             // continue reporting usage state.
-            var usageTracker = new ArchiveUsageTracker(getLicenseState(), clusterService::state);
+            var usageTracker = new ArchiveUsageTracker(getLicenseState(), services.clusterService()::state);
             threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), threadPool.generic());
         }
         return List.of();
@@ -172,8 +170,8 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             throw new UncheckedIOException(
                 Strings.format(
                     """
-                        Elasticsearch version [{}] has limited support for indices created with version [{}] but this index could not be \
-                        read. It may be using an unsupported feature, or it may be damaged or corrupt. See {} for further information.""",
+                        Elasticsearch version [%s] has limited support for indices created with version [%s] but this index could not be \
+                        read. It may be using an unsupported feature, or it may be damaged or corrupt. See %s for further information.""",
                     Build.current().version(),
                     IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexShard.indexSettings().getSettings()),
                     ReferenceDocs.ARCHIVE_INDICES

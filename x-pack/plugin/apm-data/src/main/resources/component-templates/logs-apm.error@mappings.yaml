@@ -6,21 +6,29 @@ _meta:
 template:
   mappings:
     properties:
+      # error.*
       error.custom:
         type: flattened
       error.exception.attributes:
         type: flattened
       error.exception.stacktrace:
         type: flattened
+      error.log.stacktrace:
+        type: flattened
       error.grouping_name:
         type: keyword
         script: |
           def logMessage = params['_source'].error?.log?.message;
-          if (logMessage != null) {
+          if (logMessage != null && logMessage != "") {
             emit(logMessage);
             return;
           }
           def exception = params['_source'].error?.exception;
-          if (exception != null && exception.length > 0) {
+          def exceptionMessage = exception != null && exception.length > 0 ? exception[0]?.message : null;
+          if (exceptionMessage != null && exceptionMessage != "") {
             emit(exception[0].message);
           }
+
+      # http.*
+      http.request.body:
+        type: flattened

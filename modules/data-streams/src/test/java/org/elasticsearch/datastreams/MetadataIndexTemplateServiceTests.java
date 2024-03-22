@@ -59,16 +59,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             // Missing routing path should fail validation
             var componentTemplate = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
             var state = service.addComponentTemplate(ClusterState.EMPTY_STATE, true, "1", componentTemplate);
-            var indexTemplate = new ComposableIndexTemplate(
-                Collections.singletonList("logs-*-*"),
-                new Template(builder().put("index.mode", "time_series").build(), null, null),
-                List.of("1"),
-                100L,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            );
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
+                .template(new Template(builder().put("index.mode", "time_series").build(), null, null))
+                .componentTemplates(List.of("1"))
+                .priority(100L)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build();
             var e = expectThrows(InvalidIndexTemplateException.class, () -> service.addIndexTemplateV2(state, false, "1", indexTemplate));
             assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
         }
@@ -81,16 +78,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null
             );
             state = service.addComponentTemplate(state, true, "1", componentTemplate);
-            var indexTemplate = new ComposableIndexTemplate(
-                Collections.singletonList("logs-*-*"),
-                new Template(builder().put("index.mode", "time_series").build(), null, null),
-                List.of("1"),
-                100L,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            );
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
+                .template(new Template(builder().put("index.mode", "time_series").build(), null, null))
+                .componentTemplates(List.of("1"))
+                .priority(100L)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build();
             state = service.addIndexTemplateV2(state, false, "1", indexTemplate);
             assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
         }
@@ -103,46 +97,39 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null
             );
             state = service.addComponentTemplate(state, true, "1", componentTemplate);
-            var indexTemplate = new ComposableIndexTemplate(
-                Collections.singletonList("logs-*-*"),
-                new Template(null, null, null),
-                List.of("1"),
-                100L,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            );
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
+                .template(new Template(null, null, null))
+                .componentTemplates(List.of("1"))
+                .priority(100L)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build();
             state = service.addIndexTemplateV2(state, false, "1", indexTemplate);
             assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing path defined in index template
-            var indexTemplate = new ComposableIndexTemplate(
-                Collections.singletonList("logs-*-*"),
-                new Template(builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null),
-                List.of("1"),
-                100L,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            );
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
+                .template(new Template(builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null))
+                .componentTemplates(List.of("1"))
+                .priority(100L)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build();
             var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
             assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
         }
         {
             // Routing fetched from mapping in index template
-            var indexTemplate = new ComposableIndexTemplate(
-                Collections.singletonList("logs-*-*"),
-                new Template(builder().put("index.mode", "time_series").build(), new CompressedXContent(generateTsdbMapping()), null),
-                List.of("1"),
-                100L,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false),
-                null
-            );
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
+                .template(
+                    new Template(builder().put("index.mode", "time_series").build(), new CompressedXContent(generateTsdbMapping()), null)
+                )
+                .componentTemplates(List.of("1"))
+                .priority(100L)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                .build();
             var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
             assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
         }
@@ -164,7 +151,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             // Defaults to true
             assertThat(result.isEnabled(), equalTo(true));
-            assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
+            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.getDataStreamRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
@@ -178,7 +165,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle, new DataStreamLifecycle());
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             assertThat(result.isEnabled(), equalTo(true));
-            assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle.getEffectiveDataRetention()));
+            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.getDataStreamRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
@@ -196,7 +183,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             assertThat(result.isEnabled(), equalTo(lifecycle2.isEnabled()));
-            assertThat(result.getEffectiveDataRetention(), equalTo(lifecycle2.getEffectiveDataRetention()));
+            assertThat(result.getDataStreamRetention(), equalTo(lifecycle2.getDataStreamRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle2.getDownsamplingRounds()));
         }
     }

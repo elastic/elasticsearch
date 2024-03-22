@@ -10,14 +10,13 @@ package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.AnalyzeToken;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
-import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
+import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -42,15 +41,6 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(CommonAnalysisPlugin.class);
-    }
-
-    /**
-     * This test needs to write to the config directory, this is difficult in an external cluster so we overwrite this to force running with
-     * {@link InternalTestCluster}
-     */
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     public void testSynonymsUpdateable() throws FileNotFoundException, IOException, InterruptedException {
@@ -80,8 +70,8 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 .setMapping("field", "type=text,analyzer=standard,search_analyzer=my_synonym_analyzer")
         );
 
-        client().prepareIndex("test").setId("1").setSource("field", "foo").get();
-        assertNoFailures(indicesAdmin().prepareRefresh("test").execute().actionGet());
+        prepareIndex("test").setId("1").setSource("field", "foo").get();
+        assertNoFailures(indicesAdmin().prepareRefresh("test").get());
 
         assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
         assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")), 0L);
@@ -101,7 +91,7 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 out.println("foo, baz, " + testTerm);
             }
             ReloadAnalyzersResponse reloadResponse = client().execute(
-                ReloadAnalyzerAction.INSTANCE,
+                TransportReloadAnalyzersAction.TYPE,
                 new ReloadAnalyzersRequest(null, preview, "test")
             ).actionGet();
             assertNoFailures(reloadResponse);

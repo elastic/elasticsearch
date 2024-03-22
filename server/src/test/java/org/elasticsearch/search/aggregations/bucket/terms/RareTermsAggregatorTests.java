@@ -43,9 +43,9 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -178,7 +178,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(bucket.getKey(), equalTo(1L));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
-            Aggregations children = bucket.getAggregations();
+            InternalAggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
             assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
@@ -192,7 +192,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(bucket.getKey(), equalTo("1"));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
-            Aggregations children = bucket.getAggregations();
+            InternalAggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_max"));
             assertThat(((Max) (children.asList().get(0))).value(), equalTo(1.0));
@@ -292,7 +292,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(bucket.getKey(), equalTo(1L));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
-            Aggregations children = bucket.getAggregations();
+            InternalAggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_terms"));
             assertThat(((Terms) (children.asList().get(0))).getBuckets().size(), equalTo(1));
@@ -308,7 +308,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             assertThat(bucket.getKey(), equalTo("1"));
             assertThat(bucket.getDocCount(), equalTo(1L));
 
-            Aggregations children = bucket.getAggregations();
+            InternalAggregations children = bucket.getAggregations();
             assertThat(children.asList().size(), equalTo(1));
             assertThat(children.asList().get(0).getName(), equalTo("the_terms"));
             assertThat(((Terms) (children.asList().get(0))).getBuckets().size(), equalTo(1));

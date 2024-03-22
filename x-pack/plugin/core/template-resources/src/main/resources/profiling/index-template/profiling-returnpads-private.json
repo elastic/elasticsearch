@@ -21,7 +21,9 @@
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
-        "index-version": ${xpack.profiling.index.returnpads.private.version}
+        "index-version": ${xpack.profiling.index.returnpads.private.version},
+        "description": "Index template for .profiling-returnpads-private",
+        "managed": true
       },
       "dynamic": false,
       "properties": {

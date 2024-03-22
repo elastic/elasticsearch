@@ -7,9 +7,22 @@
 
 package org.elasticsearch.xpack.core.datastreams;
 
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
+import java.util.LongSummaryStatistics;
+import java.util.UUID;
+
+import static org.elasticsearch.xpack.core.action.DataStreamLifecycleUsageTransportAction.calculateStats;
+import static org.hamcrest.Matchers.is;
 
 public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataStreamLifecycleFeatureSetUsage> {
 
@@ -81,6 +94,61 @@ public class DataStreamLifecycleFeatureSetUsageTests extends AbstractWireSeriali
             );
             default -> throw new RuntimeException("unreachable");
         };
+    }
+
+    public void testLifecycleStats() {
+        List<DataStream> dataStreams = List.of(
+            DataStreamTestHelper.newInstance(
+                randomAlphaOfLength(10),
+                List.of(new Index(randomAlphaOfLength(10), UUID.randomUUID().toString())),
+                1L,
+                null,
+                false,
+                new DataStreamLifecycle()
+            ),
+            DataStreamTestHelper.newInstance(
+                randomAlphaOfLength(10),
+                List.of(new Index(randomAlphaOfLength(10), UUID.randomUUID().toString())),
+                1L,
+                null,
+                false,
+                new DataStreamLifecycle(new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(1000)), null, true)
+            ),
+            DataStreamTestHelper.newInstance(
+                randomAlphaOfLength(10),
+                List.of(new Index(randomAlphaOfLength(10), UUID.randomUUID().toString())),
+                1L,
+                null,
+                false,
+                new DataStreamLifecycle(new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(100)), null, true)
+            ),
+            DataStreamTestHelper.newInstance(
+                randomAlphaOfLength(10),
+                List.of(new Index(randomAlphaOfLength(10), UUID.randomUUID().toString())),
+                1L,
+                null,
+                false,
+                new DataStreamLifecycle(new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(5000)), null, false)
+            ),
+            DataStreamTestHelper.newInstance(
+                randomAlphaOfLength(10),
+                List.of(new Index(randomAlphaOfLength(10), UUID.randomUUID().toString())),
+                1L,
+                null,
+                false,
+                null
+            )
+        );
+
+        Tuple<Long, LongSummaryStatistics> stats = calculateStats(dataStreams);
+        // 3 data streams with an enabled lifecycle
+        assertThat(stats.v1(), is(3L));
+        LongSummaryStatistics longSummaryStatistics = stats.v2();
+        assertThat(longSummaryStatistics.getMax(), is(1000L));
+        assertThat(longSummaryStatistics.getMin(), is(100L));
+        // only counting the ones with an effective retention in the summary statistics
+        assertThat(longSummaryStatistics.getCount(), is(2L));
+        assertThat(longSummaryStatistics.getAverage(), is(550.0));
     }
 
     @Override

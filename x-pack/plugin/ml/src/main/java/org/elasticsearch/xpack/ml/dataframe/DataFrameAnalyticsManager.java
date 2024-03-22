@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.dataframe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -20,16 +20,19 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetector;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.inference.InferenceRunner;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -45,7 +48,10 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -72,6 +78,8 @@ public class DataFrameAnalyticsManager {
     /** Indicates whether the node is shutting down. */
     private final AtomicBoolean nodeShuttingDown = new AtomicBoolean();
 
+    private final Map<String, ByteSizeValue> memoryLimitById;
+
     public DataFrameAnalyticsManager(
         Settings settings,
         NodeClient client,
@@ -85,6 +93,37 @@ public class DataFrameAnalyticsManager {
         ModelLoadingService modelLoadingService,
         String[] destIndexAllowedSettings
     ) {
+        this(
+            settings,
+            client,
+            threadPool,
+            clusterService,
+            configProvider,
+            processManager,
+            auditor,
+            expressionResolver,
+            resultsPersisterService,
+            modelLoadingService,
+            destIndexAllowedSettings,
+            new ConcurrentHashMap<>()
+        );
+    }
+
+    // For testing only
+    public DataFrameAnalyticsManager(
+        Settings settings,
+        NodeClient client,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        DataFrameAnalyticsConfigProvider configProvider,
+        AnalyticsProcessManager processManager,
+        DataFrameAnalyticsAuditor auditor,
+        IndexNameExpressionResolver expressionResolver,
+        ResultsPersisterService resultsPersisterService,
+        ModelLoadingService modelLoadingService,
+        String[] destIndexAllowedSettings,
+        Map<String, ByteSizeValue> memoryLimitById
+    ) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -96,11 +135,13 @@ public class DataFrameAnalyticsManager {
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
         this.destIndexAllowedSettings = Objects.requireNonNull(destIndexAllowedSettings);
+        this.memoryLimitById = Objects.requireNonNull(memoryLimitById);
     }
 
     public void execute(DataFrameAnalyticsTask task, ClusterState clusterState, TimeValue masterNodeTimeout) {
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(config -> {
+            memoryLimitById.put(config.getId(), config.getModelMemoryLimit());
             // Check if existing destination index is incompatible.
             // If it is, we delete it and start from reindexing.
             IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
@@ -129,9 +170,8 @@ public class DataFrameAnalyticsManager {
         }, task::setFailed);
 
         // Retrieve configuration
-        ActionListener<Boolean> statsIndexListener = ActionListener.wrap(
-            aBoolean -> configProvider.get(task.getParams().getId(), configListener),
-            configListener::onFailure
+        ActionListener<Boolean> statsIndexListener = configListener.delegateFailureAndWrap(
+            (l, aBoolean) -> configProvider.get(task.getParams().getId(), l)
         );
 
         // Make sure the stats index and alias exist
@@ -161,25 +201,22 @@ public class DataFrameAnalyticsManager {
         TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener
     ) {
-        ActionListener<Boolean> createIndexListener = ActionListener.wrap(
-            aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
-                MlStatsIndex.writeAlias(),
-                MlStatsIndex::wrappedMapping,
-                clientToUse,
-                clusterState,
-                masterNodeTimeout,
-                listener,
-                MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
-            ),
-            listener::onFailure
-        );
-
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(
             clientToUse,
             clusterState,
             expressionResolver,
             masterNodeTimeout,
-            createIndexListener
+            listener.delegateFailureAndWrap(
+                (l, aBoolean) -> ElasticsearchMappings.addDocMappingIfMissing(
+                    MlStatsIndex.writeAlias(),
+                    MlStatsIndex::wrappedMapping,
+                    clientToUse,
+                    clusterState,
+                    masterNodeTimeout,
+                    l,
+                    MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
+                )
+            )
         );
     }
 
@@ -224,6 +261,7 @@ public class DataFrameAnalyticsManager {
                 case FINAL -> {
                     LOGGER.info("[{}] Marking task completed", config.getId());
                     task.markAsCompleted();
+                    memoryLimitById.remove(config.getId());
                 }
                 default -> task.markAsFailed(ExceptionsHelper.serverError("Unknown step [{}]", step));
             }
@@ -241,7 +279,7 @@ public class DataFrameAnalyticsManager {
         ClientHelper.executeAsyncWithOrigin(
             new ParentTaskAssigningClient(client, task.getParentTaskId()),
             ML_ORIGIN,
-            DeleteIndexAction.INSTANCE,
+            TransportDeleteIndexAction.TYPE,
             new DeleteIndexRequest(config.getDest().getIndex()),
             ActionListener.wrap(
                 r -> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config, destIndexAllowedSettings)),
@@ -263,25 +301,25 @@ public class DataFrameAnalyticsManager {
 
     private void buildInferenceStep(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, ActionListener<InferenceStep> listener) {
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
-
-        ActionListener<ExtractedFieldsDetector> extractedFieldsDetectorListener = ActionListener.wrap(extractedFieldsDetector -> {
-            ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
-            InferenceRunner inferenceRunner = new InferenceRunner(
-                settings,
-                parentTaskClient,
-                modelLoadingService,
-                resultsPersisterService,
-                task.getParentTaskId(),
-                config,
-                extractedFields,
-                task.getStatsHolder().getProgressTracker(),
-                task.getStatsHolder().getDataCountsTracker()
-            );
-            InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
-            listener.onResponse(inferenceStep);
-        }, listener::onFailure);
-
-        new ExtractedFieldsDetectorFactory(parentTaskClient).createFromDest(config, extractedFieldsDetectorListener);
+        new ExtractedFieldsDetectorFactory(parentTaskClient).createFromDest(
+            config,
+            listener.delegateFailureAndWrap((delegate, extractedFieldsDetector) -> {
+                ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
+                InferenceRunner inferenceRunner = new InferenceRunner(
+                    settings,
+                    parentTaskClient,
+                    modelLoadingService,
+                    resultsPersisterService,
+                    task.getParentTaskId(),
+                    config,
+                    extractedFields,
+                    task.getStatsHolder().getProgressTracker(),
+                    task.getStatsHolder().getDataCountsTracker()
+                );
+                InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
+                delegate.onResponse(inferenceStep);
+            })
+        );
     }
 
     public boolean isNodeShuttingDown() {
@@ -290,5 +328,35 @@ public class DataFrameAnalyticsManager {
 
     public void markNodeAsShuttingDown() {
         nodeShuttingDown.set(true);
+    }
+
+    /**
+     * Get the memory limit for a data frame analytics job if known.
+     * The memory limit will only be known if it is running on the
+     * current node, or has been very recently.
+     * @param id Data frame analytics job ID.
+     * @return The {@link ByteSizeValue} representing the memory limit, if known, otherwise {@link Optional#empty}.
+     */
+    public Optional<ByteSizeValue> getMemoryLimitIfKnown(String id) {
+        return Optional.ofNullable(memoryLimitById.get(id));
+    }
+
+    /**
+     * Finds the memory used by data frame analytics jobs that are active on the current node.
+     * This includes jobs that are in the reindexing state, even though they don't have a running
+     * process, because we want to ensure that when they get as far as needing to run a process
+     * there'll be space for it.
+     * @param tasks Persistent tasks metadata.
+     * @return Memory used by data frame analytics jobs that are active on the current node.
+     */
+    public ByteSizeValue getActiveTaskMemoryUsage(PersistentTasksCustomMetadata tasks) {
+        long memoryUsedBytes = 0;
+        for (Map.Entry<String, ByteSizeValue> entry : memoryLimitById.entrySet()) {
+            DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(entry.getKey(), tasks);
+            if (state.consumesMemory()) {
+                memoryUsedBytes += entry.getValue().getBytes() + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes();
+            }
+        }
+        return ByteSizeValue.ofBytes(memoryUsedBytes);
     }
 }

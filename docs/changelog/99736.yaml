@@ -1,6 +1,0 @@
-pr: 99736
-summary: "ESQL: enhance SHOW FUNCTIONS command"
-area: ES|QL
-type: enhancement
-issues:
- - 99507

@@ -10,7 +10,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
@@ -22,6 +21,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 
 /**
  * An abstract class that implements basic functionality for allocating
@@ -58,23 +59,11 @@ public abstract class BaseGatewayShardAllocator {
             unassignedAllocationHandler.initialize(
                 allocateUnassignedDecision.getTargetNode().getId(),
                 allocateUnassignedDecision.getAllocationId(),
-                getExpectedShardSize(shardRouting, allocation),
+                getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
                 allocation.changes()
             );
         } else {
             unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
-        }
-    }
-
-    protected static long getExpectedShardSize(ShardRouting shardRouting, RoutingAllocation allocation) {
-        if (shardRouting.primary()) {
-            if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                return allocation.snapshotShardSizeInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-            } else {
-                return ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
-            }
-        } else {
-            return allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         }
     }
 

@@ -1,0 +1,6 @@
+pr: 101872
+summary: "Add `require_data_stream` parameter to indexing requests to enforce indexing operations target a data stream"
+area: Data streams
+type: feature
+issues:
+ - 97032

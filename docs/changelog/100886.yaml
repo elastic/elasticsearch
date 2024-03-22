@@ -1,5 +1,0 @@
-pr: 100886
-summary: Use the correct writable name for model assignment metadata in mixed version clusters. Prevents a node failure due to IllegalArgumentException Unknown NamedWriteable [trained_model_assignment]
-area: Machine Learning
-type: bug
-issues: []

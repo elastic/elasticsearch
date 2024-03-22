@@ -144,8 +144,14 @@ export const generatePipelines = (
     (pipeline) => changedFilesIncludedCheck(pipeline, changedFiles),
   ];
 
-  // When triggering via comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc
-  if (process.env["GITHUB_PR_TRIGGER_COMMENT"]) {
+  // When triggering via the "run elasticsearch-ci/step-name" comment, we ONLY want to run pipelines that match the trigger phrase, regardless of labels, etc
+  // However, if we're using the overall CI trigger "[buildkite] test this [please]", we should use the regular filters above
+  if (
+    process.env["GITHUB_PR_TRIGGER_COMMENT"] &&
+    !process.env["GITHUB_PR_TRIGGER_COMMENT"].match(
+      /^\s*((@elastic(search)?machine|buildkite)\s*)?test\s+this(\s+please)?/i
+    )
+  ) {
     filters = [triggerCommentCheck];
   }
 

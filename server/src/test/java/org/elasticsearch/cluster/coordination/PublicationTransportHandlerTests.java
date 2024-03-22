@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -147,7 +146,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 in = request.bytes().streamInput();
                 final Compressor compressor = CompressorFactory.compressor(request.bytes());
                 if (compressor != null) {
-                    in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
+                    in = compressor.threadLocalStreamInput(in);
                 }
                 in.setTransportVersion(version);
                 return in.readBoolean() == false;

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.io.stream;
 
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -20,22 +20,25 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import java.io.IOException;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ql.util.SourceUtils.writeSourceNoText;
+
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
  * output with methods that write plan nodes, Attributes, Expressions, etc.
  */
-public final class PlanStreamOutput extends OutputStreamStreamOutput {
+public final class PlanStreamOutput extends StreamOutput {
 
+    private final StreamOutput delegate;
     private final PlanNameRegistry registry;
 
     private final Function<Class<?>, String> nameSupplier;
 
-    public PlanStreamOutput(StreamOutput streamOutput, PlanNameRegistry registry) {
-        this(streamOutput, registry, PlanNamedTypes::name);
+    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry) {
+        this(delegate, registry, PlanNamedTypes::name);
     }
 
-    public PlanStreamOutput(StreamOutput streamOutput, PlanNameRegistry registry, Function<Class<?>, String> nameSupplier) {
-        super(streamOutput);
+    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, Function<Class<?>, String> nameSupplier) {
+        this.delegate = delegate;
         this.registry = registry;
         this.nameSupplier = nameSupplier;
     }
@@ -52,9 +55,7 @@ public final class PlanStreamOutput extends OutputStreamStreamOutput {
 
     public void writeSource(Source source) throws IOException {
         writeBoolean(true);
-        writeInt(source.source().getLineNumber());
-        writeInt(source.source().getColumnNumber());
-        writeInt(source.text().length());
+        writeSourceNoText(this, source);
     }
 
     public void writeNoSource() throws IOException {
@@ -88,5 +89,36 @@ public final class PlanStreamOutput extends OutputStreamStreamOutput {
         PlanWriter<T> writer = (PlanWriter<T>) registry.getWriter(type, name);
         writeString(name);
         writer.write(this, value);
+    }
+
+    @Override
+    public void writeByte(byte b) throws IOException {
+        delegate.writeByte(b);
+    }
+
+    @Override
+    public void writeBytes(byte[] b, int offset, int length) throws IOException {
+        delegate.writeBytes(b, offset, length);
+    }
+
+    @Override
+    public void flush() throws IOException {
+        delegate.flush();
+    }
+
+    @Override
+    public void close() throws IOException {
+        delegate.close();
+    }
+
+    @Override
+    public TransportVersion getTransportVersion() {
+        return delegate.getTransportVersion();
+    }
+
+    @Override
+    public void setTransportVersion(TransportVersion version) {
+        delegate.setTransportVersion(version);
+        super.setTransportVersion(version);
     }
 }

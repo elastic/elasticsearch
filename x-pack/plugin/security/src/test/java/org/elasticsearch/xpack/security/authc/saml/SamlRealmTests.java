@@ -336,35 +336,72 @@ public class SamlRealmTests extends SamlTestCase {
         );
     }
 
-    public void testAuthenticateWithRoleMapping() throws Exception {
+    private UserRoleMapper mockRoleMapper(Set<String> rolesToReturn, AtomicReference<UserRoleMapper.UserData> userData) {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
-        AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
         Mockito.doAnswer(invocation -> {
             assert invocation.getArguments().length == 2;
             userData.set((UserRoleMapper.UserData) invocation.getArguments()[0]);
             @SuppressWarnings("unchecked")
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            listener.onResponse(Collections.singleton("superuser"));
+            listener.onResponse(rolesToReturn);
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
+        return roleMapper;
+    }
 
+    public void testAuthenticateWithEmptyRoleMapping() throws Exception {
+        final AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
+        final UserRoleMapper roleMapper = mockRoleMapper(Set.of(), userData);
+
+        final boolean testWithDelimiter = randomBoolean();
+        final AuthenticationResult<User> result = performAuthentication(
+            roleMapper,
+            randomBoolean(),
+            randomBoolean(),
+            randomFrom(Boolean.TRUE, Boolean.FALSE, null),
+            false,
+            randomBoolean() ? REALM_NAME : null,
+            testWithDelimiter ? List.of("STRIKE Team: Delta$shield") : Arrays.asList("avengers", "shield"),
+            testWithDelimiter ? "$" : null,
+            randomBoolean() ? List.of("superuser", "kibana_admin") : randomFrom(List.of(), null)
+        );
+        assertThat(result, notNullValue());
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getValue().roles().length, equalTo(0));
+    }
+
+    public void testAuthenticateWithRoleMapping() throws Exception {
+        final AtomicReference<UserRoleMapper.UserData> userData = new AtomicReference<>();
+        final UserRoleMapper roleMapper = mockRoleMapper(Set.of("superuser", "kibana_admin"), userData);
+
+        final boolean excludeRoles = randomBoolean();
+        final List<String> rolesToExclude = excludeRoles ? List.of("superuser") : randomFrom(List.of(), null);
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
         final Boolean populateUserMetadata = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
-        AuthenticationResult<User> result = performAuthentication(
+        final boolean testWithDelimiter = randomBoolean();
+        final AuthenticationResult<User> result = performAuthentication(
             roleMapper,
             useNameId,
             principalIsEmailAddress,
             populateUserMetadata,
             false,
-            authenticatingRealm
+            authenticatingRealm,
+            testWithDelimiter ? List.of("STRIKE Team: Delta$shield") : Arrays.asList("avengers", "shield"),
+            testWithDelimiter ? "$" : null,
+            rolesToExclude
         );
+
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
         assertThat(result.getValue().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
         assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("superuser"));
+        if (excludeRoles) {
+            assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_admin"));
+        } else {
+            assertThat(result.getValue().roles(), arrayContainingInAnyOrder("kibana_admin", "superuser"));
+        }
         if (populateUserMetadata == Boolean.FALSE) {
             // TODO : "saml_nameid" should be null too, but the logout code requires it for now.
             assertThat(result.getValue().metadata().get("saml_uid"), nullValue());
@@ -377,7 +414,11 @@ public class SamlRealmTests extends SamlTestCase {
         }
 
         assertThat(userData.get().getUsername(), equalTo(useNameId ? "clint.barton" : "cbarton"));
-        assertThat(userData.get().getGroups(), containsInAnyOrder("avengers", "shield"));
+        if (testWithDelimiter) {
+            assertThat(userData.get().getGroups(), containsInAnyOrder("STRIKE Team: Delta", "shield"));
+        } else {
+            assertThat(userData.get().getGroups(), containsInAnyOrder("avengers", "shield"));
+        }
     }
 
     public void testAuthenticateWithAuthorizingRealm() throws Exception {
@@ -432,6 +473,52 @@ public class SamlRealmTests extends SamlTestCase {
         boolean useAuthorizingRealm,
         String authenticatingRealm
     ) throws Exception {
+        return performAuthentication(
+            roleMapper,
+            useNameId,
+            principalIsEmailAddress,
+            populateUserMetadata,
+            useAuthorizingRealm,
+            authenticatingRealm,
+            Arrays.asList("avengers", "shield"),
+            null
+        );
+    }
+
+    private AuthenticationResult<User> performAuthentication(
+        UserRoleMapper roleMapper,
+        boolean useNameId,
+        boolean principalIsEmailAddress,
+        Boolean populateUserMetadata,
+        boolean useAuthorizingRealm,
+        String authenticatingRealm,
+        List<String> groups,
+        String groupsDelimiter
+    ) throws Exception {
+        return performAuthentication(
+            roleMapper,
+            useNameId,
+            principalIsEmailAddress,
+            populateUserMetadata,
+            useAuthorizingRealm,
+            authenticatingRealm,
+            groups,
+            groupsDelimiter,
+            null
+        );
+    }
+
+    private AuthenticationResult<User> performAuthentication(
+        UserRoleMapper roleMapper,
+        boolean useNameId,
+        boolean principalIsEmailAddress,
+        Boolean populateUserMetadata,
+        boolean useAuthorizingRealm,
+        String authenticatingRealm,
+        List<String> groups,
+        String groupsDelimiter,
+        List<String> rolesToExclude
+    ) throws Exception {
         final EntityDescriptor idp = mockIdp();
         final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
@@ -453,8 +540,12 @@ public class SamlRealmTests extends SamlTestCase {
 
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), useNameId ? "nameid" : "uid")
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.GROUPS_ATTRIBUTE.getAttribute()), "groups")
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.GROUPS_ATTRIBUTE.getAttributeSetting().getAttribute()), "groups")
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.MAIL_ATTRIBUTE.getAttribute()), "mail");
+
+        if (groupsDelimiter != null) {
+            settingsBuilder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.GROUPS_ATTRIBUTE.getDelimiter()), groupsDelimiter);
+        }
         if (principalIsEmailAddress) {
             final boolean anchoredMatch = randomBoolean();
             settingsBuilder.put(
@@ -467,6 +558,9 @@ public class SamlRealmTests extends SamlTestCase {
                 getFullSettingKey(REALM_NAME, SamlRealmSettings.POPULATE_USER_METADATA),
                 populateUserMetadata.booleanValue()
             );
+        }
+        if (rolesToExclude != null) {
+            settingsBuilder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.EXCLUDE_ROLES), String.join(",", rolesToExclude));
         }
         if (useAuthorizingRealm) {
             settingsBuilder.putList(
@@ -497,7 +591,7 @@ public class SamlRealmTests extends SamlTestCase {
             randomAlphaOfLength(16),
             Arrays.asList(
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.1", "uid", Collections.singletonList(uidValue)),
-                new SamlAttributes.SamlAttribute("urn:oid:1.3.6.1.4.1.5923.1.5.1.1", "groups", Arrays.asList("avengers", "shield")),
+                new SamlAttributes.SamlAttribute("urn:oid:1.3.6.1.4.1.5923.1.5.1.1", "groups", groups),
                 new SamlAttributes.SamlAttribute("urn:oid:0.9.2342.19200300.100.1.3", "mail", Arrays.asList("cbarton@shield.gov"))
             )
         );
@@ -534,7 +628,120 @@ public class SamlRealmTests extends SamlTestCase {
         }
     }
 
-    public void testAttributeSelectionWithRegex() throws Exception {
+    public void testAttributeSelectionWithSplit() {
+        List<String> strings = performAttributeSelectionWithSplit(",", "departments", "engineering", "elasticsearch-admins", "employees");
+        assertThat("For attributes: " + strings, strings, contains("engineering", "elasticsearch-admins", "employees"));
+    }
+
+    public void testAttributeSelectionWithSplitEmptyInput() {
+        List<String> strings = performAttributeSelectionWithSplit(",", "departments");
+        assertThat("For attributes: " + strings, strings, is(empty()));
+    }
+
+    public void testAttributeSelectionWithSplitJustDelimiter() {
+        List<String> strings = performAttributeSelectionWithSplit(",", ",");
+        assertThat("For attributes: " + strings, strings, is(empty()));
+    }
+
+    public void testAttributeSelectionWithSplitNoDelimiter() {
+        List<String> strings = performAttributeSelectionWithSplit(",", "departments", "elasticsearch-team");
+        assertThat("For attributes: " + strings, strings, contains("elasticsearch-team"));
+    }
+
+    private List<String> performAttributeSelectionWithSplit(String delimiter, String groupAttributeName, String... returnedGroups) {
+        final Settings settings = Settings.builder()
+            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", groupAttributeName)
+            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter)
+            .build();
+
+        final RealmConfig config = buildConfig(settings);
+
+        final SamlRealmSettings.AttributeSettingWithDelimiter groupSetting = new SamlRealmSettings.AttributeSettingWithDelimiter("groups");
+        final SamlRealm.AttributeParser parser = SamlRealm.AttributeParser.forSetting(logger, groupSetting, config);
+
+        final SamlAttributes attributes = new SamlAttributes(
+            new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
+            randomAlphaOfLength(16),
+            Collections.singletonList(
+                new SamlAttributes.SamlAttribute(
+                    "departments",
+                    "departments",
+                    Collections.singletonList(String.join(delimiter, returnedGroups))
+                )
+            )
+        );
+        return parser.getAttribute(attributes);
+    }
+
+    public void testAttributeSelectionWithDelimiterAndPatternThrowsSettingsException() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
+            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", ",")
+            .put(REALM_SETTINGS_PREFIX + ".attribute_patterns.groups", "^(.+)@\\w+.example.com$")
+            .build();
+
+        final RealmConfig config = buildConfig(settings);
+
+        final SamlRealmSettings.AttributeSettingWithDelimiter groupSetting = new SamlRealmSettings.AttributeSettingWithDelimiter("groups");
+
+        final SettingsException settingsException = expectThrows(
+            SettingsException.class,
+            () -> SamlRealm.AttributeParser.forSetting(logger, groupSetting, config)
+        );
+
+        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups"));
+        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_patterns.groups"));
+    }
+
+    public void testAttributeSelectionNoGroupsConfiguredThrowsSettingsException() {
+        String delimiter = ",";
+        final Settings settings = Settings.builder().put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter).build();
+        final RealmConfig config = buildConfig(settings);
+        final SamlRealmSettings.AttributeSettingWithDelimiter groupSetting = new SamlRealmSettings.AttributeSettingWithDelimiter("groups");
+
+        final SettingsException settingsException = expectThrows(
+            SettingsException.class,
+            () -> SamlRealm.AttributeParser.forSetting(logger, groupSetting, config)
+        );
+
+        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups"));
+        assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attributes.groups"));
+    }
+
+    public void testAttributeSelectionWithSplitAndListThrowsSecurityException() {
+        String delimiter = ",";
+
+        final Settings settings = Settings.builder()
+            .put(REALM_SETTINGS_PREFIX + ".attributes.groups", "departments")
+            .put(REALM_SETTINGS_PREFIX + ".attribute_delimiters.groups", delimiter)
+            .build();
+
+        final RealmConfig config = buildConfig(settings);
+
+        final SamlRealmSettings.AttributeSettingWithDelimiter groupSetting = new SamlRealmSettings.AttributeSettingWithDelimiter("groups");
+        final SamlRealm.AttributeParser parser = SamlRealm.AttributeParser.forSetting(logger, groupSetting, config);
+
+        final SamlAttributes attributes = new SamlAttributes(
+            new SamlNameId(NameIDType.TRANSIENT, randomAlphaOfLength(24), null, null, null),
+            randomAlphaOfLength(16),
+            Collections.singletonList(
+                new SamlAttributes.SamlAttribute(
+                    "departments",
+                    "departments",
+                    List.of("engineering", String.join(delimiter, "elasticsearch-admins", "employees"))
+                )
+            )
+        );
+
+        ElasticsearchSecurityException securityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> parser.getAttribute(attributes)
+        );
+
+        assertThat(securityException.getMessage(), containsString("departments"));
+    }
+
+    public void testAttributeSelectionWithRegex() {
         final boolean useFriendlyName = randomBoolean();
         final Settings settings = Settings.builder()
             .put(REALM_SETTINGS_PREFIX + ".attributes.principal", useFriendlyName ? "mail" : "urn:oid:0.9.2342.19200300.100.1.3")
@@ -581,6 +788,36 @@ public class SamlRealmTests extends SamlTestCase {
         );
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_patterns.name"));
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attributes.name"));
+    }
+
+    public void testSettingExcludeRolesAndAuthorizationRealmsThrowsException() throws Exception {
+        final Settings realmSettings = Settings.builder()
+            .putList(getFullSettingKey(REALM_NAME, SamlRealmSettings.EXCLUDE_ROLES), "superuser", "kibana_admin")
+            .putList(
+                getFullSettingKey(new RealmConfig.RealmIdentifier("saml", REALM_NAME), DelegatedAuthorizationSettings.AUTHZ_REALMS),
+                "ldap"
+            )
+            .build();
+        final RealmConfig config = buildConfig(realmSettings);
+
+        final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
+        final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
+        final EntityDescriptor idp = mockIdp();
+        final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
+
+        var e = expectThrows(IllegalArgumentException.class, () -> buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp));
+
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "Setting ["
+                    + REALM_SETTINGS_PREFIX
+                    + ".exclude_roles] is not permitted when setting ["
+                    + REALM_SETTINGS_PREFIX
+                    + ".authorization_realms] is configured."
+            )
+        );
     }
 
     public void testMissingPrincipalSettingThrowsSettingsException() throws Exception {

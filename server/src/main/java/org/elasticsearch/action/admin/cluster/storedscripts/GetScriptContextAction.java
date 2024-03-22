@@ -16,6 +16,6 @@ public class GetScriptContextAction extends ActionType<GetScriptContextResponse>
     public static final String NAME = "cluster:admin/script_context/get";
 
     private GetScriptContextAction() {
-        super(NAME, GetScriptContextResponse::new);
+        super(NAME);
     }
 }

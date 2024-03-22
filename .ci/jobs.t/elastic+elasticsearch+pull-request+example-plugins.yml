@@ -14,7 +14,8 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/example-plugins.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/example-plugins.*'
           github-hooks: true
           status-context: elasticsearch-ci/example-plugins
           cancel-builds-on-update: true
@@ -23,11 +24,9 @@
             - build-tools/.*
             - build-tools-internal/.*
             - plugins/examples/.*
-          black-list-labels:
-            - 'buildkite-opt-in'
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             JAVA8_HOME=$HOME/.java/java8

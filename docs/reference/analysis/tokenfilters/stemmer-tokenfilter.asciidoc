@@ -230,6 +230,9 @@ Russian::
 https://snowballstem.org/algorithms/russian/stemmer.html[*`russian`*],
 https://doc.rero.ch/lm.php?url=1000%2C43%2C4%2C20091209094227-CA%2FDolamic_Ljiljana_-_Indexing_and_Searching_Strategies_for_the_Russian_20091209.pdf[`light_russian`]
 
+Serbian::
+https://snowballstem.org/algorithms/serbian/stemmer.html[*`serbian`*]
+
 Spanish::
 https://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_spanish`*],
 https://snowballstem.org/algorithms/spanish/stemmer.html[`spanish`]

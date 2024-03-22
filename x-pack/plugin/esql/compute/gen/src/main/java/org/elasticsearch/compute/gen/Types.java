@@ -32,11 +32,9 @@ public class Types {
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
     static final ClassName BLOCK = ClassName.get(DATA_PACKAGE, "Block");
     static final TypeName BLOCK_ARRAY = ArrayTypeName.of(BLOCK);
-    static final ClassName BLOCK_REF = ClassName.get(DATA_PACKAGE, "Block", "Ref");
     static final ClassName VECTOR = ClassName.get(DATA_PACKAGE, "Vector");
 
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");
-    static final ClassName BYTES_REF_ARRAY = ClassName.get("org.elasticsearch.common.util", "BytesRefArray");
 
     static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");
     static final ClassName BYTES_REF_BLOCK = ClassName.get(DATA_PACKAGE, "BytesRefBlock");
@@ -86,10 +84,6 @@ public class Types {
     static final ClassName INT_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantIntVector");
     static final ClassName LONG_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantLongVector");
     static final ClassName DOUBLE_CONSTANT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantDoubleVector");
-
-    static final ClassName INT_ARRAY_STATE = ClassName.get(AGGREGATION_PACKAGE, "IntArrayState");
-    static final ClassName LONG_ARRAY_STATE = ClassName.get(AGGREGATION_PACKAGE, "LongArrayState");
-    static final ClassName DOUBLE_ARRAY_STATE = ClassName.get(AGGREGATION_PACKAGE, "DoubleArrayState");
 
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
     static final ClassName AGGREGATOR_FUNCTION_SUPPLIER = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunctionSupplier");

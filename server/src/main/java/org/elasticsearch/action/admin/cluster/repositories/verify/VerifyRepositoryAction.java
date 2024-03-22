@@ -19,6 +19,6 @@ public class VerifyRepositoryAction extends ActionType<VerifyRepositoryResponse>
     public static final String NAME = "cluster:admin/repository/verify";
 
     private VerifyRepositoryAction() {
-        super(NAME, VerifyRepositoryResponse::new);
+        super(NAME);
     }
 }

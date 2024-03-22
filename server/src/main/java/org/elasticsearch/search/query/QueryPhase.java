@@ -94,13 +94,14 @@ public class QueryPhase {
             if (searchTimedOut) {
                 break;
             }
-            RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankQuery, rankShardContext.windowSize());
-            QueryPhase.addCollectorsAndSearch(rankSearchContext);
-            QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
-            rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
-            serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
-            nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
-            searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+            try (RankSearchContext rankSearchContext = new RankSearchContext(searchContext, rankQuery, rankShardContext.windowSize())) {
+                QueryPhase.addCollectorsAndSearch(rankSearchContext);
+                QuerySearchResult rrfQuerySearchResult = rankSearchContext.queryResult();
+                rrfRankResults.add(rrfQuerySearchResult.topDocs().topDocs);
+                serviceTimeEWMA += rrfQuerySearchResult.serviceTimeEWMA();
+                nodeQueueSize = Math.max(nodeQueueSize, rrfQuerySearchResult.nodeQueueSize());
+                searchTimedOut = rrfQuerySearchResult.searchTimedOut();
+            }
         }
 
         querySearchResult.setRankShardResult(rankShardContext.combine(rrfRankResults));
@@ -209,7 +210,7 @@ public class QueryPhase {
             if (searcher.timeExceeded()) {
                 assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
                 if (searchContext.request().allowPartialSearchResults() == false) {
-                    throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
+                    throw new SearchTimeoutException(searchContext.shardTarget(), "Time exceeded");
                 }
                 queryResult.searchTimedOut(true);
             }

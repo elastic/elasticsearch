@@ -1,5 +1,0 @@
-pr: 101629
-summary: Health report infrastructure doesn't trip the circuit breakers
-area: Health
-type: bug
-issues: []

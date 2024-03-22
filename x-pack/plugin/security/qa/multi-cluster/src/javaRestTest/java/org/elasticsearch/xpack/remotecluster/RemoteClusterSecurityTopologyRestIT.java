@@ -13,6 +13,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -127,27 +128,40 @@ public class RemoteClusterSecurityTopologyRestIT extends AbstractRemoteClusterSe
         {
             final var documentFieldValues = new HashSet<>();
             final var searchRequest = new Request("GET", "/my_remote_cluster:*/_search?scroll=1h&size=1");
-            final SearchResponse searchResponse = SearchResponse.fromXContent(
+            final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(
                 responseAsParser(performRequestWithRemoteMetricUser(searchRequest))
             );
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(6L));
-            assertThat(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).toList(), contains("shared-metrics"));
-            documentFieldValues.add(searchResponse.getHits().getHits()[0].getSourceAsMap().get("name"));
-
-            // Scroll should be able to fetch all documents from all nodes even when some nodes are not directly accessible in sniff mode
-            final String scrollId = searchResponse.getScrollId();
             final Request scrollRequest = new Request("GET", "/_search/scroll");
-            scrollRequest.setJsonEntity(Strings.format("""
-                { "scroll_id": "%s" }
-                """, scrollId));
+            final String scrollId;
+            try {
+                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(6L));
+                assertThat(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).toList(), contains("shared-metrics"));
+                documentFieldValues.add(searchResponse.getHits().getHits()[0].getSourceAsMap().get("name"));
+                scrollId = searchResponse.getScrollId();
+                // Scroll should be able to fetch all documents from all nodes even when some nodes are not directly accessible in sniff
+                // mode
+                scrollRequest.setJsonEntity(Strings.format("""
+                    { "scroll_id": "%s" }
+                    """, scrollId));
+            } finally {
+                searchResponse.decRef();
+            }
+
             // Fetch all documents
             for (int i = 0; i < 5; i++) {
-                final SearchResponse scrollResponse = SearchResponse.fromXContent(
+                final SearchResponse scrollResponse = SearchResponseUtils.parseSearchResponse(
                     responseAsParser(performRequestWithRemoteMetricUser(scrollRequest))
                 );
-                assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(6L));
-                assertThat(Arrays.stream(scrollResponse.getHits().getHits()).map(SearchHit::getIndex).toList(), contains("shared-metrics"));
-                documentFieldValues.add(scrollResponse.getHits().getHits()[0].getSourceAsMap().get("name"));
+                try {
+                    assertThat(scrollResponse.getHits().getTotalHits().value, equalTo(6L));
+                    assertThat(
+                        Arrays.stream(scrollResponse.getHits().getHits()).map(SearchHit::getIndex).toList(),
+                        contains("shared-metrics")
+                    );
+                    documentFieldValues.add(scrollResponse.getHits().getHits()[0].getSourceAsMap().get("name"));
+                } finally {
+                    scrollResponse.decRef();
+                }
             }
             assertThat(documentFieldValues, containsInAnyOrder("metric1", "metric2", "metric3", "metric4", "metric5", "metric6"));
 

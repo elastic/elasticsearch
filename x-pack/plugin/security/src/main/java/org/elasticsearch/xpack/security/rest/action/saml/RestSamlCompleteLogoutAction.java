@@ -24,8 +24,8 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutRequest;
+import org.elasticsearch.xpack.security.action.saml.TransportSamlCompleteLogoutAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -82,7 +82,7 @@ public class RestSamlCompleteLogoutAction extends SamlBaseRestHandler {
                 samlCompleteLogoutRequest.getValidRequestIds()
             );
             return channel -> client.execute(
-                SamlCompleteLogoutAction.INSTANCE,
+                TransportSamlCompleteLogoutAction.TYPE,
                 samlCompleteLogoutRequest,
                 new RestBuilderListener<>(channel) {
                     @Override

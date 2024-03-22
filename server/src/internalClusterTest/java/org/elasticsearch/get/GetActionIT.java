@@ -8,20 +8,27 @@
 
 package org.elasticsearch.get;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -32,16 +39,21 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,13 +72,28 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public static class SearcherWrapperPlugin extends Plugin {
+        public static boolean enabled = false;
+        public static final AtomicInteger calls = new AtomicInteger();
+
         @Override
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
-            if (randomBoolean()) {
-                indexModule.setReaderWrapper(indexService -> EngineTestCase.randomReaderWrapper());
+            if (enabled) {
+                indexModule.setReaderWrapper(indexService -> {
+                    CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = EngineTestCase.randomReaderWrapper();
+                    return reader -> {
+                        calls.incrementAndGet();
+                        return wrapper.apply(reader);
+                    };
+                });
             }
         }
+    }
+
+    @Before
+    public void maybeEnableSearcherWrapper() {
+        SearcherWrapperPlugin.enabled = randomBoolean();
+        SearcherWrapperPlugin.calls.set(0);
     }
 
     public void testSimpleGet() {
@@ -81,7 +108,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         logger.info("--> non realtime get 1");
         response = client().prepareGet(indexOrAlias(), "1").setRealtime(false).get();
@@ -100,7 +127,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getIndex(), equalTo("test"));
         Set<String> fields = new HashSet<>(response.getFields().keySet());
         assertThat(fields, equalTo(Collections.<String>emptySet()));
-        assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getSourceAsBytesRef(), nullValue());
 
         logger.info("--> realtime get 1 (no source, explicit)");
         response = client().prepareGet(indexOrAlias(), "1").setFetchSource(false).get();
@@ -108,7 +135,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getIndex(), equalTo("test"));
         fields = new HashSet<>(response.getFields().keySet());
         assertThat(fields, equalTo(Collections.<String>emptySet()));
-        assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getSourceAsBytesRef(), nullValue());
 
         logger.info("--> realtime get 1 (no type)");
         response = client().prepareGet(indexOrAlias(), "1").get();
@@ -121,7 +148,7 @@ public class GetActionIT extends ESIntegTestCase {
         response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getSourceAsBytesRef(), nullValue());
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
@@ -155,7 +182,7 @@ public class GetActionIT extends ESIntegTestCase {
         response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getSourceAsBytesRef(), nullValue());
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
@@ -163,12 +190,12 @@ public class GetActionIT extends ESIntegTestCase {
         response = client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").setFetchSource(true).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getSourceAsBytes(), not(nullValue()));
+        assertThat(response.getSourceAsBytesRef(), not(nullValue()));
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> update doc 1");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1_1", "field2", "value2_1").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1_1", "field2", "value2_1").get();
 
         logger.info("--> realtime get 1");
         response = client().prepareGet(indexOrAlias(), "1").get();
@@ -178,7 +205,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_1"));
 
         logger.info("--> update doc 1 again");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1_2", "field2", "value2_2").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1_2", "field2", "value2_2").get();
 
         response = client().prepareGet(indexOrAlias(), "1").get();
         assertThat(response.isExists(), equalTo(true));
@@ -202,16 +229,10 @@ public class GetActionIT extends ESIntegTestCase {
         } else {
             indicesAdmin().prepareCreate("index3").addAlias(new Alias("alias1").indexRouting("1").writeIndex(true)).get();
         }
-        DocWriteResponse indexResponse = client().prepareIndex("index1")
-            .setId("id")
-            .setSource(Collections.singletonMap("foo", "bar"))
-            .get();
+        DocWriteResponse indexResponse = prepareIndex("index1").setId("id").setSource(Collections.singletonMap("foo", "bar")).get();
         assertThat(indexResponse.status().getStatus(), equalTo(RestStatus.CREATED.getStatus()));
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().prepareGet("alias1", "_alias_id").get()
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, client().prepareGet("alias1", "_alias_id"));
         assertThat(exception.getMessage(), endsWith("can't execute a single index op"));
     }
 
@@ -232,7 +253,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         response = client().prepareMultiGet()
@@ -271,7 +292,7 @@ public class GetActionIT extends ESIntegTestCase {
             .get();
 
         assertThat(response.getResponses().length, equalTo(2));
-        assertThat(response.getResponses()[0].getResponse().getSourceAsBytes(), nullValue());
+        assertThat(response.getResponses()[0].getResponse().getSourceAsBytesRef(), nullValue());
         assertThat(response.getResponses()[0].getResponse().getField("field").getValues().get(0).toString(), equalTo("value1"));
     }
 
@@ -294,7 +315,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(false));
         assertThat(response.isExists(), equalTo(false));
 
-        client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
 
         response = client().prepareGet("test", "1").setStoredFields("field").get();
         assertThat(response.isExists(), equalTo(true));
@@ -325,7 +346,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
@@ -369,7 +390,7 @@ public class GetActionIT extends ESIntegTestCase {
         }
 
         logger.info("--> index doc 1 again, so increasing the version");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
 
         // From translog:
 
@@ -424,7 +445,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
@@ -474,7 +495,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[2].getFailure().getFailure(), instanceOf(VersionConflictEngineException.class));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
@@ -547,20 +568,19 @@ public class GetActionIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.refresh_interval", -1))
         );
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
             .get();
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get()
+            client().prepareGet(indexOrAlias(), "1").setStoredFields("field1")
         );
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
 
         flush();
 
-        exc = expectThrows(IllegalArgumentException.class, () -> client().prepareGet(indexOrAlias(), "1").setStoredFields("field1").get());
+        exc = expectThrows(IllegalArgumentException.class, client().prepareGet(indexOrAlias(), "1").setStoredFields("field1"));
         assertThat(exc.getMessage(), equalTo("field [field1] isn't a leaf field"));
     }
 
@@ -625,7 +645,7 @@ public class GetActionIT extends ESIntegTestCase {
 
         logger.info("indexing documents");
 
-        client().prepareIndex("my-index").setId("1").setSource(source, XContentType.JSON).get();
+        prepareIndex("my-index").setId("1").setSource(source, XContentType.JSON).get();
 
         logger.info("checking real time retrieval");
 
@@ -648,7 +668,7 @@ public class GetActionIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("flushing");
-        FlushResponse flushResponse = indicesAdmin().prepareFlush("my-index").setForce(true).get();
+        BroadcastResponse flushResponse = indicesAdmin().prepareFlush("my-index").setForce(true).get();
         if (flushResponse.getSuccessfulShards() == 0) {
             StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [").append(
                 flushResponse.getTotalShards()
@@ -720,7 +740,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test").setId("1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
+        prepareIndex("test").setId("1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
 
         String[] fieldsList = { "_routing" };
         // before refresh - document is only in translog
@@ -749,7 +769,7 @@ public class GetActionIT extends ESIntegTestCase {
               "text": "some text."
             }
             """;
-        client().prepareIndex("test").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
+        prepareIndex("test").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
         String[] fieldsList = { "_routing" };
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "1", fieldsList, "1");
@@ -825,8 +845,77 @@ public class GetActionIT extends ESIntegTestCase {
         index("test", "1", doc);
     }
 
+    public void testAvoidWrappingSearcherInMultiGet() {
+        SearcherWrapperPlugin.enabled = true;
+        assertAcked(
+            prepareCreate("test").setMapping("f", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put("index.refresh_interval", "-1")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.rebalance.enable", "none")
+                )
+        );
+        // start tracking translog locations in the live version map
+        {
+            index("test", "0", Map.of("f", "empty"));
+            client().prepareGet("test", "0").setRealtime(true).get();
+            refresh("test");
+        }
+        Map<String, String> indexedDocs = new HashMap<>();
+        indexedDocs.put("0", "empty");
+        Map<String, String> visibleDocs = new HashMap<>(indexedDocs);
+        Set<String> pendingIds = new HashSet<>();
+        int iters = between(1, 20);
+        for (int iter = 0; iter < iters; iter++) {
+            int numDocs = randomIntBetween(1, 20);
+            BulkRequestBuilder bulk = client().prepareBulk();
+            for (int i = 0; i < numDocs; i++) {
+                String id = Integer.toString(between(1, 50));
+                String value = "v-" + between(1, 1000);
+                indexedDocs.put(id, value);
+                pendingIds.add(id);
+                bulk.add(new IndexRequest("test").id(id).source("f", value));
+            }
+            assertNoFailures(bulk.get());
+            SearcherWrapperPlugin.calls.set(0);
+            boolean realTime = randomBoolean();
+            MultiGetRequestBuilder mget = client().prepareMultiGet().setRealtime(realTime);
+            List<String> ids = randomSubsetOf(between(1, indexedDocs.size()), indexedDocs.keySet());
+            Randomness.shuffle(ids);
+            for (String id : ids) {
+                mget.add("test", id);
+            }
+            MultiGetResponse resp = mget.get();
+            Map<String, String> expected = realTime ? indexedDocs : visibleDocs;
+            int getFromTranslog = 0;
+            for (int i = 0; i < ids.size(); i++) {
+                String id = ids.get(i);
+                MultiGetItemResponse item = resp.getResponses()[i];
+                assertThat(item.getId(), equalTo(id));
+                if (expected.containsKey(id)) {
+                    assertTrue(item.getResponse().isExists());
+                    assertThat(item.getResponse().getSource().get("f"), equalTo(expected.get(id)));
+                } else {
+                    assertFalse(item.getResponse().isExists());
+                }
+                if (realTime && pendingIds.contains(id)) {
+                    getFromTranslog++;
+                }
+            }
+            int expectedCalls = getFromTranslog == ids.size() ? getFromTranslog : getFromTranslog + 1;
+            assertThat(SearcherWrapperPlugin.calls.get(), equalTo(expectedCalls));
+            if (randomBoolean()) {
+                refresh("test");
+                visibleDocs = new HashMap<>(indexedDocs);
+                pendingIds.clear();
+            }
+        }
+    }
+
     public void testGetRemoteIndex() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> client().prepareGet("cluster:index", "id").get());
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, client().prepareGet("cluster:index", "id"));
         assertEquals(
             "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
             iae.getMessage()

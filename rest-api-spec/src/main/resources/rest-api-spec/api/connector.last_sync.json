@@ -1,0 +1,38 @@
+{
+  "connector.last_sync": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-last-sync-api.html",
+      "description": "Updates the stats of last sync in the connector document."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/{connector_id}/_last_sync",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector to be updated."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "Object with stats related to the last connector sync run.",
+      "required": true
+    }
+  }
+}

@@ -7,142 +7,96 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.methods.HttpUriRequest;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ListenerTimeouts;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-class RequestTask extends HttpTask {
-    private static final Logger logger = LogManager.getLogger(RequestTask.class);
-    private static final Scheduler.Cancellable NOOP_TIMEOUT_HANDLER = createDefaultHandler();
+class RequestTask implements RejectableTask {
 
-    private final HttpUriRequest request;
-    private final ActionListener<HttpResult> listener;
-    private final Scheduler.Cancellable timeoutHandler;
-    private final AtomicBoolean notified = new AtomicBoolean();
-    private final TimeValue timeout;
-    private final Runnable command;
+    private final AtomicBoolean finished = new AtomicBoolean();
+    private final ExecutableRequestCreator requestCreator;
+    private final List<String> input;
+    private final ActionListener<InferenceServiceResults> listener;
 
     RequestTask(
-        HttpUriRequest request,
-        HttpClient httpClient,
-        HttpClientContext context,
+        ExecutableRequestCreator requestCreator,
+        List<String> input,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
-        ActionListener<HttpResult> listener
+        ActionListener<InferenceServiceResults> listener
     ) {
-        this.request = Objects.requireNonNull(request);
-        this.listener = Objects.requireNonNull(listener);
-        this.timeout = timeout;
-        this.timeoutHandler = startTimer(threadPool, timeout);
-        this.command = threadPool.getThreadContext()
-            .preserveContext(
-                new Command(
-                    Objects.requireNonNull(httpClient),
-                    this.request,
-                    Objects.requireNonNull(context),
-                    ActionListener.wrap(this::onSuccess, this::onFailure)
-                )
-            );
+        this.requestCreator = Objects.requireNonNull(requestCreator);
+        this.input = Objects.requireNonNull(input);
+        this.listener = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
     }
 
-    private Scheduler.Cancellable startTimer(ThreadPool threadPool, TimeValue timeout) {
-        Objects.requireNonNull(threadPool);
+    private ActionListener<InferenceServiceResults> getListener(
+        ActionListener<InferenceServiceResults> origListener,
+        @Nullable TimeValue timeout,
+        ThreadPool threadPool
+    ) {
+        ActionListener<InferenceServiceResults> notificationListener = ActionListener.wrap(result -> {
+            finished.set(true);
+            origListener.onResponse(result);
+        }, e -> {
+            finished.set(true);
+            origListener.onFailure(e);
+        });
 
         if (timeout == null) {
-            return NOOP_TIMEOUT_HANDLER;
+            return notificationListener;
         }
 
-        return threadPool.schedule(this::onTimeout, timeout, threadPool.executor(UTILITY_THREAD_POOL_NAME));
-    }
-
-    private void onTimeout() {
-        assert timeout != null : "timeout must be defined to use a timeout handler";
-        logger.debug(() -> format("Request [%s] timed out after [%s] while waiting to be executed", request.getRequestLine(), timeout));
-        notifyOfResult(
-            () -> listener.onFailure(
-                new ElasticsearchTimeoutException(format("Request timed out waiting to be executed after [%s]", timeout))
+        return ListenerTimeouts.wrapWithTimeout(
+            threadPool,
+            timeout,
+            threadPool.executor(UTILITY_THREAD_POOL_NAME),
+            notificationListener,
+            (ignored) -> notificationListener.onFailure(
+                new ElasticsearchTimeoutException(Strings.format("Request timed out waiting to be sent after [%s]", timeout))
             )
         );
     }
 
-    private void notifyOfResult(Runnable runnable) {
-        if (notified.compareAndSet(false, true)) {
-            runnable.run();
-            return;
-        }
-
-        logger.debug(() -> format("Attempting to notify of result after already doing so for request [%s]", request.getRequestLine()));
+    @Override
+    public boolean hasCompleted() {
+        return finished.get();
     }
 
     @Override
-    public void onFailure(Exception e) {
-        timeoutHandler.cancel();
-        notifyOfResult(() -> listener.onFailure(e));
+    public Supplier<Boolean> getRequestCompletedFunction() {
+        return this::hasCompleted;
     }
 
     @Override
-    protected void doRun() {
-        try {
-            command.run();
-        } catch (Exception e) {
-            String message = format("Failed while executing request [%s]", request.getRequestLine());
-            logger.warn(message, e);
-            onFailure(new ElasticsearchException(message, e));
-        }
-    }
-
-    private void onSuccess(HttpResult result) {
-        timeoutHandler.cancel();
-        notifyOfResult(() -> listener.onResponse(result));
+    public List<String> getInput() {
+        return input;
     }
 
     @Override
-    public String toString() {
-        return request.getRequestLine().toString();
+    public ActionListener<InferenceServiceResults> getListener() {
+        return listener;
     }
 
-    private static Scheduler.Cancellable createDefaultHandler() {
-        return new Scheduler.Cancellable() {
-            @Override
-            public boolean cancel() {
-                return true;
-            }
-
-            @Override
-            public boolean isCancelled() {
-                return true;
-            }
-        };
+    @Override
+    public void onRejection(Exception e) {
+        listener.onFailure(e);
     }
 
-    private record Command(HttpClient httpClient, HttpUriRequest request, HttpClientContext context, ActionListener<HttpResult> listener)
-        implements
-            Runnable {
-
-        @Override
-        public void run() {
-            try {
-                httpClient.send(request, context, listener);
-            } catch (Exception e) {
-                logger.warn(format("Failed to send request [%s] via the http client", request.getRequestLine()), e);
-                listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
-            }
-        }
+    @Override
+    public ExecutableRequestCreator getRequestCreator() {
+        return requestCreator;
     }
 }

@@ -71,7 +71,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             IndexMode.TIME_SERIES
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -118,7 +119,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 now,
                 randomBoolean(),
                 false,
-                indexStats
+                indexStats,
+                null
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -176,7 +178,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             dsIndexMode
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -216,6 +219,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 now,
                 randomBoolean(),
                 false,
+                null,
                 null
             );
 
@@ -242,7 +246,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             assertThat(startTime.isBefore(endTime), is(true));
             assertThat(startTime, equalTo(now.minus(2, ChronoUnit.HOURS)));
-            assertThat(endTime, equalTo(now.plus(2, ChronoUnit.HOURS)));
+            assertThat(endTime, equalTo(now.plus(30, ChronoUnit.MINUTES)));
         } finally {
             testThreadPool.shutdown();
         }
@@ -262,7 +266,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             IndexMode.TIME_SERIES
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -307,6 +312,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 now,
                 randomBoolean(),
                 false,
+                null,
                 null
             );
 
@@ -336,7 +342,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             assertThat(startTime.isBefore(endTime), is(true));
             assertThat(startTime, equalTo(now.minus(2, ChronoUnit.HOURS)));
-            assertThat(endTime, equalTo(now.plus(2, ChronoUnit.HOURS)));
+            assertThat(endTime, equalTo(now.plus(30, ChronoUnit.MINUTES)));
         } finally {
             testThreadPool.shutdown();
         }
@@ -372,7 +378,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 now,
                 randomBoolean(),
                 false,
-                indexStats
+                indexStats,
+                null
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -413,7 +420,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 var lastStartTime = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
                 var kastEndTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
                 assertThat(lastStartTime, equalTo(now.minus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS)));
-                assertThat(kastEndTime, equalTo(now.plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS)));
+                assertThat(kastEndTime, equalTo(now.plus(30, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS)));
                 assertThat(im.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
             }
         } finally {
@@ -452,7 +459,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                     now,
                     randomBoolean(),
                     false,
-                    indexStats
+                    indexStats,
+                    null
                 )
             );
             assertThat(e.getMessage(), containsString("is overlapping with backing index"));
@@ -477,7 +485,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             null
         );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )

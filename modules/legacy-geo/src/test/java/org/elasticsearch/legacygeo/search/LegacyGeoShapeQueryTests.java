@@ -86,22 +86,20 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
 
         // MULTIPOINT
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        client().prepareIndex("geo_points_only")
-            .setId("1")
+        prepareIndex("geo_points_only").setId("1")
             .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         // POINT
         Point point = GeometryTestUtils.randomPoint(false);
-        client().prepareIndex("geo_points_only")
-            .setId("2")
+        prepareIndex("geo_points_only").setId("2")
             .setSource(GeoJson.toXContent(point, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         // test that point was inserted
-        assertHitCount(client().prepareSearch("geo_points_only").setQuery(matchAllQuery()).get(), 2L);
+        assertHitCount(client().prepareSearch("geo_points_only").setQuery(matchAllQuery()), 2L);
     }
 
     public void testPointsOnly() throws Exception {
@@ -125,8 +123,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
 
         Geometry geometry = GeometryTestUtils.randomGeometry(false);
         try {
-            client().prepareIndex("geo_points_only")
-                .setId("1")
+            prepareIndex("geo_points_only").setId("1")
                 .setSource(GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -161,8 +158,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
         ensureGreen();
 
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();

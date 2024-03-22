@@ -6,8 +6,16 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
@@ -19,7 +27,9 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.CONDITIONAL_DATASTREAM_CHECK_KEY;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.CONDITIONAL_TIME_SERIES_CHECK_KEY;
+import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DownsampleActionTests extends AbstractActionTestCase<DownsampleAction> {
 
@@ -130,6 +140,92 @@ public class DownsampleActionTests extends AbstractActionTestCase<DownsampleActi
         assertTrue(steps.get(14) instanceof SwapAliasesAndDeleteSourceIndexStep);
         assertThat(steps.get(14).getKey().name(), equalTo(SwapAliasesAndDeleteSourceIndexStep.NAME));
         assertThat(steps.get(14).getNextStepKey(), equalTo(nextStepKey));
+    }
+
+    public void testDownsamplingPrerequisitesStep() {
+        DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+        DownsampleAction action = new DownsampleAction(fixedInterval, WAIT_TIMEOUT);
+        String phase = randomAlphaOfLengthBetween(1, 10);
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        {
+            // non time series indices skip the action
+            BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey);
+            IndexMetadata indexMetadata = newIndexMeta("test", Settings.EMPTY);
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
+
+            branchingStep.performAction(indexMetadata.getIndex(), state);
+            assertThat(branchingStep.getNextStepKey(), is(nextStepKey));
+        }
+        {
+            // time series indices execute the action
+            BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey);
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put("index.routing_path", "uid")
+                .build();
+            IndexMetadata indexMetadata = newIndexMeta("test", settings);
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
+
+            branchingStep.performAction(indexMetadata.getIndex(), state);
+            assertThat(branchingStep.getNextStepKey().name(), is(CheckNotDataStreamWriteIndexStep.NAME));
+        }
+        {
+            // already downsampled indices for the interval skip the action
+            BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey);
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put("index.routing_path", "uid")
+                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY, IndexMetadata.DownsampleTaskStatus.SUCCESS)
+                .put(IndexMetadata.INDEX_DOWNSAMPLE_ORIGIN_NAME.getKey(), "test")
+                .build();
+            String indexName = DOWNSAMPLED_INDEX_PREFIX + fixedInterval + "-test";
+            IndexMetadata indexMetadata = newIndexMeta(indexName, settings);
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
+
+            branchingStep.performAction(indexMetadata.getIndex(), state);
+            assertThat(branchingStep.getNextStepKey(), is(nextStepKey));
+        }
+        {
+            // indices with the same name as the target downsample index that are NOT downsample indices skip the action
+            BranchingStep branchingStep = getFirstBranchingStep(action, phase, nextStepKey);
+            String indexName = DOWNSAMPLED_INDEX_PREFIX + fixedInterval + "-test";
+            IndexMetadata indexMetadata = newIndexMeta(indexName, Settings.EMPTY);
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
+
+            branchingStep.performAction(indexMetadata.getIndex(), state);
+            assertThat(branchingStep.getNextStepKey(), is(nextStepKey));
+        }
+    }
+
+    private static BranchingStep getFirstBranchingStep(DownsampleAction action, String phase, StepKey nextStepKey) {
+        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        assertNotNull(steps);
+        assertEquals(15, steps.size());
+
+        assertTrue(steps.get(0) instanceof BranchingStep);
+        assertThat(steps.get(0).getKey().name(), equalTo(CONDITIONAL_TIME_SERIES_CHECK_KEY));
+
+        return (BranchingStep) steps.get(0);
+    }
+
+    public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
+        return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1).put(indexSettings)).build();
     }
 
     public void testEqualsAndHashCode() {

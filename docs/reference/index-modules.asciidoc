@@ -16,7 +16,10 @@ Index level settings can be set per-index. Settings may be:
 _static_::
 
 They can only be set at index creation time or on a
-<<indices-open-close,closed index>>.
+<<indices-open-close,closed index>>, or by using the
+<<indices-update-settings,update-index-settings>> API with the
+`reopen` query parameter set to `true` (which automatically
+closes and reopens impacted indices).
 
 _dynamic_::
 

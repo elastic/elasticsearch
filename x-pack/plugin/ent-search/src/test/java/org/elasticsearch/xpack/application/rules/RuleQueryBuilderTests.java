@@ -11,9 +11,9 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.ParsingException;
@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.application.LocalStateEnterpriseSearch;
+import org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -62,7 +63,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(LocalStateEnterpriseSearch.class);
+        return List.of(LocalStateEnterpriseSearch.class, SearchBusinessRules.class);
     }
 
     public void testIllegalArguments() {
@@ -131,7 +132,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         // Get request, to pull the query ruleset from the system index using clientWithOrigin
         if (method.getDeclaringClass().equals(ElasticsearchClient.class)
             && method.getName().equals("execute")
-            && args[0] instanceof GetAction) {
+            && args[0] == TransportGetAction.TYPE) {
 
             GetRequest getRequest = (GetRequest) args[1];
             assertThat(getRequest.index(), Matchers.equalTo(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME));

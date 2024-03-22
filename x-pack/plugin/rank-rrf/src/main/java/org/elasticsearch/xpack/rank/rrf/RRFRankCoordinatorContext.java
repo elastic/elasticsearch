@@ -127,11 +127,24 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
             }
         }
 
-        // sort the results based on rrf score, tiebreaker based on smaller shard then smaller doc id
+        // sort the results based on rrf score, tiebreaker based on
+        // larger individual query score from 1 to n, smaller shard then smaller doc id
         RRFRankDoc[] sortedResults = results.values().toArray(RRFRankDoc[]::new);
         Arrays.sort(sortedResults, (RRFRankDoc rrf1, RRFRankDoc rrf2) -> {
             if (rrf1.score != rrf2.score) {
                 return rrf1.score < rrf2.score ? 1 : -1;
+            }
+            assert rrf1.positions.length == rrf2.positions.length;
+            for (int qi = 0; qi < rrf1.positions.length; ++qi) {
+                if (rrf1.positions[qi] != NO_RANK && rrf2.positions[qi] != NO_RANK) {
+                    if (rrf1.scores[qi] != rrf2.scores[qi]) {
+                        return rrf1.scores[qi] < rrf2.scores[qi] ? 1 : -1;
+                    }
+                } else if (rrf1.positions[qi] != NO_RANK) {
+                    return -1;
+                } else if (rrf2.positions[qi] != NO_RANK) {
+                    return 1;
+                }
             }
             if (rrf1.shardIndex != rrf2.shardIndex) {
                 return rrf1.shardIndex < rrf2.shardIndex ? -1 : 1;

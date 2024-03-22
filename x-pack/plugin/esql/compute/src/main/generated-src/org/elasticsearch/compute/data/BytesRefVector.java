@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -74,50 +75,49 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     /** Deserializes a Vector from the given stream input. */
     static BytesRefVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return blockFactory.newConstantBytesRefVector(in.readBytesRef(), positions);
-        } else {
-            try (var builder = blockFactory.newBytesRefVectorBuilder(positions)) {
-                for (int i = 0; i < positions; i++) {
-                    builder.appendBytesRef(in.readBytesRef());
-                }
-                return builder.build();
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantBytesRefVector(in.readBytesRef(), positions);
+            case SERIALIZE_VECTOR_ARRAY -> BytesRefArrayVector.readArrayVector(positions, in, blockFactory);
+            default -> {
+                assert false : "invalid vector serialization type [" + serializationType + "]";
+                throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
             }
-        }
+        };
     }
 
     /** Serializes this Vector to the given stream output. */
     default void writeTo(StreamOutput out) throws IOException {
         final int positions = getPositionCount();
+        final var version = out.getTransportVersion();
         out.writeVInt(positions);
-        out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
+            out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeBytesRef(getBytesRef(0, new BytesRef()));
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof BytesRefArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
         } else {
-            for (int i = 0; i < positions; i++) {
-                out.writeBytesRef(getBytesRef(i, new BytesRef()));
-            }
+            out.writeByte(SERIALIZE_VECTOR_VALUES);
+            writeValues(this, positions, out);
         }
     }
 
-    /**
-     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
-     * @deprecated use {@link BlockFactory#newBytesRefVectorBuilder}
-     */
-    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize) {
-        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
+    private static BytesRefVector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.newBytesRefVectorBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendBytesRef(in.readBytesRef());
+            }
+            return builder.build();
+        }
     }
 
-    /**
-     * Creates a builder that grows as needed.
-     * @deprecated use {@link BlockFactory#newBytesRefVectorBuilder}
-     */
-    @Deprecated
-    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
-        return blockFactory.newBytesRefVectorBuilder(estimatedSize);
+    private static void writeValues(BytesRefVector v, int positions, StreamOutput out) throws IOException {
+        var scratch = new BytesRef();
+        for (int i = 0; i < positions; i++) {
+            out.writeBytesRef(v.getBytesRef(i, scratch));
+        }
     }
 
     /**

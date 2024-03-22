@@ -1,6 +1,0 @@
-pr: 99726
-summary: "ESQL: Account for an exception being thrown when building a `BytesRefArrayBlock`"
-area: ES|QL
-type: bug
-issues:
- - 99472

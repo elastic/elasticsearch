@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+
 import java.math.BigInteger;
 import java.time.ZonedDateTime;
 import java.util.Collection;
@@ -52,6 +54,14 @@ public final class DataTypes {
     public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
     //end::noformat
+    public static final DataType SOURCE = new DataType(
+        SourceFieldMapper.NAME,
+        SourceFieldMapper.NAME,
+        Integer.MAX_VALUE,
+        false,
+        false,
+        false
+    );
 
     private static final Collection<DataType> TYPES = Stream.of(
         UNSUPPORTED,

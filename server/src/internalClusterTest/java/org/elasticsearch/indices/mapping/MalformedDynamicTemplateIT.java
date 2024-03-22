@@ -58,15 +58,15 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
                     .put("index.version.created", IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0))
             ).setMapping(mapping)
         );
-        client().prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertNoFailures((indicesAdmin().prepareRefresh(indexName)).get());
         assertHitCount(prepareSearch(indexName), 1);
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> prepareCreate("malformed_dynamic_template_8.0").setSettings(
+            prepareCreate("malformed_dynamic_template_8.0").setSettings(
                 Settings.builder().put(indexSettings()).put("number_of_shards", 1).put("index.version.created", IndexVersion.current())
-            ).setMapping(mapping).get()
+            ).setMapping(mapping)
         );
         assertThat(ex.getMessage(), containsString("dynamic template [my_template] has invalid content"));
     }

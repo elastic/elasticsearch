@@ -91,10 +91,9 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
     }
 
     public static CrossClusterApiKeyRoleDescriptorBuilder parse(String access) throws IOException {
-        return CrossClusterApiKeyRoleDescriptorBuilder.PARSER.parse(
-            JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, access),
-            null
-        );
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, access)) {
+            return CrossClusterApiKeyRoleDescriptorBuilder.PARSER.parse(parser, null);
+        }
     }
 
     static void validate(RoleDescriptor roleDescriptor) {

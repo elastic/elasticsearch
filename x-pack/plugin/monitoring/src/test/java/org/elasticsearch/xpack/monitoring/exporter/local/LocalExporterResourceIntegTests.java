@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,6 +35,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -265,19 +265,21 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource()
             .query(QueryBuilders.matchQuery("metadata.xpack.cluster_uuid", clusterUUID));
         Set<String> watchIds = new HashSet<>(Arrays.asList(ClusterAlertsUtil.WATCH_IDS));
-        for (SearchHit hit : prepareSearch(".watches").setSource(searchSource).get().getHits().getHits()) {
-            String watchId = ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap());
-            assertNotNull("Missing watch ID", watchId);
-            assertTrue("found unexpected watch id", watchIds.contains(watchId));
+        assertResponse(prepareSearch(".watches").setSource(searchSource), response -> {
+            for (SearchHit hit : response.getHits().getHits()) {
+                String watchId = ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap());
+                assertNotNull("Missing watch ID", watchId);
+                assertTrue("found unexpected watch id", watchIds.contains(watchId));
 
-            String version = ObjectPath.eval("metadata.xpack.version_created", hit.getSourceAsMap());
-            assertNotNull("Missing version from returned watch [" + watchId + "]", version);
-            assertTrue(Version.fromId(Integer.parseInt(version)).onOrAfter(Version.fromId(ClusterAlertsUtil.LAST_UPDATED_VERSION)));
+                String version = ObjectPath.eval("metadata.xpack.version_created", hit.getSourceAsMap());
+                assertNotNull("Missing version from returned watch [" + watchId + "]", version);
+                assertTrue(Version.fromId(Integer.parseInt(version)).onOrAfter(Version.fromId(ClusterAlertsUtil.LAST_UPDATED_VERSION)));
 
-            String uuid = ObjectPath.eval("metadata.xpack.cluster_uuid", hit.getSourceAsMap());
-            assertNotNull("Missing cluster uuid", uuid);
-            assertEquals(clusterUUID, uuid);
-        }
+                String uuid = ObjectPath.eval("metadata.xpack.cluster_uuid", hit.getSourceAsMap());
+                assertNotNull("Missing cluster uuid", uuid);
+                assertEquals(clusterUUID, uuid);
+            }
+        });
     }
 
     private void assertNoWatchesExist() {
@@ -289,16 +291,16 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         String clusterUUID = clusterService().state().getMetadata().clusterUUID();
         SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource()
             .query(QueryBuilders.matchQuery("metadata.xpack.cluster_uuid", clusterUUID));
-        SearchResponse searchResponse = prepareSearch(".watches").setSource(searchSource).get();
-        if (searchResponse.getHits().getTotalHits().value > 0) {
-            List<String> invalidWatches = new ArrayList<>();
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                invalidWatches.add(ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap()));
+
+        assertResponse(prepareSearch(".watches").setSource(searchSource), response -> {
+            if (response.getHits().getTotalHits().value > 0) {
+                List<String> invalidWatches = new ArrayList<>();
+                for (SearchHit hit : response.getHits().getHits()) {
+                    invalidWatches.add(ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap()));
+                }
+                fail("Found [" + response.getHits().getTotalHits().value + "] invalid watches when none were expected: " + invalidWatches);
             }
-            fail(
-                "Found [" + searchResponse.getHits().getTotalHits().value + "] invalid watches when none were expected: " + invalidWatches
-            );
-        }
+        });
     }
 
     private void assertResourcesExist() throws Exception {

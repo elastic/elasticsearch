@@ -1,5 +1,0 @@
-pr: 97729
-summary: Allow parsing on non-string routing fields
-area: Aggregations
-type: bug
-issues: []

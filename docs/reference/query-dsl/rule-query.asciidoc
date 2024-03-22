@@ -10,6 +10,7 @@ preview::[]
 Applies <<query-rules-apis,query rules>> to the query before returning results.
 This feature is used to promote documents in the manner of a <<query-dsl-pinned-query>> based on matching defined rules.
 If no matching query rules are defined, the "organic" matches for the query are returned.
+All matching rules are applied in the order in which they appear in the query ruleset.
 
 [NOTE]
 ====

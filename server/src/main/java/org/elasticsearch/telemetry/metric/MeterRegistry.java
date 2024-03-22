@@ -92,6 +92,38 @@ public interface MeterRegistry {
     LongCounter registerLongCounter(String name, String description, String unit);
 
     /**
+     * Register a {@link LongAsyncCounter} with an asynchronous callback.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @param observer a callback to provide a metric value upon observation (metric interval)
+     */
+    LongAsyncCounter registerLongAsyncCounter(String name, String description, String unit, Supplier<LongWithAttributes> observer);
+
+    /**
+     * Retrieved a previously registered {@link LongAsyncCounter}.
+     * @param name name of the counter
+     * @return the registered meter.
+     */
+    LongAsyncCounter getLongAsyncCounter(String name);
+
+    /**
+     * Register a {@link DoubleAsyncCounter} with an asynchronous callback.  The returned object may be reused.
+     * @param name name of the counter
+     * @param description description of purpose
+     * @param unit the unit (bytes, sec, hour)
+     * @param observer a callback to provide a metric value upon observation (metric interval)
+     */
+    DoubleAsyncCounter registerDoubleAsyncCounter(String name, String description, String unit, Supplier<DoubleWithAttributes> observer);
+
+    /**
+     * Retrieved a previously registered {@link DoubleAsyncCounter}.
+     * @param name name of the counter
+     * @return the registered meter.
+     */
+    DoubleAsyncCounter getDoubleAsyncCounter(String name);
+
+    /**
      * Retrieved a previously registered {@link LongCounter}.
      * @param name name of the counter
      * @return the registered meter.
@@ -194,6 +226,36 @@ public interface MeterRegistry {
         @Override
         public LongCounter registerLongCounter(String name, String description, String unit) {
             return LongCounter.NOOP;
+        }
+
+        @Override
+        public LongAsyncCounter registerLongAsyncCounter(
+            String name,
+            String description,
+            String unit,
+            Supplier<LongWithAttributes> observer
+        ) {
+            return LongAsyncCounter.NOOP;
+        }
+
+        @Override
+        public LongAsyncCounter getLongAsyncCounter(String name) {
+            return LongAsyncCounter.NOOP;
+        }
+
+        @Override
+        public DoubleAsyncCounter registerDoubleAsyncCounter(
+            String name,
+            String description,
+            String unit,
+            Supplier<DoubleWithAttributes> observer
+        ) {
+            return DoubleAsyncCounter.NOOP;
+        }
+
+        @Override
+        public DoubleAsyncCounter getDoubleAsyncCounter(String name) {
+            return DoubleAsyncCounter.NOOP;
         }
 
         @Override

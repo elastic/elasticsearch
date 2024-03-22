@@ -8,10 +8,10 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -96,31 +96,21 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         );
         assertAcked(prepareCreate("test").setMapping(mapping));
 
-        client().prepareIndex("test")
-            .setId("10990239")
+        prepareIndex("test").setId("10990239")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
-            .execute()
-            .actionGet();
-        client().prepareIndex("test")
-            .setId("10990473")
+            .get();
+        prepareIndex("test").setId("10990473")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
-            .execute()
-            .actionGet();
-        client().prepareIndex("test")
-            .setId("10990513")
+            .get();
+        prepareIndex("test").setId("10990513")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).value(179).endArray().endObject())
-            .execute()
-            .actionGet();
-        client().prepareIndex("test")
-            .setId("10990695")
+            .get();
+        prepareIndex("test").setId("10990695")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
-            .execute()
-            .actionGet();
-        client().prepareIndex("test")
-            .setId("11026351")
+            .get();
+        prepareIndex("test").setId("11026351")
             .setSource(jsonBuilder().startObject().startArray("appAccountIds").value(14).endArray().endObject())
-            .execute()
-            .actionGet();
+            .get();
 
         refresh();
         assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)), 2);
@@ -134,7 +124,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         ensureYellow();
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
 
-        indicesAdmin().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().get();
         assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)), 2);
 
         internalCluster().fullRestart();
@@ -143,7 +133,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         ensureYellow();
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
 
-        indicesAdmin().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().get();
         assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)), 2);
     }
 
@@ -275,17 +265,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testSingleNodeWithFlush() throws Exception {
         internalCluster().startNode();
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
-            .execute()
-            .actionGet();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         flush();
-        client().prepareIndex("test")
-            .setId("2")
-            .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
-            .execute()
-            .actionGet();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
         refresh();
 
         assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
@@ -320,17 +302,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final String firstNode = internalCluster().startNode();
         internalCluster().startNode();
 
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
-            .execute()
-            .actionGet();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         flush();
-        client().prepareIndex("test")
-            .setId("2")
-            .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
-            .execute()
-            .actionGet();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
         refresh();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -342,7 +316,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
 
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(firstNode)).get();
+        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(firstNode)).get();
 
         internalCluster().fullRestart(new RestartCallback() {
             @Override
@@ -368,7 +342,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
 
-        client().execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
+        client().execute(TransportClearVotingConfigExclusionsAction.TYPE, new ClearVotingConfigExclusionsRequest()).get();
     }
 
     public void testLatestVersionLoaded() throws Exception {
@@ -378,18 +352,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
         assertAcked(indicesAdmin().prepareCreate("test"));
-        client().prepareIndex("test")
-            .setId("1")
-            .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
-            .execute()
-            .actionGet();
-        indicesAdmin().prepareFlush().execute().actionGet();
-        client().prepareIndex("test")
-            .setId("2")
-            .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
-            .execute()
-            .actionGet();
-        indicesAdmin().prepareRefresh().execute().actionGet();
+        prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        indicesAdmin().prepareFlush().get();
+        prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
+        indicesAdmin().prepareRefresh().get();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
@@ -405,16 +371,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         logger.info("--> one node is closed - start indexing data into the second one");
-        client().prepareIndex("test")
-            .setId("3")
-            .setSource(jsonBuilder().startObject().field("field", "value3").endObject())
-            .execute()
-            .actionGet();
+        prepareIndex("test").setId("3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
         // TODO: remove once refresh doesn't fail immediately if there a master block:
         // https://github.com/elastic/elasticsearch/issues/9997
         // clusterAdmin().prepareHealth("test").setWaitForYellowStatus().get();
         logger.info("--> refreshing all indices after indexing is complete");
-        indicesAdmin().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().get();
 
         logger.info("--> checking if documents exist, there should be 3");
         for (int i = 0; i < 10; i++) {
@@ -442,9 +404,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
             )
-            .execute()
-            .actionGet();
-        indicesAdmin().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).execute().actionGet();
+            .get();
+        indicesAdmin().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).get();
 
         logger.info("--> stopping the second node");
         internalCluster().stopRandomDataNode();
@@ -465,7 +426,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 3);
         }
 
-        ClusterState state = clusterAdmin().prepareState().execute().actionGet().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         assertThat(state.metadata().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
         assertThat(state.metadata().index("test").getAliases().get("test_alias"), notNullValue());
         assertThat(state.metadata().index("test").getAliases().get("test_alias").filter(), notNullValue());
@@ -495,7 +456,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> indexing docs");
         int numDocs = randomIntBetween(1, 1024);
         for (int i = 0; i < numDocs; i++) {
-            client(primaryNode).prepareIndex("test").setSource("field", "value").execute().actionGet();
+            client(primaryNode).prepareIndex("test").setSource("field", "value").get();
         }
 
         client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
@@ -528,7 +489,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // index some more documents; we expect to reuse the files that already exist on the replica
                 for (int i = 0; i < moreDocs; i++) {
-                    client(primaryNode).prepareIndex("test").setSource("field", "value").execute().actionGet();
+                    client(primaryNode).prepareIndex("test").setSource("field", "value").get();
                 }
 
                 // prevent a sequence-number-based recovery from being possible

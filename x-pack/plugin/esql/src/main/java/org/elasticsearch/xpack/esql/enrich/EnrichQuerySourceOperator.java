@@ -16,13 +16,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.compute.data.ConstantIntVector;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,6 +34,7 @@ import java.io.UncheckedIOException;
  */
 final class EnrichQuerySourceOperator extends SourceOperator {
 
+    private final BlockFactory blockFactory;
     private final QueryList queryList;
     private int queryPosition;
     private Weight weight = null;
@@ -41,7 +42,8 @@ final class EnrichQuerySourceOperator extends SourceOperator {
     private int leafIndex = 0;
     private final IndexSearcher searcher;
 
-    EnrichQuerySourceOperator(QueryList queryList, IndexReader indexReader) {
+    EnrichQuerySourceOperator(BlockFactory blockFactory, QueryList queryList, IndexReader indexReader) {
+        this.blockFactory = blockFactory;
         this.queryList = queryList;
         this.indexReader = indexReader;
         this.searcher = new IndexSearcher(indexReader);
@@ -92,22 +94,31 @@ final class EnrichQuerySourceOperator extends SourceOperator {
         if (scorer == null) {
             return null;
         }
-        DocCollector collector = new DocCollector();
-        scorer.score(collector, leafReaderContext.reader().getLiveDocs());
-        final int matches = collector.matches;
-        DocVector docVector = new DocVector(
-            new ConstantIntVector(0, matches),
-            new ConstantIntVector(leafIndex, matches),
-            new IntArrayVector(collector.docs, matches),
-            true
-        );
-        IntBlock positionBlock = new ConstantIntVector(queryPosition, matches).asBlock();
-        return new Page(docVector.asBlock(), positionBlock);
+        IntVector docs = null, segments = null, shards = null, positions = null;
+        boolean success = false;
+        try (IntVector.Builder docsBuilder = blockFactory.newIntVectorBuilder(1)) {
+            scorer.score(new DocCollector(docsBuilder), leafReaderContext.reader().getLiveDocs());
+            docs = docsBuilder.build();
+            final int positionCount = docs.getPositionCount();
+            segments = blockFactory.newConstantIntVector(leafIndex, positionCount);
+            shards = blockFactory.newConstantIntVector(0, positionCount);
+            positions = blockFactory.newConstantIntVector(queryPosition, positionCount);
+            Page page = new Page(new DocVector(shards, segments, docs, true).asBlock(), positions.asBlock());
+            success = true;
+            return page;
+        } finally {
+            if (success == false) {
+                Releasables.close(docs, shards, segments, positions);
+            }
+        }
     }
 
     private static class DocCollector implements LeafCollector {
-        int matches = 0;
-        int[] docs = new int[0];
+        final IntVector.Builder docIds;
+
+        DocCollector(IntVector.Builder docIds) {
+            this.docIds = docIds;
+        }
 
         @Override
         public void setScorer(Scorable scorer) {
@@ -115,9 +126,8 @@ final class EnrichQuerySourceOperator extends SourceOperator {
         }
 
         @Override
-        public void collect(int doc) throws IOException {
-            docs = ArrayUtil.grow(docs, matches + 1);
-            docs[matches++] = doc;
+        public void collect(int doc) {
+            docIds.appendInt(doc);
         }
     }
 

@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -19,6 +17,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
 /**
  * Test that index enough data to trigger the creation of Cuckoo filters.
@@ -56,11 +55,13 @@ public class RareTermsIT extends ESSingleNodeTestCase {
     }
 
     private void assertNumRareTerms(int maxDocs, int rareTerms) {
-        final SearchRequestBuilder requestBuilder = client().prepareSearch(index);
-        requestBuilder.addAggregation(new RareTermsAggregationBuilder("rareTerms").field("str_value.keyword").maxDocCount(maxDocs));
-        final SearchResponse response = requestBuilder.get();
-        assertNoFailures(response);
-        final RareTerms terms = response.getAggregations().get("rareTerms");
-        assertThat(terms.getBuckets().size(), Matchers.equalTo(rareTerms));
+        assertNoFailuresAndResponse(
+            client().prepareSearch(index)
+                .addAggregation(new RareTermsAggregationBuilder("rareTerms").field("str_value.keyword").maxDocCount(maxDocs)),
+            response -> {
+                final RareTerms terms = response.getAggregations().get("rareTerms");
+                assertThat(terms.getBuckets().size(), Matchers.equalTo(rareTerms));
+            }
+        );
     }
 }

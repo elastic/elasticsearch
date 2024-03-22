@@ -37,8 +37,7 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
             true,
             IntStream.range(0, randomIntBetween(10, 1000))
                 .mapToObj(
-                    i -> client().prepareIndex("test")
-                        .setId("id_" + i)
+                    i -> prepareIndex("test").setId("id_" + i)
                         .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
                 )
                 .toArray(IndexRequestBuilder[]::new)
@@ -54,7 +53,7 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
                     .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                     .order(BucketOrder.aggregation("cardinality", randomBoolean()))
                     .subAggregation(cardinality("cardinality").precisionThreshold(randomLongBetween(1, 40000)).field("field1.keyword"))
-            ).get();
+            ).get().decRef();
         } catch (ElasticsearchException e) {
             if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) == null) {
                 throw e;

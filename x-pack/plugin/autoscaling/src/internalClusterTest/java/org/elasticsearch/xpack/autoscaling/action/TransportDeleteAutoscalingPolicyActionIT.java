@@ -43,7 +43,7 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
         final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
-            () -> client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet()
+            client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest)
         );
         assertThat(e.getMessage(), equalTo("autoscaling policy with name [" + policy.name() + "] does not exist"));
     }

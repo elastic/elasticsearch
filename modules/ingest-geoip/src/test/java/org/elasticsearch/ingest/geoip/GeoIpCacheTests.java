@@ -13,6 +13,10 @@ import com.maxmind.geoip2.model.AbstractResponse;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.InetAddress;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+
 import static org.mockito.Mockito.mock;
 
 public class GeoIpCacheTests extends ESTestCase {
@@ -34,6 +38,23 @@ public class GeoIpCacheTests extends ESTestCase {
         assertSame(cachedResponse, cache.putIfAbsent(InetAddresses.forString("127.0.0.2"), "path/to/db", ip -> response2));
         assertSame(cachedResponse, cache.get(InetAddresses.forString("127.0.0.2"), "path/to/db"));
         assertNotSame(response1, cache.get(InetAddresses.forString("127.0.0.1"), "path/to/db"));
+    }
+
+    public void testCachesNoResult() {
+        GeoIpCache cache = new GeoIpCache(1);
+        final AtomicInteger count = new AtomicInteger(0);
+        Function<InetAddress, AbstractResponse> countAndReturnNull = (ip) -> {
+            count.incrementAndGet();
+            return null;
+        };
+
+        AbstractResponse response = cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), "path/to/db", countAndReturnNull);
+        assertNull(response);
+        assertNull(cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), "path/to/db", countAndReturnNull));
+        assertEquals(1, count.get());
+
+        // the cached value is not actually *null*, it's the NO_RESULT sentinel
+        assertSame(GeoIpCache.NO_RESULT, cache.get(InetAddresses.forString("127.0.0.1"), "path/to/db"));
     }
 
     public void testCacheKey() {

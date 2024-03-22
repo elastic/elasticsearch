@@ -13,36 +13,33 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
 public record HuggingFaceElserSecretSettings(SecureString apiKey) implements SecretSettings {
     public static final String NAME = "hugging_face_elser_secret_settings";
 
     static final String API_KEY = "api_key";
 
-    public static HuggingFaceElserSecretSettings fromMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
-
-        String apiToken = MapParsingUtils.removeAsType(map, API_KEY, String.class);
-
-        if (apiToken == null) {
-            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(API_KEY, ModelSecrets.SECRET_SETTINGS));
-        } else if (apiToken.isEmpty()) {
-            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(API_KEY, ModelSecrets.SECRET_SETTINGS));
+    public static HuggingFaceElserSecretSettings fromMap(@Nullable Map<String, Object> map) {
+        if (map == null) {
+            return null;
         }
+
+        ValidationException validationException = new ValidationException();
+        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-
-        SecureString secureApiToken = new SecureString(Objects.requireNonNull(apiToken).toCharArray());
 
         return new HuggingFaceElserSecretSettings(secureApiToken);
     }
@@ -70,7 +67,7 @@ public record HuggingFaceElserSecretSettings(SecureString apiKey) implements Sec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override

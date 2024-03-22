@@ -123,10 +123,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .setSettings(indexSettings(counts.getFailingIndexShards(), counts.getFailingIndexReplicas()))
         );
 
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> indicesAdmin().prepareCreate("should-fail").get()
-        );
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, indicesAdmin().prepareCreate("should-fail"));
         verifyException(dataNodes, counts, e);
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertFalse(clusterState.getMetadata().hasIndex("should-fail"));
@@ -316,8 +313,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .prepareRestoreSnapshot("test-repo", "test-snap")
                 .setWaitForCompletion(true)
                 .setIndices("snapshot-index")
-                .execute()
-                .actionGet();
+                .get();
             fail("Should not have been able to restore snapshot in full cluster");
         } catch (IllegalArgumentException e) {
             verifyException(dataNodes, counts, e);
@@ -341,10 +337,10 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .build()
         );
 
-        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(healthResponse.isTimedOut());
 
-        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test-index-1").execute().actionGet();
+        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test-index-1").get();
         assertTrue(closeIndexResponse.isAcknowledged());
 
         // Fill up the cluster
@@ -359,7 +355,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         );
 
         try {
-            client.admin().indices().prepareOpen("test-index-1").execute().actionGet();
+            client.admin().indices().prepareOpen("test-index-1").get();
             fail("should not have been able to open index");
         } catch (IllegalArgumentException e) {
             verifyException(dataNodes, counts, e);
@@ -372,13 +368,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         if (dataNodes == 1) {
             internalCluster().startNode(dataNode());
             assertThat(
-                clusterAdmin().prepareHealth()
-                    .setWaitForEvents(Priority.LANGUID)
-                    .setWaitForNodes(">=2")
-                    .setLocal(true)
-                    .execute()
-                    .actionGet()
-                    .isTimedOut(),
+                clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes(">=2").setLocal(true).get().isTimedOut(),
                 equalTo(false)
             );
             dataNodes = clusterAdmin().prepareState().get().getState().getNodes().getDataNodes().size();

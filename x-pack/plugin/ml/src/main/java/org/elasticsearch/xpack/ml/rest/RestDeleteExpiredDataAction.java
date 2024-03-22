@@ -49,7 +49,9 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
         DeleteExpiredDataAction.Request request;
         if (restRequest.hasContent()) {
-            request = DeleteExpiredDataAction.Request.parseRequest(jobId, restRequest.contentParser());
+            try (var parser = restRequest.contentParser()) {
+                request = DeleteExpiredDataAction.Request.parseRequest(jobId, parser);
+            }
         } else {
             request = new DeleteExpiredDataAction.Request();
             request.setJobId(jobId);

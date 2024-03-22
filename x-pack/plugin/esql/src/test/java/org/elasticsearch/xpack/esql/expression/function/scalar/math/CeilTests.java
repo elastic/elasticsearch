@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -29,7 +31,8 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("large double value", () -> {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(List.of(new TestCaseSupplier("large double value", () -> {
             double arg = 1 / randomDouble();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(arg, DataTypes.DOUBLE, "arg")),
@@ -53,15 +56,18 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
                 DataTypes.LONG,
                 equalTo(arg)
             );
-        }), new TestCaseSupplier("unsigned long value", () -> {
-            long arg = randomLong();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.UNSIGNED_LONG, "arg")),
-                "Attribute[channel=0]",
-                DataTypes.UNSIGNED_LONG,
-                equalTo(arg)
-            );
         })));
+
+        TestCaseSupplier.forUnaryUnsignedLong(
+            suppliers,
+            "Attribute[channel=0]",
+            DataTypes.UNSIGNED_LONG,
+            (n) -> n,
+            BigInteger.ZERO,
+            UNSIGNED_LONG_MAX,
+            List.of()
+        );
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override

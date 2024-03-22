@@ -34,7 +34,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/update";
 
     public UpdateTrainedModelDeploymentAction() {
-        super(NAME, CreateTrainedModelAssignmentAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

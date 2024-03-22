@@ -68,13 +68,7 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
                     @Override
                     public RestResponse buildResponse(SamlInitiateSingleSignOnResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject();
-                        builder.field("post_url", response.getPostUrl());
-                        builder.field("saml_response", response.getSamlResponse());
-                        builder.field("saml_status", response.getSamlStatus());
-                        builder.field("error", response.getError());
-                        builder.startObject("service_provider");
-                        builder.field("entity_id", response.getEntityId());
-                        builder.endObject();
+                        response.toXContent(builder);
                         builder.endObject();
                         return new RestResponse(RestStatus.OK, builder);
                     }

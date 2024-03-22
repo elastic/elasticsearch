@@ -80,6 +80,20 @@
                             }
                           }
                         },
+                        "array_buffers": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "external": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
                         "heap": {
                           "properties": {
                             "total": {
@@ -190,6 +204,26 @@
                     "platform": {
                       "ignore_above": 1024,
                       "type": "keyword"
+                    },
+                    "cpuacct": {
+                      "properties": {
+                        "control_group": {
+                          "type": "keyword"
+                        },
+                        "usage_nanos": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "cgroup_memory": {
+                      "properties": {
+                        "current_in_bytes": {
+                          "type": "long"
+                        },
+                        "swap_current_in_bytes": {
+                          "type": "long"
+                        }
+                      }
                     }
                   }
                 },

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
@@ -92,7 +93,7 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
             CompatibilityVersionsUtils.staticCurrent(),
-            Set.of()
+            new FeatureService(List.of())
         );
         transportService.start();
 
@@ -113,7 +114,7 @@ public class JoinHelperTests extends ESTestCase {
         assertEquals(node1, capturedRequest1.node());
 
         assertTrue(joinHelper.isJoinPending());
-        final var join1Term = optionalJoin1.stream().mapToLong(Join::getTerm).findFirst().orElse(0L);
+        final var join1Term = optionalJoin1.stream().mapToLong(Join::term).findFirst().orElse(0L);
         final var join1Status = new JoinStatus(node1, join1Term, PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO);
         assertThat(joinHelper.getInFlightJoinStatuses(), equalTo(List.of(join1Status)));
 
@@ -127,7 +128,7 @@ public class JoinHelperTests extends ESTestCase {
         CapturedRequest capturedRequest2 = capturedRequests2[0];
         assertEquals(node2, capturedRequest2.node());
 
-        final var join2Term = optionalJoin2.stream().mapToLong(Join::getTerm).findFirst().orElse(0L);
+        final var join2Term = optionalJoin2.stream().mapToLong(Join::term).findFirst().orElse(0L);
         final var join2Status = new JoinStatus(node2, join2Term, PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO);
         assertThat(
             new HashSet<>(joinHelper.getInFlightJoinStatuses()),
@@ -260,7 +261,7 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onResponse(null),
             CompatibilityVersionsUtils.staticCurrent(),
-            Set.of()
+            new FeatureService(List.of())
         );
         transportService.start();
 
@@ -337,7 +338,7 @@ public class JoinHelperTests extends ESTestCase {
             Function.identity(),
             (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
             CompatibilityVersionsUtils.staticCurrent(),
-            Set.of()
+            new FeatureService(List.of())
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();

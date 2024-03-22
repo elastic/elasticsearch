@@ -9,8 +9,11 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.transport.LeakTracker;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /**
@@ -18,6 +21,14 @@ import java.util.stream.Stream;
  */
 class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
     final AtomicArray<Result> results;
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    private final Releasable releasable = LeakTracker.wrap(() -> {
+        for (Result result : getAtomicArray().asList()) {
+            result.decRef();
+        }
+    });
 
     ArraySearchPhaseResults(int size) {
         super(size);
@@ -32,8 +43,19 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     void consumeResult(Result result, Runnable next) {
         assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
         results.set(result.getShardIndex(), result);
+        result.incRef();
         next.run();
     }
+
+    @Override
+    public final void close() {
+        if (closed.compareAndSet(false, true)) {
+            releasable.close();
+            doClose();
+        }
+    }
+
+    protected void doClose() {}
 
     boolean hasResult(int shardIndex) {
         return results.get(shardIndex) != null;

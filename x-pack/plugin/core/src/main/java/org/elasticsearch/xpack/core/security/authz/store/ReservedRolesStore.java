@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.security.authz.store;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -204,7 +204,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "manage_ingest_pipelines",
                         "monitor",
                         GetLifecycleAction.NAME,
-                        PutLifecycleAction.NAME,
+                        ILMActions.PUT.name(),
                         "cluster:monitor/xpack/watcher/watch/get",
                         "cluster:admin/xpack/watcher/watch/put",
                         "cluster:admin/xpack/watcher/watch/delete" },
@@ -212,7 +212,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("metricbeat-*")
-                            .privileges("index", "create_index", "view_index_metadata", IndicesAliasesAction.NAME, RolloverAction.NAME)
+                            .privileges(
+                                "index",
+                                "create_index",
+                                "view_index_metadata",
+                                TransportIndicesAliasesAction.NAME,
+                                RolloverAction.NAME
+                            )
                             .build() },
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA
@@ -364,6 +370,32 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.getDeprecatedReservedMetadata(
                         "This role will be removed in a future major release. Please use editor and viewer roles instead"
                     ),
+                    null
+                )
+            ),
+            entry(
+                "inference_admin",
+                new RoleDescriptor(
+                    "inference_admin",
+                    new String[] { "manage_inference" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null
+                )
+            ),
+            entry(
+                "inference_user",
+                new RoleDescriptor(
+                    "inference_user",
+                    new String[] { "monitor_inference" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
                     null
                 )
             ),

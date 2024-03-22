@@ -55,8 +55,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
-+
-deprecated:[7.16.0]
 
 `ignore_unavailable`::
 (Optional, Boolean) If `true`, unavailable indices (missing or closed) are

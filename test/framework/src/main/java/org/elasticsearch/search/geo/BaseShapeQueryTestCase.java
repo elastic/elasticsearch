@@ -87,8 +87,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         ensureGreen();
 
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -103,11 +102,10 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         String geo = """
             "geo" : {"type":"polygon", "coordinates":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}""";
 
-        client().prepareIndex("shapes").setId("1").setSource(Strings.format("""
+        prepareIndex("shapes").setId("1").setSource(Strings.format("""
             { %s, "1" : { %s, "2" : { %s, "3" : { %s } }} }
             """, geo, geo, geo, geo), XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject(defaultFieldName)
@@ -193,7 +191,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         ensureGreen();
 
         XContentBuilder docSource = GeoJson.toXContent(gcb, jsonBuilder().startObject().field(defaultFieldName), null).endObject();
-        client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         // Create a random geometry collection to query
         GeometryCollection<Geometry> randomQueryCollection = makeRandomGeometryCollection();
@@ -314,8 +312,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         client().admin().indices().prepareCreate(defaultIndexName).setMapping(mapping).get();
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName)
-            .setId("blakely")
+        prepareIndex(defaultIndexName).setId("blakely")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Blakely Island")
@@ -369,8 +366,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
 
         Rectangle shape = new Rectangle(-45, 45, 45, -45);
 
-        client().prepareIndex("shapes")
-            .setId("Big_Rectangle")
+        prepareIndex("shapes").setId("Big_Rectangle")
             .setSource(jsonBuilder().startObject().field("shape", WellKnownText.toWKT(shape)).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -396,7 +392,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
 
         XContentBuilder docSource = GeoJson.toXContent(gcb, jsonBuilder().startObject().field(defaultFieldName), ToXContent.EMPTY_PARAMS)
             .endObject();
-        client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         assertHitCountAndNoFailures(
             client().prepareSearch(defaultIndexName).setQuery(queryBuilder().intersectionQuery(defaultFieldName, point)),
@@ -410,7 +406,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         createMapping(defaultIndexName, defaultFieldName);
 
         XContentBuilder docSource = GeoJson.toXContent(polygon, jsonBuilder().startObject().field(defaultFieldName), null).endObject();
-        client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
         QueryBuilder filter = queryBuilder().shapeQuery(defaultFieldName, innerPolygon).relation(ShapeRelation.CONTAINS);
 
         assertHitCountAndNoFailures(client().prepareSearch(defaultIndexName).setQuery(filter), 1L);
@@ -424,7 +420,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         createMapping(defaultIndexName, defaultFieldName);
 
         XContentBuilder docSource = GeoJson.toXContent(gcb, jsonBuilder().startObject().field(defaultFieldName), null).endObject();
-        client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         ExistsQueryBuilder eqb = existsQuery(defaultFieldName);
         assertHitCountAndNoFailures(client().prepareSearch(defaultIndexName).setQuery(eqb), 1L);
@@ -437,13 +433,11 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
 
         Rectangle shape = new Rectangle(-45, 45, 45, -45);
 
-        client().prepareIndex("shapes")
-            .setId("Big_Rectangle")
+        prepareIndex("shapes").setId("Big_Rectangle")
             .setSource(GeoJson.toXContent(shape, jsonBuilder().startObject().field("shape"), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .field("name", "Document 1")
@@ -489,7 +483,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         ensureGreen();
 
         XContentBuilder docSource = GeoJson.toXContent(gcb, jsonBuilder().startObject().field(defaultFieldName), null).endObject();
-        client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         assertHitCountAndNoFailures(
             client().prepareSearch(defaultIndexName).setQuery(queryBuilder().intersectionQuery(defaultFieldName, polygon)),
@@ -528,7 +522,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
             .endArray()
             .endObject()
             .endObject();
-        client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         Polygon polygon1 = new Polygon(
             new LinearRing(new double[] { 99.0, 99.0, 103.0, 103.0, 99.0 }, new double[] { -1.0, 3.0, 3.0, -1.0, -1.0 })
@@ -616,8 +610,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
 
         Line line = makeRandomLine();
 
-        client().prepareIndex(defaultIndexName)
-            .setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(line)).endObject())
+        prepareIndex(defaultIndexName).setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(line)).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
         // all points from a line intersect with the line
@@ -638,10 +631,9 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
 
         Polygon polygon = makeRandomPolygon();
 
-        client().prepareIndex(defaultIndexName)
-            .setSource(jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(polygon)).endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        prepareIndex(defaultIndexName).setSource(
+            jsonBuilder().startObject().field(defaultFieldName, WellKnownText.toWKT(polygon)).endObject()
+        ).setRefreshPolicy(IMMEDIATE).get();
 
         // all points from a polygon intersect with the polygon
         LinearRing linearRing = polygon.getPolygon();
@@ -673,8 +665,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         };
 
         for (String polygon : polygons) {
-            client().prepareIndex(defaultIndexName)
-                .setSource(jsonBuilder().startObject().field(defaultFieldName, polygon).endObject())
+            prepareIndex(defaultIndexName).setSource(jsonBuilder().startObject().field(defaultFieldName, polygon).endObject())
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
         }

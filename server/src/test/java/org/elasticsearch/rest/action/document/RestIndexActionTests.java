@@ -23,7 +23,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
 import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -63,13 +62,6 @@ public final class RestIndexActionTests extends RestActionTestCase {
 
     public void testAutoIdDefaultsToOptypeCreate() {
         checkAutoIdOpType(Version.CURRENT, DocWriteRequest.OpType.CREATE);
-    }
-
-    public void testAutoIdDefaultsToOptypeIndexForOlderVersions() {
-        checkAutoIdOpType(
-            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(Version.V_7_5_0)),
-            DocWriteRequest.OpType.INDEX
-        );
     }
 
     private void checkAutoIdOpType(Version minClusterVersion, DocWriteRequest.OpType expectedOpType) {

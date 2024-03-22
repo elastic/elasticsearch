@@ -11,12 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -404,7 +404,8 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
                 false,
                 true,
                 true,
-                true
+                true,
+                false
             );
         } else {
             fail("client called with unexpected request:" + request.toString());
@@ -420,16 +421,14 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action instanceof PutMappingAction) {
+        if (action == TransportPutMappingAction.TYPE) {
             mappingUpdates.incrementAndGet();
-            assertThat(action, instanceOf(PutMappingAction.class));
             assertThat(request, instanceOf(PutMappingRequest.class));
             assertThat(((PutMappingRequest) request).indices(), equalTo(new String[] { indexName }));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;
-        } else if (action instanceof UpdateSettingsAction) {
+        } else if (action == TransportUpdateSettingsAction.TYPE) {
             settingsUpdates.incrementAndGet();
-            assertThat(action, instanceOf(UpdateSettingsAction.class));
             assertThat(request, instanceOf(UpdateSettingsRequest.class));
             assertNotNull(listener);
             return AcknowledgedResponse.TRUE;

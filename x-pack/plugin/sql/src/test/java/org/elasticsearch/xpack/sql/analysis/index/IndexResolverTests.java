@@ -413,8 +413,8 @@ public class IndexResolverTests extends ESTestCase {
             "*",
             response,
             (fieldName, types) -> null,
-            IndexResolver.PRESERVE_PROPERTIES
-
+            IndexResolver.PRESERVE_PROPERTIES,
+            null
         );
 
         assertTrue(resolution.isValid());
@@ -442,8 +442,8 @@ public class IndexResolverTests extends ESTestCase {
             "*",
             response,
             (fieldName, types) -> null,
-            IndexResolver.PRESERVE_PROPERTIES
-
+            IndexResolver.PRESERVE_PROPERTIES,
+            null
         );
 
         assertTrue(resolution.isValid());

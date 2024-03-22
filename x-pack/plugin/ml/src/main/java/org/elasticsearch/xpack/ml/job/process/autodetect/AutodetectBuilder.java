@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ScheduledEventToRuleWriter;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
+import org.elasticsearch.xpack.ml.utils.FileUtils;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -208,6 +209,7 @@ public class AutodetectBuilder {
         // createTempFile has a race condition where it may return the same
         // temporary file name to different threads if called simultaneously
         // from multiple threads, hence add the thread ID to avoid this
+        FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
         Path stateFile = Files.createTempFile(
             env.tmpFile(),
             jobId + "_quantiles_" + Thread.currentThread().getId(),
@@ -225,6 +227,7 @@ public class AutodetectBuilder {
         if (scheduledEvents.isEmpty()) {
             return;
         }
+        FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
         Path eventsConfigFile = Files.createTempFile(env.tmpFile(), "eventsConfig", JSON_EXTENSION);
         filesToDelete.add(eventsConfigFile);
 
@@ -249,6 +252,7 @@ public class AutodetectBuilder {
     }
 
     private void buildJobConfig(List<String> command) throws IOException {
+        FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
         Path configFile = Files.createTempFile(env.tmpFile(), "config", JSON_EXTENSION);
         filesToDelete.add(configFile);
         try (
@@ -267,6 +271,7 @@ public class AutodetectBuilder {
         if (referencedFilters.isEmpty()) {
             return;
         }
+        FileUtils.recreateTempDirectoryIfNeeded(env.tmpFile());
         Path filtersConfigFile = Files.createTempFile(env.tmpFile(), "filtersConfig", JSON_EXTENSION);
         filesToDelete.add(filtersConfigFile);
 

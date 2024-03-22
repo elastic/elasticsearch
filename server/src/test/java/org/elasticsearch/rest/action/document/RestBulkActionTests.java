@@ -14,7 +14,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.rest.RestChannel;
@@ -39,15 +38,16 @@ public class RestBulkActionTests extends ESTestCase {
 
     public void testBulkPipelineUpsert() throws Exception {
         SetOnce<Boolean> bulkCalled = new SetOnce<>();
-        try (NodeClient verifyingClient = new NoOpNodeClient(this.getTestName()) {
-            @Override
-            public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
-                bulkCalled.set(true);
-                assertThat(request.requests(), hasSize(2));
-                UpdateRequest updateRequest = (UpdateRequest) request.requests().get(1);
-                assertThat(updateRequest.upsertRequest().getPipeline(), equalTo("timestamps"));
-            }
-        }) {
+        try (var threadPool = createThreadPool()) {
+            final var verifyingClient = new NoOpNodeClient(threadPool) {
+                @Override
+                public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+                    bulkCalled.set(true);
+                    assertThat(request.requests(), hasSize(2));
+                    UpdateRequest updateRequest = (UpdateRequest) request.requests().get(1);
+                    assertThat(updateRequest.upsertRequest().getPipeline(), equalTo("timestamps"));
+                }
+            };
             final Map<String, String> params = new HashMap<>();
             params.put("pipeline", "timestamps");
             new RestBulkAction(settings(IndexVersion.current()).build()).handleRequest(
@@ -68,17 +68,18 @@ public class RestBulkActionTests extends ESTestCase {
         AtomicBoolean bulkCalled = new AtomicBoolean(false);
         AtomicBoolean listExecutedPipelinesRequest1 = new AtomicBoolean(false);
         AtomicBoolean listExecutedPipelinesRequest2 = new AtomicBoolean(false);
-        try (NodeClient verifyingClient = new NoOpNodeClient(this.getTestName()) {
-            @Override
-            public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
-                bulkCalled.set(true);
-                assertThat(request.requests(), hasSize(2));
-                IndexRequest indexRequest1 = (IndexRequest) request.requests().get(0);
-                listExecutedPipelinesRequest1.set(indexRequest1.getListExecutedPipelines());
-                IndexRequest indexRequest2 = (IndexRequest) request.requests().get(1);
-                listExecutedPipelinesRequest2.set(indexRequest2.getListExecutedPipelines());
-            }
-        }) {
+        try (var threadPool = createThreadPool()) {
+            final var verifyingClient = new NoOpNodeClient(threadPool) {
+                @Override
+                public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+                    bulkCalled.set(true);
+                    assertThat(request.requests(), hasSize(2));
+                    IndexRequest indexRequest1 = (IndexRequest) request.requests().get(0);
+                    listExecutedPipelinesRequest1.set(indexRequest1.getListExecutedPipelines());
+                    IndexRequest indexRequest2 = (IndexRequest) request.requests().get(1);
+                    listExecutedPipelinesRequest2.set(indexRequest2.getListExecutedPipelines());
+                }
+            };
             Map<String, String> params = new HashMap<>();
             {
                 new RestBulkAction(settings(IndexVersion.current()).build()).handleRequest(

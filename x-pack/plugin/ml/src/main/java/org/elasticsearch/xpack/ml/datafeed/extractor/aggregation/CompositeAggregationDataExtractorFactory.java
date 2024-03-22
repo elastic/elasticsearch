@@ -16,11 +16,11 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.ArrayList;
@@ -32,6 +32,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
 
     private final Client client;
     private final DatafeedConfig datafeedConfig;
+    private final QueryBuilder extraFilters;
     private final Job job;
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private final String compositeAggName;
@@ -46,6 +47,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
     public CompositeAggregationDataExtractorFactory(
         Client client,
         DatafeedConfig datafeedConfig,
+        QueryBuilder extraFilters,
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
@@ -53,10 +55,11 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
     ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
+        this.extraFilters = extraFilters;
         this.job = Objects.requireNonNull(job);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         this.parsedQuery = datafeedConfig.getParsedQuery(xContentRegistry);
-        AggregationBuilder aggregationBuilder = ExtractorUtils.getHistogramAggregation(
+        AggregationBuilder aggregationBuilder = DatafeedConfigUtils.getHistogramAggregation(
             datafeedConfig.getParsedAggregations(xContentRegistry).getAggregatorFactories()
         );
         if (aggregationBuilder instanceof CompositeAggregationBuilder == false) {
@@ -92,15 +95,10 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
-        return buildNewExtractor(start, end, parsedQuery);
-    }
-
-    @Override
-    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
-        return buildNewExtractor(start, end, QueryBuilders.boolQuery().filter(parsedQuery).filter(queryBuilder));
-    }
-
-    private DataExtractor buildNewExtractor(long start, long end, QueryBuilder queryBuilder) {
+        QueryBuilder queryBuilder = parsedQuery;
+        if (extraFilters != null) {
+            queryBuilder = QueryBuilders.boolQuery().filter(queryBuilder).filter(extraFilters);
+        }
         CompositeAggregationBuilder compositeAggregationBuilder = new CompositeAggregationBuilder(
             compositeAggName,
             compositeValuesSourceBuilders
@@ -108,7 +106,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
         compositeAggregationBuilder.size(numBuckets);
         subAggs.forEach(compositeAggregationBuilder::subAggregation);
         subPipelineAggs.forEach(compositeAggregationBuilder::subAggregation);
-        long histogramInterval = ExtractorUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
+        long histogramInterval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         CompositeAggregationDataExtractorContext dataExtractorContext = new CompositeAggregationDataExtractorContext(
             job.getId(),
             job.getDataDescription().getTimeField(),

@@ -1,0 +1,5 @@
+pr: 103091
+summary: "Metrics: Handle null observations in observers"
+area: Infra/Core
+type: bug
+issues: []

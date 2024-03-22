@@ -17,11 +17,8 @@ import org.elasticsearch.compute.operator.EvalOperator;
  * This class is generated. Do not edit it.
  */
 public final class MvMinIntEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
-  private final DriverContext driverContext;
-
   public MvMinIntEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
-    super(field);
-    this.driverContext = driverContext;
+    super(driverContext, field);
   }
 
   @Override
@@ -33,32 +30,30 @@ public final class MvMinIntEvaluator extends AbstractMultivalueFunction.Abstract
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block.Ref evalNullable(Block.Ref ref) {
-    if (ref.block().mvSortedAscending()) {
-      return evalAscendingNullable(ref);
+  public Block evalNullable(Block fieldVal) {
+    if (fieldVal.mvSortedAscending()) {
+      return evalAscendingNullable(fieldVal);
     }
-    try (ref) {
-      IntBlock v = (IntBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-        for (int p = 0; p < positionCount; p++) {
-          int valueCount = v.getValueCount(p);
-          if (valueCount == 0) {
-            builder.appendNull();
-            continue;
-          }
-          int first = v.getFirstValueIndex(p);
-          int end = first + valueCount;
-          int value = v.getInt(first);
-          for (int i = first + 1; i < end; i++) {
-            int next = v.getInt(i);
-            value = MvMin.process(value, next);
-          }
-          int result = value;
-          builder.appendInt(result);
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
         }
-        return Block.Ref.floating(builder.build());
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        int value = v.getInt(first);
+        for (int i = first + 1; i < end; i++) {
+          int next = v.getInt(i);
+          value = MvMin.process(value, next);
+        }
+        int result = value;
+        builder.appendInt(result);
       }
+      return builder.build();
     }
   }
 
@@ -66,72 +61,66 @@ public final class MvMinIntEvaluator extends AbstractMultivalueFunction.Abstract
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block.Ref evalNotNullable(Block.Ref ref) {
-    if (ref.block().mvSortedAscending()) {
-      return evalAscendingNotNullable(ref);
+  public Block evalNotNullable(Block fieldVal) {
+    if (fieldVal.mvSortedAscending()) {
+      return evalAscendingNotNullable(fieldVal);
     }
-    try (ref) {
-      IntBlock v = (IntBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-        for (int p = 0; p < positionCount; p++) {
-          int valueCount = v.getValueCount(p);
-          int first = v.getFirstValueIndex(p);
-          int end = first + valueCount;
-          int value = v.getInt(first);
-          for (int i = first + 1; i < end; i++) {
-            int next = v.getInt(i);
-            value = MvMin.process(value, next);
-          }
-          int result = value;
-          builder.appendInt(result);
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int end = first + valueCount;
+        int value = v.getInt(first);
+        for (int i = first + 1; i < end; i++) {
+          int next = v.getInt(i);
+          value = MvMin.process(value, next);
         }
-        return Block.Ref.floating(builder.build().asBlock());
+        int result = value;
+        builder.appendInt(result);
       }
+      return builder.build().asBlock();
     }
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Block.Ref evalAscendingNullable(Block.Ref ref) {
-    try (ref) {
-      IntBlock v = (IntBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-        for (int p = 0; p < positionCount; p++) {
-          int valueCount = v.getValueCount(p);
-          if (valueCount == 0) {
-            builder.appendNull();
-            continue;
-          }
-          int first = v.getFirstValueIndex(p);
-          int idx = MvMin.ascendingIndex(valueCount);
-          int result = v.getInt(first + idx);
-          builder.appendInt(result);
+  private Block evalAscendingNullable(Block fieldVal) {
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
         }
-        return Block.Ref.floating(builder.build());
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMin.ascendingIndex(valueCount);
+        int result = v.getInt(first + idx);
+        builder.appendInt(result);
       }
+      return builder.build();
     }
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Block.Ref evalAscendingNotNullable(Block.Ref ref) {
-    try (ref) {
-      IntBlock v = (IntBlock) ref.block();
-      int positionCount = v.getPositionCount();
-      try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-        for (int p = 0; p < positionCount; p++) {
-          int valueCount = v.getValueCount(p);
-          int first = v.getFirstValueIndex(p);
-          int idx = MvMin.ascendingIndex(valueCount);
-          int result = v.getInt(first + idx);
-          builder.appendInt(result);
-        }
-        return Block.Ref.floating(builder.build().asBlock());
+  private Block evalAscendingNotNullable(Block fieldVal) {
+    IntBlock v = (IntBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        int idx = MvMin.ascendingIndex(valueCount);
+        int result = v.getInt(first + idx);
+        builder.appendInt(result);
       }
+      return builder.build().asBlock();
     }
   }
 

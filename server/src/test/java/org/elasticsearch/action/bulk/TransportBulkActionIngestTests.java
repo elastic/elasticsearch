@@ -8,17 +8,17 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -32,10 +32,12 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -46,7 +48,6 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -56,13 +57,16 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
@@ -84,10 +88,12 @@ public class TransportBulkActionIngestTests extends ESTestCase {
      */
     private static final String WITH_DEFAULT_PIPELINE = "index_with_default_pipeline";
     private static final String WITH_DEFAULT_PIPELINE_ALIAS = "alias_for_index_with_default_pipeline";
+    private static final String WITH_FAILURE_STORE_ENABLED = "data-stream-failure-store-enabled";
 
     private static final Settings SETTINGS = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), true).build();
 
     private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
+    private FeatureService mockFeatureService;
 
     /** Services needed by bulk action */
     TransportService transportService;
@@ -96,6 +102,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     ThreadPool threadPool;
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
+    @Captor
+    ArgumentCaptor<Predicate<String>> redirectPredicate;
+    @Captor
+    ArgumentCaptor<TriConsumer<Integer, String, Exception>> redirectHandler;
     @Captor
     ArgumentCaptor<BiConsumer<Integer, Exception>> failureHandler;
     @Captor
@@ -133,7 +143,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 transportService,
                 clusterService,
                 ingestService,
-                null,
+                mockFeatureService,
+                new NodeClient(Settings.EMPTY, threadPool),
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
@@ -156,7 +167,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);
         }
@@ -166,7 +177,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         TestSingleItemBulkWriteAction(TestTransportBulkAction bulkAction) {
             super(
-                IndexAction.NAME,
+                TransportIndexAction.NAME,
                 TransportBulkActionIngestTests.this.transportService,
                 new ActionFilters(Collections.emptySet()),
                 IndexRequest::new,
@@ -176,7 +187,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     }
 
     @Before
-    public void setupAction() {
+    public void setupAction() throws IOException {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
         MockitoAnnotations.openMocks(this);
@@ -194,9 +205,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         nodes = mock(DiscoveryNodes.class);
         Map<String, DiscoveryNode> ingestNodes = Map.of("node1", remoteNode1, "node2", remoteNode2);
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
-        when(nodes.getMinNodeVersion()).thenReturn(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
+        mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
         Metadata metadata = Metadata.builder()
             .indices(
                 Map.of(
@@ -213,6 +225,15 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                         .system(true)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
+                        .build()
+                )
+            )
+            .indexTemplates(
+                Map.of(
+                    WITH_FAILURE_STORE_ENABLED,
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(WITH_FAILURE_STORE_ENABLED + "*"))
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
                         .build()
                 )
             )
@@ -261,8 +282,12 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         IndexRequest indexRequest2 = new IndexRequest("index").id("id");
         indexRequest2.source(Collections.emptyMap());
         indexRequest2.setPipeline("testpipeline");
+        IndexRequest indexRequest3 = new IndexRequest("index").id("id");
+        indexRequest3.source(Collections.emptyMap());
+        indexRequest3.setPipeline("testpipeline");
         bulkRequest.add(indexRequest1);
         bulkRequest.add(indexRequest2);
+        bulkRequest.add(indexRequest3);
 
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
@@ -283,6 +308,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
+            redirectPredicate.capture(),
+            redirectHandler.capture(),
             failureHandler.capture(),
             completionHandler.capture(),
             eq(Names.WRITE)
@@ -294,7 +321,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         Iterator<DocWriteRequest<?>> req = bulkDocsItr.getValue().iterator();
         failureHandler.getValue().accept(0, exception); // have an exception for our one index request
         indexRequest2.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
-        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
+        assertTrue(redirectPredicate.getValue().test(WITH_FAILURE_STORE_ENABLED + "-1")); // ensure redirects on failure store data stream
+        assertFalse(redirectPredicate.getValue().test(WITH_DEFAULT_PIPELINE)); // no redirects for random existing indices
+        assertFalse(redirectPredicate.getValue().test("index")); // no redirects for non-existant indices with no templates
+        redirectHandler.getValue().apply(2, WITH_FAILURE_STORE_ENABLED + "-1", exception); // exception and redirect for request 3 (slot 2)
+        completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null); // all ingestion completed
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyNoMoreInteractions(transportService);
@@ -324,6 +355,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
+            any(),
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
@@ -371,6 +404,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
+            any(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
             eq(Names.SYSTEM_WRITE)
@@ -404,7 +439,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -444,7 +479,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -528,6 +563,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
+            any(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
             eq(Names.WRITE)
@@ -575,6 +612,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
+            any(),
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
@@ -670,6 +709,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             eq(1),
             bulkDocsItr.capture(),
             any(),
+            any(),
+            any(),
             failureHandler.capture(),
             completionHandler.capture(),
             eq(Names.WRITE)
@@ -679,16 +720,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testFindDefaultPipelineFromV2TemplateMatch() {
         Exception exception = new Exception("fake exception");
 
-        ComposableIndexTemplate t1 = new ComposableIndexTemplate(
-            Collections.singletonList("missing_*"),
-            new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        ComposableIndexTemplate t1 = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("missing_*"))
+            .template(new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null))
+            .build();
 
         ClusterState state = clusterService.state();
         Metadata metadata = Metadata.builder().put("my-template", t1).build();
@@ -713,6 +748,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
+            any(),
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
@@ -740,6 +777,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
+            any(),
+            any(),
             any(),
             failureHandler.capture(),
             completionHandler.capture(),
@@ -777,6 +816,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService).executeBulkRequest(
             eq(1),
             bulkDocsItr.capture(),
+            any(),
+            any(),
             any(),
             failureHandler.capture(),
             completionHandler.capture(),

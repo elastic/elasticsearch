@@ -134,7 +134,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
     });
 
     static {
-        PARSER.declareObjectArray(constructorArg(), (p, c) -> IndexError.PARSER.parse(p, c), new ParseField("indices"));
+        PARSER.declareObjectArray(constructorArg(), IndexError.PARSER, new ParseField("indices"));
         PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), BOOST_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), NAME_FIELD);
     }

@@ -1,0 +1,5 @@
+pr: 103920
+summary: Use search to determine if cluster contains data
+area: Application
+type: bug
+issues: []

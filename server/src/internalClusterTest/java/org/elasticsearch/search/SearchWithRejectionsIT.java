@@ -36,7 +36,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         ensureGreen("test");
         final int docs = scaledRandomIntBetween(20, 50);
         for (int i = 0; i < docs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value").get();
         }
         IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
@@ -52,7 +52,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         }
         for (int i = 0; i < numSearches; i++) {
             try {
-                responses[i].get();
+                responses[i].get().decRef();
             } catch (Exception t) {}
         }
         assertBusy(

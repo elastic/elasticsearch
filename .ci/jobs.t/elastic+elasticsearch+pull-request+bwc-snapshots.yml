@@ -16,17 +16,14 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/bwc.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/bwc.*'
           github-hooks: true
           status-context: elasticsearch-ci/bwc
           cancel-builds-on-update: true
           excluded-regions:
             - ^docs/.*
             - ^x-pack/docs/.*
-          black-list-labels:
-            - '>test-mute'
-            - 'test-full-bwc'
-            - 'buildkite-opt-in'
     axes:
       - axis:
           type: slave
@@ -39,7 +36,7 @@
           name: "BWC_VERSION"
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             JAVA8_HOME=$HOME/.java/java8

@@ -228,8 +228,9 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 }
 
 tasks.register('enforceYamlTestConvention').configure {
+  def tree = fileTree('src/main/resources/rest-api-spec/test')
   doLast {
-    if (fileTree('src/main/resources/rest-api-spec/test').files) {
+    if (tree.files) {
       throw new GradleException("There are YAML tests in src/main source set. These should be moved to src/yamlRestTest.")
     }
   }

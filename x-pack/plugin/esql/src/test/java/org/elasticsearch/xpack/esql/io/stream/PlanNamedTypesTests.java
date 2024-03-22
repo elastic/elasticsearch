@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
@@ -604,6 +605,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             case 6 -> new MedianAbsoluteDeviation(Source.EMPTY, field);
             case 7 -> new CountDistinct(Source.EMPTY, field, right);
             case 8 -> new Percentile(Source.EMPTY, field, right);
+            case 9 -> new SpatialCentroid(Source.EMPTY, field);
             default -> throw new AssertionError(v);
         };
     }

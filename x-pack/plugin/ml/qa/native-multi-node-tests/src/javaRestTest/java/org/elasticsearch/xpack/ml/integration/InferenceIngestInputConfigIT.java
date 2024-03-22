@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 
@@ -117,17 +115,5 @@ public class InferenceIngestInputConfigIT extends PyTorchModelRestTestCase {
                 }
               ]
             }""", modelId, inputOutput);
-    }
-
-    private Response simulatePipeline(String pipelineDef, String docs) throws IOException {
-        String simulate = Strings.format("""
-            {
-              "pipeline": %s,
-              "docs": %s
-            }""", pipelineDef, docs);
-
-        Request request = new Request("POST", "_ingest/pipeline/_simulate?error_trace=true");
-        request.setJsonEntity(simulate);
-        return client().performRequest(request);
     }
 }

@@ -32,13 +32,33 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         assertThat(new HuggingFaceElserServiceSettings(url), is(serviceSettings));
     }
 
+    public void testFromMap_EmptyUrl_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> HuggingFaceElserServiceSettings.fromMap(new HashMap<>(Map.of(HuggingFaceElserServiceSettings.URL, "")))
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
+                    HuggingFaceElserServiceSettings.URL
+                )
+            )
+        );
+    }
+
     public void testFromMap_MissingUrl_ThrowsError() {
         var thrownException = expectThrows(ValidationException.class, () -> HuggingFaceElserServiceSettings.fromMap(new HashMap<>()));
 
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format("[service_settings] does not contain the required setting [%s]", HuggingFaceElserServiceSettings.URL)
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] does not contain the required setting [%s];",
+                    HuggingFaceElserServiceSettings.URL
+                )
             )
         );
     }
@@ -52,7 +72,13 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("Invalid url [%s] received in setting [service_settings]", url))
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];",
+                    url,
+                    HuggingFaceElserServiceSettings.URL
+                )
+            )
         );
     }
 

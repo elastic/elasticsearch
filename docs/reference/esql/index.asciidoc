@@ -6,7 +6,7 @@
 
 [partintro]
 
-preview::[]
+preview::["Do not use {esql} on production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 The {es} Query Language ({esql}) provides a powerful way to filter, transform,
 and analyze data stored in {es}, and in the future in other runtimes. It is
@@ -55,14 +55,14 @@ fields>> and <<esql-multivalued-fields,multivalued fields>>. And guidance for
 GROK>> and <<esql-enrich-data,data enrichment with ENRICH>>.
 
 <<esql-using>>::
-An overview of using the <<esql-rest>>, <<esql-kibana>>, and
-<<esql-task-management>>.
+An overview of using the <<esql-rest>>, <<esql-kibana>>,
+<<esql-elastic-security>>, <<esql-cross-clusters>>, and <<esql-task-management>>.
 
 <<esql-limitations>>::
 The current limitations of {esql}.
 
 <<esql-examples>>::
-A few examples of what you can with {esql}.
+A few examples of what you can do with {esql}.
 
 include::esql-get-started.asciidoc[]
 

@@ -24,7 +24,7 @@ public class EsqlFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public EsqlFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap();
+        stats = in.readGenericMap();
     }
 
     public EsqlFeatureSetUsage(Map<String, Object> stats) {
@@ -63,7 +63,7 @@ public class EsqlFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_062;
+        return TransportVersions.V_8_11_X;
     }
 
 }

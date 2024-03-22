@@ -131,7 +131,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.IndexAction} and BwC
+     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.TransportIndexAction} and BwC
      * deserialization path
      */
     protected DocWriteResponse(StreamInput in) throws IOException {
@@ -309,7 +309,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
      * if needed and then immediately returns.
      */
-    protected static void parseInnerToXContent(XContentParser parser, Builder context) throws IOException {
+    public static void parseInnerToXContent(XContentParser parser, Builder context) throws IOException {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
 

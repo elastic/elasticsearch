@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
 import static org.elasticsearch.action.search.SearchPhaseController.setShardIndex;
@@ -52,7 +51,7 @@ import static org.elasticsearch.action.search.SearchPhaseController.setShardInde
  * needed to reduce the aggregations is estimated and a {@link CircuitBreakingException} is thrown if it
  * exceeds the maximum memory allowed in this breaker.
  */
-public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> implements Releasable {
+public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhaseResult> {
     private static final Logger logger = LogManager.getLogger(QueryPhaseResultConsumer.class);
 
     private final Executor executor;
@@ -105,8 +104,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     @Override
-    public void close() {
-        Releasables.close(pendingMerges);
+    protected void doClose() {
+        pendingMerges.close();
     }
 
     @Override
@@ -129,23 +128,28 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         pendingMerges.sortBuffer();
         final TopDocsStats topDocsStats = pendingMerges.consumeTopDocsStats();
         final List<TopDocs> topDocsList = pendingMerges.consumeTopDocs();
-        final List<InternalAggregations> aggsList = pendingMerges.consumeAggs();
+        SearchPhaseController.ReducedQueryPhase reducePhase;
         long breakerSize = pendingMerges.circuitBreakerBytes;
-        if (hasAggs) {
-            // Add an estimate of the final reduce size
-            breakerSize = pendingMerges.addEstimateAndMaybeBreak(PendingMerges.estimateRamBytesUsedForReduce(breakerSize));
+        try {
+            final List<DelayableWriteable<InternalAggregations>> aggsList = pendingMerges.getAggs();
+            if (hasAggs) {
+                // Add an estimate of the final reduce size
+                breakerSize = pendingMerges.addEstimateAndMaybeBreak(PendingMerges.estimateRamBytesUsedForReduce(breakerSize));
+            }
+            reducePhase = SearchPhaseController.reducedQueryPhase(
+                results.asList(),
+                aggsList,
+                topDocsList,
+                topDocsStats,
+                pendingMerges.numReducePhases,
+                false,
+                aggReduceContextBuilder,
+                rankCoordinatorContext,
+                performFinalReduce
+            );
+        } finally {
+            pendingMerges.releaseAggs();
         }
-        SearchPhaseController.ReducedQueryPhase reducePhase = SearchPhaseController.reducedQueryPhase(
-            results.asList(),
-            aggsList,
-            topDocsList,
-            topDocsStats,
-            pendingMerges.numReducePhases,
-            false,
-            aggReduceContextBuilder,
-            rankCoordinatorContext,
-            performFinalReduce
-        );
         if (hasAggs
             // reduced aggregations can be null if all shards failed
             && reducePhase.aggregations() != null) {
@@ -205,14 +209,20 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         final InternalAggregations newAggs;
         if (hasAggs) {
-            List<InternalAggregations> aggsList = new ArrayList<>();
-            if (lastMerge != null) {
-                aggsList.add(lastMerge.reducedAggs);
+            try {
+                final List<DelayableWriteable<InternalAggregations>> aggsList = new ArrayList<>();
+                if (lastMerge != null) {
+                    aggsList.add(DelayableWriteable.referencing(lastMerge.reducedAggs));
+                }
+                for (QuerySearchResult result : toConsume) {
+                    aggsList.add(result.getAggs());
+                }
+                newAggs = InternalAggregations.topLevelReduceDelayable(aggsList, aggReduceContextBuilder.forPartialReduction());
+            } finally {
+                for (QuerySearchResult result : toConsume) {
+                    result.releaseAggs();
+                }
             }
-            for (QuerySearchResult result : toConsume) {
-                aggsList.add(result.consumeAggs());
-            }
-            newAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
         } else {
             newAggs = null;
         }
@@ -269,12 +279,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 assert circuitBreakerBytes >= 0;
             }
 
-            List<Releasable> toRelease = buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(toCollection(ArrayList::new));
-            toRelease.add(() -> {
-                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-                circuitBreakerBytes = 0;
-            });
-            Releasables.close(toRelease);
+            releaseBuffer();
+            circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+            circuitBreakerBytes = 0;
 
             if (hasPendingMerges()) {
                 // This is a theoretically unreachable exception.
@@ -300,11 +307,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
         }
 
-        synchronized long addWithoutBreaking(long size) {
+        synchronized void addWithoutBreaking(long size) {
             circuitBreaker.addWithoutBreaking(size);
             circuitBreakerBytes += size;
             maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);
-            return circuitBreakerBytes;
         }
 
         synchronized long addEstimateAndMaybeBreak(long estimatedSize) {
@@ -350,8 +356,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                             addEstimateAndMaybeBreak(aggsSize);
                         } catch (Exception exc) {
                             result.releaseAggs();
-                            buffer.forEach(QuerySearchResult::releaseAggs);
-                            buffer.clear();
+                            releaseBuffer();
                             onMergeFailure(exc);
                             next.run();
                             return;
@@ -377,6 +382,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (executeNextImmediately) {
                 next.run();
             }
+        }
+
+        private void releaseBuffer() {
+            buffer.forEach(QuerySearchResult::releaseAggs);
+            buffer.clear();
         }
 
         private synchronized void onMergeFailure(Exception exc) {
@@ -495,18 +505,26 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             return topDocsList;
         }
 
-        public synchronized List<InternalAggregations> consumeAggs() {
+        public synchronized List<DelayableWriteable<InternalAggregations>> getAggs() {
             if (hasAggs == false) {
                 return Collections.emptyList();
             }
-            List<InternalAggregations> aggsList = new ArrayList<>();
+            List<DelayableWriteable<InternalAggregations>> aggsList = new ArrayList<>();
             if (mergeResult != null) {
-                aggsList.add(mergeResult.reducedAggs);
+                aggsList.add(DelayableWriteable.referencing(mergeResult.reducedAggs));
             }
             for (QuerySearchResult result : buffer) {
-                aggsList.add(result.consumeAggs());
+                aggsList.add(result.getAggs());
             }
             return aggsList;
+        }
+
+        public synchronized void releaseAggs() {
+            if (hasAggs) {
+                for (QuerySearchResult result : buffer) {
+                    result.releaseAggs();
+                }
+            }
         }
     }
 
@@ -520,7 +538,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private static class MergeTask {
         private final List<SearchShard> emptyResults;
         private QuerySearchResult[] buffer;
-        private long aggsBufferSize;
+        private final long aggsBufferSize;
         private Runnable next;
 
         private MergeTask(QuerySearchResult[] buffer, long aggsBufferSize, List<SearchShard> emptyResults, Runnable next) {

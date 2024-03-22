@@ -24,7 +24,7 @@ public class SqlFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public SqlFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap();
+        stats = in.readGenericMap();
     }
 
     public SqlFeatureSetUsage(Map<String, Object> stats) {

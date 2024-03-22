@@ -62,6 +62,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private String index;
 
+    private boolean requireDataStream;
+
     private Settings settings = Settings.EMPTY;
 
     private String mappings = "{}";
@@ -101,6 +103,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         waitForActiveShards = ActiveShardCount.readFrom(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             origin = in.readString();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+            requireDataStream = in.readBoolean();
+        } else {
+            requireDataStream = false;
         }
     }
 
@@ -446,6 +453,18 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
+    public boolean isRequireDataStream() {
+        return requireDataStream;
+    }
+
+    /**
+     * Set whether this CreateIndexRequest requires a data stream. The data stream may be pre-existing or to-be-created.
+     */
+    public CreateIndexRequest requireDataStream(boolean requireDataStream) {
+        this.requireDataStream = requireDataStream;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -467,6 +486,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         waitForActiveShards.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             out.writeString(origin);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+            out.writeOptionalBoolean(this.requireDataStream);
         }
     }
 

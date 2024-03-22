@@ -60,11 +60,6 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
         return Collections.unmodifiableList(result);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public void testCapacityRestCancellationAndResponse() throws Exception {
         internalCluster().startMasterOnlyNode();
 

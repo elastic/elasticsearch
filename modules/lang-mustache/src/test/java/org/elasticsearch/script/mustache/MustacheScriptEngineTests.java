@@ -9,6 +9,7 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
+import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
@@ -18,10 +19,13 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Mustache based templating test
@@ -33,7 +37,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
     @Before
     public void setup() {
         qe = new MustacheScriptEngine();
-        factory = new CustomMustacheFactory();
+        factory = CustomMustacheFactory.builder().build();
     }
 
     public void testSimpleParameterReplace() {
@@ -196,6 +200,56 @@ public class MustacheScriptEngineTests extends ESTestCase {
         assertThat(TemplateScript.execute(), equalTo("{\"match_all\":{}}"));
     }
 
+    @SuppressWarnings("deprecation") // GeneralScriptException
+    public void testDetectMissingParam() {
+        Map<String, String> scriptOptions = Map.ofEntries(Map.entry(MustacheScriptEngine.DETECT_MISSING_PARAMS_OPTION, "true"));
+
+        // fails when a param is missing and the DETECT_MISSING_PARAMS_OPTION option is set to true.
+        {
+            String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Collections.emptyMap();
+            GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(params).execute());
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
+            assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query_string] is missing"));
+        }
+
+        // fails when params is null and the DETECT_MISSING_PARAMS_OPTION option is set to true.
+        {
+            String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            GeneralScriptException e = expectThrows(GeneralScriptException.class, () -> compiled.newInstance(null).execute());
+            assertThat(e.getRootCause(), instanceOf(MustacheInvalidParameterException.class));
+            assertThat(e.getRootCause().getMessage(), startsWith("Parameter [query_string] is missing"));
+        }
+
+        // works as expected when params are specified and the DETECT_MISSING_PARAMS_OPTION option is set to true
+        {
+            String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.ofEntries(Map.entry("query_string", "foo"));
+            assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"foo\" }"));
+        }
+
+        // do not throw when using a missing param in the conditional when DETECT_MISSING_PARAMS_OPTION option is set to true
+        {
+            String source = "{\"match\": { \"field\": \"{{#query_string}}{{.}}{{/query_string}}\" }";
+            TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+            Map<String, Object> params = Map.of();
+            assertThat(compiled.newInstance(params).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+        }
+    }
+
+    public void testMissingParam() {
+        Map<String, String> scriptOptions = Collections.emptyMap();
+        String source = "{\"match\": { \"field\": \"{{query_string}}\" }";
+        TemplateScript.Factory compiled = qe.compile(null, source, TemplateScript.CONTEXT, scriptOptions);
+
+        // When the DETECT_MISSING_PARAMS_OPTION is not specified, missing variable is replaced with an empty string.
+        assertThat(compiled.newInstance(Collections.emptyMap()).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+        assertThat(compiled.newInstance(null).execute(), equalTo("{\"match\": { \"field\": \"\" }"));
+    }
+
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
         String templateString = """
             {
@@ -238,7 +292,6 @@ public class MustacheScriptEngineTests extends ESTestCase {
      *
      * If we change this, we should *know* that we're changing it.
      */
-    @SuppressWarnings({ "deprecation", "removal" })
     public void testReflection() {
         Map<String, Object> vars = Map.of("obj", new TestReflection());
 

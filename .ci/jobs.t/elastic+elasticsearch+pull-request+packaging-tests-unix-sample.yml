@@ -15,7 +15,8 @@
           org-list:
             - elastic
           allow-whitelist-orgs-as-admins: true
-          trigger-phrase: '.*run\W+elasticsearch-ci/packaging-tests-unix-sample.*'
+          only-trigger-phrase: true
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/packaging-tests-unix-sample.*'
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-unix-sample
           cancel-builds-on-update: true
@@ -24,10 +25,6 @@
           excluded-regions:
             - ^docs/.*
             - ^x-pack/docs/.*
-          black-list-labels:
-            - ">test-mute"
-            - ":Delivery/Packaging"
-            - "buildkite-opt-in"
     axes:
       - axis:
           type: label-expression

@@ -18,12 +18,12 @@ import org.elasticsearch.search.SearchShardTarget;
  * where the given index is used to set the result on the array.
  */
 final class CountedCollector<R extends SearchPhaseResult> {
-    private final ArraySearchPhaseResults<R> resultConsumer;
+    private final SearchPhaseResults<R> resultConsumer;
     private final CountDown counter;
     private final Runnable onFinish;
     private final SearchPhaseContext context;
 
-    CountedCollector(ArraySearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
+    CountedCollector(SearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, SearchPhaseContext context) {
         this.resultConsumer = resultConsumer;
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;

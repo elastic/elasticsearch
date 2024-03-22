@@ -32,6 +32,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -65,6 +66,7 @@ import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegister
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -152,6 +154,15 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
+        // The analysis can perform writeAndOverwrite as a rare action.
+        // Since a read is performed towards the end of overwrite or write (rarely),
+        // it can return either the old (write) or the new (overwrite) content and both
+        // are considered to be correct.
+        // This test disrupts reads and relies on the disrupted content to be different from
+        // correct contents to trigger the expected failure. However, in rare cases,
+        // the disrupted old content could be identical to the new content or vice versa which
+        // leads to CI failures. Therefore, we disable rare actions to improve CI stability.
+        request.rareActionProbability(0.0);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
 
@@ -387,8 +398,32 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testFailsIfEmptyRegisterRejected() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean acceptsEmptyRegister() {
+                return false;
+            }
+        });
+        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertThat(exception.getMessage(), containsString("analysis failed"));
+        final var cause = ExceptionsHelper.unwrapCause(exception.getCause());
+        if (cause instanceof IOException ioException) {
+            assertThat(ioException.getMessage(), containsString("empty register update rejected"));
+        } else {
+            assertThat(
+                asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
+                anyOf(
+                    allOf(containsString("uncontended register operation failed"), containsString("did not observe any value")),
+                    containsString("but instead had value [OptionalBytesReference[MISSING]]")
+                )
+            );
+        }
+    }
+
     private void analyseRepository(RepositoryAnalyzeAction.Request request) {
-        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(5L, TimeUnit.MINUTES);
     }
 
     private static void assertPurpose(OperationPurpose purpose) {
@@ -405,7 +440,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Map.of(
                 DISRUPTABLE_REPO_TYPE,
@@ -505,6 +541,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         default boolean compareAndExchangeReturnsWitness(String key) {
+            return true;
+        }
+
+        default boolean acceptsEmptyRegister() {
             return true;
         }
 
@@ -682,7 +722,13 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         ) {
             assertPurpose(purpose);
             final boolean isContendedRegister = isContendedRegisterKey(key); // validate key
-            if (disruption.compareAndExchangeReturnsWitness(key)) {
+            if (disruption.acceptsEmptyRegister() == false && updated.length() == 0) {
+                if (randomBoolean()) {
+                    listener.onResponse(OptionalBytesReference.MISSING);
+                } else {
+                    listener.onFailure(new IOException("empty register update rejected"));
+                }
+            } else if (disruption.compareAndExchangeReturnsWitness(key)) {
                 final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
                 if (isContendedRegister) {
                     listener.onResponse(OptionalBytesReference.of(disruption.onContendedCompareAndExchange(register, expected, updated)));

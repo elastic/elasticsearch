@@ -70,6 +70,7 @@ import org.tartarus.snowball.ext.NorwegianStemmer;
 import org.tartarus.snowball.ext.PortugueseStemmer;
 import org.tartarus.snowball.ext.RomanianStemmer;
 import org.tartarus.snowball.ext.RussianStemmer;
+import org.tartarus.snowball.ext.SerbianStemmer;
 import org.tartarus.snowball.ext.SpanishStemmer;
 import org.tartarus.snowball.ext.SwedishStemmer;
 import org.tartarus.snowball.ext.TurkishStemmer;
@@ -236,6 +237,9 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
                 return new SnowballFilter(tokenStream, new RussianStemmer());
             } else if ("light_russian".equalsIgnoreCase(language) || "lightRussian".equalsIgnoreCase(language)) {
                 return new RussianLightStemFilter(tokenStream);
+
+            } else if ("serbian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new SerbianStemmer());
 
                 // Spanish stemmers
             } else if ("spanish".equalsIgnoreCase(language)) {

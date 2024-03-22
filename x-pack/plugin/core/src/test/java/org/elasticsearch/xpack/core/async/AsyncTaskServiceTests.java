@@ -216,11 +216,13 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         // To begin with, the results index should be auto-created.
         AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
-        {
-            PlainActionFuture<DocWriteResponse> future = PlainActionFuture.newFuture();
+        try {
+            PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();
+        } finally {
+            resp.decRef();
         }
 
         // Delete the index, so we can test subsequent auto-create behaviour
@@ -228,14 +230,14 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // Subsequent response deletes throw a (wrapped) index not found exception
         {
-            PlainActionFuture<DeleteResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DeleteResponse> future = new PlainActionFuture<>();
             indexService.deleteResponse(id, future);
             expectThrows(Exception.class, future::get);
         }
 
         // So do updates
         {
-            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<UpdateResponse> future = new PlainActionFuture<>();
             indexService.updateResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
@@ -243,7 +245,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // And so does updating the expiration time
         {
-            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<UpdateResponse> future = new PlainActionFuture<>();
             indexService.updateExpirationTime("0", 10L, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
@@ -251,7 +253,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // But the index is still auto-created
         {
-            PlainActionFuture<DocWriteResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();

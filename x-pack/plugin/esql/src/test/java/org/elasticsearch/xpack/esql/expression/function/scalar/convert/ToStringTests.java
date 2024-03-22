@@ -24,6 +24,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
+
 public class ToStringTests extends AbstractFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -82,6 +85,34 @@ public class ToStringTests extends AbstractFunctionTestCase {
             "ToStringFromDatetimeEvaluator[field=" + read + "]",
             DataTypes.KEYWORD,
             i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(i.toEpochMilli())),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryGeoPoint(
+            suppliers,
+            "ToStringFromGeoPointEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            wkb -> new BytesRef(GEO.wkbToWkt(wkb)),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryCartesianPoint(
+            suppliers,
+            "ToStringFromCartesianPointEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            wkb -> new BytesRef(CARTESIAN.wkbToWkt(wkb)),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryGeoShape(
+            suppliers,
+            "ToStringFromGeoShapeEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            wkb -> new BytesRef(GEO.wkbToWkt(wkb)),
+            List.of()
+        );
+        TestCaseSupplier.forUnaryCartesianShape(
+            suppliers,
+            "ToStringFromCartesianShapeEvaluator[field=" + read + "]",
+            DataTypes.KEYWORD,
+            wkb -> new BytesRef(CARTESIAN.wkbToWkt(wkb)),
             List.of()
         );
         TestCaseSupplier.forUnaryIp(

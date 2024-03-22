@@ -117,11 +117,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             if (key != null) {
                 return key;
             }
-            StringBuilder sb = new StringBuilder();
-            sb.append((from == null || from == 0) ? "*" : from);
-            sb.append("-");
-            sb.append((to == null || Double.isInfinite(to)) ? "*" : to);
-            return sb.toString();
+            return ((from == null || from == 0) ? "*" : from) + "-" + ((to == null || Double.isInfinite(to)) ? "*" : to);
         }
     }
 
@@ -401,21 +397,12 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     public GeoDistanceAggregationBuilder unit(DistanceUnit unit) {
         if (unit == null) {
             throw new IllegalArgumentException("[unit] must not be null: [" + name + "]");
         }
         this.unit = unit;
         return this;
-    }
-
-    public DistanceUnit unit() {
-        return unit;
     }
 
     public GeoDistanceAggregationBuilder distanceType(GeoDistance distanceType) {
@@ -426,17 +413,9 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         return this;
     }
 
-    public GeoDistance distanceType() {
-        return distanceType;
-    }
-
     public GeoDistanceAggregationBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
-    }
-
-    public boolean keyed() {
-        return keyed;
     }
 
     @Override

@@ -159,7 +159,9 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         String responseStrings = Strings.toString(responseBuilder);
 
         XContentBuilder prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
-        prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
+        try (var parser = createParser(JsonXContent.jsonXContent, responseStrings)) {
+            prettyJsonBuilder.copyCurrentStructure(parser);
+        }
         assertThat(responseStrings, equalTo(Strings.toString(prettyJsonBuilder)));
 
         params.put("pretty", "false");
@@ -170,7 +172,9 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         responseStrings = Strings.toString(responseBuilder);
 
         prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
-        prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
+        try (var parser = createParser(JsonXContent.jsonXContent, responseStrings)) {
+            prettyJsonBuilder.copyCurrentStructure(parser);
+        }
         assertThat(responseStrings, not(equalTo(Strings.toString(prettyJsonBuilder))));
 
     }

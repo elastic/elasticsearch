@@ -27,6 +27,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -72,7 +73,8 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap(
                 TYPE,
@@ -266,39 +268,10 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
     }
 
-    public void testFetchingInformationFromAnIncompatibleMasterNodeReturnsAnEmptyList() {
-        String indexName = "test";
-        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
-        ShardId shardId = getShardIdForIndex(indexName);
-
-        for (int i = 0; i < randomIntBetween(1, 50); i++) {
-            index(indexName, Integer.toString(i), Collections.singletonMap("foo", "bar"));
-        }
-
-        String snapshotName = "snap";
-        String repositoryName = "repo";
-        createRepository(repositoryName, "fs", randomRepoPath(), true);
-        createSnapshot(repositoryName, snapshotName, indexName);
-
-        RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
-        ThreadPool threadPool = internalCluster().getAnyMasterNodeInstance(ThreadPool.class);
-        ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
-        ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService) {
-            @Override
-            protected boolean masterSupportsFetchingLatestSnapshots() {
-                return false;
-            }
-        };
-
-        PlainActionFuture<Optional<ShardSnapshot>> latestSnapshots = PlainActionFuture.newFuture();
-        shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, latestSnapshots);
-        assertThat(latestSnapshots.actionGet().isPresent(), is(equalTo(false)));
-    }
-
     private Optional<ShardSnapshot> getLatestShardSnapshot(ShardId shardId) throws Exception {
         ShardSnapshotsService shardSnapshotsService = getShardSnapshotsService();
 
-        PlainActionFuture<Optional<ShardSnapshot>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Optional<ShardSnapshot>> future = new PlainActionFuture<>();
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, future);
         return future.get();
     }

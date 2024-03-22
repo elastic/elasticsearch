@@ -6,13 +6,18 @@
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -20,8 +25,13 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
@@ -40,6 +50,8 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
+import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -48,14 +60,22 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class NativeRoleMappingStoreTests extends ESTestCase {
@@ -63,6 +83,20 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
         TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
     );
+
+    private ScriptService scriptService;
+    private SecurityIndexManager securityIndex;
+
+    @Before
+    public void setup() {
+        scriptService = new ScriptService(
+            Settings.EMPTY,
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
+        );
+        securityIndex = mockHealthySecurityIndex();
+    }
 
     public void testResolveRoles() throws Exception {
         // Does match DN
@@ -118,17 +152,6 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         );
 
         final Client client = mock(Client.class);
-        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
-        ScriptService scriptService = new ScriptService(
-            Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS,
-            () -> 1L
-        );
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
 
         final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, securityIndex, scriptService) {
             @Override
@@ -161,6 +184,204 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         store.resolveRoles(user, future);
         final Set<String> roles = future.get();
         assertThat(roles, Matchers.containsInAnyOrder("dept_h", "defence", "flight"));
+        assertThat(store.getLastLoad(), is(nullValue()));
+    }
+
+    public void testResolveRolesDoesNotUseLastLoadCacheWhenSecurityIndexAvailable() throws Exception {
+        final Client client = mock(Client.class);
+        final ThreadPool mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(client.threadPool()).thenReturn(mockThreadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(Mockito.spy(new SearchRequestBuilder(client)));
+        final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
+            "mapping",
+            new FieldExpression("dn", Collections.singletonList(new FieldValue("*"))),
+            List.of("role"),
+            Collections.emptyList(),
+            Collections.emptyMap(),
+            true
+        );
+        doAnswerWithSearchResult(client, mapping);
+
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(
+            Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
+            client,
+            securityIndex,
+            scriptService
+        );
+
+        final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
+            "user",
+            randomiseDn("cn=user,ou=people,dc=org"),
+            List.of(),
+            Map.of(),
+            mock(RealmConfig.class)
+        );
+        assertThat(store.getLastLoad(), is(nullValue()));
+
+        assertThat(resolveRoles(store, user), Matchers.containsInAnyOrder("role"));
+        assertThat(store.getLastLoad(), contains(mapping));
+        verify(client, times(1)).search(any(SearchRequest.class), anyActionListener());
+
+        // when security index is available, we still run a search
+        assertThat(resolveRoles(store, user), Matchers.containsInAnyOrder("role"));
+        assertThat(store.getLastLoad(), contains(mapping));
+        verify(client, times(2)).search(any(SearchRequest.class), anyActionListener());
+    }
+
+    public void testResolveRolesUsesLastLoadCacheWhenSecurityIndexUnavailable() throws Exception {
+        final Client client = mock(Client.class);
+        final ThreadPool mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(client.threadPool()).thenReturn(mockThreadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(Mockito.spy(new SearchRequestBuilder(client)));
+        final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
+            "mapping",
+            new FieldExpression("dn", Collections.singletonList(new FieldValue("*"))),
+            List.of("role"),
+            Collections.emptyList(),
+            Collections.emptyMap(),
+            true
+        );
+        doAnswerWithSearchResult(client, mapping);
+
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(
+            Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
+            client,
+            securityIndex,
+            scriptService
+        );
+
+        final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
+            "user",
+            randomiseDn("cn=user,ou=people,dc=org"),
+            List.of(),
+            Map.of(),
+            mock(RealmConfig.class)
+        );
+        assertThat(store.getLastLoad(), is(nullValue()));
+
+        assertThat(resolveRoles(store, user), Matchers.containsInAnyOrder("role"));
+        assertThat(store.getLastLoad(), contains(mapping));
+        verify(client, times(1)).search(any(SearchRequest.class), anyActionListener());
+
+        final boolean indexAvailable = randomBoolean();
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(indexAvailable);
+        final boolean indexClosed = indexAvailable || randomBoolean();
+        when(securityIndex.indexIsClosed()).thenReturn(indexClosed);
+        assertThat(resolveRoles(store, user), Matchers.containsInAnyOrder(mapping.getRoles().toArray()));
+        assertThat(store.getLastLoad(), contains(mapping));
+        // index was unavailable, so we returned result from cache; no new search
+        verify(client, times(1)).search(any(SearchRequest.class), anyActionListener());
+
+        // new search result from index overwrites previous
+        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(securityIndex.indexIsClosed()).thenReturn(false);
+        final ExpressionRoleMapping mapping2 = new ExpressionRoleMapping(
+            "mapping2",
+            new FieldExpression("dn", Collections.singletonList(new FieldValue("*"))),
+            List.of("role2"),
+            Collections.emptyList(),
+            Collections.emptyMap(),
+            true
+        );
+        doAnswerWithSearchResult(client, mapping2);
+        assertThat(resolveRoles(store, user), Matchers.containsInAnyOrder(mapping2.getRoles().toArray()));
+        assertThat(store.getLastLoad(), contains(mapping2));
+    }
+
+    public void testResolveRolesDoesNotUseLastLoadCacheWhenSecurityIndexDoesNotExist() throws Exception {
+        final Client client = mock(Client.class);
+        final ThreadPool mockThreadPool = mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(client.threadPool()).thenReturn(mockThreadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(Mockito.spy(new SearchRequestBuilder(client)));
+        final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
+            "mapping",
+            new FieldExpression("dn", Collections.singletonList(new FieldValue("*"))),
+            List.of("role"),
+            Collections.emptyList(),
+            Collections.emptyMap(),
+            true
+        );
+        doAnswerWithSearchResult(client, mapping);
+
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(
+            Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
+            client,
+            securityIndex,
+            scriptService
+        );
+
+        final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
+            "user",
+            randomiseDn("cn=user,ou=people,dc=org"),
+            List.of(),
+            Map.of(),
+            mock(RealmConfig.class)
+        );
+        assertThat(store.getLastLoad(), is(nullValue()));
+
+        assertThat(resolveRoles(store, user), Matchers.containsInAnyOrder("role"));
+        assertThat(store.getLastLoad(), contains(mapping));
+        verify(client, times(1)).search(any(SearchRequest.class), anyActionListener());
+
+        when(securityIndex.indexExists()).thenReturn(false);
+        assertThat(resolveRoles(store, user), is(empty()));
+        assertThat(store.getLastLoad(), contains(mapping));
+    }
+
+    private SecurityIndexManager mockHealthySecurityIndex() {
+        final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.isIndexUpToDate()).thenReturn(true);
+        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        return securityIndex;
+    }
+
+    private void doAnswerWithSearchResult(Client client, ExpressionRoleMapping mapping) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
+            final var searchHit = SearchHit.unpooled(
+                randomIntBetween(0, Integer.MAX_VALUE),
+                NativeRoleMappingStore.getIdForName(mapping.getName())
+            );
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                mapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                searchHit.sourceRef(BytesReference.bytes(builder));
+            }
+            ActionListener.respondAndRelease(
+                listener,
+                new SearchResponse(
+                    SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), randomFloat()),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    0,
+                    randomAlphaOfLengthBetween(3, 8),
+                    1,
+                    1,
+                    0,
+                    10,
+                    null,
+                    null
+                )
+            );
+            return null;
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
+    }
+
+    private Set<String> resolveRoles(NativeRoleMappingStore store, UserRoleMapper.UserData user) throws InterruptedException,
+        ExecutionException {
+        final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
+        store.resolveRoles(user, future);
+        return future.get();
     }
 
     private String randomiseDn(String dn) {

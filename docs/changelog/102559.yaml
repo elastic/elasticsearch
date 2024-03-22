@@ -1,0 +1,5 @@
+pr: 102559
+summary: "Prune unnecessary information from TransportNodesStatsAction.NodeStatsRequest"
+area: Network
+type: enhancement
+issues: [100878]

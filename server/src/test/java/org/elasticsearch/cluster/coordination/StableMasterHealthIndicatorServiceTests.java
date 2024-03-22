@@ -43,9 +43,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -126,9 +126,14 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(nodeIdToClusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
         assertThat(nodeIdToNodeNameMap.get(node1.getId()), equalTo(node1.getName()));
         assertThat(nodeIdToNodeNameMap.get(node2.getId()), equalTo(node2.getName()));
-        List<Diagnosis> diagnosis = result.diagnosisList();
-        assertThat(diagnosis.size(), equalTo(1));
-        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT));
+        assertThat(
+            result.diagnosisList(),
+            containsInAnyOrder(
+                StableMasterHealthIndicatorService.CONTACT_SUPPORT,
+                StableMasterHealthIndicatorService.TROUBLESHOOT_DISCOVERY,
+                StableMasterHealthIndicatorService.TROUBLESHOOT_UNSTABLE_CLUSTER
+            )
+        );
     }
 
     public void testGetHealthIndicatorResultNotGreenVerboseFalse() throws Exception {
@@ -312,8 +317,11 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-        return parser.map();
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
+        ) {
+            return parser.map();
+        }
     }
 }

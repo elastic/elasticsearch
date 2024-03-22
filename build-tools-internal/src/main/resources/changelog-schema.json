@@ -59,6 +59,7 @@
             "Infra/Scripting",
             "Infra/Settings",
             "Infra/Transport API",
+            "Infra/Metrics",
             "Ingest",
             "Ingest Node",
             "Java High Level REST Client",

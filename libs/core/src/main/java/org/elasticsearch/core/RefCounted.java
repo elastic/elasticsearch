@@ -38,7 +38,7 @@ public interface RefCounted {
     void incRef();
 
     /**
-     * Tries to increment the refCount of this instance. This method will return {@code true} iff the refCount was
+     * Tries to increment the refCount of this instance. This method will return {@code true} iff the refCount was successfully incremented.
      *
      * @see #decRef()
      * @see #incRef()
@@ -62,4 +62,39 @@ public interface RefCounted {
      * @return whether there are currently any active references to this object.
      */
     boolean hasReferences();
+
+    /**
+     * Similar to {@link #incRef()} except that it also asserts that it managed to acquire the ref, for use in situations where it is a bug
+     * if all refs have been released.
+     */
+    default void mustIncRef() {
+        if (tryIncRef()) {
+            return;
+        }
+        assert false : AbstractRefCounted.ALREADY_CLOSED_MESSAGE;
+        incRef(); // throws an ISE
+    }
+
+    /**
+     * A noop implementation that always behaves as if it is referenced and cannot be released.
+     */
+    RefCounted ALWAYS_REFERENCED = new RefCounted() {
+        @Override
+        public void incRef() {}
+
+        @Override
+        public boolean tryIncRef() {
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return true;
+        }
+    };
 }

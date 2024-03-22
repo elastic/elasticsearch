@@ -13,6 +13,8 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -23,19 +25,33 @@ public class NodesHotThreadsResponseTests extends ESTestCase {
     public void testGetTextChunks() {
         final var node0 = DiscoveryNodeUtils.create("node-0");
         final var node1 = DiscoveryNodeUtils.create("node-1");
-        assertEquals(Strings.format("""
-            ::: %s
-               node 0 line 1
-               node 0 line 2
+        final var response = new NodesHotThreadsResponse(
+            ClusterName.DEFAULT,
+            List.of(
 
-            ::: %s
-               node 1 line 1
-               node 1 line 2
+                new NodeHotThreads(node0, ReleasableBytesReference.wrap(new BytesArray("""
+                    node 0 line 1
+                    node 0 line 2"""))),
 
-            """, node0, node1), getTextBodyContent(new NodesHotThreadsResponse(ClusterName.DEFAULT, List.of(new NodeHotThreads(node0, """
-            node 0 line 1
-            node 0 line 2"""), new NodeHotThreads(node1, """
-            node 1 line 1
-            node 1 line 2""")), List.of()).getTextChunks()));
+                new NodeHotThreads(node1, ReleasableBytesReference.wrap(new BytesArray("""
+                    node 1 line 1
+                    node 1 line 2""")))
+            ),
+            List.of()
+        );
+        try {
+            assertEquals(Strings.format("""
+                ::: %s
+                   node 0 line 1
+                   node 0 line 2
+
+                ::: %s
+                   node 1 line 1
+                   node 1 line 2
+
+                """, node0, node1), getTextBodyContent(response.getTextChunks()));
+        } finally {
+            response.decRef();
+        }
     }
 }

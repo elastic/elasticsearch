@@ -57,7 +57,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
 
         for (int j = 0; j < 10; j++) {
             final String id = Integer.toString(j);
-            client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+            prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
         }
 
         assertBusy(() -> {
@@ -157,7 +157,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                 }
                 for (int j = 0; j < numberOfDocuments; j++) {
                     final String id = Integer.toString(index * numberOfDocuments + j);
-                    client().prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
+                    prepareIndex("test").setId(id).setSource("{\"foo\": " + id + "}", XContentType.JSON).get();
                 }
                 try {
                     barrier.await();
@@ -223,7 +223,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         }
         int numDocs = randomIntBetween(1, 20);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
         ensureGreen("test");
         assertBusy(() -> {
@@ -252,7 +252,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         logger.info("numDocs {}", numDocs);
         long maxSeqNo = 0;
         for (int i = 0; i < numDocs; i++) {
-            maxSeqNo = client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get().getSeqNo();
+            maxSeqNo = prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get().getSeqNo();
             logger.info("got {}", maxSeqNo);
         }
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {

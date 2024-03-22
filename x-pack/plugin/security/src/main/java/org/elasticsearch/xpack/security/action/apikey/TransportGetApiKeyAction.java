@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -22,7 +21,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
-public final class TransportGetApiKeyAction extends HandledTransportAction<GetApiKeyRequest, GetApiKeyResponse> {
+public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyRequest, GetApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
@@ -34,7 +33,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(GetApiKeyAction.NAME, transportService, actionFilters, GetApiKeyRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(GetApiKeyAction.NAME, actionFilters, transportService.getTaskManager());
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }

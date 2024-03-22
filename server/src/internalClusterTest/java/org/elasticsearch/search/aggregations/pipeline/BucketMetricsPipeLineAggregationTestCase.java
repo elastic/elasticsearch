@@ -19,7 +19,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
-abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetricsAggregation> extends ESIntegTestCase {
+abstract class BucketMetricsPipeLineAggregationTestCase<T extends InternalNumericMetricsAggregation> extends ESIntegTestCase {
 
     static final String SINGLE_VALUED_FIELD_NAME = "l_value";
 
@@ -94,13 +94,9 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(minRandomValue, maxRandomValue);
             builders.add(
-                client().prepareIndex("idx")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field(SINGLE_VALUED_FIELD_NAME, fieldValue)
-                            .field("tag", "tag" + (i % interval))
-                            .endObject()
-                    )
+                prepareIndex("idx").setSource(
+                    jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, fieldValue).field("tag", "tag" + (i % interval)).endObject()
+                )
             );
             final int bucket = (fieldValue / interval); // + (fieldValue < 0 ? -1 : 0) - (minRandomValue / interval - 1);
             valueCounts[bucket]++;
@@ -109,8 +105,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         assertAcked(prepareCreate("empty_bucket_idx").setMapping(SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < 2; i++) {
             builders.add(
-                client().prepareIndex("empty_bucket_idx")
-                    .setId("" + i)
+                prepareIndex("empty_bucket_idx").setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i * 2).endObject())
             );
         }
@@ -475,7 +470,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
           .endObject();
         // end::noformat
-        client().prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("foo_2").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         indicesAdmin().prepareRefresh();
 

@@ -1,6 +1,0 @@
-pr: 101051
-summary: Percolator to support parsing script score query with params
-area: Mapping
-type: bug
-issues:
- - 97377

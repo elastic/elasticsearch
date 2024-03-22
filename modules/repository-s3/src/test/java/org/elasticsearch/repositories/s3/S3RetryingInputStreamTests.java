@@ -14,7 +14,6 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -94,11 +94,11 @@ public class S3RetryingInputStreamTests extends ESTestCase {
         if (position != null && length != null) {
             s3Object.getObjectMetadata().setContentLength(length);
             s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(data, position, length), new HttpGet()));
-            return new S3RetryingInputStream(OperationPurpose.SNAPSHOT, blobStore, "_blob", position, Math.addExact(position, length - 1));
+            return new S3RetryingInputStream(randomPurpose(), blobStore, "_blob", position, Math.addExact(position, length - 1));
         } else {
             s3Object.getObjectMetadata().setContentLength(data.length);
             s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(data), new HttpGet()));
-            return new S3RetryingInputStream(OperationPurpose.SNAPSHOT, blobStore, "_blob");
+            return new S3RetryingInputStream(randomPurpose(), blobStore, "_blob");
         }
     }
 }

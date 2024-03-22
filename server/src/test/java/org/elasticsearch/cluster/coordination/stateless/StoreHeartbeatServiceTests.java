@@ -62,7 +62,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
-        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
+        PlainActionFuture<Long> completionListener = new PlainActionFuture<>();
         final var currentLeader = DiscoveryNodeUtils.create("master");
         heartbeatService.start(currentLeader, currentTermProvider.get(), completionListener);
 
@@ -125,7 +125,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
-        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
+        PlainActionFuture<Long> completionListener = new PlainActionFuture<>();
         final var currentLeader = DiscoveryNodeUtils.create("master");
 
         final boolean failFirstHeartBeat = randomBoolean();
@@ -167,7 +167,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             listener -> listener.onResponse(OptionalLong.of(currentTermProvider.get()))
         );
 
-        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
+        PlainActionFuture<Long> completionListener = new PlainActionFuture<>();
         final var currentLeader = DiscoveryNodeUtils.create("master");
 
         final long currentTerm = currentTermProvider.get();
@@ -233,7 +233,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             assertThat(heartbeat, is(nullValue()));
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
+            heartbeatService.checkLeaderHeartbeatAndRun(() -> noRecentLeaderFound.set(true), hb -> {});
             assertThat(noRecentLeaderFound.get(), is(true));
         }
 
@@ -242,7 +242,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
+            heartbeatService.checkLeaderHeartbeatAndRun(() -> noRecentLeaderFound.set(true), hb -> {});
             assertThat(noRecentLeaderFound.get(), is(false));
         }
 
@@ -252,7 +252,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
+            heartbeatService.checkLeaderHeartbeatAndRun(() -> noRecentLeaderFound.set(true), hb -> {});
             assertThat(noRecentLeaderFound.get(), is(true));
         }
 
@@ -273,7 +273,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
                 )
             );
             try (var ignored = mockAppender.capturing(StoreHeartbeatService.class)) {
-                heartbeatService.runIfNoRecentLeader(() -> fail("should not be called"));
+                heartbeatService.checkLeaderHeartbeatAndRun(() -> fail("should not be called"), hb -> {});
                 mockAppender.assertAllExpectationsMatched();
             }
         }
@@ -300,7 +300,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             }
         };
 
-        PlainActionFuture<Long> completionListener = PlainActionFuture.newFuture();
+        PlainActionFuture<Long> completionListener = new PlainActionFuture<>();
         heartbeatService.start(currentLeader, 1, completionListener);
 
         var retryTask = threadPool.scheduledTasks.poll();

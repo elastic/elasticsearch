@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -39,7 +40,7 @@ public class RefreshBlocksIT extends ESIntegTestCase {
         )) {
             try {
                 enableIndexBlock("test", blockSetting);
-                RefreshResponse response = indicesAdmin().prepareRefresh("test").execute().actionGet();
+                BroadcastResponse response = indicesAdmin().prepareRefresh("test").get();
                 assertNoFailures(response);
                 assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {

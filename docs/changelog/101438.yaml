@@ -1,6 +1,0 @@
-pr: 101438
-summary: "ESQL: Fix eval of functions on foldable literals"
-area: ES|QL
-type: bug
-issues:
- - 101425

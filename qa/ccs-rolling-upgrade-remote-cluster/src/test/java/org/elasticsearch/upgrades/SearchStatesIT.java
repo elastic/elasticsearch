@@ -19,6 +19,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -174,9 +175,13 @@ public class SearchStatesIT extends ESRestTestCase {
                     response.getEntity().getContent()
                 )
             ) {
-                SearchResponse searchResponse = SearchResponse.fromXContent(parser);
-                ElasticsearchAssertions.assertNoFailures(searchResponse);
-                ElasticsearchAssertions.assertHitCount(searchResponse, expectedDocs);
+                SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(parser);
+                try {
+                    ElasticsearchAssertions.assertNoFailures(searchResponse);
+                    ElasticsearchAssertions.assertHitCount(searchResponse, expectedDocs);
+                } finally {
+                    searchResponse.decRef();
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

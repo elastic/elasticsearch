@@ -34,9 +34,9 @@ end::troubleshooting-network-timeouts-packet-capture-fault-detection[]
 
 tag::troubleshooting-network-timeouts-threads[]
 * Long waits for particular threads to be available can be identified by taking
-stack dumps (for example, using `jstack`) or a profiling trace (for example,
-using Java Flight Recorder) in the few seconds leading up to the relevant log
-message.
+stack dumps of the main {es} process (for example, using `jstack`) or a
+profiling trace (for example, using Java Flight Recorder) in the few seconds
+leading up to the relevant log message.
 +
 The <<cluster-nodes-hot-threads>> API sometimes yields useful information, but
 bear in mind that this API also requires a number of `transport_worker` and

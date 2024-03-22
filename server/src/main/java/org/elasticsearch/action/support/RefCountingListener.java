@@ -10,13 +10,13 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 /**
  * A mechanism to complete a listener on the completion of some (dynamic) collection of other actions. Basic usage is as follows:
@@ -176,7 +176,7 @@ public final class RefCountingListener implements Releasable {
      * It is also invalid to complete the returned listener more than once. Doing so will trip an assertion if assertions are enabled, but
      * will be ignored otherwise.
      */
-    public <Response> ActionListener<Response> acquire(Consumer<Response> consumer) {
+    public <Response> ActionListener<Response> acquire(CheckedConsumer<Response, Exception> consumer) {
         final var ref = refs.acquire();
         final var consumerRef = new AtomicReference<>(Objects.requireNonNull(consumer));
         return new ActionListener<>() {
@@ -187,10 +187,12 @@ public final class RefCountingListener implements Releasable {
                     if (acquiredConsumer == null) {
                         assert false : "already closed";
                     } else {
-                        acquiredConsumer.accept(response);
+                        try {
+                            acquiredConsumer.accept(response);
+                        } catch (Exception e) {
+                            addException(e);
+                        }
                     }
-                } catch (Exception e) {
-                    addException(e);
                 }
             }
 

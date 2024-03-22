@@ -79,6 +79,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
@@ -96,6 +97,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             valuesSourceConfig,
@@ -115,6 +117,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             extendedBounds,
             hardBounds,
             valuesSourceConfig,
@@ -133,6 +136,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
@@ -191,6 +195,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             minDocCount,
             extendedBounds,
             keyed,
+            downsampledResultsOffset,
             fixedRoundingPoints
         );
     }
@@ -227,6 +232,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     private final boolean keyed;
 
     private final long minDocCount;
+    private final boolean downsampledResultsOffset;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
 
@@ -240,6 +246,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
@@ -255,6 +262,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
+        this.downsampledResultsOffset = downsampledResultsOffset;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         // TODO: Stop using null here
@@ -328,6 +336,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 emptyBucketInfo,
                 formatter,
                 keyed,
+                downsampledResultsOffset,
                 metadata()
             );
         });
@@ -347,6 +356,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             emptyBucketInfo,
             formatter,
             keyed,
+            downsampledResultsOffset,
             metadata()
         );
     }
@@ -392,6 +402,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         private final long minDocCount;
         private final LongBounds extendedBounds;
         private final boolean keyed;
+        private final boolean downsampledResultsOffset;
         private final long[] fixedRoundingPoints;
 
         FromDateRange(
@@ -405,6 +416,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             long minDocCount,
             LongBounds extendedBounds,
             boolean keyed,
+            boolean downsampledResultsOffset,
             long[] fixedRoundingPoints
         ) throws IOException {
             super(parent, subAggregators, delegate);
@@ -416,6 +428,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             this.minDocCount = minDocCount;
             this.extendedBounds = extendedBounds;
             this.keyed = keyed;
+            this.downsampledResultsOffset = downsampledResultsOffset;
             this.fixedRoundingPoints = fixedRoundingPoints;
         }
 
@@ -454,6 +467,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                 emptyBucketInfo,
                 format,
                 keyed,
+                downsampledResultsOffset,
                 range.getMetadata()
             );
         }

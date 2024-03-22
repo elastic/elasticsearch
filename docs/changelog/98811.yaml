@@ -1,5 +1,0 @@
-pr: 98811
-summary: Allow explain data stream lifecycle to accept a data stream
-area: Data streams
-type: enhancement
-issues: []

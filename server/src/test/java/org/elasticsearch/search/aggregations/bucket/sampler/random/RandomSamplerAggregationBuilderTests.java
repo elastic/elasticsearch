@@ -19,6 +19,9 @@ public class RandomSamplerAggregationBuilderTests extends BaseAggregationTestCas
         if (randomBoolean()) {
             builder.setSeed(randomInt());
         }
+        if (randomBoolean()) {
+            builder.setShardSeed(randomInt());
+        }
         builder.setProbability(randomFrom(1.0, randomDoubleBetween(0.0, 0.5, false)));
         builder.subAggregation(AggregationBuilders.max(randomAlphaOfLength(10)).field(randomAlphaOfLength(10)));
         return builder;

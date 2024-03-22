@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -81,7 +82,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(r -> listener.onResponse(r.getHits().getTotalHits().value > 0L), listener::onFailure)
         );
@@ -109,7 +110,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
      * @return function aligning the given timestamp with date histogram interval
      */
     private static Function<Long, Long> createAlignTimestampFunction(TransformConfig transformConfig) {
-        if (Boolean.FALSE.equals(transformConfig.getSettings().getAlignCheckpoints())) {
+        if (TransformEffectiveSettings.isAlignCheckpointsDisabled(transformConfig.getSettings())) {
             return identity();
         }
         // In case of transforms created before aligning timestamp optimization was introduced we assume the default was "false".

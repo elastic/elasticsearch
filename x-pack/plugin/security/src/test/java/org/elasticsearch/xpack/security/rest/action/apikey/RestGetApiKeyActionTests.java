@@ -22,6 +22,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,7 +44,8 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomCrossClusterAccessRoleDescriptor;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
-import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -60,7 +62,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             .put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
     }
 
     @Override
@@ -113,8 +115,10 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     creation,
                     expiration,
                     false,
+                    null,
                     "user-x",
                     "realm-1",
+                    "realm-type-1",
                     metadata,
                     roleDescriptors,
                     limitedByRoleDescriptors
@@ -122,7 +126,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             )
         );
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -141,7 +145,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     || getApiKeyRequest.getRealmName() != null && getApiKeyRequest.getRealmName().equals("realm-1")
                     || getApiKeyRequest.getUserName() != null && getApiKeyRequest.getUserName().equals("user-x")) {
                     if (replyEmptyResponse) {
-                        listener.onResponse((Response) GetApiKeyResponse.emptyResponse());
+                        listener.onResponse((Response) GetApiKeyResponse.EMPTY);
                     } else {
                         listener.onResponse((Response) getApiKeyResponseExpected);
                     }
@@ -149,26 +153,22 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     listener.onFailure(new ElasticsearchSecurityException("encountered an error while creating API key"));
                 }
             }
-        }) {
-            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
+        };
+        final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
 
-            restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
+        restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(restResponse.status(), (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK));
+        final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
+        if (replyEmptyResponse) {
+            assertThat(actual.getApiKeyInfoList(), emptyIterable());
+        } else {
             assertThat(
-                restResponse.status(),
-                (replyEmptyResponse && params.get("id") != null) ? is(RestStatus.NOT_FOUND) : is(RestStatus.OK)
-            );
-            final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(
-                createParser(XContentType.JSON.xContent(), restResponse.content())
-            );
-            if (replyEmptyResponse) {
-                assertThat(actual.getApiKeyInfos().length, is(0));
-            } else {
-                assertThat(
-                    actual.getApiKeyInfos(),
-                    arrayContaining(
+                actual.getApiKeyInfoList(),
+                contains(
+                    new GetApiKeyResponse.Item(
                         new ApiKey(
                             "api-key-name-1",
                             "api-key-id-1",
@@ -176,17 +176,18 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                             creation,
                             expiration,
                             false,
+                            null,
                             "user-x",
                             "realm-1",
+                            "realm-type-1",
                             metadata,
                             roleDescriptors,
                             limitedByRoleDescriptors
                         )
                     )
-                );
-            }
+                )
+            );
         }
-
     }
 
     public void testGetApiKeyOwnedByCurrentAuthenticatedUser() throws Exception {
@@ -227,8 +228,10 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             creation,
             expiration,
             false,
+            null,
             "user-x",
             "realm-1",
+            "realm-type-1",
             ApiKeyTests.randomMetadata(),
             type == ApiKey.Type.CROSS_CLUSTER
                 ? List.of(randomCrossClusterAccessRoleDescriptor())
@@ -242,8 +245,10 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             creation,
             expiration,
             false,
+            null,
             "user-y",
             "realm-1",
+            "realm-type-1",
             ApiKeyTests.randomMetadata(),
             type == ApiKey.Type.CROSS_CLUSTER
                 ? List.of(randomCrossClusterAccessRoleDescriptor())
@@ -253,7 +258,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsTrue = new GetApiKeyResponse(Collections.singletonList(apiKey1));
         final GetApiKeyResponse getApiKeyResponseExpectedWhenOwnerFlagIsFalse = new GetApiKeyResponse(List.of(apiKey1, apiKey2));
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -274,24 +279,19 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                     listener.onResponse((Response) getApiKeyResponseExpectedWhenOwnerFlagIsFalse);
                 }
             }
-        }) {
-            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
+        };
+        final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
 
-            restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
+        restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
-            assertThat(restResponse.status(), is(RestStatus.OK));
-            final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(
-                createParser(XContentType.JSON.xContent(), restResponse.content())
-            );
-            if (isGetRequestForOwnedKeysOnly) {
-                assertThat(actual.getApiKeyInfos().length, is(1));
-                assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1));
-            } else {
-                assertThat(actual.getApiKeyInfos().length, is(2));
-                assertThat(actual.getApiKeyInfos(), arrayContaining(apiKey1, apiKey2));
-            }
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(restResponse.status(), is(RestStatus.OK));
+        final GetApiKeyResponse actual = GetApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content()));
+        if (isGetRequestForOwnedKeysOnly) {
+            assertThat(actual.getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(), contains(apiKey1));
+        } else {
+            assertThat(actual.getApiKeyInfoList().stream().map(GetApiKeyResponse.Item::apiKeyInfo).toList(), contains(apiKey1, apiKey2));
         }
     }
 }

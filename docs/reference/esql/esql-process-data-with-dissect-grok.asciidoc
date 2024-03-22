@@ -62,7 +62,7 @@ clientip:keyword | @timestamp:keyword | status:keyword
 
 include::../ingest/processors/dissect.asciidoc[tag=intro-example-explanation]
 
-An empty key `%{}` or a <<esql-named-skip-key,named skip key>> can be used to
+An empty key (`%{}`) or <<esql-named-skip-key,named skip key>> can be used to
 match values, but exclude the value from the output.
 
 All matched values are output as keyword string data types. Use the
@@ -120,28 +120,81 @@ include::../ingest/processors/dissect.asciidoc[tag=dissect-key-modifiers]
 | `+`           | Append             | left           | `%{+keyname} %{+keyname}`    | Appends two or more fields together                          | <<esql-append-modifier,link>>
 | `+` with `/n` | Append with order  | left and right | `%{+keyname/2} %{+keyname/1}` | Appends two or more fields together in the order specified   | <<esql-append-order-modifier,link>>
 | `?`           | Named skip key     | left           | `%{?ignoreme}`  | Skips the matched value in the output. Same behavior as `%{}`| <<esql-named-skip-key,link>>
-| `*` and `&`   | Reference keys     | left           | `%{*r1} %{&r1}`    | Sets the output key as value of `*` and output value of `&`  | <<esql-reference-keys,link>>
 |======
 
 [[esql-dissect-modifier-skip-right-padding]]
 ====== Right padding modifier (`->`)
 include::../ingest/processors/dissect.asciidoc[tag=dissect-modifier-skip-right-padding]
 
+For example:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectRightPaddingModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectRightPaddingModifier-result]
+|===
+
+include::../ingest/processors/dissect.asciidoc[tag=dissect-modifier-empty-right-padding]
+
+For example:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectEmptyRightPaddingModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectEmptyRightPaddingModifier-result]
+|===
+
 [[esql-append-modifier]]
 ====== Append modifier (`+`)
 include::../ingest/processors/dissect.asciidoc[tag=append-modifier]
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendModifier-result]
+|===
 
 [[esql-append-order-modifier]]
 ====== Append with order modifier (`+` and `/n`)
 include::../ingest/processors/dissect.asciidoc[tag=append-order-modifier]
 
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendWithOrderModifier]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectAppendWithOrderModifier-result]
+|===
+
 [[esql-named-skip-key]]
 ====== Named skip key (`?`)
 include::../ingest/processors/dissect.asciidoc[tag=named-skip-key]
+This can be done with a named skip key using the `{?name}` syntax. In the
+following query, `ident` and `auth` are not added to the output table:
 
-[[esql-reference-keys]]
-====== Reference keys (`*` and `&`)
-include::../ingest/processors/dissect.asciidoc[tag=reference-keys]
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectNamedSkipKey]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectNamedSkipKey-result]
+|===
+
+[[esql-dissect-limitations]]
+===== Limitations
+
+// tag::dissect-limitations[]
+The `DISSECT` command does not support reference keys.
+// end::dissect-limitations[]
 
 [[esql-process-data-with-grok]]
 ==== Process data with `GROK`
@@ -161,13 +214,39 @@ matches a log line of this format:
 1.2.3.4 [2023-01-23T12:15:00.000Z] Connected
 ----
 
-and results in adding the following columns to the input table:
+Putting it together as an {esql} query:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
+----
+
+`GROK` adds the following columns to the input table:
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 @timestamp:keyword | ip:keyword | status:keyword
 2023-01-23T12:15:00.000Z | 1.2.3.4 | Connected
 |===
+
+[NOTE]
+====
+
+Special regex characters in grok patterns, like `[` and `]` need to be escaped
+with a `\`. For example, in the earlier pattern:
+[source,txt]
+----
+%{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}
+----
+
+In {esql} queries, the backslash character itself is a special character that
+needs to be escaped with another `\`. For this example, the corresponding {esql}
+query becomes:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
+----
+====
 
 [[esql-grok-patterns]]
 ===== Grok patterns
@@ -202,24 +281,6 @@ as well. Grok uses the Oniguruma regular expression library. Refer to
 https://github.com/kkos/oniguruma/blob/master/doc/RE[the Oniguruma GitHub
 repository] for the full supported regexp syntax.
 
-[NOTE]
-====
-Special regex characters like `[` and `]` need to be escaped with a `\`. For 
-example, in the earlier pattern:
-[source,txt]
-----
-%{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}
-----
-
-In {esql} queries, the backslash character itself is a special character that
-needs to be escaped with another `\`. For this example, the corresponding {esql}
-query becomes:
-[source.merge.styled,esql]
-----
-include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
-----
-====
-
 [[esql-custom-patterns]]
 ===== Custom patterns
 
@@ -253,6 +314,8 @@ as the `GROK` command.
 [[esql-grok-limitations]]
 ===== Limitations
 
+// tag::grok-limitations[]
 The `GROK` command does not support configuring <<custom-patterns,custom
 patterns>>, or <<trace-match,multiple patterns>>. The `GROK` command is not
 subject to <<grok-watchdog,Grok watchdog settings>>.
+// end::grok-limitations[]

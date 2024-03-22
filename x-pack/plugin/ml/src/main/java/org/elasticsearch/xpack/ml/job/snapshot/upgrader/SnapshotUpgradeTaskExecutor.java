@@ -329,6 +329,6 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             );
 
         });
-        jobResultsProvider.getModelSnapshot(jobId, snapshotId, modelSnapshotListener::onResponse, modelSnapshotListener::onFailure);
+        jobResultsProvider.getModelSnapshot(jobId, snapshotId, false, modelSnapshotListener::onResponse, modelSnapshotListener::onFailure);
     }
 }

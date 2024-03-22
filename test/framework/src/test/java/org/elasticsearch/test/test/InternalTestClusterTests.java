@@ -21,6 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.CloseableTestClusterWrapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
@@ -237,7 +238,7 @@ public class InternalTestClusterTests extends ESTestCase {
             cluster0.afterTest();
             cluster1.afterTest();
         } finally {
-            IOUtils.close(cluster0, cluster1);
+            IOUtils.close(CloseableTestClusterWrapper.wrap(List.of(cluster0, cluster1)));
         }
     }
 

@@ -20,12 +20,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
  */
 public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
-    ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action) {
-        super(client, action, new ExplainRequest());
-    }
-
-    public ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action, String index, String id) {
-        super(client, action, new ExplainRequest().index(index).id(id));
+    public ExplainRequestBuilder(ElasticsearchClient client, String index, String id) {
+        super(client, TransportExplainAction.TYPE, new ExplainRequest().index(index).id(id));
     }
 
     /**

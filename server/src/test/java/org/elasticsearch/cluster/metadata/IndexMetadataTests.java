@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.OptimalShardCountCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
@@ -97,7 +98,8 @@ public class IndexMetadataTests extends ESTestCase {
                         new MaxDocsCondition(randomNonNegativeLong()),
                         new MaxSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
                         new MaxPrimaryShardSizeCondition(ByteSizeValue.ofBytes(randomNonNegativeLong())),
-                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
+                        new MaxPrimaryShardDocsCondition(randomNonNegativeLong()),
+                        new OptimalShardCountCondition(3)
                     ),
                     randomNonNegativeLong()
                 )
@@ -112,8 +114,10 @@ public class IndexMetadataTests extends ESTestCase {
         builder.startObject();
         IndexMetadata.FORMAT.toXContent(builder, metadata);
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        final IndexMetadata fromXContentMeta = IndexMetadata.fromXContent(parser);
+        final IndexMetadata fromXContentMeta;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            fromXContentMeta = IndexMetadata.fromXContent(parser);
+        }
         assertEquals(
             "expected: " + Strings.toString(metadata) + "\nactual  : " + Strings.toString(fromXContentMeta),
             metadata,
@@ -126,6 +130,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
         assertEquals(metadata.getCompatibilityVersion(), fromXContentMeta.getCompatibilityVersion());
         assertEquals(metadata.getRoutingNumShards(), fromXContentMeta.getRoutingNumShards());
+        assertEquals(metadata.getRolloverInfos(), fromXContentMeta.getRolloverInfos());
         assertEquals(metadata.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));

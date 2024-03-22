@@ -7,14 +7,15 @@
 package org.elasticsearch.xpack.ml.rest.cat;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -85,15 +85,23 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         statsRequest.setAllowNoResources(true);
         modelsAction.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), statsRequest.isAllowNoResources()));
 
-        return channel -> {
-            final ActionListener<Table> listener = ActionListener.notifyOnce(new RestResponseListener<>(channel) {
-                @Override
-                public RestResponse buildResponse(final Table table) throws Exception {
-                    return RestTable.buildResponse(table, channel);
-                }
-            });
+        return new RestChannelConsumer() {
+            @Override
+            public void accept(RestChannel channel) {
+                SubscribableListener.newForked(this::getTrainedModels).andThen(this::getDerivedData).addListener(newRestListener(channel));
+            }
 
-            client.execute(GetTrainedModelsAction.INSTANCE, modelsAction, ActionListener.wrap(trainedModels -> {
+            private List<GetTrainedModelsStatsAction.Response.TrainedModelStats> trainedModelsStats;
+            private List<DataFrameAnalyticsConfig> dataFrameAnalytics;
+
+            private void getTrainedModels(ActionListener<GetTrainedModelsAction.Response> listener) {
+                client.execute(GetTrainedModelsAction.INSTANCE, modelsAction, listener);
+            }
+
+            private void getDerivedData(
+                ActionListener<GetTrainedModelsAction.Response> listener,
+                GetTrainedModelsAction.Response trainedModels
+            ) {
                 final List<TrainedModelConfig> trainedModelConfigs = trainedModels.getResources().results();
 
                 Set<String> potentialAnalyticsIds = new HashSet<>();
@@ -105,28 +113,35 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
                 // Find the related DataFrameAnalyticsConfigs
                 String requestIdPattern = Strings.collectionToDelimitedString(potentialAnalyticsIds, "*,") + "*";
 
-                final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
-                    restRequest,
-                    2,
-                    trainedModels.getResources().results(),
-                    listener
-                );
+                try (var listeners = new RefCountingListener(listener.map(ignored -> trainedModels))) {
+                    client.execute(
+                        GetTrainedModelsStatsAction.INSTANCE,
+                        statsRequest,
+                        listeners.acquire(response -> trainedModelsStats = response.getResources().results())
+                    );
 
-                client.execute(
-                    GetTrainedModelsStatsAction.INSTANCE,
-                    statsRequest,
-                    ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                );
+                    final var dataFrameAnalyticsRequest = new GetDataFrameAnalyticsAction.Request(requestIdPattern);
+                    dataFrameAnalyticsRequest.setAllowNoResources(true);
+                    dataFrameAnalyticsRequest.setPageParams(new PageParams(0, potentialAnalyticsIds.size()));
+                    client.execute(
+                        GetDataFrameAnalyticsAction.INSTANCE,
+                        dataFrameAnalyticsRequest,
+                        listeners.acquire(response -> dataFrameAnalytics = response.getResources().results())
+                    );
+                }
+            }
 
-                GetDataFrameAnalyticsAction.Request dataFrameAnalyticsRequest = new GetDataFrameAnalyticsAction.Request(requestIdPattern);
-                dataFrameAnalyticsRequest.setAllowNoResources(true);
-                dataFrameAnalyticsRequest.setPageParams(new PageParams(0, potentialAnalyticsIds.size()));
-                client.execute(
-                    GetDataFrameAnalyticsAction.INSTANCE,
-                    dataFrameAnalyticsRequest,
-                    ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                );
-            }, listener::onFailure));
+            private ActionListener<GetTrainedModelsAction.Response> newRestListener(RestChannel channel) {
+                return new RestResponseListener<>(channel) {
+                    @Override
+                    public RestResponse buildResponse(final GetTrainedModelsAction.Response trainedModels) throws Exception {
+                        return RestTable.buildResponse(
+                            buildTable(restRequest, trainedModelsStats, trainedModels.getResources().results(), dataFrameAnalytics),
+                            channel
+                        );
+                    }
+                };
+            }
         };
     }
 
@@ -230,19 +245,6 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         return table;
     }
 
-    private GroupedActionListener<ActionResponse> createGroupedListener(
-        final RestRequest request,
-        final int size,
-        final List<TrainedModelConfig> configs,
-        final ActionListener<Table> listener
-    ) {
-        return new GroupedActionListener<>(size, listener.safeMap(responses -> {
-            GetTrainedModelsStatsAction.Response statsResponse = extractResponse(responses, GetTrainedModelsStatsAction.Response.class);
-            GetDataFrameAnalyticsAction.Response analytics = extractResponse(responses, GetDataFrameAnalyticsAction.Response.class);
-            return buildTable(request, statsResponse.getResources().results(), configs, analytics.getResources().results());
-        }));
-    }
-
     private Table buildTable(
         RestRequest request,
         List<GetTrainedModelsStatsAction.Response.TrainedModelStats> stats,
@@ -301,10 +303,5 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             table.endRow();
         });
         return table;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <A extends ActionResponse> A extractResponse(final Collection<? extends ActionResponse> responses, Class<A> c) {
-        return (A) responses.stream().filter(c::isInstance).findFirst().get();
     }
 }

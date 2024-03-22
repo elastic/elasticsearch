@@ -12,13 +12,13 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
@@ -29,8 +29,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -157,10 +157,11 @@ public class Querier {
             .keepAlive(cfg.pageTimeout());
 
         client.execute(
-            OpenPointInTimeAction.INSTANCE,
+            TransportOpenPointInTimeAction.TYPE,
             openPitRequest,
             listener.delegateFailureAndWrap((delegate, openPointInTimeResponse) -> {
                 String pitId = openPointInTimeResponse.getPointInTimeId();
+                search.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
                 search.indices(Strings.EMPTY_ARRAY);
                 search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
                 ActionListener<SearchResponse> closePitOnErrorListener = wrap(searchResponse -> {
@@ -188,7 +189,7 @@ public class Querier {
             client = client instanceof ParentTaskAssigningClient wrapperClient ? wrapperClient.unwrap() : client;
 
             client.execute(
-                ClosePointInTimeAction.INSTANCE,
+                TransportClosePointInTimeAction.TYPE,
                 new ClosePointInTimeRequest(pointInTimeId),
                 listener.delegateFailureAndWrap((l, clearPointInTimeResponse) -> l.onResponse(clearPointInTimeResponse.isSucceeded()))
             );
@@ -201,18 +202,19 @@ public class Querier {
         source.timeout(cfg.requestTimeout());
 
         SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
-        searchRequest.indices(indices);
+        if (source.pointInTimeBuilder() == null) {
+            searchRequest.indices(indices);
+            searchRequest.indicesOptions(
+                includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
+            );
+        }
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(cfg.allowPartialSearchResults());
-        searchRequest.indicesOptions(
-            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
-        );
-
         return searchRequest;
     }
 
     protected static void logSearchResponse(SearchResponse response, Logger logger) {
-        List<Aggregation> aggs = Collections.emptyList();
+        List<InternalAggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
             aggs = response.getAggregations().asList();
         }
@@ -380,7 +382,7 @@ public class Querier {
             }
 
             @Override
-            public Aggregations getAggregations() {
+            public InternalAggregations getAggregations() {
                 throw new SqlIllegalArgumentException("No group-by/aggs defined");
             }
         });
@@ -402,9 +404,9 @@ public class Querier {
                 logSearchResponse(response, log);
             }
 
-            Aggregations aggs = response.getAggregations();
+            InternalAggregations aggs = response.getAggregations();
             if (aggs != null) {
-                Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
+                InternalAggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
                 if (agg instanceof Filters filters) {
                     handleBuckets(filters.getBuckets(), response);
                 } else {

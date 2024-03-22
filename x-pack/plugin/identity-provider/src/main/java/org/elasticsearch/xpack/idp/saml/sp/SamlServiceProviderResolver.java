@@ -39,13 +39,13 @@ public class SamlServiceProviderResolver {
      *                 service provider does not exist.
      */
     public void resolve(String entityId, ActionListener<SamlServiceProvider> listener) {
-        index.findByEntityId(entityId, ActionListener.wrap(documentSuppliers -> {
+        index.findByEntityId(entityId, listener.delegateFailureAndWrap((delegate, documentSuppliers) -> {
             if (documentSuppliers.isEmpty()) {
-                listener.onResponse(null);
+                delegate.onResponse(null);
                 return;
             }
             if (documentSuppliers.size() > 1) {
-                listener.onFailure(
+                delegate.onFailure(
                     new IllegalStateException(
                         "Found multiple service providers with entity ID ["
                             + entityId
@@ -61,11 +61,11 @@ public class SamlServiceProviderResolver {
             final DocumentSupplier doc = Iterables.get(documentSuppliers, 0);
             final CachedServiceProvider cached = cache.get(entityId);
             if (cached != null && cached.documentVersion.equals(doc.version)) {
-                listener.onResponse(cached.serviceProvider);
+                delegate.onResponse(cached.serviceProvider);
             } else {
-                populateCacheAndReturn(entityId, doc, listener);
+                populateCacheAndReturn(entityId, doc, delegate);
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void populateCacheAndReturn(String entityId, DocumentSupplier doc, ActionListener<SamlServiceProvider> listener) {

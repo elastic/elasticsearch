@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -31,7 +30,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
@@ -129,15 +127,15 @@ class ModelImporter {
     }
 
     private void uploadVocabulary() throws URISyntaxException {
-        Tuple<List<String>, List<String>> vocabularyAndMerges = ModelLoaderUtils.loadVocabulary(
+        ModelLoaderUtils.VocabularyParts vocabularyParts = ModelLoaderUtils.loadVocabulary(
             ModelLoaderUtils.resolvePackageLocation(config.getModelRepository(), config.getVocabularyFile())
         );
 
         PutTrainedModelVocabularyAction.Request request = new PutTrainedModelVocabularyAction.Request(
             modelId,
-            vocabularyAndMerges.v1(),
-            vocabularyAndMerges.v2(),
-            List.of(),
+            vocabularyParts.vocab(),
+            vocabularyParts.merges(),
+            vocabularyParts.scores(),
             true
         );
 

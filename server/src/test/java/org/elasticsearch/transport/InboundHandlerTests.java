@@ -137,9 +137,9 @@ public class InboundHandlerTests extends ESTestCase {
         AtomicReference<Exception> exceptionCaptor = new AtomicReference<>();
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
 
-        long requestId = responseHandlers.add(new Transport.ResponseContext<>(new TransportResponseHandler<TestResponse>() {
+        long requestId = responseHandlers.add(new TransportResponseHandler<TestResponse>() {
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -157,7 +157,7 @@ public class InboundHandlerTests extends ESTestCase {
             public TestResponse read(StreamInput in) throws IOException {
                 return new TestResponse(in);
             }
-        }, null, action));
+        }, null, action).requestId();
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
             action,
             TestRequest::new,
@@ -198,7 +198,6 @@ public class InboundHandlerTests extends ESTestCase {
 
         TransportChannel transportChannel = channelCaptor.get();
         assertEquals(TransportVersion.current(), transportChannel.getVersion());
-        assertEquals("transport", transportChannel.getChannelType());
         assertEquals(requestValue, requestCaptor.get().value);
 
         String responseValue = randomAlphaOfLength(10);

@@ -43,4 +43,8 @@ public record HttpResult(HttpResponse response, byte[] body) {
         Objects.requireNonNull(response);
         Objects.requireNonNull(body);
     }
+
+    public boolean isBodyEmpty() {
+        return body().length == 0;
+    }
 }

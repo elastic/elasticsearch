@@ -21,6 +21,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -68,7 +69,8 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
 
     @Override
     protected final boolean supportsType(DataType type) {
-        if (type == DataTypes.BOOLEAN) {
+        // Boolean and Spatial types do not support inequality operators
+        if (type == DataTypes.BOOLEAN || isSpatial(type)) {
             return isEquality();
         }
         return EsqlDataTypes.isRepresentable(type);
@@ -92,7 +94,8 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
                 equalTo(
                     String.format(
                         Locale.ROOT,
-                        "first argument of [%s %s] must be [numeric, keyword, text, ip, datetime or version], found value [] type [%s]",
+                        "first argument of [%s %s] must be [numeric, keyword, text, ip, datetime, version, geo_point, "
+                            + "geo_shape, cartesian_point or cartesian_shape], found value [] type [%s]",
                         lhsType.typeName(),
                         rhsType.typeName(),
                         lhsType.typeName()

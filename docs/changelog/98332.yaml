@@ -1,6 +1,0 @@
-pr: 98332
-summary: Correct behaviour of `ContentPath::remove()`
-area: Mapping
-type: bug
-issues:
- - 98327

@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -30,6 +31,7 @@ import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -379,7 +381,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         createReviewsTransform(transformId, null, null, config);
     }
 
-    private void createReviewsTransform(String transformId, String authHeader, String secondaryAuthHeader, String config)
+    protected void createReviewsTransform(String transformId, String authHeader, String secondaryAuthHeader, String config)
         throws IOException {
         final Request createTransformRequest = createRequestWithSecondaryAuth(
             "PUT",
@@ -398,13 +400,16 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         createPivotReviewsTransform(transformId, transformIndex, query, pipeline, null, null, authHeader, null, REVIEWS_INDEX_NAME);
     }
 
-    protected void updateTransform(String transformId, String update) throws IOException {
+    protected void updateTransform(String transformId, String update, boolean deferValidation) throws IOException {
         final Request updateTransformRequest = createRequestWithSecondaryAuth(
             "POST",
             getTransformEndpoint() + transformId + "/_update",
             null,
             null
         );
+        if (deferValidation) {
+            updateTransformRequest.addParameter("defer_validation", String.valueOf(deferValidation));
+        }
         updateTransformRequest.setJsonEntity(update);
 
         client().performRequest(updateTransformRequest);
@@ -618,7 +623,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected static void deleteTransform(String transformId, boolean ignoreNotFound, boolean deleteDestIndex) throws IOException {
         Request request = new Request("DELETE", getTransformEndpoint() + transformId);
         if (ignoreNotFound) {
-            request.addParameter("ignore", "404");
+            setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
         }
         if (deleteDestIndex) {
             request.addParameter(TransformField.DELETE_DEST_INDEX.getPreferredName(), Boolean.TRUE.toString());
@@ -729,5 +734,27 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                 throw new AssertionError("Failed to retrieve audit logs", e);
             }
         }, 5, TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected List<String> getTransformTasks() throws IOException {
+        final Request tasksRequest = new Request("GET", "/_tasks");
+        tasksRequest.addParameter("actions", TransformField.TASK_NAME + "*");
+        Map<String, Object> tasksResponse = entityAsMap(client().performRequest(tasksRequest));
+
+        Map<String, Object> nodes = (Map<String, Object>) tasksResponse.get("nodes");
+        if (nodes == null) {
+            return List.of();
+        }
+
+        List<String> foundTasks = new ArrayList<>();
+        for (Map.Entry<String, Object> node : nodes.entrySet()) {
+            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
+            Map<String, Object> tasks = (Map<String, Object>) nodeInfo.get("tasks");
+            if (tasks != null) {
+                foundTasks.addAll(tasks.keySet());
+            }
+        }
+        return foundTasks;
     }
 }

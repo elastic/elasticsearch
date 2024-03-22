@@ -22,7 +22,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils;
 
 import java.util.Map;
@@ -75,7 +75,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             }""";
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            PutLifecycleAction.Request request = PutLifecycleAction.Request.parseRequest("my_timeseries_lifecycle2", parser);
+            PutLifecycleRequest request = PutLifecycleRequest.parseRequest("my_timeseries_lifecycle2", parser);
 
             assertThat(putAction.modifiedKeys(request), containsInAnyOrder("my_timeseries_lifecycle2"));
         }

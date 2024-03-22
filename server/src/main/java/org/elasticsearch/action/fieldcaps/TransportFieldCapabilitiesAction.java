@@ -12,12 +12,13 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,6 +40,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
@@ -63,7 +66,13 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
-    public static final String ACTION_NODE_NAME = FieldCapabilitiesAction.NAME + "[n]";
+    public static final String NAME = "indices:data/read/field_caps";
+    public static final ActionType<FieldCapabilitiesResponse> TYPE = new ActionType<>(NAME);
+    public static final RemoteClusterActionType<FieldCapabilitiesResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        FieldCapabilitiesResponse::new
+    );
+    public static final String ACTION_NODE_NAME = NAME + "[n]";
     public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
     private final ThreadPool threadPool;
@@ -84,14 +93,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         IndicesService indicesService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(
-            FieldCapabilitiesAction.NAME,
-            transportService,
-            actionFilters,
-            FieldCapabilitiesRequest::new,
-            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
-        );
+        // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;
@@ -160,7 +163,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), curr.getIndexMappingHash(), curr.get(), true);
                 }
             }
-            indexResponses.putIfAbsent(resp.getIndexName(), resp);
+            if (request.includeEmptyFields()) {
+                indexResponses.putIfAbsent(resp.getIndexName(), resp);
+            } else {
+                indexResponses.merge(resp.getIndexName(), resp, (a, b) -> {
+                    if (a.get().equals(b.get())) {
+                        return a;
+                    }
+                    Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
+                    mergedCaps.putAll(b.get());
+                    return new FieldCapabilitiesIndexResponse(a.getIndexName(), a.getIndexMappingHash(), mergedCaps, true);
+                });
+            }
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();
             }
@@ -210,8 +224,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
-                Client remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(threadPool, clusterAlias, searchCoordinationExecutor);
+                var remoteClusterClient = transportService.getRemoteClusterService()
+                    .getRemoteClusterClient(
+                        clusterAlias,
+                        searchCoordinationExecutor,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    );
                 FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
@@ -231,7 +249,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                     }
                 });
-                remoteClusterClient.fieldCaps(remoteRequest, ActionListener.releaseAfter(remoteListener, refs.acquire()));
+                remoteClusterClient.execute(
+                    TransportFieldCapabilitiesAction.REMOTE_TYPE,
+                    remoteRequest,
+                    ActionListener.releaseAfter(remoteListener, refs.acquire())
+                );
             }
         }
     }
@@ -283,6 +305,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
+        remoteRequest.includeEmptyFields(request.includeEmptyFields());
         return remoteRequest;
     }
 
@@ -508,7 +531,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
                 final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
@@ -526,10 +549,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 request.runtimeFields()
                             );
                             if (response.canMatch()) {
-                                unmatched.clear();
-                                failures.clear();
                                 allResponses.add(response);
-                                break;
+                                if (request.includeEmptyFields()) {
+                                    unmatched.clear();
+                                    failures.clear();
+                                    break;
+                                }
                             } else {
                                 unmatched.add(shardId);
                             }

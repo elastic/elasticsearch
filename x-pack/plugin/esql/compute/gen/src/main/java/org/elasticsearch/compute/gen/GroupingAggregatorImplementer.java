@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
@@ -36,6 +35,7 @@ import static org.elasticsearch.compute.gen.AggregatorImplementer.valueVectorTyp
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
+import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
@@ -49,8 +49,6 @@ import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
-import static org.elasticsearch.compute.gen.Types.blockType;
-import static org.elasticsearch.compute.gen.Types.vectorType;
 
 /**
  * Implements "GroupingAggregationFunction" from a class containing static methods
@@ -72,7 +70,7 @@ public class GroupingAggregatorImplementer {
     private final boolean valuesIsBytesRef;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
-    private final List<IntermediateStateDesc> intermediateState;
+    private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
 
     public GroupingAggregatorImplementer(Elements elements, TypeElement declarationType, IntermediateState[] interStateAnno) {
         this.declarationType = declarationType;
@@ -91,17 +89,21 @@ public class GroupingAggregatorImplementer {
         this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.valuesIsBytesRef = BYTES_REF.equals(TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType()));
-        this.createParameters = init.getParameters().stream().map(Parameter::from).collect(Collectors.toList());
+        this.createParameters = init.getParameters()
+            .stream()
+            .map(Parameter::from)
+            .filter(f -> false == f.type().equals(BIG_ARRAYS))
+            .collect(Collectors.toList());
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
             (declarationType.getSimpleName() + "GroupingAggregatorFunction").replace("AggregatorGroupingAggregator", "GroupingAggregator")
         );
 
-        intermediateState = Arrays.stream(interStateAnno).map(state -> new IntermediateStateDesc(state.name(), state.type())).toList();
+        intermediateState = Arrays.stream(interStateAnno)
+            .map(AggregatorImplementer.IntermediateStateDesc::newIntermediateStateDesc)
+            .toList();
     }
-
-    record IntermediateStateDesc(String name, String elementType) {}
 
     public ClassName implementation() {
         return implementation;
@@ -146,8 +148,8 @@ public class GroupingAggregatorImplementer {
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
+        for (Parameter p : createParameters) {
+            builder.addField(p.type(), p.name(), Modifier.PRIVATE, Modifier.FINAL);
         }
 
         builder.addMethod(create());
@@ -176,24 +178,35 @@ public class GroupingAggregatorImplementer {
         for (Parameter p : createParameters) {
             builder.addParameter(p.type(), p.name());
         }
-        if (init.getParameters().isEmpty()) {
+        if (createParameters.isEmpty()) {
             builder.addStatement("return new $T(channels, $L, driverContext)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(channels, $L, driverContext, $L)", implementation, callInit(), initParameters());
+            builder.addStatement(
+                "return new $T(channels, $L, driverContext, $L)",
+                implementation,
+                callInit(),
+                createParameters.stream().map(p -> p.name()).collect(joining(", "))
+            );
         }
         return builder.build();
     }
 
-    private String initParameters() {
-        return init.getParameters().stream().map(p -> p.getSimpleName().toString()).collect(Collectors.joining(", "));
-    }
-
     private CodeBlock callInit() {
+        String initParametersCall = init.getParameters()
+            .stream()
+            .map(p -> TypeName.get(p.asType()).equals(BIG_ARRAYS) ? "driverContext.bigArrays()" : p.getSimpleName().toString())
+            .collect(joining(", "));
         CodeBlock.Builder builder = CodeBlock.builder();
         if (init.getReturnType().toString().equals(stateType.toString())) {
-            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParameters());
+            builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParametersCall);
         } else {
-            builder.add("new $T(driverContext.bigArrays(), $T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
+            builder.add(
+                "new $T(driverContext.bigArrays(), $T.$L($L))",
+                stateType,
+                declarationType,
+                init.getSimpleName(),
+                initParametersCall
+            );
         }
         return builder.build();
     }
@@ -220,9 +233,9 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("this.state = state");
         builder.addStatement("this.driverContext = driverContext");
 
-        for (VariableElement p : init.getParameters()) {
-            builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
-            builder.addStatement("this.$N = $N", p.getSimpleName(), p.getSimpleName());
+        for (Parameter p : createParameters) {
+            builder.addParameter(p.type(), p.name());
+            builder.addStatement("this.$N = $N", p.name(), p.name());
         }
         return builder.build();
     }
@@ -406,11 +419,7 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
         int count = 0;
         for (var interState : intermediateState) {
-            builder.addStatement(
-                "$T " + interState.name() + " = page.<$T>getBlock(channels.get(" + count + ")).asVector()",
-                vectorType(interState.elementType()),
-                blockType(interState.elementType())
-            );
+            interState.assignToVariable(builder, count);
             count++;
         }
         final String first = intermediateState.get(0).name();
@@ -418,13 +427,13 @@ public class GroupingAggregatorImplementer {
             builder.addStatement(
                 "assert "
                     + intermediateState.stream()
-                        .map(IntermediateStateDesc::name)
+                        .map(AggregatorImplementer.IntermediateStateDesc::name)
                         .skip(1)
                         .map(s -> first + ".getPositionCount() == " + s + ".getPositionCount()")
                         .collect(joining(" && "))
             );
         }
-        if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
+        if (intermediateState.stream().map(AggregatorImplementer.IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
             builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
         }
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
@@ -454,15 +463,11 @@ public class GroupingAggregatorImplementer {
     }
 
     String intermediateStateRowAccess() {
-        return intermediateState.stream().map(GroupingAggregatorImplementer::vectorAccess).collect(joining(", "));
-    }
-
-    static String vectorAccess(IntermediateStateDesc isd) {
-        String s = isd.name() + "." + vectorAccessorName(isd.elementType()) + "(groupPosition + positionOffset";
-        if (isd.elementType().equals("BYTES_REF")) {
-            s += ", scratch";
+        String rowAccess = intermediateState.stream().map(desc -> desc.access("groupPosition + positionOffset")).collect(joining(", "));
+        if (intermediateState.stream().anyMatch(AggregatorImplementer.IntermediateStateDesc::block)) {
+            rowAccess += ", groupPosition + positionOffset";
         }
-        return s + ")";
+        return rowAccess;
     }
 
     private void combineStates(MethodSpec.Builder builder) {

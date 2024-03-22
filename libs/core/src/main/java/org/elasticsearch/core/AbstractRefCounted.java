@@ -19,6 +19,7 @@ import java.util.Objects;
 public abstract class AbstractRefCounted implements RefCounted {
 
     public static final String ALREADY_CLOSED_MESSAGE = "already closed, can't increment ref count";
+    public static final String INVALID_DECREF_MESSAGE = "invalid decRef call: already closed";
 
     private static final VarHandle VH_REFCOUNT_FIELD;
 
@@ -63,7 +64,7 @@ public abstract class AbstractRefCounted implements RefCounted {
     public final boolean decRef() {
         touch();
         int i = (int) VH_REFCOUNT_FIELD.getAndAdd(this, -1);
-        assert i > 0 : "invalid decRef call: already closed";
+        assert i > 0 : INVALID_DECREF_MESSAGE;
         if (i == 1) {
             try {
                 closeInternal();

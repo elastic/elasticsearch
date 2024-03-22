@@ -76,3 +76,14 @@ emp_no:integer | first_name:keyword
 10010          |Duangkaew      
 10011          |Mary       
 ;
+
+docsGettingStartedWhere
+// tag::gs-where[]
+FROM sample_data
+| WHERE event_duration > 5000000
+// end::gs-where[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword
+;

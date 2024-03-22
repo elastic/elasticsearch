@@ -10,6 +10,7 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
@@ -178,16 +179,14 @@ public class SimpleFeatureFactory {
     }
 
     private static byte[] writeCommands(final int[] commands, final int type, final int length) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
+        try (BytesStreamOutput output = new BytesStreamOutput(); CountingStreamOutput counting = new CountingStreamOutput()) {
             for (int i = 0; i < length; i++) {
-                output.writeVInt(commands[i]);
+                counting.writeVInt(commands[i]);
             }
-            final int dataSize = output.size();
-            output.reset();
             output.writeVInt(24);
             output.writeVInt(type);
             output.writeVInt(34);
-            output.writeVInt(dataSize);
+            output.writeVInt(Math.toIntExact(counting.size()));
             for (int i = 0; i < length; i++) {
                 output.writeVInt(commands[i]);
             }

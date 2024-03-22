@@ -53,8 +53,10 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
             || restRequest.hasParam("ignore_throttled")) {
             indicesOptions = IndicesOptions.fromRequest(restRequest, SearchRequest.DEFAULT_INDICES_OPTIONS);
         }
-        XContentParser parser = restRequest.contentParser();
-        UpdateDatafeedAction.Request updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
+        UpdateDatafeedAction.Request updateDatafeedRequest;
+        try (XContentParser parser = restRequest.contentParser()) {
+            updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
+        }
         updateDatafeedRequest.timeout(restRequest.paramAsTime("timeout", updateDatafeedRequest.timeout()));
         updateDatafeedRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", updateDatafeedRequest.masterNodeTimeout()));
 

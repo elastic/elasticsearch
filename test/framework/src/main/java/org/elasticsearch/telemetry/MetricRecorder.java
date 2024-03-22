@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.telemetry.metric.Instrument;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,7 @@ public class MetricRecorder<I> {
     ) {
         void register(String name, String description, String unit, I instrument) {
             assert registered.containsKey(name) == false
-                : Strings.format("unexpected [{}]: [{}][{}], already registered[{}]", name, description, unit, registered.get(name));
+                : Strings.format("unexpected [%s]: [%s][%s], already registered[%s]", name, description, unit, registered.get(name));
             registered.put(name, new Registration(name, description, unit));
             instruments.put(name, instrument);
             if (instrument instanceof Runnable callback) {
@@ -48,7 +49,7 @@ public class MetricRecorder<I> {
         }
 
         void call(String name, Measurement call) {
-            assert registered.containsKey(name) : Strings.format("call for unregistered metric [{}]: [{}]", name, call);
+            assert registered.containsKey(name) : Strings.format("call for unregistered metric [%s]: [%s]", name, call);
             called.computeIfAbsent(Objects.requireNonNull(name), k -> new CopyOnWriteArrayList<>()).add(call);
         }
 
@@ -104,6 +105,12 @@ public class MetricRecorder<I> {
 
     public List<Measurement> getMeasurements(InstrumentType instrumentType, String name) {
         return metrics.get(instrumentType).called.getOrDefault(Objects.requireNonNull(name), Collections.emptyList());
+    }
+
+    public ArrayList<String> getRegisteredMetrics(InstrumentType instrumentType) {
+        ArrayList<String> registeredMetrics = new ArrayList<>();
+        metrics.get(instrumentType).instruments.forEach((name, registration) -> { registeredMetrics.add(name); });
+        return registeredMetrics;
     }
 
     /**

@@ -29,7 +29,7 @@ public class SeqNoPrimaryTermAndIndexTests extends ESTestCase {
     }
 
     public void testFromSearchHit() {
-        SearchHit searchHit = new SearchHit(1);
+        SearchHit searchHit = SearchHit.unpooled(1);
         long seqNo = randomLongBetween(-2, 10_000);
         long primaryTerm = randomLongBetween(-2, 10_000);
         String index = randomAlphaOfLength(10);

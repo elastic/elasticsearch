@@ -34,10 +34,11 @@ tasks.named("copyRestCompatTestTask").configure { task ->
     task.dependsOn(configurations.compatXpackTests);
     task.setXpackConfig(configurations.compatXpackTests);
     task.getIncludeXpack().set(List.of("license", "migration", "ml", "rollup", "sql", "ssl"));
-    task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/v${compatVersion}/yamlTests/original"));
+    def fileOperations = task.getFileOperations()
+    task.getOutputResourceDir().set(project.getLayout().getBuildDirectory().dir("restResources/v${compatVersion}/yamlTests/original"))
     task.setXpackConfigToFileTree(
-      config -> fileTree(
-        config.getSingleFile().toPath()
+      config -> fileOperations.fileTree(
+        config.getSingleFile()
       )
     )
   }

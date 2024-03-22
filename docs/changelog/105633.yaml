@@ -1,0 +1,6 @@
+pr: 105633
+summary: "[Connector API] Bugfix: support list type in filtering advenced snippet\
+  \ value"
+area: Application
+type: bug
+issues: []

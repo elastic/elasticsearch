@@ -5,6 +5,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -39,20 +40,18 @@ public final class AddLongsEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref lhsRef = lhs.eval(page)) {
-      LongBlock lhsBlock = (LongBlock) lhsRef.block();
-      try (Block.Ref rhsRef = rhs.eval(page)) {
-        LongBlock rhsBlock = (LongBlock) rhsRef.block();
+  public Block eval(Page page) {
+    try (LongBlock lhsBlock = (LongBlock) lhs.eval(page)) {
+      try (LongBlock rhsBlock = (LongBlock) rhs.eval(page)) {
         LongVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
         LongVector rhsVector = rhsBlock.asVector();
         if (rhsVector == null) {
-          return Block.Ref.floating(eval(page.getPositionCount(), lhsBlock, rhsBlock));
+          return eval(page.getPositionCount(), lhsBlock, rhsBlock);
         }
-        return Block.Ref.floating(eval(page.getPositionCount(), lhsVector, rhsVector));
+        return eval(page.getPositionCount(), lhsVector, rhsVector);
       }
     }
   }
@@ -60,11 +59,25 @@ public final class AddLongsEvaluator implements EvalOperator.ExpressionEvaluator
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
+        if (lhsBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (rhsBlock.isNull(p) || rhsBlock.getValueCount(p) != 1) {
+        if (lhsBlock.getValueCount(p) != 1) {
+          if (lhsBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (rhsBlock.getValueCount(p) != 1) {
+          if (rhsBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

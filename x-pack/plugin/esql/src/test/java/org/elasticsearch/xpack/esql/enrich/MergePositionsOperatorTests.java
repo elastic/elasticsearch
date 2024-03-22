@@ -8,9 +8,14 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -22,58 +27,79 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MergePositionsOperatorTests extends ESTestCase {
 
-    public void testSimple() {
+    public void testSimple() throws Exception {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
         MergePositionsOperator mergeOperator = new MergePositionsOperator(
             randomBoolean(),
             7,
             0,
             new int[] { 1, 2 },
-            new ElementType[] { ElementType.BYTES_REF, ElementType.INT }
+            new ElementType[] { ElementType.BYTES_REF, ElementType.INT },
+            blockFactory
         );
-        mergeOperator.addInput(
-            new Page(
-                new ConstantIntVector(1, 1).asBlock(),
-                BytesRefBlock.newBlockBuilder(1).appendBytesRef(new BytesRef("w0")).build(),
-                IntBlock.newBlockBuilder(1).appendNull().build()
-            )
-        );
-        mergeOperator.addInput(
-            new Page(
-                new ConstantIntVector(2, 1).asBlock(),
-                BytesRefBlock.newBlockBuilder(1)
-                    .beginPositionEntry()
+        {
+            final IntBlock b1 = blockFactory.newConstantIntBlockWith(1, 1);
+            final BytesRefBlock b2;
+            try (var builder = blockFactory.newBytesRefBlockBuilder(1)) {
+                b2 = builder.appendBytesRef(new BytesRef("w0")).build();
+            }
+            final IntBlock b3;
+            try (var builder = blockFactory.newIntBlockBuilder(1)) {
+                b3 = builder.appendNull().build();
+            }
+            mergeOperator.addInput(new Page(b1, b2, b3));
+        }
+        {
+            final IntBlock b1 = blockFactory.newConstantIntBlockWith(2, 1);
+            final BytesRefBlock b2;
+            try (var builder = blockFactory.newBytesRefBlockBuilder(1)) {
+                b2 = builder.beginPositionEntry()
                     .appendBytesRef(new BytesRef("a1"))
                     .appendBytesRef(new BytesRef("c1"))
                     .endPositionEntry()
-                    .build(),
-                IntBlock.newBlockBuilder(1).appendNull().build()
-            )
-        );
-        mergeOperator.addInput(
-            new Page(
-                new ConstantIntVector(3, 2).asBlock(),
-                BytesRefBlock.newBlockBuilder(1)
-                    .appendBytesRef(new BytesRef("f5"))
+                    .build();
+            }
+            final IntBlock b3;
+            try (var builder = blockFactory.newIntBlockBuilder(1)) {
+                b3 = builder.appendNull().build();
+            }
+            mergeOperator.addInput(new Page(b1, b2, b3));
+        }
+        {
+            final IntBlock b1 = blockFactory.newConstantIntBlockWith(3, 2);
+            final BytesRefBlock b2;
+            try (var builder = blockFactory.newBytesRefBlockBuilder(2)) {
+                b2 = builder.appendBytesRef(new BytesRef("f5"))
                     .beginPositionEntry()
                     .appendBytesRef(new BytesRef("k1"))
                     .appendBytesRef(new BytesRef("k2"))
                     .endPositionEntry()
-                    .build(),
-                IntBlock.newBlockBuilder(1).appendInt(2020).appendInt(2021).build()
-            )
-        );
-        mergeOperator.addInput(
-            new Page(
-                new ConstantIntVector(5, 1).asBlock(),
-                BytesRefBlock.newBlockBuilder(1)
-                    .beginPositionEntry()
+                    .build();
+            }
+            final IntBlock b3;
+            try (var builder = blockFactory.newIntBlockBuilder(2)) {
+                b3 = builder.appendInt(2020).appendInt(2021).build();
+            }
+            mergeOperator.addInput(new Page(b1, b2, b3));
+        }
+        {
+            final IntBlock b1 = blockFactory.newConstantIntBlockWith(5, 1);
+            final BytesRefBlock b2;
+            try (var builder = blockFactory.newBytesRefBlockBuilder(1)) {
+                b2 = builder.beginPositionEntry()
                     .appendBytesRef(new BytesRef("r2"))
                     .appendBytesRef(new BytesRef("k2"))
                     .endPositionEntry()
-                    .build(),
-                IntBlock.newBlockBuilder(1).appendInt(2023).build()
-            )
-        );
+                    .build();
+            }
+            final IntBlock b3;
+            try (var builder = blockFactory.newIntBlockBuilder(1)) {
+                b3 = builder.appendInt(2023).build();
+            }
+            mergeOperator.addInput(new Page(b1, b2, b3));
+        }
         mergeOperator.finish();
         Page out = mergeOperator.getOutput();
         assertTrue(mergeOperator.isFinished());
@@ -98,5 +124,8 @@ public class MergePositionsOperatorTests extends ESTestCase {
         assertTrue(f2.isNull(4));
         assertThat(BlockUtils.toJavaObject(f2, 5), equalTo(2023));
         assertTrue(f2.isNull(6));
+        mergeOperator.close();
+        out.releaseBlocks();
+        MockBigArrays.ensureAllArraysAreReleased();
     }
 }

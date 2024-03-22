@@ -56,11 +56,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
     }
 
     public void testIndex() {
-        DocWriteResponse index = client().prepareIndex("test")
-            .setId("1")
-            .setSource("foo", "bar")
-            .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-            .get();
+        DocWriteResponse index = prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(RestStatus.CREATED, index.status());
         assertFalse("request shouldn't have forced a refresh", index.forcedRefresh());
         assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
@@ -68,7 +64,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
     public void testDelete() throws InterruptedException, ExecutionException {
         // Index normally
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "bar"));
+        indexRandom(true, prepareIndex("test").setId("1").setSource("foo", "bar"));
         assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
 
         // Now delete with blockUntilRefresh
@@ -80,7 +76,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
     public void testUpdate() throws InterruptedException, ExecutionException {
         // Index normally
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "bar"));
+        indexRandom(true, prepareIndex("test").setId("1").setSource("foo", "bar"));
         assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
 
         // Update with RefreshPolicy.WAIT_UNTIL
@@ -115,7 +111,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
     public void testBulk() {
         // Index by bulk with RefreshPolicy.WAIT_UNTIL
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        bulk.add(client().prepareIndex("test").setId("1").setSource("foo", "bar"));
+        bulk.add(prepareIndex("test").setId("1").setSource("foo", "bar"));
         assertBulkSuccess(bulk.get());
         assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
 
@@ -143,16 +139,16 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
      */
     public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
         updateIndexSettings(Settings.builder().put("index.refresh_interval", -1), "test");
-        ActionFuture<DocWriteResponse> index = client().prepareIndex("test")
-            .setId("1")
+        ActionFuture<DocWriteResponse> index = prepareIndex("test").setId("1")
             .setSource("foo", "bar")
             .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
             .execute();
         while (false == index.isDone()) {
             indicesAdmin().prepareRefresh("test").get();
         }
-        assertEquals(RestStatus.CREATED, index.get().status());
-        assertFalse("request shouldn't have forced a refresh", index.get().forcedRefresh());
+        var response = index.get();
+        assertEquals(RestStatus.CREATED, response.status());
+        assertFalse("request shouldn't have forced a refresh", response.forcedRefresh());
         assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
     }
 

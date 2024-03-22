@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
@@ -109,11 +108,6 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
      */
     public AllocationCommands getCommands() {
         return commands;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

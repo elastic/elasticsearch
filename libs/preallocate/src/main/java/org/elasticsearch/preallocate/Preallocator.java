@@ -7,10 +7,21 @@
  */
 package org.elasticsearch.preallocate;
 
+import java.io.IOException;
+
 /**
  * Represents platform native methods for pre-allocating files.
  */
 interface Preallocator {
+
+    /** A handle for an open file */
+    interface NativeFileHandle extends AutoCloseable {
+        /** A valid native file descriptor */
+        int fd();
+
+        /** Retrieves the current size of the file */
+        long getSize() throws IOException;
+    }
 
     /**
      * Returns if native methods for pre-allocating files are available.
@@ -18,6 +29,14 @@ interface Preallocator {
      * @return true if native methods are available, otherwise false
      */
     boolean useNative();
+
+    /**
+     * Open a file for preallocation.
+     *
+     * @param path The absolute path to the file to be opened
+     * @return a handle to the open file that may be used for preallocate
+     */
+    NativeFileHandle open(String path) throws IOException;
 
     /**
      * Pre-allocate a file of given current size to the specified size using the given file descriptor.

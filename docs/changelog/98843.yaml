@@ -1,5 +1,0 @@
-pr: 98843
-summary: Fix UnsignedLong field range query gt "0" can get the result equal to 0
-area: Search
-type: bug
-issues: []

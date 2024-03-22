@@ -18,6 +18,7 @@ import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
@@ -282,6 +283,18 @@ public class Maps {
     }
 
     /**
+     * Returns a concurrent hash map with a capacity sufficient to keep expectedSize elements without being resized.
+     *
+     * @param expectedSize the expected amount of elements in the map
+     * @param <K> the key type
+     * @param <V> the value type
+     * @return a new pre-sized {@link HashMap}
+     */
+    public static <K, V> Map<K, V> newConcurrentHashMapWithExpectedSize(int expectedSize) {
+        return new ConcurrentHashMap<>(capacity(expectedSize));
+    }
+
+    /**
      * Returns a linked hash map with a capacity sufficient to keep expectedSize elements without being resized.
      *
      * @param expectedSize the expected amount of elements in the map
@@ -318,8 +331,7 @@ public class Maps {
 
     /**
      * An immutable implementation of {@link Map.Entry}.
-     * @param key key
-     * @param value value
+     * Unlike {@code Map.entry(...)} this implementation permits null key and value.
      */
     public record ImmutableEntry<KType, VType>(KType key, VType value) implements Map.Entry<KType, VType> {
 

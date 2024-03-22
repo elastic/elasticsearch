@@ -243,7 +243,7 @@ public final class CoordinationStateTestCluster {
                 if (rarely() && nextTerm < maxTerm) {
                     final long term = rarely() ? randomLongBetween(0, maxTerm + 1) : nextTerm++;
                     final StartJoinRequest startJoinRequest = new StartJoinRequest(randomFrom(clusterNodes).localNode, term);
-                    broadcast(startJoinRequest.getSourceNode(), startJoinRequest);
+                    broadcast(startJoinRequest.getMasterCandidateNode(), startJoinRequest);
                 } else if (rarely()) {
                     randomFrom(clusterNodes).setInitialState(initialConfiguration, initialValue);
                 } else if (rarely() && rarely()) {

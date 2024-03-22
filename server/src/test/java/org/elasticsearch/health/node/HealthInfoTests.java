@@ -14,6 +14,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Tuple.tuple;
 
 public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo> {
     @Override
@@ -23,50 +26,73 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
 
     @Override
     protected HealthInfo createTestInstance() {
-        int numberOfNodes = randomIntBetween(0, 200);
-        Map<String, DiskHealthInfo> diskInfoByNode = new HashMap<>(numberOfNodes);
-        for (int i = 0; i < numberOfNodes; i++) {
-            DiskHealthInfo diskHealthInfo = randomBoolean()
-                ? new DiskHealthInfo(randomFrom(HealthStatus.values()))
-                : new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()));
-            diskInfoByNode.put(randomAlphaOfLengthBetween(10, 100), diskHealthInfo);
-        }
-        return new HealthInfo(diskInfoByNode);
+        var diskInfoByNode = randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomDiskHealthInfo()));
+        var repositoriesInfoByNode = randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomRepoHealthInfo()));
+        return new HealthInfo(diskInfoByNode, randomBoolean() ? randomDslHealthInfo() : null, repositoriesInfoByNode);
     }
 
     @Override
     public HealthInfo mutateInstance(HealthInfo originalHealthInfo) {
-        Map<String, DiskHealthInfo> diskHealthInfoMap = originalHealthInfo.diskInfoByNode();
-        Map<String, DiskHealthInfo> diskHealthInfoMapCopy = new HashMap<>(diskHealthInfoMap);
-        if (diskHealthInfoMap.isEmpty()) {
-            diskHealthInfoMapCopy.put(
-                randomAlphaOfLength(10),
-                new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
+        return mutateHealthInfo(originalHealthInfo);
+    }
+
+    public static HealthInfo mutateHealthInfo(HealthInfo originalHealthInfo) {
+        var diskHealth = originalHealthInfo.diskInfoByNode();
+        var dslHealth = originalHealthInfo.dslHealthInfo();
+        var repoHealth = originalHealthInfo.repositoriesInfoByNode();
+        switch (randomInt(2)) {
+            case 0 -> diskHealth = mutateMap(
+                originalHealthInfo.diskInfoByNode(),
+                () -> randomAlphaOfLength(10),
+                HealthInfoTests::randomDiskHealthInfo
             );
+            case 1 -> dslHealth = randomValueOtherThan(originalHealthInfo.dslHealthInfo(), HealthInfoTests::randomDslHealthInfo);
+            case 2 -> repoHealth = mutateMap(
+                originalHealthInfo.repositoriesInfoByNode(),
+                () -> randomAlphaOfLength(10),
+                HealthInfoTests::randomRepoHealthInfo
+            );
+        }
+        return new HealthInfo(diskHealth, dslHealth, repoHealth);
+    }
+
+    public static DiskHealthInfo randomDiskHealthInfo() {
+        return randomBoolean()
+            ? new DiskHealthInfo(randomFrom(HealthStatus.values()))
+            : new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()));
+    }
+
+    public static DataStreamLifecycleHealthInfo randomDslHealthInfo() {
+        return new DataStreamLifecycleHealthInfo(
+            randomList(5, () -> new DslErrorInfo(randomAlphaOfLength(100), System.currentTimeMillis(), randomIntBetween(15, 500))),
+            randomIntBetween(6, 1000)
+        );
+    }
+
+    public static RepositoriesHealthInfo randomRepoHealthInfo() {
+        return new RepositoriesHealthInfo(randomList(5, () -> randomAlphaOfLength(10)), randomList(5, () -> randomAlphaOfLength(10)));
+    }
+
+    /**
+     * Mutates a {@link Map} by either adding, updating, or removing an entry.
+     */
+    public static <K, V> Map<K, V> mutateMap(Map<K, V> original, Supplier<K> randomKeySupplier, Supplier<V> randomValueSupplier) {
+        Map<K, V> mapCopy = new HashMap<>(original);
+        if (original.isEmpty()) {
+            mapCopy.put(randomKeySupplier.get(), randomValueSupplier.get());
         } else {
             switch (randomIntBetween(1, 3)) {
-                case 1 -> {
-                    diskHealthInfoMapCopy.put(
-                        randomAlphaOfLength(10),
-                        new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()))
-                    );
-                }
+                case 1 -> mapCopy.put(randomKeySupplier.get(), randomValueSupplier.get());
                 case 2 -> {
-                    String someNode = randomFrom(diskHealthInfoMap.keySet());
-                    diskHealthInfoMapCopy.put(
-                        someNode,
-                        new DiskHealthInfo(
-                            randomValueOtherThan(diskHealthInfoMap.get(someNode).healthStatus(), () -> randomFrom(HealthStatus.values())),
-                            randomFrom(DiskHealthInfo.Cause.values())
-                        )
-                    );
+                    K someKey = randomFrom(original.keySet());
+                    mapCopy.put(someKey, randomValueOtherThan(original.get(someKey), randomValueSupplier));
                 }
                 case 3 -> {
-                    diskHealthInfoMapCopy.remove(randomFrom(diskHealthInfoMapCopy.keySet()));
+                    mapCopy.remove(randomFrom(mapCopy.keySet()));
                 }
                 default -> throw new IllegalStateException();
             }
         }
-        return new HealthInfo(diskHealthInfoMapCopy);
+        return mapCopy;
     }
 }

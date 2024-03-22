@@ -136,6 +136,24 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
     }
 
     @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof RegressionConfigUpdate configUpdate) {
+            RegressionConfig.Builder builder = new RegressionConfig.Builder(this);
+            if (configUpdate.getResultsField() != null) {
+                builder.setResultsField(configUpdate.getResultsField());
+            }
+            if (configUpdate.getNumTopFeatureImportanceValues() != null) {
+                builder.setNumTopFeatureImportanceValues(configUpdate.getNumTopFeatureImportanceValues());
+            }
+            return builder.build();
+        } else if (update instanceof ResultsFieldUpdate resultsFieldUpdate) {
+            return new RegressionConfig.Builder(this).setResultsField(resultsFieldUpdate.getResultsField()).build();
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
     public MlConfigVersion getMinimalSupportedMlConfigVersion() {
         return requestingImportance() ? MlConfigVersion.V_7_7_0 : MIN_SUPPORTED_VERSION;
     }

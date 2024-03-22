@@ -70,7 +70,8 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 "RoundDoubleEvaluator[val=Attribute[channel=0], decimals=CastIntToLongEvaluator[v=Attribute[channel=1]]]",
                 DataTypes.DOUBLE,
                 is(nullValue())
-            );
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
         })));
     }
 
@@ -113,19 +114,19 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
 
     private Object process(Number val) {
         try (
-            Block.Ref ref = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get(driverContext()).eval(row(List.of(val)))
+            Block block = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), null)).get(driverContext()).eval(row(List.of(val)))
         ) {
-            return toJavaObject(ref.block(), 0);
+            return toJavaObject(block, 0);
         }
     }
 
     private Object process(Number val, int decimals) {
         try (
-            Block.Ref ref = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get(
+            Block block = evaluator(new Round(Source.EMPTY, field("val", typeOf(val)), field("decimals", DataTypes.INTEGER))).get(
                 driverContext()
             ).eval(row(List.of(val, decimals)))
         ) {
-            return toJavaObject(ref.block(), 0);
+            return toJavaObject(block, 0);
         }
     }
 

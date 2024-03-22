@@ -7,6 +7,16 @@
 
 package org.elasticsearch.xpack.sql.qa.multi_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.SqlProtocolTestCase;
+import org.junit.ClassRule;
 
-public class SqlProtocolIT extends SqlProtocolTestCase {}
+public class SqlProtocolIT extends SqlProtocolTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+}

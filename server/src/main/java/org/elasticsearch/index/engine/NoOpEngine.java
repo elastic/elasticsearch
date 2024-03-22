@@ -16,7 +16,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -147,8 +146,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
     public void trimUnreferencedTranslogFiles() {
         final Store store = this.engineConfig.getStore();
         store.incRef();
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
             if (commits.size() == 1 && translogStats.getTranslogSizeInBytes() > translogStats.getUncommittedSizeInBytes()) {
                 final Map<String, String> commitUserData = getLastCommittedSegmentInfos().getUserData();

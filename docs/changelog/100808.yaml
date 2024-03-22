@@ -1,5 +1,0 @@
-pr: 100808
-summary: Make tasks that calculate checkpoints cancellable
-area: Transform
-type: bug
-issues: []

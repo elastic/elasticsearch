@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation.decider;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV9;
 
 public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider {
 
@@ -28,6 +28,7 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
      * ongoing is determined by cluster.routing.allocation.enable=primaries. Notice that other values for that setting except "all" mean
      * that no searchable snapshots are allocated anyway.
      */
+    @UpdateForV9 // xpack.searchable.snapshot.allocate_on_rolling_restart was only temporary, remove it in the next major
     public static final Setting<Boolean> SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART = Setting.boolSetting(
         "xpack.searchable.snapshot.allocate_on_rolling_restart",
         false,
@@ -35,11 +36,6 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
         Setting.Property.NodeScope,
         Setting.Property.Deprecated
     );
-
-    static {
-        // TODO xpack.searchable.snapshot.allocate_on_rolling_restart was only temporary, remove it in the next major
-        assert Version.CURRENT.major == Version.V_7_17_0.major + 1;
-    }
 
     private volatile EnableAllocationDecider.Allocation enableAllocation;
     private volatile boolean allocateOnRollingRestart;

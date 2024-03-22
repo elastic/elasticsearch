@@ -299,6 +299,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
+            null,
             List.of(new ReservedClusterSettingsAction(clusterSettings))
         );
 
@@ -371,6 +372,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         controller = new ReservedClusterStateService(
             clusterService,
+            null,
             List.of(
                 new ReservedClusterSettingsAction(clusterSettings),
                 new ReservedLifecycleAction(xContentRegistry(), client, licenseState)
@@ -393,6 +395,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
+            null,
             List.of(new ReservedClusterSettingsAction(clusterSettings))
         );
 
@@ -430,6 +433,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
         controller = new ReservedClusterStateService(
             clusterService,
+            null,
             List.of(
                 new ReservedClusterSettingsAction(clusterSettings),
                 new ReservedLifecycleAction(xContentRegistry(), client, licenseState)

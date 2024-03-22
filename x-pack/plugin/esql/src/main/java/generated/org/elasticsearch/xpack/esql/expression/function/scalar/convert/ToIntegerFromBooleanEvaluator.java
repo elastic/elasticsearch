@@ -35,21 +35,11 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
     BooleanVector vector = (BooleanVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantIntBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return driverContext.blockFactory().newConstantNullBlock(positionCount);
-      }
+      return driverContext.blockFactory().newConstantIntBlockWith(evalValue(vector, 0), positionCount);
     }
     try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        try {
-          builder.appendInt(evalValue(vector, p));
-        } catch (Exception e) {
-          registerException(e);
-          builder.appendNull();
-        }
+        builder.appendInt(evalValue(vector, p));
       }
       return builder.build();
     }
@@ -72,17 +62,13 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            int value = evalValue(block, i);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendInt(value);
-            valuesAppended = true;
-          } catch (Exception e) {
-            registerException(e);
+          int value = evalValue(block, i);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendInt(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

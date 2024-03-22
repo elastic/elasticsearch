@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.IndexProperties;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -136,19 +138,9 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
 
             Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
             Metadata metadata = state.getMetadata();
-            for (Index index : dataStream.getIndices()) {
-                IndexMetadata indexMetadata = metadata.index(index);
-                Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
-                assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
-                ManagedBy managedBy;
-                if (metadata.isIndexManagedByILM(indexMetadata)) {
-                    managedBy = ManagedBy.ILM;
-                } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
-                    managedBy = ManagedBy.LIFECYCLE;
-                } else {
-                    managedBy = ManagedBy.UNMANAGED;
-                }
-                backingIndicesSettingsValues.put(index, new IndexProperties(preferIlm, indexMetadata.getLifecyclePolicyName(), managedBy));
+            collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getIndices());
+            if (DataStream.isFailureStoreEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+                collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices());
             }
 
             GetDataStreamAction.Response.TimeSeries timeSeries = null;
@@ -209,8 +201,31 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         }
         return new GetDataStreamAction.Response(
             dataStreamInfos,
-            request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null
+            request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
+            DataStreamGlobalRetention.getFromClusterState(state)
         );
+    }
+
+    private static void collectIndexSettingsValues(
+        DataStream dataStream,
+        Map<Index, IndexProperties> backingIndicesSettingsValues,
+        Metadata metadata,
+        List<Index> backingIndices
+    ) {
+        for (Index index : backingIndices) {
+            IndexMetadata indexMetadata = metadata.index(index);
+            Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+            assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
+            ManagedBy managedBy;
+            if (metadata.isIndexManagedByILM(indexMetadata)) {
+                managedBy = ManagedBy.ILM;
+            } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
+                managedBy = ManagedBy.LIFECYCLE;
+            } else {
+                managedBy = ManagedBy.UNMANAGED;
+            }
+            backingIndicesSettingsValues.put(index, new IndexProperties(preferIlm, indexMetadata.getLifecyclePolicyName(), managedBy));
+        }
     }
 
     static List<DataStream> getDataStreams(

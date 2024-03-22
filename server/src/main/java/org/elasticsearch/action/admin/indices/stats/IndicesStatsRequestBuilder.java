@@ -25,8 +25,8 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
     IndicesStatsResponse,
     IndicesStatsRequestBuilder> {
 
-    public IndicesStatsRequestBuilder(ElasticsearchClient client, IndicesStatsAction action) {
-        super(client, action, new IndicesStatsRequest());
+    public IndicesStatsRequestBuilder(ElasticsearchClient client) {
+        super(client, IndicesStatsAction.INSTANCE, new IndicesStatsRequest());
     }
 
     /**

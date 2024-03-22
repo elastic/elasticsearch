@@ -1,5 +1,0 @@
-pr: 99278
-summary: Support rotatating the JWT shared secret
-area: Security
-type: enhancement
-issues: []

@@ -23,7 +23,7 @@ public class DeleteTrainedModelAssignmentAction extends ActionType<AcknowledgedR
     public static final String NAME = "cluster:internal/xpack/ml/model_allocation/delete";
 
     private DeleteTrainedModelAssignmentAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

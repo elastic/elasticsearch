@@ -854,6 +854,9 @@
                           "properties": {
                             "acked": {
                               "type": "long"
+                            },
+                            "max_events": {
+                              "type": "long"
                             }
                           }
                         }

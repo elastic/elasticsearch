@@ -102,22 +102,24 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testMissingAllConstructorArgs() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"mineral\": 1 }");
-        ConstructingObjectParser<HasCtorArguments, Void> objectParser = randomBoolean()
-            ? HasCtorArguments.PARSER
-            : HasCtorArguments.PARSER_VEGETABLE_OPTIONAL;
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
-        if (objectParser == HasCtorArguments.PARSER) {
-            assertEquals("Required [animal, vegetable]", e.getMessage());
-        } else {
-            assertEquals("Required [animal]", e.getMessage());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"mineral\": 1 }")) {
+            ConstructingObjectParser<HasCtorArguments, Void> objectParser = randomBoolean()
+                ? HasCtorArguments.PARSER
+                : HasCtorArguments.PARSER_VEGETABLE_OPTIONAL;
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> objectParser.apply(parser, null));
+            if (objectParser == HasCtorArguments.PARSER) {
+                assertEquals("Required [animal, vegetable]", e.getMessage());
+            } else {
+                assertEquals("Required [animal]", e.getMessage());
+            }
         }
     }
 
     public void testMissingAllConstructorArgsButNotRequired() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"mineral\": 1 }");
-        HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, null);
-        assertEquals(1, parsed.mineral);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"mineral\": 1 }")) {
+            HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, null);
+            assertEquals(1, parsed.mineral);
+        }
     }
 
     public void testMissingSecondConstructorArg() throws IOException {

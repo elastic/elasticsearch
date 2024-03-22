@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.difference;
@@ -116,11 +117,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {
         assert replicaShardAllocator != null;
         if (allocation.routingNodes().hasInactiveReplicas()) {
             // cancel existing recoveries if we have a better match
-            replicaShardAllocator.processExistingRecoveries(allocation);
+            replicaShardAllocator.processExistingRecoveries(allocation, isRelevantShardPredicate);
         }
     }
 
@@ -261,7 +262,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                         client.executeLocally(
                             TransportNodesListGatewayStartedShards.TYPE,
                             new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes),
-                            ActionListener.wrap(listener)
+                            listener.safeMap(r -> r) // weaken type
                         );
                     }
                 }
@@ -308,7 +309,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                         client.executeLocally(
                             TransportNodesListShardStoreMetadata.TYPE,
                             new TransportNodesListShardStoreMetadata.Request(shardId, customDataPath, nodes),
-                            ActionListener.wrap(listener)
+                            listener.safeMap(r -> r) // weaken type
                         );
                     }
                 }

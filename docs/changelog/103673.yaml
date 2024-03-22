@@ -1,0 +1,6 @@
+pr: 103673
+summary: "ESQL: Infer not null for aggregated fields"
+area: ES|QL
+type: enhancement
+issues:
+ - 102787

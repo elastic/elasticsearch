@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.regex.PatternSyntaxException;
@@ -44,26 +45,23 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   @Override
-  public Block.Ref eval(Page page) {
-    try (Block.Ref strRef = str.eval(page)) {
-      BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
-      try (Block.Ref regexRef = regex.eval(page)) {
-        BytesRefBlock regexBlock = (BytesRefBlock) regexRef.block();
-        try (Block.Ref newStrRef = newStr.eval(page)) {
-          BytesRefBlock newStrBlock = (BytesRefBlock) newStrRef.block();
+  public Block eval(Page page) {
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      try (BytesRefBlock regexBlock = (BytesRefBlock) regex.eval(page)) {
+        try (BytesRefBlock newStrBlock = (BytesRefBlock) newStr.eval(page)) {
           BytesRefVector strVector = strBlock.asVector();
           if (strVector == null) {
-            return Block.Ref.floating(eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock));
+            return eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock);
           }
           BytesRefVector regexVector = regexBlock.asVector();
           if (regexVector == null) {
-            return Block.Ref.floating(eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock));
+            return eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock);
           }
           BytesRefVector newStrVector = newStrBlock.asVector();
           if (newStrVector == null) {
-            return Block.Ref.floating(eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock));
+            return eval(page.getPositionCount(), strBlock, regexBlock, newStrBlock);
           }
-          return Block.Ref.floating(eval(page.getPositionCount(), strVector, regexVector, newStrVector));
+          return eval(page.getPositionCount(), strVector, regexVector, newStrVector);
         }
       }
     }
@@ -76,15 +74,36 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
       BytesRef regexScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
+        if (strBlock.isNull(p)) {
           result.appendNull();
           continue position;
         }
-        if (regexBlock.isNull(p) || regexBlock.getValueCount(p) != 1) {
+        if (strBlock.getValueCount(p) != 1) {
+          if (strBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }
-        if (newStrBlock.isNull(p) || newStrBlock.getValueCount(p) != 1) {
+        if (regexBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (regexBlock.getValueCount(p) != 1) {
+          if (regexBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        if (newStrBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (newStrBlock.getValueCount(p) != 1) {
+          if (newStrBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
           result.appendNull();
           continue position;
         }

@@ -1,15 +1,38 @@
 [discrete]
 [[esql-eval]]
 === `EVAL`
-`EVAL` enables you to append new columns:
+
+**Syntax**
+
+[source,esql]
+----
+EVAL [column1 =] value1[, ..., [columnN =] valueN]
+----
+
+*Parameters*
+
+`columnX`::
+The column name.
+
+`valueX`::
+The value for the column. Can be a literal, an expression, or a
+<<esql-functions,function>>.
+
+*Description*
+
+The `EVAL` processing command enables you to append new columns with calculated
+values. `EVAL` supports various functions for calculating values. Refer to
+<<esql-functions,Functions>> for more information.
+
+*Examples*
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=eval]
+include::{esql-specs}/eval.csv-spec[tag=eval]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs.csv-spec[tag=eval-result]
+include::{esql-specs}/eval.csv-spec[tag=eval-result]
 |===
 
 If the specified column already exists, the existing column will be dropped, and
@@ -17,14 +40,34 @@ the new column will be appended to the table:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=evalReplace]
+include::{esql-specs}/eval.csv-spec[tag=evalReplace]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs.csv-spec[tag=evalReplace-result]
+include::{esql-specs}/eval.csv-spec[tag=evalReplace-result]
 |===
 
-[discrete]
-==== Functions
-`EVAL` supports various functions for calculating values. Refer to
-<<esql-functions,Functions>> for more information.
+Specifying the output column name is optional. If not specified, the new column
+name is equal to the expression. The following query adds a column named
+`height*3.281`:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=evalUnnamedColumn]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/eval.csv-spec[tag=evalUnnamedColumn-result]
+|===
+
+Because this name contains special characters, <<esql-identifiers,it needs to be
+quoted>> with backticks (+{backtick}+) when using it in subsequent commands:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/eval.csv-spec[tag=evalUnnamedColumnStats]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/eval.csv-spec[tag=evalUnnamedColumnStats-result]
+|===

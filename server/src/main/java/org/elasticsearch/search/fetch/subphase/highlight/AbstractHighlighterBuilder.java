@@ -158,12 +158,10 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         noMatchSize(in.readOptionalVInt());
         phraseLimit(in.readOptionalVInt());
         if (in.readBoolean()) {
-            options(in.readMap());
+            options(in.readGenericMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            maxAnalyzedOffset(in.readOptionalInt());
-        }
+        maxAnalyzedOffset(in.readOptionalInt());
     }
 
     /**
@@ -207,9 +205,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeGenericMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
-            out.writeOptionalInt(maxAnalyzedOffset);
-        }
+        out.writeOptionalInt(maxAnalyzedOffset);
         doWriteTo(out);
     }
 
@@ -452,13 +448,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * @return the value set by {@link #boundaryScannerLocale(String)}
-     */
-    public Locale boundaryScannerLocale() {
-        return this.boundaryScannerLocale;
-    }
-
-    /**
      * Allows to set custom options for custom highlighters.
      */
     @SuppressWarnings("unchecked")
@@ -653,6 +642,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
                 parser.parse(p, hb, null);
                 if (hb.preTags() != null && hb.postTags() == null) {
                     throw new ParsingException(p.getTokenLocation(), "pre_tags are set but post_tags are not set");
+                }
+                if (hb.preTags() != null && hb.postTags() != null && (hb.preTags().length == 0 || hb.postTags().length == 0)) {
+                    throw new ParsingException(p.getTokenLocation(), "pre_tags or post_tags must not be empty");
                 }
             } catch (IOException e) {
                 throw new RuntimeException(e);

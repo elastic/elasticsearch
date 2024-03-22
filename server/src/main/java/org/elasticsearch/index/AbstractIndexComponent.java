@@ -9,13 +9,11 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 public abstract class AbstractIndexComponent {
 
     protected final Logger logger;
-    protected final DeprecationLogger deprecationLogger;
     protected final IndexSettings indexSettings;
 
     /**
@@ -23,7 +21,6 @@ public abstract class AbstractIndexComponent {
      */
     protected AbstractIndexComponent(IndexSettings indexSettings) {
         this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex());
-        this.deprecationLogger = DeprecationLogger.getLogger(getClass());
         this.indexSettings = indexSettings;
     }
 

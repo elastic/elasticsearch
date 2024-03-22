@@ -16,6 +16,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -52,7 +53,7 @@ public class SearchAfterSortedDocQuery extends Query {
         this.reverseMuls = new int[numFields];
         for (int i = 0; i < numFields; i++) {
             SortField sortField = sort.getSort()[i];
-            FieldComparator<?> fieldComparator = sortField.getComparator(1, false);
+            FieldComparator<?> fieldComparator = sortField.getComparator(1, Pruning.NONE);
             @SuppressWarnings("unchecked")
             FieldComparator<Object> comparator = (FieldComparator<Object>) fieldComparator;
             comparator.setTopValue(after.fields[i]);

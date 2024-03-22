@@ -188,7 +188,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error((org.apache.logging.log4j.util.Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
+            logger.error(() -> "error downloading geoip database [" + name + "]", e);
         }
     }
 
@@ -215,7 +215,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void updateTaskState() {
-        PlainActionFuture<PersistentTask<?>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<PersistentTask<?>> future = new PlainActionFuture<>();
         updatePersistentTaskState(state, future);
         state = ((GeoIpTaskState) future.actionGet().getState());
     }

@@ -37,8 +37,8 @@ public class SearchLookup implements SourceProvider {
      * The chain of fields for which this lookup was created, used for detecting
      * loops caused by runtime fields referring to other runtime fields. The chain is empty
      * for the "top level" lookup created for the entire search. When a lookup is used to load
-     * fielddata for a field, we fork it and make sure the field name name isn't in the chain,
-     * then add it to the end. So the lookup for the a field named {@code a} will be {@code ["a"]}. If
+     * fielddata for a field, we fork it and make sure the field name isn't in the chain,
+     * then add it to the end. So the lookup for a field named {@code a} will be {@code ["a"]}. If
      * that field looks up the values of a field named {@code b} then
      * {@code b}'s chain will contain {@code ["a", "b"]}.
      */

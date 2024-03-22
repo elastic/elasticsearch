@@ -122,6 +122,37 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
         return new DriverContext(bigArrays, factory);
     }
 
+    public void testAllNull() throws IOException {
+        BlockFactory factory = breakingDriverContext().blockFactory();
+        int count = 1000;
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            for (int i = 0; i < count; i++) {
+                for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
+                    indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
+                }
+            }
+            try (IndexReader reader = indexWriter.getReader()) {
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
+                    try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                        for (int i = 0; i < ctx.reader().maxDoc(); i++) {
+                            if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
+                                assertThat(docValues.advanceExact(i), equalTo(true));
+                                builder.appendNull();
+                            }
+                        }
+                        try (BytesRefBlock built = builder.build()) {
+                            for (int p = 0; p < built.getPositionCount(); p++) {
+                                assertThat(built.isNull(p), equalTo(true));
+                            }
+                            assertThat(built.areAllValuesNull(), equalTo(true));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @After
     public void allBreakersEmpty() throws Exception {
         // first check that all big arrays are released, which can affect breakers

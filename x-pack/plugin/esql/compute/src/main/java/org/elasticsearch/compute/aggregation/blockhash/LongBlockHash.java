@@ -13,12 +13,12 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
 import org.elasticsearch.compute.operator.MultivalueDedupeLong;
 
@@ -40,10 +40,10 @@ final class LongBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
-    LongBlockHash(int channel, DriverContext driverContext) {
-        super(driverContext);
+    LongBlockHash(int channel, BlockFactory blockFactory) {
+        super(blockFactory);
         this.channel = channel;
-        this.longHash = new LongHash(1, bigArrays);
+        this.longHash = new LongHash(1, blockFactory.bigArrays());
     }
 
     @Override
@@ -80,7 +80,7 @@ final class LongBlockHash extends BlockHash {
     }
 
     private IntBlock add(LongBlock block) {
-        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(Block.Ref.floating(block)).hash(longHash); // TODO: block factory
+        MultivalueDedupe.HashResult result = new MultivalueDedupeLong(block).hash(blockFactory, longHash);
         seenNull |= result.sawNull();
         return result.ords();
     }

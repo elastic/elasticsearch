@@ -8,6 +8,9 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -15,8 +18,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -26,13 +33,17 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.script.mustache.TransportSearchTemplateAction.convert;
 
 public class TransportMultiSearchTemplateAction extends HandledTransportAction<MultiSearchTemplateRequest, MultiSearchTemplateResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportMultiSearchTemplateAction.class);
+
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
     private final NodeClient client;
     private final SearchUsageHolder searchUsageHolder;
 
@@ -43,7 +54,9 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
         NodeClient client,
-        UsageService usageService
+        UsageService usageService,
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         super(
             MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION.name(),
@@ -54,6 +67,10 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
+        this.clusterSupportsFeature = f -> {
+            ClusterState state = clusterService.state();
+            return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
+        };
         this.client = client;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
     }
@@ -73,9 +90,20 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
             SearchRequest searchRequest;
             try {
-                searchRequest = convert(searchTemplateRequest, searchTemplateResponse, scriptService, xContentRegistry, searchUsageHolder);
+                searchRequest = convert(
+                    searchTemplateRequest,
+                    searchTemplateResponse,
+                    scriptService,
+                    xContentRegistry,
+                    clusterSupportsFeature,
+                    searchUsageHolder
+                );
             } catch (Exception e) {
+                searchTemplateResponse.decRef();
                 items[i] = new MultiSearchTemplateResponse.Item(null, e);
+                if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
+                    logger.warn("MultiSearchTemplate convert failure", e);
+                }
                 continue;
             }
             items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
@@ -90,12 +118,17 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 MultiSearchResponse.Item item = r.getResponses()[i];
                 int originalSlot = originalSlots.get(i);
                 if (item.isFailure()) {
+                    var existing = items[originalSlot];
+                    if (existing.getResponse() != null) {
+                        existing.getResponse().decRef();
+                    }
                     items[originalSlot] = new MultiSearchTemplateResponse.Item(null, item.getFailure());
                 } else {
                     items[originalSlot].getResponse().setResponse(item.getResponse());
+                    item.getResponse().incRef();
                 }
             }
-            l.onResponse(new MultiSearchTemplateResponse(items, r.getTook().millis()));
+            ActionListener.respondAndRelease(l, new MultiSearchTemplateResponse(items, r.getTook().millis()));
         }));
     }
 }

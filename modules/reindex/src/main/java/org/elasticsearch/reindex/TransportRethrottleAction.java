@@ -101,10 +101,10 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubtasks);
             subRequest.setTargetParentTaskId(new TaskId(localNodeId, task.getId()));
             logger.debug("rethrottling children of task [{}] to [{}] requests per second", task.getId(), subRequest.getRequestsPerSecond());
-            client.execute(ReindexPlugin.RETHROTTLE_ACTION, subRequest, ActionListener.wrap(r -> {
+            client.execute(ReindexPlugin.RETHROTTLE_ACTION, subRequest, listener.delegateFailureAndWrap((l, r) -> {
                 r.rethrowFailures("Rethrottle");
-                listener.onResponse(task.taskInfoGivenSubtaskInfo(localNodeId, r.getTasks()));
-            }, listener::onFailure));
+                l.onResponse(task.taskInfoGivenSubtaskInfo(localNodeId, r.getTasks()));
+            }));
         } else {
             logger.debug("children of task [{}] are already finished, nothing to rethrottle", task.getId());
             listener.onResponse(task.taskInfo(localNodeId, true));

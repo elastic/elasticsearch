@@ -359,12 +359,7 @@ POST _watcher/_start
 ----
 // TEST[continued]
 ////
---
 
-
-. {blank}
-+
---
 * Universal Profiling
 +
 Check if Universal Profiling index template management is enabled:
@@ -385,22 +380,25 @@ PUT _cluster/settings
   }
 }
 ----
+--
 
-[[restore-create-file-realm-user]]
-If you use {es} security features, log in to a node host, navigate to the {es}
-installation directory, and add a user with the `superuser` role to the file
-realm using the <<users-command,`elasticsearch-users`>> tool.
+. [[restore-create-file-realm-user]]If you use {es} security features, log in to
+a node host, navigate to the {es} installation directory, and add a user with
+the `superuser` role to the file realm using the
+<<users-command,`elasticsearch-users`>> tool.
++
 
 For example, the following command creates a user named `restore_user`.
++
 
 [source,sh]
 ----
 ./bin/elasticsearch-users useradd restore_user -p my_password -r superuser
 ----
++
 
 Use this file realm user to authenticate requests until the restore operation is
 complete.
---
 
 . Use the <<cluster-update-settings,cluster update settings API>> to set
 <<action-destructive-requires-name,`action.destructive_requires_name`>> to

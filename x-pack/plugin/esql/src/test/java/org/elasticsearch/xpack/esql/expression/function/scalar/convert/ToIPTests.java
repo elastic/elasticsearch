@@ -17,16 +17,14 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
-import static org.hamcrest.Matchers.equalTo;
 
 public class ToIPTests extends AbstractFunctionTestCase {
     public ToIPTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -42,33 +40,27 @@ public class ToIPTests extends AbstractFunctionTestCase {
         // convert from IP to IP
         TestCaseSupplier.forUnaryIp(suppliers, read, DataTypes.IP, v -> v, List.of());
 
-        // convert any kind of string to IP, with warnings.
-        for (TestCaseSupplier.TypedDataSupplier supplier : stringCases(DataTypes.KEYWORD)) {
-            suppliers.add(new TestCaseSupplier(supplier.name(), List.of(supplier.type()), () -> {
-                BytesRef value = (BytesRef) supplier.supplier().get();
-                TestCaseSupplier.TypedData typed = new TestCaseSupplier.TypedData(value, supplier.type(), "value");
-                TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
-                    List.of(typed),
-                    stringEvaluator,
-                    DataTypes.IP,
-                    equalTo(null)
-                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning(
-                        "Line -1:-1: java.lang.IllegalArgumentException: '" + value.utf8ToString() + "' is not an IP string literal."
-                    );
-                return testCase;
-            }));
-        }
+        // convert random string (i.e. not an IP representation) to IP `null`, with warnings.
+        TestCaseSupplier.forUnaryStrings(
+            suppliers,
+            stringEvaluator,
+            DataTypes.IP,
+            bytesRef -> null,
+            bytesRef -> List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: '" + bytesRef.utf8ToString() + "' is not an IP string literal."
+            )
+        );
 
         // convert valid IPs shaped as strings
-        DataType inputType = DataTypes.KEYWORD;
-        for (TestCaseSupplier.TypedDataSupplier ipGen : validIPsAsStrings()) {
-            suppliers.add(new TestCaseSupplier(ipGen.name(), List.of(inputType), () -> {
-                BytesRef ip = (BytesRef) ipGen.supplier().get();
-                TestCaseSupplier.TypedData typed = new TestCaseSupplier.TypedData(ip, inputType, "value");
-                return new TestCaseSupplier.TestCase(List.of(typed), stringEvaluator, DataTypes.IP, equalTo(parseIP(ip.utf8ToString())));
-            }));
-        }
+        TestCaseSupplier.unary(
+            suppliers,
+            stringEvaluator,
+            validIPsAsStrings(),
+            DataTypes.IP,
+            bytesRef -> parseIP(((BytesRef) bytesRef).utf8ToString()),
+            emptyList()
+        );
 
         // add null as parameter
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));

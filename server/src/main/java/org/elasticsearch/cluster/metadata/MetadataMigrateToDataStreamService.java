@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.createDataStream;
 
 public class MetadataMigrateToDataStreamService {
@@ -63,6 +64,7 @@ public class MetadataMigrateToDataStreamService {
     private final IndicesService indexServices;
     private final ThreadContext threadContext;
     private final MetadataCreateIndexService metadataCreateIndexService;
+    private final boolean isDslOnlyMode;
 
     public MetadataMigrateToDataStreamService(
         ThreadPool threadPool,
@@ -74,6 +76,7 @@ public class MetadataMigrateToDataStreamService {
         this.indexServices = indexServices;
         this.threadContext = threadPool.getThreadContext();
         this.metadataCreateIndexService = metadataCreateIndexService;
+        this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
     }
 
     public void migrateToDataStream(
@@ -104,13 +107,13 @@ public class MetadataMigrateToDataStreamService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = migrateToDataStream(currentState, indexMetadata -> {
+                    ClusterState clusterState = migrateToDataStream(currentState, isDslOnlyMode, indexMetadata -> {
                         try {
                             return indexServices.createIndexMapperServiceForValidation(indexMetadata);
                         } catch (IOException e) {
                             throw new IllegalStateException(e);
                         }
-                    }, request, metadataCreateIndexService, delegate.reroute());
+                    }, request, metadataCreateIndexService, clusterService.getSettings(), delegate.reroute());
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
@@ -125,9 +128,11 @@ public class MetadataMigrateToDataStreamService {
 
     static ClusterState migrateToDataStream(
         ClusterState currentState,
+        boolean isDslOnlyMode,
         Function<IndexMetadata, MapperService> mapperSupplier,
         MigrateToDataStreamClusterStateUpdateRequest request,
         MetadataCreateIndexService metadataCreateIndexService,
+        Settings settings,
         ActionListener<Void> listener
     ) throws Exception {
         validateRequest(currentState, request);
@@ -154,7 +159,9 @@ public class MetadataMigrateToDataStreamService {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);
         return createDataStream(
             metadataCreateIndexService,
+            settings,
             currentState,
+            isDslOnlyMode,
             req,
             backingIndices,
             currentState.metadata().index(writeIndex),

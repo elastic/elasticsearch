@@ -21,6 +21,12 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,13 +34,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
+import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueWriter;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
-import org.elasticsearch.xpack.spatial.index.mapper.CartesianShapeIndexer;
 
 import java.io.IOException;
 
@@ -67,6 +68,12 @@ public class GeoTestUtils {
     public static GeoShapeValues.GeoShapeValue geoShapeValue(Geometry geometry) throws IOException {
         GeoShapeValues.GeoShapeValue value = new GeoShapeValues.GeoShapeValue();
         value.reset(binaryGeoShapeDocValuesField("test", geometry).binaryValue());
+        return value;
+    }
+
+    public static CartesianShapeValues.CartesianShapeValue cartesianShapeValue(Geometry geometry) throws IOException {
+        CartesianShapeValues.CartesianShapeValue value = new CartesianShapeValues.CartesianShapeValue();
+        value.reset(binaryCartesianShapeDocValuesField("test", geometry).binaryValue());
         return value;
     }
 

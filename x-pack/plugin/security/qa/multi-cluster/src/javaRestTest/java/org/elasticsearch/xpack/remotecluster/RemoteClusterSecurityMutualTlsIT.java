@@ -13,6 +13,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -114,14 +115,18 @@ public class RemoteClusterSecurityMutualTlsIT extends AbstractRemoteClusterSecur
                 "GET",
                 String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean())
             );
-            final SearchResponse metricSearchResponse = SearchResponse.fromXContent(
+            final SearchResponse metricSearchResponse = SearchResponseUtils.parseSearchResponse(
                 responseAsParser(performRequestWithRemoteMetricUser(metricSearchRequest))
             );
-            assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
-            assertThat(
-                Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
-                containsInAnyOrder("shared-metrics")
-            );
+            try {
+                assertThat(metricSearchResponse.getHits().getTotalHits().value, equalTo(4L));
+                assertThat(
+                    Arrays.stream(metricSearchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toSet()),
+                    containsInAnyOrder("shared-metrics")
+                );
+            } finally {
+                metricSearchResponse.decRef();
+            }
         }
     }
 

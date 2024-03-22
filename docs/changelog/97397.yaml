@@ -1,5 +1,0 @@
-pr: 97397
-summary: Return a 410 (Gone) status code for unavailable API endpoints
-area: Infra/REST API
-type: enhancement
-issues: []

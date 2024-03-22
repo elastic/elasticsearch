@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -60,10 +61,11 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
                     () -> randomAlphaOfLengthBetween(3, 10)
                 )
             );
-            XContentParseException iae = expectThrows(
-                XContentParseException.class,
-                () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated))
-            );
+            XContentParseException iae = expectThrows(XContentParseException.class, () -> {
+                try (var parser = createParser(xContentType.xContent(), mutated)) {
+                    ClusterUpdateSettingsRequest.fromXContent(parser);
+                }
+            });
             assertThat(iae.getMessage(), containsString("[cluster_update_settings_request] unknown field [" + unsupportedField + "]"));
         } else {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -91,6 +93,7 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
         TransportClusterUpdateSettingsAction action = new TransportClusterUpdateSettingsAction(
             transportService,
             mock(ClusterService.class),
+            mock(RerouteService.class),
             threadPool,
             mock(ActionFilters.class),
             mock(IndexNameExpressionResolver.class),

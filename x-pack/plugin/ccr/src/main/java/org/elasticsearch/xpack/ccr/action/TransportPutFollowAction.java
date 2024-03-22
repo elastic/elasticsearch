@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -111,7 +112,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         }
         String remoteCluster = request.getRemoteCluster();
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(remoteCluster, remoteClientResponseExecutor);
+        client.getRemoteClusterClient(
+            remoteCluster,
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
 
         String leaderIndex = request.getLeaderIndex();
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
@@ -332,7 +337,10 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.isSystem(),
                 remoteDataStream.isAllowCustomRouting(),
                 remoteDataStream.getIndexMode(),
-                remoteDataStream.getLifecycle()
+                remoteDataStream.getLifecycle(),
+                remoteDataStream.isFailureStore(),
+                remoteDataStream.getFailureIndices(),
+                remoteDataStream.getAutoShardingEvent()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -383,7 +391,10 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.isSystem(),
                 localDataStream.isAllowCustomRouting(),
                 localDataStream.getIndexMode(),
-                localDataStream.getLifecycle()
+                localDataStream.getLifecycle(),
+                localDataStream.isFailureStore(),
+                localDataStream.getFailureIndices(),
+                localDataStream.getAutoShardingEvent()
             );
         }
     }

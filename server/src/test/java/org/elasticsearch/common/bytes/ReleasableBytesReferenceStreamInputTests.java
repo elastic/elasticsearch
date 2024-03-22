@@ -71,7 +71,7 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
         BytesStreamOutput out = new BytesStreamOutput();
         testData.writeTo(out);
 
-        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+        ReleasableBytesReference ref = wrapAsReleasable(out.bytes());
 
         try (IntArray in = IntArray.readFrom(ref.streamInput())) {
             ref.decRef();
@@ -90,7 +90,7 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
         BytesStreamOutput out = new BytesStreamOutput();
         testData.writeTo(out);
 
-        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+        ReleasableBytesReference ref = wrapAsReleasable(out.bytes());
 
         try (DoubleArray in = DoubleArray.readFrom(ref.streamInput())) {
             ref.decRef();
@@ -109,7 +109,7 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
         BytesStreamOutput out = new BytesStreamOutput();
         testData.writeTo(out);
 
-        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+        ReleasableBytesReference ref = wrapAsReleasable(out.bytes());
 
         try (LongArray in = LongArray.readFrom(ref.streamInput())) {
             ref.decRef();
@@ -128,7 +128,7 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
         BytesStreamOutput out = new BytesStreamOutput();
         testData.writeTo(out);
 
-        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+        ReleasableBytesReference ref = wrapAsReleasable(out.bytes());
 
         try (ByteArray in = ByteArray.readFrom(ref.streamInput())) {
             ref.decRef();
@@ -140,4 +140,7 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
         assertThat(ref.hasReferences(), equalTo(false));
     }
 
+    public static ReleasableBytesReference wrapAsReleasable(BytesReference bytesReference) {
+        return new ReleasableBytesReference(bytesReference, () -> {});
+    }
 }

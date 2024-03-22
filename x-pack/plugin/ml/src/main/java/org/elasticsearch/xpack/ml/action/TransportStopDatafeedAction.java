@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -58,6 +58,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionArrayToStatusException;
 
 public class TransportStopDatafeedAction extends TransportTasksAction<
     TransportStartDatafeedAction.DatafeedTask,
@@ -251,6 +252,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 // already waits for these persistent tasks to disappear.
                 persistentTasksService.sendRemoveRequest(
                     datafeedTask.getId(),
+                    null,
                     ActionListener.wrap(
                         r -> auditDatafeedStopped(datafeedTask),
                         e -> logger.error("[" + datafeedId + "] failed to remove task to stop unassigned datafeed", e)
@@ -277,6 +279,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                     PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
                     persistentTasksService.sendRemoveRequest(
                         datafeedTask.getId(),
+                        null,
                         ActionListener.wrap(r -> auditDatafeedStopped(datafeedTask), e -> {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 logger.debug("[{}] relocated datafeed task already removed", datafeedId);
@@ -380,7 +383,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         for (String datafeedId : notStoppedDatafeeds) {
             PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask != null) {
-                persistentTasksService.sendRemoveRequest(datafeedTask.getId(), ActionListener.wrap(persistentTask -> {
+                persistentTasksService.sendRemoveRequest(datafeedTask.getId(), null, ActionListener.wrap(persistentTask -> {
                     // For force stop, only audit here if the datafeed was unassigned at the time of the stop, hence inactive.
                     // If the datafeed was active then it audits itself on being cancelled.
                     if (PersistentTasksClusterService.needsReassignment(datafeedTask.getAssignment(), nodes)) {
@@ -462,7 +465,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         AtomicArray<Exception> failures
     ) {
         List<Exception> caughtExceptions = failures.asList();
-        if (caughtExceptions.size() == 0) {
+        if (caughtExceptions.isEmpty()) {
             listener.onResponse(new StopDatafeedAction.Response(true));
             return;
         }
@@ -471,11 +474,11 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
             + datafeedId
             + "] with ["
             + caughtExceptions.size()
-            + "] failures, rethrowing last, all Exceptions: ["
+            + "] failures, rethrowing first. All Exceptions: ["
             + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
             + "]";
 
-        ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
+        ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
         listener.onFailure(e);
     }
 

@@ -46,16 +46,14 @@ public final class DfsSearchResult extends SearchPhaseResult {
         } else {
             terms = new Term[termsSize];
             for (int i = 0; i < terms.length; i++) {
-                terms[i] = new Term(in.readString(), in.readBytesRef());
+                terms[i] = new Term(in.readString(), in.readSlicedBytesReference().toBytesRef());
             }
         }
         this.termStatistics = readTermStats(in, terms);
         fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-        }
+        setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 knnResults = in.readOptionalCollectionAsList(DfsKnnResults::new);
@@ -135,9 +133,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeOptionalWriteable(getShardSearchRequest());
-        }
+        out.writeOptionalWriteable(getShardSearchRequest());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalCollection(knnResults);

@@ -133,18 +133,18 @@ public class SamlIdentityProvider {
         boolean allowDisabled,
         ActionListener<SamlServiceProvider> listener
     ) {
-        serviceProviderResolver.resolve(spEntityId, ActionListener.wrap(sp -> {
+        serviceProviderResolver.resolve(spEntityId, listener.delegateFailureAndWrap((delegate, sp) -> {
             if (sp == null) {
                 logger.debug("No explicitly registered service provider exists for entityId [{}]", spEntityId);
-                resolveWildcardService(spEntityId, acs, listener);
+                resolveWildcardService(spEntityId, acs, delegate);
             } else if (allowDisabled == false && sp.isEnabled() == false) {
                 logger.info("Service provider [{}][{}] is not enabled", spEntityId, sp.getName());
-                listener.onResponse(null);
+                delegate.onResponse(null);
             } else {
                 logger.debug("Service provider for [{}] is [{}]", spEntityId, sp);
-                listener.onResponse(sp);
+                delegate.onResponse(sp);
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void resolveWildcardService(String spEntityId, String acs, ActionListener<SamlServiceProvider> listener) {

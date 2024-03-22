@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ClusterChangedEventUtils;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -549,7 +550,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
         final ClusterState newState = nextState(previousState, changeClusterUUID, addedIndices, delIndices, 0);
         ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
-        final List<String> addsFromEvent = event.indicesCreated();
+        final List<String> addsFromEvent = ClusterChangedEventUtils.indicesCreated(event);
         List<Index> delsFromEvent = event.indicesDeleted();
         assertThat(new HashSet<>(addsFromEvent), equalTo(addedIndices.stream().map(Index::getName).collect(Collectors.toSet())));
         assertThat(new HashSet<>(delsFromEvent), equalTo(new HashSet<>(delIndices)));

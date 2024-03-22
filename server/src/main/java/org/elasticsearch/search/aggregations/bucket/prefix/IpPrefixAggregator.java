@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -51,22 +50,6 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             this.prefixLength = prefixLength;
             this.appendPrefixLength = appendPrefixLength;
             this.netmask = netmask;
-        }
-
-        public boolean isIpv6() {
-            return isIpv6;
-        }
-
-        public int getPrefixLength() {
-            return prefixLength;
-        }
-
-        public boolean appendPrefixLength() {
-            return appendPrefixLength;
-        }
-
-        public BytesRef getNetmask() {
-            return netmask;
         }
 
         @Override
@@ -186,7 +169,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             }
         }
 
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         b = 0;
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
@@ -209,7 +192,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                         ipPrefix.prefixLength,
                         ipPrefix.appendPrefixLength,
                         docCount,
-                        subAggregationResults[b++]
+                        subAggregationResults.apply(b++)
                     )
                 );
 

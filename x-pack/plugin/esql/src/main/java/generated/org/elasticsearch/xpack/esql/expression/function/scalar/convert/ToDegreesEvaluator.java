@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
@@ -36,7 +37,7 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
+      } catch (ArithmeticException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
@@ -45,7 +46,7 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendDouble(evalValue(vector, p));
-        } catch (Exception e) {
+        } catch (ArithmeticException  e) {
           registerException(e);
           builder.appendNull();
         }
@@ -79,7 +80,7 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
             }
             builder.appendDouble(value);
             valuesAppended = true;
-          } catch (Exception e) {
+          } catch (ArithmeticException  e) {
             registerException(e);
           }
         }

@@ -8,15 +8,16 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**
  * A dense Vector of single values.
  */
-public interface Vector extends Accountable, Releasable {
+public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
-     * {@return Returns a Block view over this vector.}
+     * {@return Returns a new Block containing this vector.}
      */
     Block asBlock();
 
@@ -48,7 +49,16 @@ public interface Vector extends Accountable, Releasable {
     boolean isConstant();
 
     /** The block factory associated with this vector. */
+    // TODO: Renaming this to owningBlockFactory
     BlockFactory blockFactory();
+
+    /**
+     * Before passing a Vector to another Driver, it is necessary to switch the owning block factory to its parent, which is associated
+     * with the global circuit breaker. This ensures that when the new driver releases this Vector, it returns memory directly to the
+     * parent block factory instead of the local block factory of this Block. This is important because the local block factory is
+     * not thread safe and doesn't support simultaneous access by more than one thread.
+     */
+    void allowPassingToDifferentDriver();
 
     /**
      * Builds {@link Vector}s. Typically, you use one of it's direct supinterfaces like {@link IntVector.Builder}.
@@ -65,4 +75,12 @@ public interface Vector extends Accountable, Releasable {
      * Whether this vector was released
      */
     boolean isReleased();
+
+    /**
+     * The serialization type of vectors: 0 and 1 replaces the boolean false/true in pre-8.14.
+     */
+    byte SERIALIZE_VECTOR_VALUES = 0;
+    byte SERIALIZE_VECTOR_CONSTANT = 1;
+    byte SERIALIZE_VECTOR_ARRAY = 2;
+    byte SERIALIZE_VECTOR_BIG_ARRAY = 3;
 }

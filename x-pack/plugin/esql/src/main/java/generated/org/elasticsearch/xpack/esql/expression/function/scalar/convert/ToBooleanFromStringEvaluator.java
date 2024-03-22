@@ -37,21 +37,11 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
     int positionCount = v.getPositionCount();
     BytesRef scratchPad = new BytesRef();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return driverContext.blockFactory().newConstantNullBlock(positionCount);
-      }
+      return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0, scratchPad), positionCount);
     }
     try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        try {
-          builder.appendBoolean(evalValue(vector, p, scratchPad));
-        } catch (Exception e) {
-          registerException(e);
-          builder.appendNull();
-        }
+        builder.appendBoolean(evalValue(vector, p, scratchPad));
       }
       return builder.build();
     }
@@ -75,17 +65,13 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            boolean value = evalValue(block, i, scratchPad);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendBoolean(value);
-            valuesAppended = true;
-          } catch (Exception e) {
-            registerException(e);
+          boolean value = evalValue(block, i, scratchPad);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendBoolean(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

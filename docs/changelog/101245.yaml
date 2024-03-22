@@ -1,5 +1,0 @@
-pr: 101245
-summary: Make S3 anti-contention delay configurable
-area: Snapshot/Restore
-type: bug
-issues: []

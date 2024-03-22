@@ -102,9 +102,9 @@ public class KvIndexResolver {
                 "Resolved index pattern ["
                     + indexPattern
                     + "] in time range ["
-                    + eventStart.toEpochMilli()
+                    + eventStart
                     + ", "
-                    + eventEnd.toEpochMilli()
+                    + eventEnd
                     + "] to indices ["
                     + matchingIndices.stream().map(Index::getName).collect(Collectors.joining(", "))
                     + "]."

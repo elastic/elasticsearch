@@ -1,0 +1,5 @@
+pr: 106060
+summary: "[Connector API] Fix serialisation of script params in connector index service"
+area: Application
+type: bug
+issues: []

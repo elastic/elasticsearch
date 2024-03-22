@@ -1,5 +1,0 @@
-pr: 99938
-summary: "Prune unnecessary information from TransportNodesInfoAction.NodeInfoRequest"
-area: Stats
-type: enhancement
-issues: [99744]

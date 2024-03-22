@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
@@ -141,10 +143,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 String policyName = indexMetadata.getLifecyclePolicyName();
-                if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
+                SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
+                if (searchableSnapshotMetadata != null) {
+                    // TODO: allow this behavior instead of returning false, in this case the index is already a searchable a snapshot
+                    // so the most graceful way of recovery might be to use this repo
                     // The index is already a searchable snapshot, let's see if the repository matches
-                    String repo = indexMetadata.getSettings().get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
-                    if (this.snapshotRepository.equals(repo) == false) {
+                    if (this.snapshotRepository.equals(searchableSnapshotMetadata.repositoryName) == false) {
                         // Okay, different repo, we need to go ahead with the searchable snapshot
                         logger.debug(
                             "[{}] action is configured for index [{}] in policy [{}] which is already mounted as a searchable "
@@ -153,15 +157,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
                             SearchableSnapshotAction.NAME,
                             index.getName(),
                             policyName,
-                            repo,
+                            searchableSnapshotMetadata.repositoryName,
                             this.snapshotRepository
                         );
                         return false;
                     }
 
                     // Check to the storage type to see if we need to convert between full <-> partial
-                    final boolean partial = indexMetadata.getSettings().getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false);
-                    MountSearchableSnapshotRequest.Storage existingType = partial
+                    MountSearchableSnapshotRequest.Storage existingType = searchableSnapshotMetadata.partial
                         ? MountSearchableSnapshotRequest.Storage.SHARED_CACHE
                         : MountSearchableSnapshotRequest.Storage.FULL_COPY;
                     MountSearchableSnapshotRequest.Storage type = getConcreteStorageType(preActionBranchingKey);
@@ -172,7 +175,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                             SearchableSnapshotAction.NAME,
                             index.getName(),
                             policyName,
-                            repo,
+                            searchableSnapshotMetadata.repositoryName,
                             type
                         );
                         return true;
@@ -215,7 +218,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         // When generating a snapshot, we either jump to the force merge step, or we skip the
         // forcemerge and go straight to steps for creating the snapshot
         StepKey keyForSnapshotGeneration = forceMergeIndex ? forceMergeStepKey : generateSnapshotNameKey;
-        // Branch, deciding whether there is an existing searchable snapshot snapshot that can be used for mounting the index
+        // Branch, deciding whether there is an existing searchable snapshot that can be used for mounting the index
         // (in which case, skip generating a new name and the snapshot cleanup), or if we need to generate a new snapshot
         BranchingStep skipGeneratingSnapshotStep = new BranchingStep(
             skipGeneratingSnapshotKey,
@@ -225,7 +228,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 String policyName = indexMetadata.getLifecyclePolicyName();
                 LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
-                if (lifecycleExecutionState.snapshotName() == null) {
+                SearchableSnapshotMetadata searchableSnapshotMetadata = extractSearchableSnapshotFromSettings(indexMetadata);
+                if (lifecycleExecutionState.snapshotName() == null && searchableSnapshotMetadata == null) {
                     // No name exists, so it must be generated
                     logger.trace(
                         "no snapshot name for index [{}] in policy [{}] exists, so one will be generated",
@@ -234,8 +238,20 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     );
                     return false;
                 }
+                String snapshotIndexName;
+                String snapshotName;
+                String repoName;
+                if (lifecycleExecutionState.snapshotName() != null) {
+                    snapshotIndexName = lifecycleExecutionState.snapshotIndexName();
+                    snapshotName = lifecycleExecutionState.snapshotName();
+                    repoName = lifecycleExecutionState.snapshotRepository();
+                } else {
+                    snapshotIndexName = searchableSnapshotMetadata.sourceIndex;
+                    snapshotName = searchableSnapshotMetadata.snapshotName;
+                    repoName = searchableSnapshotMetadata.repositoryName;
+                }
 
-                if (this.snapshotRepository.equals(lifecycleExecutionState.snapshotRepository()) == false) {
+                if (this.snapshotRepository.equals(repoName) == false) {
                     // A different repository is being used
                     // TODO: allow this behavior instead of throwing an exception
                     throw new IllegalArgumentException("searchable snapshot indices may be converted only within the same repository");
@@ -244,12 +260,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 // We can skip the generate, initial cleanup, and snapshot taking for this index, as we already have a generated snapshot.
                 // This will jump ahead directly to the "mount snapshot" step
                 logger.debug(
-                    "an existing snapshot [{}] in repository [{}] (index name: [{}]) "
-                        + "will be used for mounting [{}] as a searchable snapshot",
-                    lifecycleExecutionState.snapshotName(),
-                    lifecycleExecutionState.snapshotRepository(),
-                    lifecycleExecutionState.snapshotIndexName(),
-                    index.getName()
+                    "Policy [{}] will use an existing snapshot [{}] in repository [{}] (index name: [{}]) "
+                        + "to mount [{}] as a searchable snapshot. This snapshot was found in the {}.",
+                    policyName,
+                    snapshotName,
+                    snapshotRepository,
+                    snapshotIndexName,
+                    index.getName(),
+                    lifecycleExecutionState.snapshotName() != null ? "lifecycle execution state" : "metadata of " + index.getName()
                 );
                 return true;
             }
@@ -411,4 +429,18 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public int hashCode() {
         return Objects.hash(snapshotRepository, forceMergeIndex);
     }
+
+    @Nullable
+    static SearchableSnapshotMetadata extractSearchableSnapshotFromSettings(IndexMetadata indexMetadata) {
+        String indexName = indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME);
+        if (indexName == null) {
+            return null;
+        }
+        String snapshotName = indexMetadata.getSettings().get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY);
+        String repo = indexMetadata.getSettings().get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
+        final boolean partial = indexMetadata.getSettings().getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false);
+        return new SearchableSnapshotMetadata(indexName, repo, snapshotName, partial);
+    }
+
+    record SearchableSnapshotMetadata(String sourceIndex, String repositoryName, String snapshotName, boolean partial) {};
 }

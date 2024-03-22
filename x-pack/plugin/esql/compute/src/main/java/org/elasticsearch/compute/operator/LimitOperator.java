@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -100,11 +102,12 @@ public class LimitOperator implements Operator {
                 }
                 success = true;
             } finally {
-                Releasables.closeExpectNoException(lastInput::releaseBlocks);
-                lastInput = null;
                 if (success == false) {
-                    Releasables.closeExpectNoException(blocks);
+                    Releasables.closeExpectNoException(lastInput::releaseBlocks, Releasables.wrap(blocks));
+                } else {
+                    lastInput.releaseBlocks();
                 }
+                lastInput = null;
             }
             result = new Page(blocks);
             limitRemaining = 0;
@@ -227,6 +230,11 @@ public class LimitOperator implements Operator {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_11_X;
         }
     }
 }

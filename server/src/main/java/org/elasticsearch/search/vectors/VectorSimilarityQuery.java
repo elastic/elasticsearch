@@ -53,10 +53,6 @@ public class VectorSimilarityQuery extends Query {
         return similarity;
     }
 
-    float getDocScore() {
-        return docScore;
-    }
-
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         Query rewrittenInnerQuery = innerKnnQuery.rewrite(searcher);

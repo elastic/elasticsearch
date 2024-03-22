@@ -8,7 +8,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -17,6 +16,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -440,17 +440,22 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }""");
         final Response searchResponse = client().performRequest(searchRequest);
         assertOK(searchResponse);
-        final SearchHits searchHits = SearchResponse.fromXContent(responseAsParser(searchResponse)).getHits();
-        assertThat(
-            "Search request used with size parameter that was too small to fetch all tokens.",
-            searchHits.getTotalHits().value,
-            lessThanOrEqualTo(searchSize)
-        );
-        final List<String> tokenIds = Arrays.stream(searchHits.getHits()).map(searchHit -> {
-            assertNotNull(searchHit.getId());
-            return searchHit.getId();
-        }).toList();
-        assertThat(tokenIds, not(empty()));
-        return tokenIds;
+        var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
+        try {
+            final SearchHits searchHits = response.getHits();
+            assertThat(
+                "Search request used with size parameter that was too small to fetch all tokens.",
+                searchHits.getTotalHits().value,
+                lessThanOrEqualTo(searchSize)
+            );
+            final List<String> tokenIds = Arrays.stream(searchHits.getHits()).map(searchHit -> {
+                assertNotNull(searchHit.getId());
+                return searchHit.getId();
+            }).toList();
+            assertThat(tokenIds, not(empty()));
+            return tokenIds;
+        } finally {
+            response.decRef();
+        }
     }
 }

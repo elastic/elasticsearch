@@ -11,20 +11,28 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.rest.RestStatus;
 
-import java.util.Objects;
-
 import static fixture.s3.S3HttpHandler.sendError;
 
 public class S3HttpFixtureWithSessionToken extends S3HttpFixture {
 
-    S3HttpFixtureWithSessionToken(final String[] args) throws Exception {
-        super(args);
+    protected final String sessionToken;
+
+    public S3HttpFixtureWithSessionToken() {
+        this(true);
+    }
+
+    public S3HttpFixtureWithSessionToken(boolean enabled) {
+        this(enabled, "session_token_bucket", "session_token_base_path_integration_tests", "session_token_access_key", "session_token");
+    }
+
+    public S3HttpFixtureWithSessionToken(boolean enabled, String bucket, String basePath, String accessKey, String sessionToken) {
+        super(enabled, bucket, basePath, accessKey);
+        this.sessionToken = sessionToken;
     }
 
     @Override
-    protected HttpHandler createHandler(final String[] args) {
-        final String sessionToken = Objects.requireNonNull(args[5], "session token is missing");
-        final HttpHandler delegate = super.createHandler(args);
+    protected HttpHandler createHandler() {
+        final HttpHandler delegate = super.createHandler();
         return exchange -> {
             final String securityToken = exchange.getRequestHeaders().getFirst("x-amz-security-token");
             if (securityToken == null) {
@@ -37,15 +45,5 @@ public class S3HttpFixtureWithSessionToken extends S3HttpFixture {
             }
             delegate.handle(exchange);
         };
-    }
-
-    public static void main(final String[] args) throws Exception {
-        if (args == null || args.length < 6) {
-            throw new IllegalArgumentException(
-                "S3HttpFixtureWithSessionToken expects 6 arguments [address, port, bucket, base path, access key, session token]"
-            );
-        }
-        final S3HttpFixtureWithSessionToken fixture = new S3HttpFixtureWithSessionToken(args);
-        fixture.start();
     }
 }

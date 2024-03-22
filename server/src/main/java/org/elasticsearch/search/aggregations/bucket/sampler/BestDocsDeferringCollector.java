@@ -45,7 +45,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     private final List<PerSegmentCollects> entries = new ArrayList<>();
     private BucketCollector deferred;
     private ObjectArray<PerParentBucketSamples> perBucketSamples;
-    private int shardSize;
+    private final int shardSize;
     private PerSegmentCollects perSegCollector;
     private final BigArrays bigArrays;
     private final Consumer<Long> circuitBreakerConsumer;
@@ -210,7 +210,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     class PerSegmentCollects extends Scorable {
-        private AggregationExecutionContext aggCtx;
+        private final AggregationExecutionContext aggCtx;
         int maxDocId = Integer.MIN_VALUE;
         private float currentScore;
         private int currentDocId = -1;

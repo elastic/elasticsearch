@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeTestCase {
 
-    private static final Setting<Boolean> BLOCK_SEARCHER_SETTING = Setting.boolSetting(
+    protected static final Setting<Boolean> BLOCK_SEARCHER_SETTING = Setting.boolSetting(
         "index.block_searcher",
         false,
         Setting.Property.IndexScope

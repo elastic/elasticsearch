@@ -1,7 +1,24 @@
 [discrete]
 [[esql-ltrim]]
 === `LTRIM`
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/ltrim.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`str`::
+String expression. If `null`, the function returns `null`.
+
+*Description*
+
 Removes leading whitespaces from strings.
+
+include::types/rtrim.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----

@@ -118,7 +118,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 try {
                     // the file may not exist if the command never output anything
                     if (Files.exists(spoolFile.toPath())) {
-                        Files.lines(spoolFile.toPath()).forEach(logger::error);
+                        try (var lines = Files.lines(spoolFile.toPath())) {
+                            lines.forEach(logger::error);
+                        }
                     }
                 } catch (IOException e) {
                     throw new RuntimeException("could not log", e);

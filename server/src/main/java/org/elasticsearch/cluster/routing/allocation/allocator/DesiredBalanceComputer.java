@@ -51,6 +51,7 @@ public class DesiredBalanceComputer {
     private final ThreadPool threadPool;
     private final ShardsAllocator delegateAllocator;
 
+    // stats
     protected final MeanMetric iterations = new MeanMetric();
 
     public static final Setting<TimeValue> PROGRESS_LOG_INTERVAL_SETTING = Setting.timeSetting(
@@ -76,14 +77,25 @@ public class DesiredBalanceComputer {
         Predicate<DesiredBalanceInput> isFresh
     ) {
 
-        logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "Recomputing desired balance for [{}]: {}, {}, {}, {}",
+                desiredBalanceInput.index(),
+                previousDesiredBalance,
+                desiredBalanceInput.routingAllocation().routingNodes().toString(),
+                desiredBalanceInput.routingAllocation().clusterInfo().toString(),
+                desiredBalanceInput.routingAllocation().snapshotShardSizeInfo().toString()
+            );
+        } else {
+            logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
+        }
 
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
         final var routingNodes = routingAllocation.routingNodes();
         final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();
         final var ignoredShards = getIgnoredShardsWithDiscardedAllocationStatus(desiredBalanceInput.ignoredShards());
-        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation.clusterInfo());
+        final var clusterInfoSimulator = new ClusterInfoSimulator(routingAllocation);
 
         if (routingNodes.size() == 0) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of());
@@ -273,7 +285,7 @@ public class DesiredBalanceComputer {
             routingAllocation.setSimulatedClusterInfo(clusterInfoSimulator.getClusterInfo());
             logger.trace("running delegate allocator");
             delegateAllocator.allocate(routingAllocation);
-            assert routingNodes.unassigned().size() == 0; // any unassigned shards should now be ignored
+            assert routingNodes.unassigned().isEmpty(); // any unassigned shards should now be ignored
 
             hasChanges = false;
             for (final var routingNode : routingNodes) {
@@ -282,7 +294,6 @@ public class DesiredBalanceComputer {
                         hasChanges = true;
                         clusterInfoSimulator.simulateShardStarted(shardRouting);
                         routingNodes.startShard(logger, shardRouting, changes, 0L);
-                        logger.trace("starting shard {}", shardRouting);
                     }
                 }
             }

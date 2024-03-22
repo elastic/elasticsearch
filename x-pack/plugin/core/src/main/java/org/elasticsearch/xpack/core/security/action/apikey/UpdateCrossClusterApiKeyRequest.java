@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,9 +23,10 @@ public final class UpdateCrossClusterApiKeyRequest extends BaseSingleUpdateApiKe
     public UpdateCrossClusterApiKeyRequest(
         final String id,
         @Nullable CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder,
-        @Nullable final Map<String, Object> metadata
+        @Nullable final Map<String, Object> metadata,
+        @Nullable TimeValue expiration
     ) {
-        super(roleDescriptorBuilder == null ? null : List.of(roleDescriptorBuilder.build()), metadata, id);
+        super(roleDescriptorBuilder == null ? null : List.of(roleDescriptorBuilder.build()), metadata, expiration, id);
     }
 
     public UpdateCrossClusterApiKeyRequest(StreamInput in) throws IOException {

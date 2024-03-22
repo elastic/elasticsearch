@@ -286,11 +286,12 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.getArgs().add("--build-cache");
             }
+            File rootDir = project.getRootDir();
             c.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
                     if (expectedOutputFile.exists() == false) {
-                        Path relativeOutputPath = project.getRootDir().toPath().relativize(expectedOutputFile.toPath());
+                        Path relativeOutputPath = rootDir.toPath().relativize(expectedOutputFile.toPath());
                         final String message = "Building %s didn't generate expected artifact [%s]. The working branch may be "
                             + "out-of-date - try merging in the latest upstream changes to the branch.";
                         throw new InvalidUserDataException(message.formatted(bwcVersion.get(), relativeOutputPath));

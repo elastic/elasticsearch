@@ -37,7 +37,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -188,7 +187,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         EnumSet<GeoIpProcessor.Property> asnOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_ASN_PROPERTIES);
         asnOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
-        config.put("properties", Collections.singletonList(asnProperty));
+        config.put("properties", List.of(asnProperty));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
@@ -208,7 +207,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         EnumSet<GeoIpProcessor.Property> cityOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_CITY_PROPERTIES);
         cityOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
-        config.put("properties", Collections.singletonList(cityProperty));
+        config.put("properties", List.of(cityProperty));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
@@ -271,7 +270,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config1 = new HashMap<>();
         config1.put("field", "_field");
-        config1.put("properties", Collections.singletonList("invalid"));
+        config1.put("properties", List.of("invalid"));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
         assertThat(
             e.getMessage(),
@@ -314,7 +313,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
-        final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
+        final Map<String, Object> field = Map.of("_field", "1.1.1.1");
         final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
@@ -384,7 +383,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
-        final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
+        final Map<String, Object> field = Map.of("_field", "1.1.1.1");
         final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();

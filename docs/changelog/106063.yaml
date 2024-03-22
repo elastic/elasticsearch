@@ -1,0 +1,5 @@
+pr: 106063
+summary: Consider `ShardRouting` roles when calculating shard copies in shutdown status
+area: Infra/Node Lifecycle
+type: bug
+issues: []

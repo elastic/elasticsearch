@@ -84,10 +84,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-`ignore_throttled`::
-(Optional, Boolean)
-If `true`, concrete, expanded or aliased indices are ignored when frozen.
-Defaults to `true`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

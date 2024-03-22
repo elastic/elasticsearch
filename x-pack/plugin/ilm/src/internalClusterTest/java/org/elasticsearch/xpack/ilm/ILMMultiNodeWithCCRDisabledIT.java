@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -31,7 +31,8 @@ import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -75,7 +76,7 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
 
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", Collections.singletonMap(hotPhase.getName(), hotPhase));
-        client().execute(PutLifecycleAction.INSTANCE, new PutLifecycleAction.Request(lifecyclePolicy)).get();
+        client().execute(ILMActions.PUT, new PutLifecycleRequest(lifecyclePolicy)).get();
 
         Template t = new Template(
             Settings.builder()
@@ -87,21 +88,16 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
             null
         );
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Collections.singletonList(index),
-            t,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
-            null
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(index))
+            .template(t)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
-        client().prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
+        prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
             ExplainLifecycleResponse explain = client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*"))

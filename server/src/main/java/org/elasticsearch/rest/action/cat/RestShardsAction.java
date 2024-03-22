@@ -293,8 +293,8 @@ public class RestShardsAction extends AbstractCatAction {
             }
             table.addCell(shard.state());
             table.addCell(getOrNull(commonStats, CommonStats::getDocs, DocsStats::getCount));
-            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getSize));
-            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::getTotalDataSetSize));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::size));
+            table.addCell(getOrNull(commonStats, CommonStats::getStore, StoreStats::totalDataSetSize));
             if (shard.assignedToNode()) {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();
@@ -326,7 +326,9 @@ public class RestShardsAction extends AbstractCatAction {
                 table.addCell(shard.unassignedInfo().getReason());
                 Instant unassignedTime = Instant.ofEpochMilli(shard.unassignedInfo().getUnassignedTimeInMillis());
                 table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.format(unassignedTime));
-                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()));
+                table.addCell(
+                    TimeValue.timeValueMillis(Math.max(0, System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()))
+                );
                 table.addCell(shard.unassignedInfo().getDetails());
             } else {
                 table.addCell(null);

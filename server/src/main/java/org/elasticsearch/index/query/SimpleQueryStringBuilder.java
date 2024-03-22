@@ -91,7 +91,7 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
-    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_500_040;
+    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_10_X;
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
@@ -280,14 +280,14 @@ public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQ
         return this;
     }
 
-    /** For testing and serialisation only. */
-    SimpleQueryStringBuilder flags(int flags) {
+    /** For testing, builder instance copy, and serialisation only. */
+    public SimpleQueryStringBuilder flags(int flags) {
         this.flags = flags;
         return this;
     }
 
-    /** For testing only: Return the flags set for this query. */
-    int flags() {
+    /** For testing and instance copy only: Return the flags set for this query. */
+    public int flags() {
         return this.flags;
     }
 

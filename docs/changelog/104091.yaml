@@ -1,0 +1,11 @@
+pr: 104091
+summary: "[ESQL] Remove is_nan, is_finite, and `is_infinite`"
+area: ES|QL
+type: breaking
+issues: []
+breaking:
+  title: "[ESQL] Remove is_nan, is_finite, and `is_infinite`"
+  area: REST API
+  details: Removes the functions `is_nan`, `is_finite`, and `is_infinite`. 
+  impact: Attempting to use the above functions will now be a planner time error.  These functions are no longer supported.
+  notable: false

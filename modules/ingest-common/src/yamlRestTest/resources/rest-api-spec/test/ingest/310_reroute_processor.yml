@@ -23,6 +23,9 @@ teardown:
 
 ---
 "Test first matching router terminates pipeline":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/102144"
   - do:
       ingest.put_pipeline:
         id: "pipeline-with-two-data-stream-processors"

@@ -1,0 +1,5 @@
+pr: 103710
+summary: List hidden shard stores by default
+area: Store
+type: enhancement
+issues: []

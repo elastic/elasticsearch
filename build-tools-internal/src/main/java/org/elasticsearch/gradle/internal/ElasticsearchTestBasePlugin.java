@@ -57,7 +57,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
-            test.getInputs().property(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
+            test.getExtensions().getExtraProperties().set(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
             test.getExtensions().add("errorReportingTestListener", listener);
             test.addTestOutputListener(listener);
             test.addTestListener(listener);
@@ -144,6 +144,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             File gradleUserHome = project.getGradle().getGradleUserHomeDir();
             nonInputProperties.systemProperty("gradle.user.home", gradleUserHome);
+            nonInputProperties.systemProperty("workspace.dir", Util.locateElasticsearchWorkspace(project.getGradle()));
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
 

@@ -85,8 +85,12 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
             SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId).scroll(CONTEXT_ALIVE_DURATION);
             searchResponse = client.searchScroll(searchScrollRequest).actionGet();
         }
-        scrollId = searchResponse.getScrollId();
-        return mapHits(searchResponse);
+        try {
+            scrollId = searchResponse.getScrollId();
+            return mapHits(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private SearchResponse initScroll() {

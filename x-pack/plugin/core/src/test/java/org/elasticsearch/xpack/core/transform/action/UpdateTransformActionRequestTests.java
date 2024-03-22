@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationStateTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
@@ -73,5 +74,13 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         }
 
         return new Request(update, id, deferValidation, timeout);
+    }
+
+    public void testMatch() {
+        Request request = new Request(randomTransformConfigUpdate(), "my-transform-7", false, null);
+        assertTrue(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-7", null, null)));
+        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-", null, null)));
+        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "data_frame_my-transform-77", null, null)));
+        assertFalse(request.match(new AllocatedPersistentTask(123, "", "", "my-transform-7", null, null)));
     }
 }

@@ -1,0 +1,6 @@
+pr: 103555
+summary: "[Security Solution] Allow write permission for `kibana_system` role on endpoint\
+  \ response index"
+area: Authorization
+type: enhancement
+issues: []

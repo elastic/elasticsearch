@@ -168,7 +168,7 @@ public class SequenceMatcher {
 
             if (isFirstPositiveStage(stage)) {
                 log.trace("Matching hit {}  - track sequence", ko.ordinal);
-                Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
+                Sequence seq = new Sequence(ko.key, numberOfStages, stage, ko.ordinal, hit);
                 if (lastPositiveStage == stage) {
                     tryComplete(seq);
                 } else {

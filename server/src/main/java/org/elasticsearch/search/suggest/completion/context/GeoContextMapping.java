@@ -348,19 +348,6 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         /**
          * Set the precision use o make suggestions
          *
-         * @param precision
-         *            precision value
-         * @param unit
-         *            {@link DistanceUnit} to use
-         * @return this
-         */
-        public Builder precision(double precision, DistanceUnit unit) {
-            return precision(unit.toMeters(precision));
-        }
-
-        /**
-         * Set the precision use o make suggestions
-         *
          * @param meters
          *            precision as distance in meters
          * @return this

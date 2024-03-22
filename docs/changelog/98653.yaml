@@ -1,6 +1,0 @@
-pr: 98653
-summary: Reset `GatewayService` flags before reroute
-area: Cluster Coordination
-type: bug
-issues:
- - 98606

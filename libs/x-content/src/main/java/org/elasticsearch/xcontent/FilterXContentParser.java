@@ -236,7 +236,10 @@ public abstract class FilterXContentParser implements XContentParser {
 
     @Override
     public void close() throws IOException {
-        delegate().close();
+        var closeable = delegate();
+        if (closeable != null) {
+            closeable.close();
+        }
     }
 
     @Override

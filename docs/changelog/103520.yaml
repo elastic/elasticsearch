@@ -1,0 +1,5 @@
+pr: 103520
+summary: Request indexing memory pressure in APM node metrics publisher
+area: Distributed
+type: bug
+issues: []

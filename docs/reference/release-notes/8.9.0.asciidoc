@@ -12,6 +12,8 @@ task is longer than the model's max_sequence_length and truncate is set to none
 then inference fails with the message `question answering result has
 invalid dimension`. (issue: {es-issue}97917[#97917])
 
+include::8.7.1.asciidoc[tag=no-preventive-gc-issue]
+
 [[breaking-8.9.0]]
 [float]
 === Breaking changes

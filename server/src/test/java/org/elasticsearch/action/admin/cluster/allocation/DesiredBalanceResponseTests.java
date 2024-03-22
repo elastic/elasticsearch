@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterInfoTests;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.ClusterBalanceStats;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -30,6 +30,7 @@ import java.util.stream.IntStream;
 
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase<DesiredBalanceResponse> {
@@ -46,20 +47,6 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             randomClusterBalanceStats(),
             randomRoutingTable(),
             randomClusterInfo()
-        );
-    }
-
-    private DesiredBalanceStats randomDesiredBalanceStats() {
-        return new DesiredBalanceStats(
-            randomNonNegativeLong(),
-            randomBoolean(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
         );
     }
 
@@ -156,7 +143,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
     protected DesiredBalanceResponse mutateInstance(DesiredBalanceResponse instance) {
         return switch (randomInt(4)) {
             case 0 -> new DesiredBalanceResponse(
-                randomValueOtherThan(instance.getStats(), this::randomDesiredBalanceStats),
+                randomValueOtherThan(instance.getStats(), DesiredBalanceStatsTests::randomDesiredBalanceStats),
                 instance.getClusterBalanceStats(),
                 instance.getRoutingTable(),
                 instance.getClusterInfo()
@@ -192,9 +179,14 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             randomClusterInfo()
         );
 
-        Map<String, Object> json = createParser(
-            ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
-        ).map();
+        Map<String, Object> json;
+        try (
+            var parser = createParser(
+                ChunkedToXContent.wrapAsToXContent(response).toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            )
+        ) {
+            json = parser.map();
+        }
         assertThat(json.keySet(), containsInAnyOrder("stats", "cluster_balance_stats", "routing_table", "cluster_info"));
 
         // stats

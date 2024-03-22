@@ -13,11 +13,11 @@
 ----
 FROM logs-*
 | WHERE event.code IS NOT NULL
-| STATS event_code_count = count(event.code) by event.code,host.name
-| ENRICH win_events on event.code with event_description
+| STATS event_code_count = COUNT(event.code) BY event.code,host.name
+| ENRICH win_events ON event.code WITH event_description
 | WHERE event_description IS NOT NULL and host.name IS NOT NULL
-| RENAME event_description as event.description
-| SORT event_code_count desc
+| RENAME event_description AS event.description
+| SORT event_code_count DESC
 | KEEP event_code_count,event.code,host.name,event.description
 ----
 
@@ -40,7 +40,7 @@ FROM logs-endpoint
 | WHERE process.name == "curl.exe"
 | STATS bytes = SUM(destination.bytes) BY destination.address
 | EVAL kb =  bytes/1024
-| SORT kb desc
+| SORT kb DESC
 | LIMIT 10
 | KEEP kb,destination.address
 ----
@@ -60,7 +60,7 @@ FROM logs-endpoint
 ----
 FROM logs-*
 | GROK dns.question.name "%{DATA}\\.%{GREEDYDATA:dns.question.registered_domain:string}"
-| STATS unique_queries = count_distinct(dns.question.name) by dns.question.registered_domain, process.name
+| STATS unique_queries = COUNT_DISTINCT(dns.question.name) BY dns.question.registered_domain, process.name
 | WHERE unique_queries > 10
 | SORT unique_queries DESC
 | RENAME unique_queries AS `Unique Queries`, dns.question.registered_domain AS `Registered Domain`, process.name AS `Process`
@@ -85,7 +85,7 @@ FROM logs-*
 | ENRICH ldap_lookup_new ON user.name
 | WHERE group.name IS NOT NULL
 | EVAL follow_up = CASE(destcount >= 100, "true","false")
-| SORT destcount desc
+| SORT destcount DESC
 | KEEP destcount, host.name, user.name, group.name, follow_up
 ----
 

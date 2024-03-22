@@ -89,7 +89,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getAdaptiveSelectionStats(),
                 nodeStats.getScriptCacheStats(),
                 nodeStats.getIndexingPressureStats(),
-                nodeStats.getRepositoriesStats()
+                nodeStats.getRepositoriesStats(),
+                nodeStats.getNodeAllocationStats()
             );
         }).collect(Collectors.toList());
     }
@@ -107,7 +108,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             var storeStats = new StoreStats(
                 shardSizeFunctionCopy.apply(shardRouting),
                 shardSizeFunctionCopy.apply(shardRouting),
-                shardStats.getStats().store.getReservedSize().getBytes()
+                shardStats.getStats().store.reservedSizeInBytes()
             );
             var commonStats = new CommonStats(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
             commonStats.store = storeStats;

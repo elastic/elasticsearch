@@ -443,121 +443,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-.Properties of tokenization
-[%collapsible%open]
-======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-+
-.Properties of bert
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-=======
-`roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
-+
-.Properties of roberta
-[%collapsible%open]
-=======
-`add_prefix_space`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-add-prefix-space]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet-with-special-tokens]
-=======
-`xlm_roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
-+
-.Properties of xlm_roberta
-[%collapsible%open]
-=======
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`bert_ja`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
-+
-.Properties of bert_ja
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
-=======
-======
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
 =====
 
 `ner`:::
@@ -582,121 +469,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-.Properties of tokenization
-[%collapsible%open]
-======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-+
-.Properties of bert
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-=======
-`roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
-+
-.Properties of roberta
-[%collapsible%open]
-=======
-`add_prefix_space`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-add-prefix-space]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet-with-special-tokens]
-=======
-`xlm_roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
-+
-.Properties of xlm_roberta
-[%collapsible%open]
-=======
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`bert_ja`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
-+
-.Properties of bert_ja
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
-=======
-======
+Refer to <<tokenization-properties>> to review the
+properties of the `tokenization` object.
 =====
 
 `pass_through`:::
@@ -714,121 +488,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-.Properties of tokenization
-[%collapsible%open]
-======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-+
-.Properties of bert
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-=======
-`roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
-+
-.Properties of roberta
-[%collapsible%open]
-=======
-`add_prefix_space`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-add-prefix-space]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet-with-special-tokens]
-=======
-`xlm_roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
-+
-.Properties of xlm_roberta
-[%collapsible%open]
-=======
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`bert_ja`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
-+
-.Properties of bert_ja
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
-=======
-======
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
 =====
 
 `question_answering`:::
@@ -853,141 +514,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 Recommended to set `max_sentence_length` to `386` with `128` of `span` and set
 `truncate` to `none`.
 +
-.Properties of tokenization
-[%collapsible%open]
-======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-+
-.Properties of bert
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-=======
-`roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
-+
-.Properties of roberta
-[%collapsible%open]
-=======
-`add_prefix_space`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-add-prefix-space]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet-with-special-tokens]
-=======
-`xlm_roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
-+
-.Properties of xlm_roberta
-[%collapsible%open]
-=======
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`bert_ja`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
-+
-.Properties of bert_ja
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
-=======
-======
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
 =====
 
 `regression`:::
@@ -1018,7 +546,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classific
 
 `num_top_classes`::::
 (Optional, integer)
-Specifies the number of top class predictions to return. Defaults to all classes (-1).
+Specifies the number of top class predictions to return. Defaults to all classes
+(-1).
 
 `results_field`::::
 (Optional, string)
@@ -1028,138 +557,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-.Properties of tokenization
-[%collapsible%open]
-======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-+
-.Properties of bert
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-=======
-`roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
-+
-.Properties of roberta
-[%collapsible%open]
-=======
-`add_prefix_space`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-add-prefix-space]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet-with-special-tokens]
-=======
-`xlm_roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
-+
-.Properties of xlm_roberta
-[%collapsible%open]
-=======
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`bert_ja`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
-+
-.Properties of bert_ja
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
-=======
-======
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
 =====
+
 `text_embedding`:::
 (Object, optional)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-embedding]
@@ -1179,122 +580,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-.Properties of tokenization
-[%collapsible%open]
-======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-+
-.Properties of bert
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-=======
-`roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
-+
-.Properties of roberta
-[%collapsible%open]
-=======
-`add_prefix_space`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-add-prefix-space]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet-with-special-tokens]
-=======
-`xlm_roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
-+
-.Properties of xlm_roberta
-[%collapsible%open]
-=======
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`bert_ja`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
-+
-.Properties of bert_ja
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
-=======
-======
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
 =====
+
 `text_similarity`::::
 (Object, optional)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity]
@@ -1310,142 +599,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarit
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-.Properties of tokenization
-[%collapsible%open]
-======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-+
-.Properties of bert
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-=======
-`roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
-+
-.Properties of roberta
-[%collapsible%open]
-=======
-`add_prefix_space`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-add-prefix-space]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet-with-special-tokens]
-=======
-`xlm_roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
-+
-.Properties of xlm_roberta
-[%collapsible%open]
-=======
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`bert_ja`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
-+
-.Properties of bert_ja
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`span`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
-=======
-======
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
 =====
+
 `zero_shot_classification`:::
 (Object, optional)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification]
@@ -1477,121 +634,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-.Properties of tokenization
-[%collapsible%open]
-======
-`bert`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
-+
-.Properties of bert
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
-=======
-`roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
-+
-.Properties of roberta
-[%collapsible%open]
-=======
-`add_prefix_space`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-add-prefix-space]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`mpnet`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
-+
-.Properties of mpnet
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet-with-special-tokens]
-=======
-`xlm_roberta`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
-+
-.Properties of xlm_roberta
-[%collapsible%open]
-=======
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
-=======
-`bert_ja`::::
-(Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
-+
-.Properties of bert_ja
-[%collapsible%open]
-=======
-`do_lower_case`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
-
-`max_sequence_length`::::
-(Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
-
-`truncate`::::
-(Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
-
-`with_special_tokens`::::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
-=======
-======
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
 =====
 ====
 //End of inference_config
@@ -1657,10 +701,178 @@ the platform identifiers used by Elasticsearch, so one of, `linux-x86_64`,
 For portable models (those that work independent of processor architecture or
 OS features), leave this field unset.
 
+//Begin prefix_strings
+`prefix_strings`::
+(Optional, object)
+Certain NLP models are trained in such a way that a prefix string should
+be applied to the input text before the input is evaluated. The prefix
+may be different depending on the intention. For asymmetric tasks such
+as infromation retrieval the prefix applied to a passage as it is indexed
+can be different to the prefix applied when searching those passages.
++
+--
+`prefix_strings` has 2 options, a prefix string that is always applied
+in the search context and one that is always applied when ingesting the
+docs. Both are optional.
+--
++
+.Properties of `prefix_strings`
+[%collapsible%open]
+====
+`search`:::
+(Optional, string)
+The prefix string to prepend to the input text for requests
+originating from a search query.
+
+`ingest`:::
+(Optional, string)
+The prefix string to prepend to the input text for requests
+at ingest where the {infer} ingest processor is used.
+// TODO is there a shortcut for Inference ingest processor?
+====
+//End prefix_strings
 
 `tags`::
 (Optional, string)
 An array of tags to organize the model.
+
+
+[[tokenization-properties]]
+=== Properties of `tokenizaton`
+
+The `tokenization` object has the following properties.
+
+`bert`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
++
+.Properties of bert
+[%collapsible%open]
+====
+`do_lower_case`:::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
+
+`max_sequence_length`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
+
+`span`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+
+`with_special_tokens`:::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
+====
+`roberta`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
++
+.Properties of roberta
+[%collapsible%open]
+====
+`add_prefix_space`:::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-add-prefix-space]
+
+`max_sequence_length`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
+
+`span`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+
+`with_special_tokens`:::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
+====
+`mpnet`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
++
+.Properties of mpnet
+[%collapsible%open]
+====
+`do_lower_case`:::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
+
+`max_sequence_length`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
+
+`span`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+
+`with_special_tokens`:::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet-with-special-tokens]
+====
+`xlm_roberta`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
++
+.Properties of xlm_roberta
+[%collapsible%open]
+====
+`max_sequence_length`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
+
+`span`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+
+`with_special_tokens`:::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta-with-special-tokens]
+====
+`bert_ja`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
++
+.Properties of bert_ja
+[%collapsible%open]
+====
+`do_lower_case`:::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
+
+`max_sequence_length`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
+
+`span`:::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`:::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+
+`with_special_tokens`:::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
+====
 
 
 [[ml-put-trained-models-example]]

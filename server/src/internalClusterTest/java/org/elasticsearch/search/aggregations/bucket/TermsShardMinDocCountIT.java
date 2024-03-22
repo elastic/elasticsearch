@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -26,6 +25,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TermsShardMinDocCountIT extends ESIntegTestCase {
@@ -61,44 +61,51 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         indexRandom(true, false, indexBuilders);
 
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
-        SearchResponse response = prepareSearch(index).addAggregation(
-            (filter("inclass", QueryBuilders.termQuery("class", true))).subAggregation(
-                significantTerms("mySignificantTerms").field("text")
-                    .minDocCount(2)
-                    .size(2)
-                    .shardSize(2)
-                    .executionHint(randomExecutionHint())
-            )
-        ).get();
-        assertNoFailures(response);
-        InternalFilter filteredBucket = response.getAggregations().get("inclass");
-        SignificantTerms sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
-        assertThat(sigterms.getBuckets().size(), equalTo(0));
+        assertNoFailuresAndResponse(
+            prepareSearch(index).addAggregation(
+                (filter("inclass", QueryBuilders.termQuery("class", true))).subAggregation(
+                    significantTerms("mySignificantTerms").field("text")
+                        .minDocCount(2)
+                        .size(2)
+                        .shardSize(2)
+                        .executionHint(randomExecutionHint())
+                )
+            ),
+            response -> {
+                InternalFilter filteredBucket = response.getAggregations().get("inclass");
+                SignificantTerms sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
+                assertThat(sigterms.getBuckets().size(), equalTo(0));
+            }
+        );
 
-        response = prepareSearch(index).addAggregation(
-            (filter("inclass", QueryBuilders.termQuery("class", true))).subAggregation(
-                significantTerms("mySignificantTerms").field("text")
-                    .minDocCount(2)
-                    .shardSize(2)
-                    .shardMinDocCount(2)
-                    .size(2)
-                    .executionHint(randomExecutionHint())
-            )
-        ).get();
-        assertNoFailures(response);
-        filteredBucket = response.getAggregations().get("inclass");
-        sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
-        assertThat(sigterms.getBuckets().size(), equalTo(2));
+        assertNoFailuresAndResponse(
+            prepareSearch(index).addAggregation(
+                (filter("inclass", QueryBuilders.termQuery("class", true))).subAggregation(
+                    significantTerms("mySignificantTerms").field("text")
+                        .minDocCount(2)
+                        .shardSize(2)
+                        .shardMinDocCount(2)
+                        .size(2)
+                        .executionHint(randomExecutionHint())
+                )
+            ),
+            response -> {
+                assertNoFailures(response);
+                InternalFilter filteredBucket = response.getAggregations().get("inclass");
+                SignificantTerms sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
+                assertThat(sigterms.getBuckets().size(), equalTo(2));
+            }
+        );
     }
 
     private void addTermsDocs(String term, int numInClass, int numNotInClass, List<IndexRequestBuilder> builders) {
         String sourceClass = "{\"text\": \"" + term + "\", \"class\":" + "true" + "}";
         String sourceNotClass = "{\"text\": \"" + term + "\", \"class\":" + "false" + "}";
         for (int i = 0; i < numInClass; i++) {
-            builders.add(client().prepareIndex(index).setSource(sourceClass, XContentType.JSON));
+            builders.add(prepareIndex(index).setSource(sourceClass, XContentType.JSON));
         }
         for (int i = 0; i < numNotInClass; i++) {
-            builders.add(client().prepareIndex(index).setSource(sourceNotClass, XContentType.JSON));
+            builders.add(prepareIndex(index).setSource(sourceNotClass, XContentType.JSON));
         }
     }
 
@@ -122,37 +129,42 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         indexRandom(true, false, indexBuilders);
 
         // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
-        SearchResponse response = prepareSearch(index).addAggregation(
-            terms("myTerms").field("text")
-                .minDocCount(2)
-                .size(2)
-                .shardSize(2)
-                .executionHint(randomExecutionHint())
-                .order(BucketOrder.key(true))
-        ).get();
-        assertNoFailures(response);
-        Terms sigterms = response.getAggregations().get("myTerms");
-        assertThat(sigterms.getBuckets().size(), equalTo(0));
+        assertNoFailuresAndResponse(
+            prepareSearch(index).addAggregation(
+                terms("myTerms").field("text")
+                    .minDocCount(2)
+                    .size(2)
+                    .shardSize(2)
+                    .executionHint(randomExecutionHint())
+                    .order(BucketOrder.key(true))
+            ),
+            response -> {
+                Terms sigterms = response.getAggregations().get("myTerms");
+                assertThat(sigterms.getBuckets().size(), equalTo(0));
+            }
+        );
 
-        response = prepareSearch(index).addAggregation(
-            terms("myTerms").field("text")
-                .minDocCount(2)
-                .shardMinDocCount(2)
-                .size(2)
-                .shardSize(2)
-                .executionHint(randomExecutionHint())
-                .order(BucketOrder.key(true))
-        ).get();
-        assertNoFailures(response);
-        sigterms = response.getAggregations().get("myTerms");
-        assertThat(sigterms.getBuckets().size(), equalTo(2));
-
+        assertNoFailuresAndResponse(
+            prepareSearch(index).addAggregation(
+                terms("myTerms").field("text")
+                    .minDocCount(2)
+                    .shardMinDocCount(2)
+                    .size(2)
+                    .shardSize(2)
+                    .executionHint(randomExecutionHint())
+                    .order(BucketOrder.key(true))
+            ),
+            response -> {
+                Terms sigterms = response.getAggregations().get("myTerms");
+                assertThat(sigterms.getBuckets().size(), equalTo(2));
+            }
+        );
     }
 
     private static void addTermsDocs(String term, int numDocs, List<IndexRequestBuilder> builders) {
         String sourceClass = "{\"text\": \"" + term + "\"}";
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex(index).setSource(sourceClass, XContentType.JSON));
+            builders.add(prepareIndex(index).setSource(sourceClass, XContentType.JSON));
         }
     }
 }

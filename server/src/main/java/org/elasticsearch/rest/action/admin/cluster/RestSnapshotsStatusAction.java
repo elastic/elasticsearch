@@ -16,7 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,6 +56,6 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         snapshotsStatusRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .cluster()
-            .snapshotsStatus(snapshotsStatusRequest, new RestChunkedToXContentListener<>(channel));
+            .snapshotsStatus(snapshotsStatusRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

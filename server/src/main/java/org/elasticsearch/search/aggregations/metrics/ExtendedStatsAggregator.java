@@ -140,20 +140,11 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     public double metric(String name, long owningBucketOrd) {
         if (owningBucketOrd >= counts.size()) {
             return switch (InternalExtendedStats.Metrics.resolve(name)) {
-                case count -> 0;
-                case sum -> 0;
+                case count, sum_of_squares, sum -> 0;
                 case min -> Double.POSITIVE_INFINITY;
                 case max -> Double.NEGATIVE_INFINITY;
-                case avg -> Double.NaN;
-                case sum_of_squares -> 0;
-                case variance -> Double.NaN;
-                case variance_population -> Double.NaN;
-                case variance_sampling -> Double.NaN;
-                case std_deviation -> Double.NaN;
-                case std_deviation_population -> Double.NaN;
-                case std_deviation_sampling -> Double.NaN;
-                case std_upper -> Double.NaN;
-                case std_lower -> Double.NaN;
+                case avg, variance, variance_population, variance_sampling, std_deviation, std_deviation_population, std_deviation_sampling,
+                    std_upper, std_lower -> Double.NaN;
                 default -> throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
             };
         }
@@ -167,9 +158,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             case variance -> variance(owningBucketOrd);
             case variance_population -> variancePopulation(owningBucketOrd);
             case variance_sampling -> varianceSampling(owningBucketOrd);
-            case std_deviation -> Math.sqrt(variance(owningBucketOrd));
-            case std_deviation_population -> Math.sqrt(variance(owningBucketOrd));
-            case std_deviation_sampling -> Math.sqrt(varianceSampling(owningBucketOrd));
+            case std_deviation, std_deviation_population, std_deviation_sampling -> Math.sqrt(variance(owningBucketOrd));
             case std_upper -> (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd))
                 * this.sigma);
             case std_lower -> (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) - (Math.sqrt(variance(owningBucketOrd))

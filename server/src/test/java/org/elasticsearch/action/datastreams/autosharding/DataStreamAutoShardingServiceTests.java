@@ -51,7 +51,9 @@ import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.NO_CHANGE_REQUIRED;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
@@ -65,10 +67,6 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     public void setupService() {
         threadPool = new TestThreadPool(getTestName());
         Set<Setting<?>> builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.add(DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS);
-        builtInClusterSettings.add(DataStreamAutoShardingService.CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS);
-        builtInClusterSettings.add(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN);
-        builtInClusterSettings.add(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN);
         builtInClusterSettings.add(
             Setting.boolSetting(
                 DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED,
@@ -613,7 +611,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 indexMetadata = createIndexMetadata(
                     DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), createdAt),
                     3,
-                    getWriteLoad(3, 3.0), // each backing index has a write load of 9.0
+                    getWriteLoad(3, 3.0), // each backing index has a write load of 3.0
                     createdAt
                 );
             }
@@ -648,7 +646,67 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             () -> now
         );
         // to cover the entire cooldown period, the last index before the cooling period is taken into account
-        assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 15.0 : 999.0));
+        assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 5.0 : 999.0));
+    }
+
+    public void testIndexLoadWithinCoolingPeriodIsShardLoadsAvg() {
+        final TimeValue coolingPeriod = TimeValue.timeValueDays(3);
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final int numberOfBackingIndicesWithinCoolingPeriod = randomIntBetween(3, 10);
+        final List<Index> backingIndices = new ArrayList<>();
+        final String dataStreamName = "logs";
+        long now = System.currentTimeMillis();
+
+        for (int i = 0; i < numberOfBackingIndicesWithinCoolingPeriod; i++) {
+            final long createdAt = now - (coolingPeriod.getMillis() / 2);
+            IndexMetadata indexMetadata;
+            IndexWriteLoad.Builder builder = IndexWriteLoad.builder(3);
+            for (int shardId = 0; shardId < 3; shardId++) {
+                switch (shardId) {
+                    case 0 -> builder.withShardWriteLoad(shardId, 0.5, 40);
+                    case 1 -> builder.withShardWriteLoad(shardId, 3.0, 10);
+                    case 2 -> builder.withShardWriteLoad(shardId, 0.3333, 150);
+                }
+            }
+            indexMetadata = createIndexMetadata(
+                DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), createdAt),
+                3,
+                builder.build(), // max write index within cooling period should be 0.5 (ish)
+                createdAt
+            );
+            backingIndices.add(indexMetadata.getIndex());
+            metadataBuilder.put(indexMetadata, false);
+        }
+
+        final String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size());
+        final IndexMetadata writeIndexMetadata = createIndexMetadata(writeIndexName, 3, getWriteLoad(3, 0.1), System.currentTimeMillis());
+        backingIndices.add(writeIndexMetadata.getIndex());
+        metadataBuilder.put(writeIndexMetadata, false);
+
+        final DataStream dataStream = new DataStream(
+            dataStreamName,
+            backingIndices,
+            backingIndices.size(),
+            Collections.emptyMap(),
+            false,
+            false,
+            false,
+            false,
+            IndexMode.STANDARD
+        );
+
+        metadataBuilder.put(dataStream);
+
+        double maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService.getMaxIndexLoadWithinCoolingPeriod(
+            metadataBuilder.build(),
+            dataStream,
+            0.1,
+            coolingPeriod,
+            () -> now
+        );
+        assertThat(maxIndexLoadWithinCoolingPeriod, is(greaterThan(0.499)));
+        assertThat(maxIndexLoadWithinCoolingPeriod, is(lessThan(0.5)));
     }
 
     public void testAutoShardingResultValidation() {
@@ -763,7 +821,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     private IndexWriteLoad getWriteLoad(int numberOfShards, double shardWriteLoad) {
         IndexWriteLoad.Builder builder = IndexWriteLoad.builder(numberOfShards);
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
-            builder.withShardWriteLoad(shardId, shardWriteLoad, randomLongBetween(1, 10));
+            builder.withShardWriteLoad(shardId, shardWriteLoad, 1);
         }
         return builder.build();
     }

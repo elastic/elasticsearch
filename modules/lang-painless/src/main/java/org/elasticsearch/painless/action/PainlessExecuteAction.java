@@ -56,11 +56,13 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -93,6 +95,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -540,7 +543,11 @@ public class PainlessExecuteAction {
                 // forward to remote cluster after stripping off the clusterAlias from the index expression
                 removeClusterAliasFromIndexExpression(request);
                 transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(request.getContextSetup().getClusterAlias(), EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                    .getRemoteClusterClient(
+                        request.getContextSetup().getClusterAlias(),
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    )
                     .execute(PainlessExecuteAction.REMOTE_TYPE, request, listener);
             }
         }
@@ -808,13 +815,18 @@ public class PainlessExecuteAction {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    String id;
-                    if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                        id = null; // The id gets auto generated for time series indices.
-                    } else {
-                        id = "_id";
-                    }
-                    SourceToParse sourceToParse = new SourceToParse(id, document, xContentType);
+
+                    SourceToParse sourceToParse = (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES)
+                        ? new SourceToParse(
+                            null,
+                            document,
+                            xContentType,
+                            indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+                                ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE
+                                : null
+                        )
+                        : new SourceToParse("_id", document, xContentType);
+
                     DocumentMapper documentMapper = indexService.mapperService().documentMapper();
                     if (documentMapper == null) {
                         documentMapper = DocumentMapper.createEmpty(indexService.mapperService());

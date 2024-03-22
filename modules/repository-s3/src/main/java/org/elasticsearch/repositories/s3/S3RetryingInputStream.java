@@ -124,7 +124,7 @@ class S3RetryingInputStream extends InputStream {
                 assert range[1] >= range[0] : range[1] + " vs " + range[0];
                 assert range[0] == start + currentOffset
                     : "Content-Range start value [" + range[0] + "] exceeds start [" + start + "] + current offset [" + currentOffset + ']';
-                assert range[1] == end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
+                assert range[1] <= end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
                 return range[1] - range[0] + 1L;
             }
             return metadata.getContentLength();

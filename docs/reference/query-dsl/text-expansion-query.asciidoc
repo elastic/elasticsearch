@@ -253,7 +253,7 @@ GET my-index/_search
                "pruning_config": {
                   "tokens_freq_ratio_threshold": 5,
                   "tokens_weight_threshold": 0.4,
-                  "only_score_pruned_tokens": false
+                  "only_score_pruned_tokens": true
                }
             }
          }

@@ -34,7 +34,7 @@ public class Floor extends UnaryScalarFunction {
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Round a number down to the nearest integer."
     )
-    public Floor(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
+    public Floor(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 

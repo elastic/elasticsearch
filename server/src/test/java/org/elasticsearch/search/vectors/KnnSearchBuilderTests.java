@@ -106,7 +106,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.boost
                 );
             case 1:
-                float[] newVector = randomValueOtherThan(instance.queryVector, () -> randomVector(5));
+                float[] newVector = randomValueOtherThan(instance.queryVector.asFloatVector(), () -> randomVector(5));
                 return new KnnSearchBuilder(instance.field, newVector, instance.k, instance.numCands, instance.similarity).boost(
                     instance.boost
                 );
@@ -213,7 +213,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
         assertThat(rewritten.field, equalTo(searchBuilder.field));
         assertThat(rewritten.boost, equalTo(searchBuilder.boost));
-        assertThat(rewritten.queryVector, equalTo(expectedArray));
+        assertThat(rewritten.queryVector.asFloatVector(), equalTo(expectedArray));
         assertThat(rewritten.queryVectorBuilder, nullValue());
         assertThat(rewritten.filterQueries, hasSize(1));
         assertThat(rewritten.similarity, equalTo(1f));

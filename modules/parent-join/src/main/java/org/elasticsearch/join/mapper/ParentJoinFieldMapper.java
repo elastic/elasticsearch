@@ -293,7 +293,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             if (parent == null) {
                 throw new IllegalArgumentException("[parent] is missing for join field [" + name() + "]");
             }
-            if (context.sourceToParse().routing() == null) {
+            if (context.routing() == null) {
                 throw new IllegalArgumentException("[routing] is missing for join field [" + name() + "]");
             }
             String fieldName = fieldType().joiner.parentJoinField(name);

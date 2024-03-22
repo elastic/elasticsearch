@@ -13,6 +13,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -121,7 +122,14 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
-        KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(field, queryVector, queryVectorBuilder, k, numCands, similarity);
+        KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(
+            field,
+            VectorData.fromFloats(queryVector),
+            queryVectorBuilder,
+            k,
+            numCands,
+            similarity
+        );
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
         }

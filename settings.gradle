@@ -154,6 +154,7 @@ project(":libs").children.each { libsProject ->
     lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
   }
 }
+project(":libs:elasticsearch-native:libraries").name = "elasticsearch-native-libraries"
 
 project(":qa:stable-api").children.each { libsProject ->
   libsProject.name = "elasticsearch-${libsProject.name}"

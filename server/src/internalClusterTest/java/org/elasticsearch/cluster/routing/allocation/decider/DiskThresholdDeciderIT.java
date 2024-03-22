@@ -164,7 +164,10 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
     @TestIssueLogging(
         value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer:TRACE,"
             + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler:DEBUG,"
-            + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:TRACE",
+            + "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:TRACE,"
+            + "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE,"
+            + "org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders:TRACE,"
+            + "org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider:TRACE",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/105331"
     )
     public void testRestoreSnapshotAllocationDoesNotExceedWatermarkWithMultipleShards() throws Exception {
@@ -290,10 +293,6 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         public Set<ShardId> getSmallestShardIds() {
             return getShardIdsWithSizeSmallerOrEqual(getSmallestShardSize());
-        }
-
-        public Set<ShardId> getAllShardIds() {
-            return sizes.stream().map(ShardSize::shardId).collect(toSet());
         }
     }
 

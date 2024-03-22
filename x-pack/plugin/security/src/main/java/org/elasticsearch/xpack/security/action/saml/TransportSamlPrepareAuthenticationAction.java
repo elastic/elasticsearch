@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,13 +42,13 @@ public final class TransportSamlPrepareAuthenticationAction extends HandledTrans
 
     @Inject
     public TransportSamlPrepareAuthenticationAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(
             SamlPrepareAuthenticationAction.NAME,
             transportService,
             actionFilters,
             SamlPrepareAuthenticationRequest::new,
-            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.realms = realms;
         this.genericExecutor = transportService.getThreadPool().generic();

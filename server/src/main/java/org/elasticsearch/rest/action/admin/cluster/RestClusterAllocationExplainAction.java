@@ -60,4 +60,9 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
         req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
         return channel -> client.admin().cluster().allocationExplain(req, new RestRefCountedChunkedToXContentListener<>(channel));
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
 }

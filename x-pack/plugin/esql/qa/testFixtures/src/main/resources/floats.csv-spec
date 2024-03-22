@@ -240,7 +240,9 @@ row a = [1.1, 2.1, 2.1] | eval da = mv_dedupe(a);
 [1.1, 2.1, 2.1] | [1.1, 2.1]
 ;
 
-mvSliceEmp#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmp
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change, 0, 1)
 | keep emp_no, salary_change, a1
@@ -455,14 +457,18 @@ ROW deg = [90.0, 180.0, 270.0]
 // end::to_radians-result[]
 ;
 
-mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+mvSort
+required_feature: esql.mv_sort
+
 row a = [4.0, 2.0, -3.0, 2.0] | eval sa = mv_sort(a), sd = mv_sort(a, "DESC");
 
 a:double              | sa:double             | sd:double
 [4.0, 2.0, -3.0, 2.0] | [-3.0, 2.0, 2.0, 4.0] | [4.0, 2.0, 2.0, -3.0]
 ;
 
-mvSortEmp#[skip:-8.13.99, reason:newly added in 8.14]
+mvSortEmp
+required_feature: esql.mv_sort
+
 FROM employees
 | eval sd = mv_sort(salary_change, "DESC"), sa = mv_sort(salary_change)
 | sort emp_no

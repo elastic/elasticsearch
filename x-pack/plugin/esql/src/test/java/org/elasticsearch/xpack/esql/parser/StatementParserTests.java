@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
@@ -53,7 +55,6 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -613,29 +614,41 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testFromOptionsUnknownName() {
-        expectError("from test options \"foo\"=\"oof\",\"bar\"=\"rab\"", "line 1:20: invalid options provided: unknown option named [foo]");
+        expectError(FROM + " options \"foo\"=\"oof\",\"bar\"=\"rab\"", "line 1:20: invalid options provided: unknown option named [foo]");
     }
 
     public void testFromOptionsPartialInvalid() {
         expectError(
-            "from test options \"allow_no_indices\"=\"true\",\"bar\"=\"rab\"",
+            FROM + " options \"allow_no_indices\"=\"true\",\"bar\"=\"rab\"",
             "line 1:46: invalid options provided: unknown option named [bar]"
         );
     }
 
+    public void testFromOptionsInvalidIndicesOptionValue() {
+        expectError(
+            FROM + " options \"allow_no_indices\"=\"foo\"",
+            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean"
+        );
+    }
+
+    public void testFromOptionsInvalidPreferValue() {
+        expectError(FROM + " options \"preference\"=\"_foo\"", "line 1:20: invalid options provided: no Preference for [_foo]");
+    }
+
     public void testFromOptionsUnquotedName() {
-        expectError("from test options allow_no_indices=\"oof\"", "line 1:19: mismatched input 'allow_no_indices' expecting STRING");
+        expectError(FROM + " options allow_no_indices=\"oof\"", "line 1:19: mismatched input 'allow_no_indices' expecting STRING");
     }
 
     public void testFromOptionsUnquotedValue() {
-        expectError("from test options \"allow_no_indices\"=oof", "line 1:38: mismatched input 'oof' expecting STRING");
+        expectError(FROM + " options \"allow_no_indices\"=oof", "line 1:38: mismatched input 'oof' expecting STRING");
     }
 
     public void testFromOptionsDuplicates() {
-        expectError(
-            "from test options \"allow_no_indices\"=\"false\",\"allow_no_indices\"=\"true\"",
-            "line 1:47: invalid options provided: option [allow_no_indices] has already been provided"
-        );
+        for (var name : List.of("allow_no_indices", "ignore_unavailable", "preference")) {
+            String options = '"' + name + "\"=\"false\"";
+            options += ',' + options;
+            expectError(FROM + " options " + options, "invalid options provided: option [" + name + "] has already been provided");
+        }
     }
 
     public void testFromOptionsValues() {
@@ -654,19 +667,20 @@ public class StatementParserTests extends ESTestCase {
         options.add("\"allow_no_indices\"=\"" + allowNoIndices + "\"");
         options.add("\"ignore_unavailable\"=\"" + ignoreUnavailable + "\"");
         options.add("\"preference\"=\"" + preference + "\"");
-        Collections.shuffle(options);
+        Randomness.shuffle(options);
         String optionsList = String.join(",", options);
 
-        var plan = statement("FROM test OPTIONS " + optionsList);
+        var plan = statement(FROM + " OPTIONS " + optionsList);
         var unresolved = as(plan, EsqlUnresolvedRelation.class);
         assertNotNull(unresolved.esSourceOptions());
-        assertThat(unresolved.esSourceOptions().indicesOptions().allowNoIndices(), is(allowNoIndices));
-        assertThat(unresolved.esSourceOptions().indicesOptions().ignoreUnavailable(), is(ignoreUnavailable));
+        var indicesOptions = unresolved.esSourceOptions().indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
+        assertThat(indicesOptions.allowNoIndices(), is(allowNoIndices));
+        assertThat(indicesOptions.ignoreUnavailable(), is(ignoreUnavailable));
         assertThat(unresolved.esSourceOptions().preference(), is(preference));
     }
 
     public void testFromOptionsWithMetadata() {
-        var plan = statement("FROM test OPTIONS \"preference\"=\"foo\" METADATA _id");
+        var plan = statement(FROM + " OPTIONS \"preference\"=\"foo\" METADATA _id");
         var unresolved = as(plan, EsqlUnresolvedRelation.class);
         assertNotNull(unresolved.esSourceOptions());
         assertThat(unresolved.esSourceOptions().preference(), is("foo"));

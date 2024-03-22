@@ -185,7 +185,7 @@ public class PlannerUtils {
 
     public static EsSourceOptions esSourceOptions(PhysicalPlan plan) {
         Holder<EsSourceOptions> holder = new Holder<>();
-        plan.forEachDown(FragmentExec.class, fe -> { fe.fragment().forEachUp(EsRelation.class, r -> holder.set(r.esSourceOptions())); });
+        plan.forEachUp(FragmentExec.class, f -> f.fragment().forEachUp(EsRelation.class, r -> holder.set(r.esSourceOptions())));
         return holder.get();
     }
 

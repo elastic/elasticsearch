@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -583,12 +584,18 @@ public class ComputeService {
         );
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContextPreservingResponseHeaders()) {
             threadContext.markAsSystemContext();
+            IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+            String preference = null;
+            if (esSourceOptions != null) {
+                indicesOptions = esSourceOptions.indicesOptions(indicesOptions);
+                preference = esSourceOptions.preference();
+            }
             SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                 originalIndices,
-                esSourceOptions != null ? esSourceOptions.indicesOptions() : SearchRequest.DEFAULT_INDICES_OPTIONS,
+                indicesOptions,
                 filter,
                 null,
-                esSourceOptions != null ? esSourceOptions.preference() : null,
+                preference,
                 false,
                 clusterAlias
             );

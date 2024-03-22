@@ -319,12 +319,11 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         IntStream.range(0, between(5, 10)).forEach(i -> {
             indexDocs(indexName, between(1, 5));
             flush(indexName);
-            if (randomBoolean()) {
-                forceMerge();
-            }
         });
 
-        IntStream.range(0, between(5, 10)).forEach(i -> {
+        forceMerge();
+
+        IntStream.range(0, between(3, 7)).forEach(i -> {
             indexDocs(indexName, between(1, 5));
             flush(indexName);
         });
@@ -332,6 +331,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         String id = randomIdentifier();
         index(indexName, id, Map.of("field", "test"));
         flush(indexName);
+        // should have 5-9 segments now, merge policy merges at 10 at same tier.
 
         // strategy that invokes the writer but then fails, which is what will if S3 fails. We never stop failing on it until node
         // dies.

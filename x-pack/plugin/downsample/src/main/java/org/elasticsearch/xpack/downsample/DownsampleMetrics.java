@@ -13,6 +13,20 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * Contains metrics related to downsampling actions.
+ * It gets initialized as a component by the {@link Downsample} plugin, can be injected to its actions.
+ * <p/>
+ * In tests, use TestTelemetryPlugin to inject a MeterRegistry for testing purposes
+ * and check that metrics get recorded as expected.
+ * <p/>
+ * To add a new metric, you need to:
+ *  - Add a constant for its name, following the naming conventions for metrics.
+ *  - Register it in method {@link #doStart}.
+ *  - Add a function for recording its value.
+ *  - If needed, inject {@link DownsampleMetrics} to the action containing the logic
+ *    that records the metric value. For reference, see {@link TransportDownsampleIndexerAction}.
+ */
 public class DownsampleMetrics extends AbstractLifecycleComponent {
 
     public static final String LATENCY_SHARD = "es.tsdb.downsample.latency.shard.histogram";
@@ -20,12 +34,12 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
     private final MeterRegistry meterRegistry;
 
     public DownsampleMetrics(MeterRegistry meterRegistry) {
-        super();
         this.meterRegistry = meterRegistry;
     }
 
     @Override
     protected void doStart() {
+        // Register all metrics to track.
         meterRegistry.registerLongHistogram(LATENCY_SHARD, "Downsampling action latency per shard", "ms");
     }
 

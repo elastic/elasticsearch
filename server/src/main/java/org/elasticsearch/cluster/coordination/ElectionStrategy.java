@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
  * Custom additional quorum restrictions can be defined by implementing the {@link #satisfiesAdditionalQuorumConstraints} method.
  */
 public abstract class ElectionStrategy {
+
     public static final ElectionStrategy DEFAULT_INSTANCE = new ElectionStrategy() {
         @Override
         protected boolean satisfiesAdditionalQuorumConstraints(
@@ -111,15 +112,12 @@ public abstract class ElectionStrategy {
 
     public NodeEligibility nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
         final String nodeId = node.getId();
-        if (lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId) == false) {
-            return new NodeEligibility(false, "node cannot win election, it is not part of the last committed cluster state");
+        if (lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
+            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
+            || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId))) {
+            return new NodeEligibility(true, "");
         }
-        if (lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId) == false) {
-            return new NodeEligibility(false, "node cannot win election, it is not part of the last accepted cluster state");
-        }
-        if (lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId)) == false) {
-            return new NodeEligibility(false, "node cannot win election, it is excluded from voting");
-        }
-        return new NodeEligibility(true, "");
+
+        return new NodeEligibility(true, "node is ineligible for election, not part of the voting configuration");
     }
 }

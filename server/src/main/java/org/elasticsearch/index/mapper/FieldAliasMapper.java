@@ -70,11 +70,6 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public Mapper getMapper(String field) {
-        return null;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject(simpleName()).field("type", CONTENT_TYPE).field(Names.PATH, path).endObject();
     }

@@ -306,17 +306,6 @@ public abstract class FieldMapper extends Mapper {
         return multiFieldsIterator();
     }
 
-    @Override
-    public Mapper getMapper(String field) {
-        while (iterator().hasNext()) {
-            Mapper mapper = iterator().next();
-            if (mapper.simpleName().equals(field)) {
-               return mapper;
-            }
-        }
-        return null;
-    }
-
     protected Iterator<Mapper> multiFieldsIterator() {
         return Iterators.forArray(multiFields.mappers);
     }

@@ -20,6 +20,8 @@ package co.elastic.elasticsearch.stateless.objectstore.gc;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryPlugin;
 import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.index.IndexRequest;
@@ -33,14 +35,17 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -48,12 +53,17 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, autoManageMasterNodes = false)
 public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -67,6 +77,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testStaleIndicesAreCleanedEventually() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
         var masterNode = startMasterNode();
 
         var indexNode = startIndexNode();
@@ -88,6 +99,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testStaleIndicesAreCleanedAfterAMasterFailover() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
         var masterNode = startMasterNode();
         var masterNode2 = startMasterNode();
 
@@ -115,6 +127,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testStaleIndicesAreCleanedAfterThePersistentTaskNodeFails() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
         startMasterNode();
 
         // Since StaleIndicesGCTask.TASK_NAME is only allocated in Index nodes,
@@ -141,6 +154,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testStaleIndicesAreCleanedOnlyWhenGCIsEnabled() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
         startMasterNode(Settings.builder().put(ObjectStoreGCTask.STALE_INDICES_GC_ENABLED_SETTING.getKey(), false).build());
 
         var indexNode = startIndexNode(Settings.builder().put(ObjectStoreGCTask.STALE_INDICES_GC_ENABLED_SETTING.getKey(), false).build());
@@ -175,6 +189,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     }
 
     public void doTestNoNewIndexDataIsDeletedUnderDisruptions(DisruptionScenario disruptionScenario) throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
         var masterNode = startMasterNode(
             Settings.builder().put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5)).build()
         );
@@ -242,6 +257,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testIndexDeletionAndGCConcurrentDeletes() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
         startMasterNode();
         var indexNode = startIndexNode();
         var indexNode2 = startIndexNode();
@@ -283,6 +299,114 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         }
 
         assertBusy(() -> assertIndexDoesNotExistsInObjectStore(indexUUID));
+    }
+
+    /**
+     * Verify that on failure to write using chunked writes, we do not accidentally delete files
+     * (bug that we had, notice that assertions must be disabled to provoke it directly)
+     */
+    public void testWriteFailure() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        var masterNode = startMasterOnlyNode(
+            Settings.builder()
+                .put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "100ms")
+                .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
+                .build()
+        );
+        var indexNode = startIndexNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        IntStream.range(0, between(5, 10)).forEach(i -> {
+            indexDocs(indexName, between(1, 5));
+            flush(indexName);
+            if (randomBoolean()) {
+                forceMerge();
+            }
+        });
+
+        IntStream.range(0, between(5, 10)).forEach(i -> {
+            indexDocs(indexName, between(1, 5));
+            flush(indexName);
+        });
+
+        String id = randomIdentifier();
+        index(indexName, id, Map.of("field", "test"));
+        flush(indexName);
+
+        // strategy that invokes the writer but then fails, which is what will if S3 fails. We never stop failing on it until node
+        // dies.
+        CountDownLatch failed = new CountDownLatch(1);
+        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerWriteMetadataBlob(
+                CheckedRunnable<IOException> original,
+                OperationPurpose purpose,
+                String blobName,
+                boolean failIfAlreadyExists,
+                boolean atomic,
+                CheckedConsumer<OutputStream, IOException> writer
+            ) throws IOException {
+                if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
+                    writer.accept(new OutputStream() {
+                        @Override
+                        public void write(int b) {}
+                    });
+                    logger.info("--> simulate failure on [{}]", blobName);
+                    failed.countDown();
+                    throw new IOException("simulate failure after write");
+                } else {
+                    original.run();
+                }
+            }
+        });
+
+        indicesAdmin().prepareForceMerge().setMaxNumSegments(between(1, 3)).execute();
+
+        failed.await();
+        // Ensure external searcher is refreshed too. Flush only refreshes internal searcher. This means that the commits are not
+        // decRef'ed and thus not released without this.
+        findIndexShard(indexName).refresh("test");
+
+        // wait for any potential scheduled deletions, including reading the lease.
+        assertBusy(() -> { assertFalse(internalCluster().getInstance(StatelessCommitCleaner.class, indexNode).hasPendingDeletes()); });
+        var disruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(Set.of(indexNode), Set.of(masterNode)),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(disruption);
+        disruption.startDisrupting();
+
+        assertBusy(() -> {
+            assertThat(client(masterNode).admin().cluster().prepareHealth(indexName).get().getStatus(), equalTo(ClusterHealthStatus.RED));
+        });
+
+        var indexNode2 = startIndexNode();
+
+        assertBusy(() -> {
+            assertThat(client(masterNode).admin().cluster().prepareHealth(indexName).get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        });
+
+        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy());
+        disruption.stopDisrupting();
+
+        internalCluster().restartNode(indexNode2);
+
+        ensureGreen();
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            .get();
+
+        startSearchNode();
+
+        ensureGreen();
+
+        // verify that we have not lost any data.
+        // before the fix, we would mostly fail in this line, because the new index node would see an empty object store and thus recover
+        // "ok", but having lost all data.
+        assertThat(client().prepareGet(indexName, id).get().isExists(), is(true));
     }
 
     private static String getNodeWhereGCTaskIsAssigned() {

@@ -252,4 +252,9 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
         isRunning.set(false);
     }
 
+    // visible for tests only
+    public boolean hasPendingDeletes() {
+        // order is semi-important, if we reversed it, we could falsely miss a pending delete
+        return pendingCommitsToDelete.isEmpty() == false || consistencyCheckPermit.availablePermits() == 0;
+    }
 }

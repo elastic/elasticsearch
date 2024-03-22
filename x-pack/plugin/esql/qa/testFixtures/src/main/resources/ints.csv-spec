@@ -153,7 +153,7 @@ tf:boolean     |t2l:long       |f2l:long       |tf2l:long
 [true, false]  |1              |0              |[1, 0]
 ;
 
-convertStringToLong
+convertStringToLong#[skip:-8.13.99, reason:warning changed in 8.14]
 // tag::to_long-str[]
 ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)

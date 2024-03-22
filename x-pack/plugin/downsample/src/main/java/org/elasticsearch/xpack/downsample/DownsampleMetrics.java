@@ -16,10 +16,10 @@ import java.util.Map;
 /**
  * Contains metrics related to downsampling actions.
  * It gets initialized as a component by the {@link Downsample} plugin, can be injected to its actions.
- * <p/>
+ *
  * In tests, use TestTelemetryPlugin to inject a MeterRegistry for testing purposes
  * and check that metrics get recorded as expected.
- * <p/>
+ *
  * To add a new metric, you need to:
  *  - Add a constant for its name, following the naming conventions for metrics.
  *  - Register it in method {@link #doStart}.

@@ -34,10 +34,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
-import static org.elasticsearch.xpack.ql.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.rangeOf;
-import static org.elasticsearch.xpack.ql.TestUtils.notEqualsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
@@ -216,6 +213,8 @@ public class OptimizerRulesTests extends ESTestCase {
             assertEquals(comparison, s.rule(comparison));
         }
     }
+
+    // Test Propagate Equals
 
     // a == 1 AND a == 2 -> FALSE
     public void testDualEqualsConjunction() {

@@ -1,0 +1,6 @@
+pr: 106190
+summary: Fix ProactiveStorageDeciderService#scale throws IndexNotFoundException
+area: Autoscaling
+type: bug
+issues:
+ - 105844

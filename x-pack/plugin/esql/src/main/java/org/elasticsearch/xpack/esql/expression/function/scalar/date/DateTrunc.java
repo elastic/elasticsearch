@@ -41,7 +41,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
         // used in the CSVTests and fixing it is not trivial
         @Param(
             name = "interval",
-            type = { "keyword" },
+            type = { "keyword", "text" },
             description = "Interval; expressed using the timespan literal syntax."
         ) Expression interval,
         @Param(name = "date", type = { "date" }, description = "Date expression") Expression field

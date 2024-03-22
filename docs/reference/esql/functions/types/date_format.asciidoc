@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-datePart | date | result
-keyword | datetime | long
-text | datetime | long
+dateFormat | date | result
+keyword | datetime | keyword
+text | datetime | keyword
 |===

@@ -25,10 +25,10 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 /**
  * Splits a string on some delimiter into a multivalued string field.

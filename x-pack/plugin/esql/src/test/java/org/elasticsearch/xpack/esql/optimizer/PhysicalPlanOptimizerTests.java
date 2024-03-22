@@ -2997,6 +2997,60 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
+    public void testPushDownSpatialRelatesStringToSourceAndUseDocValuesForCentroid() {
+        TestSpatialRelation[] tests = new TestSpatialRelation[] {
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, false),
+            new TestSpatialRelation(ShapeRelation.WITHIN, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, false),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, false) };
+        for (TestSpatialRelation test : tests) {
+            var centroidExpr = "centroid=ST_CENTROID(location), count=COUNT()";
+            var plan = this.physicalPlan("FROM airports | WHERE " + test.predicate() + " | STATS " + centroidExpr, airports);
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
+            // Before optimization the aggregation does not use doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var fAgg = as(fragment.fragment(), Aggregate.class);
+            var filter = as(fAgg.child(), Filter.class);
+            assertThat(test.predicate(), filter.condition(), instanceOf(test.functionClass()));
+
+            // Now verify that optimization re-writes the ExchangeExec and pushed down the filter into the Lucene query
+            var optimized = optimizedPlan(plan);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
+            // below the exchange (in data node) the aggregation is using doc-values
+            assertAggregation(agg, "count", Count.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+            var extract = as(agg.child(), FieldExtractExec.class);
+            assertTrue(
+                "Expect field attribute to be extracted as doc-values",
+                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+            );
+            var source = source(extract.child());
+            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+            assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
+            assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
+            assertThat("Geometry is Polygon: " + test.predicate(), condition.shape().type(), equalTo(ShapeType.POLYGON));
+            var polygon = as(condition.shape(), Polygon.class);
+            assertThat("Polygon shell length: " + test.predicate(), polygon.getPolygon().length(), equalTo(5));
+            assertThat("Polygon holes: " + test.predicate(), polygon.getNumberOfHoles(), equalTo(0));
+        }
+    }
+
     /**
      * Plan:
      * Plan:

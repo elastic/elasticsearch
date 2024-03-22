@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.rangeOf;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
@@ -481,4 +483,25 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(and, exp);
     }
 
+    // 1 <= a < 10 AND a == 1 -> a == 1
+    public void testEliminateRangeByEqualsInInterval() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq1 = equalsOf(fa, ONE);
+        Range r = rangeOf(fa, ONE, true, new Literal(EMPTY, 10, DataTypes.INTEGER), false);
+
+        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq1, r));
+        assertEquals(eq1, exp);
+    }
+
+    // 1 <= a < 10 AND a <=> 1 -> a <=> 1
+    public void testEliminateRangeByNullEqualsInInterval() {
+        FieldAttribute fa = getFieldAttribute();
+        NullEquals eq1 = nullEqualsOf(fa, ONE);
+        Range r = rangeOf(fa, ONE, true, new Literal(EMPTY, 10, DataTypes.INTEGER), false);
+
+        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq1, r));
+        assertEquals(eq1, exp);
+    }
 }

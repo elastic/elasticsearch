@@ -1,6 +1,6 @@
 ###############################################
 # Tests for GEO_POINT type
-#
+###############################################
 
 convertFromStringQuantize
 required_feature: esql.geo_point
@@ -130,6 +130,9 @@ c:long  | x:double  | y:double
 872     | 0.0       | 0.0
 19      | null      | null
 ;
+
+###############################################
+# Tests for ST_CENTROID on GEO_POINT type
 
 centroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
 // tag::st_centroid-airports[]
@@ -346,31 +349,57 @@ centroid:geo_point                              | count:long
 POINT (-2.597342072712148 54.33551226578214)    | 17
 ;
 
+centroidFromAirportsAfterContainsPredicateCountryUK#[skip:-8.13.99, reason:st_contains added in 8.14]
+FROM airports
+| WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"), location)
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:geo_point                              | count:long
+POINT (-2.597342072712148 54.33551226578214)    | 17
+;
+
+centroidFromAirportsAfterWithinPredicateCountryUK#[skip:-8.13.99, reason:st_within added in 8.14]
+FROM airports
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:geo_point                              | count:long
+POINT (-2.597342072712148 54.33551226578214)    | 17
+;
+
 intersectsAfterCentroidFromAirportsAfterKeywordPredicateCountryUK#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | WHERE country == "United Kingdom"
 | STATS centroid = ST_CENTROID(location), count=COUNT()
 | EVAL centroid_in_uk = ST_INTERSECTS(centroid, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
 | EVAL centroid_in_iceland = ST_INTERSECTS(centroid, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
-| KEEP centroid, count, centroid_in_uk, centroid_in_iceland
+| EVAL centroid_within_uk = ST_WITHIN(centroid, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL centroid_within_iceland = ST_WITHIN(centroid, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
+| EVAL centroid_contains_uk = ST_CONTAINS(centroid, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL centroid_contains_iceland = ST_CONTAINS(centroid, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
+| KEEP centroid, count, centroid_in_uk, centroid_in_iceland, centroid_within_uk, centroid_within_iceland, centroid_contains_uk, centroid_contains_iceland
 ;
 
-centroid:geo_point                              | count:long | centroid_in_uk:boolean | centroid_in_iceland:boolean
-POINT (-2.597342072712148 54.33551226578214)    | 17         | true                   | false
+centroid:geo_point                              | count:long | centroid_in_uk:boolean | centroid_in_iceland:boolean | centroid_within_uk:boolean | centroid_within_iceland:boolean | centroid_contains_uk:boolean | centroid_contains_iceland:boolean
+POINT (-2.597342072712148 54.33551226578214)    | 17         | true                   | false                       | true                       | false                           | false                        | false
 ;
 
 centroidFromAirportsAfterIntersectsEvalExpression#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports
 | EVAL in_uk = ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
 | EVAL in_iceland = ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
-| STATS centroid = ST_CENTROID(location), count=COUNT() BY in_uk, in_iceland
+| EVAL within_uk = ST_WITHIN(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL within_iceland = ST_WITHIN(location, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
+| STATS centroid = ST_CENTROID(location), count=COUNT() BY in_uk, in_iceland, within_uk, within_iceland
 | SORT count ASC
 ;
 
-centroid:geo_point                             |  count:long  |  in_uk:boolean  |  in_iceland:boolean
-POINT (-21.946634463965893 64.13187285885215)  |  1           |  false          |  true
-POINT (-2.597342072712148 54.33551226578214)   |  17          |  true           |  false
-POINT (0.04453958108176276 23.74658354606057)  |  873         |  false          |  false
+centroid:geo_point                             |  count:long  |  in_uk:boolean  |  in_iceland:boolean  |  within_uk:boolean  |  within_iceland:boolean
+POINT (-21.946634463965893 64.13187285885215)  |  1           |  false          |  true                |  false              |  true
+POINT (-2.597342072712148 54.33551226578214)   |  17          |  true           |  false               |  true               |  false
+POINT (0.04453958108176276 23.74658354606057)  |  873         |  false          |  false               |  false              |  false
 ;
 
 centroidFromAirportsAfterIntersectsPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
@@ -392,6 +421,9 @@ FROM airports
 centroid:geo_point                            | count:long
 POINT (42.97109629958868 14.7552534006536)    | 1
 ;
+
+###############################################
+# Tests for ST_INTERSECTS on GEO_POINT type
 
 pointIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
 // tag::st_intersects-airports[]
@@ -493,6 +525,9 @@ location:geo_point  | city_location:geo_point  |  count:long
 POINT (0 0)         | POINT (0 0)              |  1
 ;
 
+###############################################
+# Tests for ST_CONTAINS on GEO_POINT type
+
 literalPolygonContainsLiteralPoint#[skip:-8.13.99, reason:st_contains added in 8.14]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
@@ -549,6 +584,28 @@ abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword
 HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
 ;
 
+airportCityLocationPointContains#[skip:-8.13.99, reason:st_contains added in 8.14]
+FROM airports_mp
+| WHERE ST_CONTAINS(location, city_location)
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point  |  name:text       |  scalerank:i  |  type:k
+XXX             |  Atlantis      |  POINT(0 0)              |  Atlantis         |  POINT(0 0)          |  Atlantis Int'l  |  1            |  mid
+;
+
+airportCityLocationPointIntersectionCentroid#[skip:-8.13.99, reason:st_contains added in 8.14]
+FROM airports_mp
+| WHERE ST_CONTAINS(location, city_location)
+| STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+;
+
+location:geo_point  | city_location:geo_point  |  count:long
+POINT (0 0)         | POINT (0 0)              |  1
+;
+
+###############################################
+# Tests for ST_WITHIN on GEO_POINT type
+
 literalPolygonNotWithinLiteralPoint#[skip:-8.13.99, reason:st_within added in 8.14]
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
@@ -599,6 +656,28 @@ abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword
 HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
 // end::st_within-airports-results[]
 ;
+
+airportCityLocationPointWithin#[skip:-8.13.99, reason:st_within added in 8.14]
+FROM airports_mp
+| WHERE ST_WITHIN(location, city_location)
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point  |  name:text       |  scalerank:i  |  type:k
+XXX             |  Atlantis      |  POINT(0 0)              |  Atlantis         |  POINT(0 0)          |  Atlantis Int'l  |  1            |  mid
+;
+
+airportCityLocationPointWithinCentroid#[skip:-8.13.99, reason:st_within added in 8.14]
+FROM airports_mp
+| WHERE ST_WITHIN(location, city_location)
+| STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
+;
+
+location:geo_point  | city_location:geo_point  |  count:long
+POINT (0 0)         | POINT (0 0)              |  1
+;
+
+###############################################
+# Tests for Equality and casting with GEO_POINT
 
 geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
 // tag::to_geopoint-equals[]
@@ -654,7 +733,7 @@ wkt:keyword                               |pt:geo_point
 
 ###############################################
 # Tests for CARTESIAN_POINT type
-#
+###############################################
 
 convertCartesianFromString#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
 // tag::to_cartesianpoint-str[]

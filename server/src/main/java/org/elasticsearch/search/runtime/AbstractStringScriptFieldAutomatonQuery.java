@@ -17,7 +17,7 @@ import org.elasticsearch.script.StringFieldScript;
 import java.util.List;
 
 public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractStringScriptFieldQuery {
-    private final BytesRefBuilder scratch = new BytesRefBuilder();
+    private final ThreadLocal<BytesRefBuilder> bytesRefBuilderThreadLocal = ThreadLocal.withInitial(BytesRefBuilder::new);
     private final ByteRunAutomaton automaton;
 
     public AbstractStringScriptFieldAutomatonQuery(
@@ -33,11 +33,15 @@ public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractSt
     @Override
     protected final boolean matches(List<String> values) {
         for (String value : values) {
+            BytesRefBuilder scratch = bytesRefBuilderThreadLocal.get();
             scratch.copyChars(value);
+            System.out.println("copyChars - " + value + " - " + Thread.currentThread().getName());
             if (automaton.run(scratch.bytes(), 0, scratch.length())) {
+                System.out.println("match " + Thread.currentThread().getName());
                 return true;
             }
         }
+        System.out.println("no match " + Thread.currentThread().getName());
         return false;
     }
 

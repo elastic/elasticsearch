@@ -9,10 +9,16 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.ThreadInterruptedException;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -80,6 +86,29 @@ public class StringScriptFieldFuzzyQueryTests extends AbstractStringScriptFieldQ
         assertTrue(query.matches(List.of("foa")));
         assertTrue(query.matches(List.of("faa")));
         assertFalse(query.matches(List.of("faaa")));
+    }
+
+    public void testConcurrentMatches() {
+        StringScriptFieldFuzzyQuery query = StringScriptFieldFuzzyQuery.build(randomScript(), leafFactory, "test", "foo", 1, 0, false);
+        List<Future<?>> futures = new ArrayList<>();
+        ExecutorService executorService = Executors.newFixedThreadPool(3);
+        try {
+            futures.add(executorService.submit(() -> assertTrue(query.matches(List.of("foo")))));
+            futures.add(executorService.submit(() -> assertTrue(query.matches(List.of("foa")))));
+            futures.add(executorService.submit(() -> assertTrue(query.matches(List.of("foo", "bar")))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("bar")))));
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (ExecutionException e) {
+                    fail(e);
+                } catch (InterruptedException e) {
+                    throw new ThreadInterruptedException(e);
+                }
+            }
+        } finally {
+            terminate(executorService);
+        }
     }
 
     @Override

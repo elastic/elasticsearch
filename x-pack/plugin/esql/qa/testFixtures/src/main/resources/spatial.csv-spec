@@ -821,6 +821,9 @@ WIIT           | POINT (11708145.489503577 -584415.9142832769) | Radin Inten II 
 ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l               | 9           | mid
 ;
 
+###############################################
+# Tests for ST_CENTROID on CARTESIAN_POINT type
+
 cartesianCentroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
 FROM airports_web
 | STATS centroid=ST_CENTROID(location);
@@ -895,6 +898,9 @@ centroid:cartesian_point                    | count:long
 POINT (726480.0130685265 3359566.331716279) | 849
 ;
 
+###############################################
+# Tests for ST_INTERSECTS on CARTESIAN_POINT type
+
 cartesianCentroidFromAirportsAfterIntersectsPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
 FROM airports_web
 | WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
@@ -925,6 +931,77 @@ wkt:keyword   | pt:cartesian_point
 "POINT(1 1)"  | POINT(1 1)
 "POINT(1 -1)" | POINT(1 -1)
 ;
+
+###############################################
+# Tests for ST_CONTAINS on CARTESIAN_POINT type
+
+cartesianCentroidFromAirportsAfterContainsPredicate#[skip:-8.13.99, reason:st_contains added in 8.14]
+FROM airports_web
+| WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"), location)
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point     | count:long
+POINT (4783520.5 1661010.0)  | 1
+;
+
+cartesianPointContainsPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+FROM airports_web
+| WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"), location)
+;
+
+abbrev:keyword | location:cartesian_point                     |  name:text     |  scalerank:i  |  type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+literalCartesianPointContainsPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword   | pt:cartesian_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+###############################################
+# Tests for ST_WITHIN on CARTESIAN_POINT type
+
+cartesianCentroidFromAirportsAfterWithinPredicate#[skip:-8.13.99, reason:st_within added in 8.14]
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point     | count:long
+POINT (4783520.5 1661010.0)  | 1
+;
+
+cartesianPointWithinPolygon#[skip:-8.13.99, reason:st_within added in 8.14]
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
+;
+
+abbrev:keyword | location:cartesian_point                     |  name:text     |  scalerank:i  |  type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+literalCartesianPointWithinPolygon#[skip:-8.13.99, reason:st_within added in 8.14]
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_WITHIN(pt, TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:cartesian_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+###############################################
+# Tests for Equality and casting with GEO_POINT
 
 cartesianPointEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
 // tag::to_cartesianpoint-equals[]

@@ -91,7 +91,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 sourceLayout.get(tsidAttr.id()).channel(),
                 sourceLayout.get(timestampAttr.id()).channel(),
                 context.queryPragmas().timeSeriesPeriod(),
-                aggregatorFactories
+                aggregatorFactories,
+                context.pageSize(aggregateExec.estimatedRowSize())
             );
 
             return source.with(operatorFactory, layout.build());

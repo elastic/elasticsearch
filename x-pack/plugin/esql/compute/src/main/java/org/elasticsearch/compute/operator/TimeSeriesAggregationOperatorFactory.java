@@ -7,23 +7,15 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.aggregation.SeenGroupIds;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
@@ -35,7 +27,8 @@ public record TimeSeriesAggregationOperatorFactory(
     int tsHashChannel,
     int timestampChannel,
     TimeValue timeSeriesPeriod,
-    List<GroupingAggregator.Factory> aggregators
+    List<GroupingAggregator.Factory> aggregators,
+    int maxPageSize
 ) implements Operator.OperatorFactory {
 
     @Override
@@ -47,7 +40,8 @@ public record TimeSeriesAggregationOperatorFactory(
     public Operator get(DriverContext driverContext) {
         if (mode == AggregatorMode.FINAL) {
             var rounding = timeSeriesPeriod.equals(TimeValue.ZERO) == false ? Rounding.builder(timeSeriesPeriod).build() : null;
-            return new DelayedImpl(tsHashChannel, timestampChannel, rounding, driverContext, aggregators);
+            BlockHash blockHash = new TimeSeriesBlockHash(tsHashChannel, timestampChannel, rounding, driverContext);
+            return new HashAggregationOperator(aggregators, () -> blockHash, driverContext);
         } else {
             return new LocalImpl(driverContext, aggregators);
         }
@@ -116,223 +110,4 @@ public record TimeSeriesAggregationOperatorFactory(
         }
     }
 
-    /**
-     * Groups in a delayed fashion by tsid hash and timestamp interval.
-     *
-     * Currently, all time serie and timestamp interval tuples are grouped in a delayed fashion.
-     * Follow up changes should improve this and only perform delayed grouping for time serie and timestamp tuple this is really necessary.
-     * In most cases grouping should have been performed by {@link LocalImpl} and
-     * only for time series and timestamp interval tuple at backing index boundary delayed grouping is required.
-     */
-    static class DelayedImpl implements Operator {
-
-        private final int tsHashChannel;
-        private final int timestampChannel;
-        private final BytesRefHash tsHashes;
-        private final LongLongHash timestampHash;
-        private final Rounding.Prepared preparedRounding;
-        private final DriverContext driverContext;
-        private final List<GroupingAggregator> aggregators;
-
-        private Page output;
-        private boolean finished;
-
-        DelayedImpl(
-            int tsHashChannel,
-            int timestampChannel,
-            Rounding rounding,
-            DriverContext driverContext,
-            List<GroupingAggregator.Factory> aggregatorFactories
-        ) {
-            this.tsHashChannel = tsHashChannel;
-            this.timestampChannel = timestampChannel;
-            this.tsHashes = new BytesRefHash(1, driverContext.bigArrays());
-            if (rounding != null) {
-                this.timestampHash = new LongLongHash(1, driverContext.bigArrays());
-                this.preparedRounding = rounding.prepareForUnknown();
-            } else {
-                this.timestampHash = null;
-                this.preparedRounding = null;
-            }
-            this.driverContext = driverContext;
-            this.aggregators = new ArrayList<>(aggregatorFactories.size());
-            for (GroupingAggregator.Factory factory : aggregatorFactories) {
-                this.aggregators.add(factory.apply(driverContext));
-            }
-        }
-
-        @Override
-        public boolean needsInput() {
-            return finished == false;
-        }
-
-        @Override
-        public void addInput(Page page) {
-            try {
-                BytesRefBlock tsHashBlock = page.getBlock(tsHashChannel);
-                LongBlock timestampIntervalBlock = page.getBlock(timestampChannel);
-
-                SeenGroupIds seenGroupIds = new SeenGroupIds.Range(0, 0);
-                var prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
-                for (int i = 0; i < prepared.length; i++) {
-                    prepared[i] = aggregators.get(i).prepareProcessPage(seenGroupIds, page);
-                }
-
-                BytesRefVector tsHashVector = tsHashBlock.asVector();
-                if (tsHashVector != null) {
-                    vectorAddInput(prepared, tsHashVector, timestampIntervalBlock.asVector());
-                } else {
-                    blockAddInput(prepared, tsHashBlock, timestampIntervalBlock);
-                }
-            } finally {
-                page.releaseBlocks();
-            }
-        }
-
-        private void blockAddInput(
-            GroupingAggregatorFunction.AddInput[] prepared,
-            BytesRefBlock tsHashBlock,
-            LongBlock timestampIntervalBlock
-        ) {
-            try (var builder = driverContext.blockFactory().newIntVectorBuilder(tsHashBlock.getPositionCount())) {
-                BytesRef spare = new BytesRef();
-                if (preparedRounding != null) {
-                    for (int i = 0; i < tsHashBlock.getPositionCount(); i++) {
-                        BytesRef tsHash = tsHashBlock.getBytesRef(i, spare);
-                        long groupId = tsHashes.add(tsHash);
-                        if (groupId < 0) {
-                            groupId = -1 - groupId;
-                        }
-                        long timestampInterval = preparedRounding.round(timestampIntervalBlock.getLong(i));
-                        groupId = timestampHash.add(groupId, timestampInterval);
-                        if (groupId < 0) {
-                            groupId = -1 - groupId;
-                        }
-                        builder.appendInt(Math.toIntExact(groupId));
-                    }
-                } else {
-                    for (int i = 0; i < tsHashBlock.getPositionCount(); i++) {
-                        BytesRef tsHash = tsHashBlock.getBytesRef(i, spare);
-                        long groupId = tsHashes.add(tsHash);
-                        if (groupId < 0) {
-                            groupId = -1 - groupId;
-                        }
-                        builder.appendInt(Math.toIntExact(groupId));
-                    }
-                }
-                try (var vector = builder.build()) {
-                    for (var addInput : prepared) {
-                        addInput.add(0, vector);
-                    }
-                }
-            }
-        }
-
-        private void vectorAddInput(
-            GroupingAggregatorFunction.AddInput[] prepared,
-            BytesRefVector tsHashVector,
-            LongVector timestampIntervalVector
-        ) {
-            try (var builder = driverContext.blockFactory().newIntVectorBuilder(tsHashVector.getPositionCount())) {
-                BytesRef spare = new BytesRef();
-                if (preparedRounding != null) {
-                    for (int i = 0; i < tsHashVector.getPositionCount(); i++) {
-                        BytesRef tsHash = tsHashVector.getBytesRef(i, spare);
-                        long groupId = tsHashes.add(tsHash);
-                        if (groupId < 0) {
-                            groupId = -1 - groupId;
-                        }
-                        long timestampInterval = preparedRounding.round(timestampIntervalVector.getLong(i));
-                        groupId = timestampHash.add(groupId, timestampInterval);
-                        if (groupId < 0) {
-                            groupId = -1 - groupId;
-                        }
-                        builder.appendInt(Math.toIntExact(groupId));
-                    }
-                } else {
-                    for (int i = 0; i < tsHashVector.getPositionCount(); i++) {
-                        BytesRef tsHash = tsHashVector.getBytesRef(i, spare);
-                        long groupId = tsHashes.add(tsHash);
-                        if (groupId < 0) {
-                            groupId = -1 - groupId;
-                        }
-                        builder.appendInt(Math.toIntExact(groupId));
-                    }
-                }
-                try (var vector = builder.build()) {
-                    for (var addInput : prepared) {
-                        addInput.add(0, vector);
-                    }
-                }
-            }
-        }
-
-        @Override
-        public void finish() {
-            if (finished) {
-                return;
-            }
-            finished = true;
-            Block[] blocks = null;
-            IntVector selected = null;
-            boolean success = false;
-            try {
-                selected = IntVector.range(0, Math.toIntExact(tsHashes.size()) + 1, driverContext.blockFactory());
-
-                int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-                blocks = new Block[Arrays.stream(aggBlockCounts).sum()];
-
-                // add block for unique tsid hashes
-                // final int size = Math.toIntExact(tsHashes.size());
-                // try (BytesStreamOutput out = new BytesStreamOutput()) {
-                // tsHashes.getBytesRefs().writeTo(out);
-                // try (StreamInput in = out.bytes().streamInput()) {
-                // blocks[0] = driverContext.blockFactory()
-                // .newBytesRefArrayVector(new BytesRefArray(in, BigArrays.NON_RECYCLING_INSTANCE), size)
-                // .asBlock();
-                // }
-                // } catch (IOException e) {
-                // throw new IllegalStateException(e);
-                // }
-
-                // Append the aggregator blocks
-                int offset = 0;
-                for (int i = 0; i < aggregators.size(); i++) {
-                    var aggregator = aggregators.get(i);
-                    aggregator.evaluate(blocks, offset, selected, driverContext);
-                    offset += aggBlockCounts[i];
-                }
-                output = new Page(blocks);
-                success = true;
-            } finally {
-                // selected should always be closed
-                if (selected != null) {
-                    selected.close();
-                }
-                if (success == false && blocks != null) {
-                    Releasables.closeExpectNoException(blocks);
-                }
-            }
-        }
-
-        @Override
-        public boolean isFinished() {
-            return finished && output == null;
-        }
-
-        @Override
-        public Page getOutput() {
-            var output = this.output;
-            this.output = null;
-            return output;
-        }
-
-        @Override
-        public void close() {
-            if (output != null) {
-                output.releaseBlocks();
-            }
-            Releasables.close(tsHashes, timestampHash, () -> Releasables.close(aggregators));
-        }
-    }
 }

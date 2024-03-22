@@ -53,7 +53,7 @@ final class CO2Calculator {
     }
 
     private double getKiloWattsPerCore(HostMetadata host) {
-        return switch (host.profilingHostMachine) {
+        return switch (host.hostArchitecture) {
             // For the OTEL donation of the profiling agent, we switch to OTEL semantic conventions,
             // which require "arm64" and "amd64" to be reported as the host architecture.
             case "arm64", "aarch64" -> customKilowattsPerCoreARM64;

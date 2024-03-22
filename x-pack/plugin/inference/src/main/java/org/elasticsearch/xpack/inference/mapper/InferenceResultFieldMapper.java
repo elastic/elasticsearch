@@ -169,8 +169,7 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static void parseSingleField(DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
-        throws IOException {
+    private static void parseSingleField(DocumentParserContext context, MapperBuilderContext mapperBuilderContext) throws IOException {
 
         XContentParser parser = context.parser();
         String fieldName = parser.currentName();
@@ -180,7 +179,7 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
                 parser.getTokenLocation(),
                 Strings.format("Field [%s] is not registered as a field type", fieldName)
             );
-        } else if (SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false)  {
+        } else if (SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false) {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
                 Strings.format("Field [%s] is not registered as a %s field type", fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
@@ -391,7 +390,10 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
 
         Map<String, Object> fieldMap = (Map<String, Object>) inferenceMap.computeIfAbsent(field, s -> new LinkedHashMap<>());
         fieldMap.putAll(new SemanticTextModelSettings(model).asMap());
-        List<Map<String, Object>> fieldChunks = (List<Map<String, Object>>) fieldMap.computeIfAbsent(InferenceResultFieldMapper.RESULTS, k -> new ArrayList<>());
+        List<Map<String, Object>> fieldChunks = (List<Map<String, Object>>) fieldMap.computeIfAbsent(
+            InferenceResultFieldMapper.RESULTS,
+            k -> new ArrayList<>()
+        );
         fieldChunks.addAll(chunks);
     }
 }

@@ -223,6 +223,69 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(relation.supplier().get(), emptyArray());
     }
 
+    /**
+     * Expects
+     *
+     * EsqlProject[[x{r}#6]]
+     * \_Eval[[1[INTEGER] AS x]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_LocalRelation[[{e}#18],[ConstantNullBlock[positions=1]]]
+     */
+    public void testEmptyProjectInStatWithEval() {
+        var plan = plan("""
+            from test
+            | stats c = count(salary)
+            | eval x = 1
+            | drop c
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var singleRowRelation = as(limit.child(), LocalRelation.class);
+        var singleRow = singleRowRelation.supplier().get();
+        assertThat(singleRow.length, equalTo(1));
+        assertThat(singleRow[0].getPositionCount(), equalTo(1));
+
+        var exprs = eval.fields();
+        assertThat(exprs.size(), equalTo(1));
+        var alias = as(exprs.get(0), Alias.class);
+        assertThat(alias.name(), equalTo("x"));
+        assertThat(alias.child().fold(), equalTo(1));
+    }
+
+    /**
+     * Expects
+     *
+     * EsqlProject[[x{r}#7]]
+     * \_Eval[[1[INTEGER] AS x]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[[emp_no{f}#10],[emp_no{f}#10]]
+     *       \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     */
+    public void testEmptyProjectInStatWithGroupAndEval() {
+        var plan = plan("""
+            from test
+            | stats c = count(salary) by emp_no
+            | eval x = 1
+            | drop c, emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var relation = as(agg.child(), EsRelation.class);
+        assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
+        assertThat(Expressions.names(agg.aggregates()), contains("emp_no"));
+
+        var exprs = eval.fields();
+        assertThat(exprs.size(), equalTo(1));
+        var alias = as(exprs.get(0), Alias.class);
+        assertThat(alias.name(), equalTo("x"));
+        assertThat(alias.child().fold(), equalTo(1));
+    }
+
     public void testCombineProjections() {
         var plan = plan("""
             from test

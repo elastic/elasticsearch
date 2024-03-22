@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -172,6 +173,19 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
         return asList(substitutions, operators(), skip, cleanup(), defaultTopN, label);
+    }
+
+    private static Block SINGLE_NULL_VALUE = BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1);
+
+    /**
+     * Create an (essentially) empty row; the row still has 1 placeholder attribute since plans with empty schemas are pruned.
+     */
+    // TODO: cherry-picked from https://github.com/elastic/elasticsearch/pull/105454/commits/9c5810d51cc5f6827a2cffcffca2c8dbf883fde7
+    // Avoid duplication once https://github.com/elastic/elasticsearch/pull/105454 is merged.
+    private static LocalRelation emptyRow(Source source) {
+        Block block = SINGLE_NULL_VALUE;
+        block.incRef();
+        return new LocalRelation(source, List.of(new EmptyAttribute(Source.EMPTY)), LocalSupplier.of(new Block[] { block }));
     }
 
     // TODO: currently this rule only works for aggregate functions (AVG)
@@ -998,11 +1012,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     recheck = false;
                     if (p instanceof Aggregate aggregate) {
                         var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), used) : null;
-                        // no aggregates, no need
+
                         if (remaining != null) {
                             if (remaining.isEmpty()) {
-                                recheck = true;
-                                p = aggregate.child();
+                                // We still need to have a plan that produces 1 row per group.
+                                if (aggregate.groupings().isEmpty()) {
+                                    p = emptyRow(aggregate.source());
+                                } else {
+                                    // Aggs cannot produce pages with 0 columns, so retain one grouping.
+                                    remaining = List.of((NamedExpression) aggregate.groupings().get(0));
+                                    p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
+                                }
                             } else {
                                 p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
                             }

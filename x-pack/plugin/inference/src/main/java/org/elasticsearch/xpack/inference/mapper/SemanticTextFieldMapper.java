@@ -41,7 +41,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -253,9 +253,9 @@ public class SemanticTextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
 
-        public Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) {
+        public Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) throws IOException {
             // Cant use QueryBuilders because a mapper is not registered for <field>.inference, causing TermQueryBuilder#doToQuery to fail
-            String inferenceResultsFieldName = name() + "." + INFERENCE_CHUNKS_RESULTS;
+            String inferenceResultsFieldName = name() + "." + RESULTS + "." + INFERENCE_CHUNKS_RESULTS;
             Query query;
 
             if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
@@ -270,19 +270,9 @@ public class SemanticTextFieldMapper extends FieldMapper {
                 query = queryBuilder.build();
             } else if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
                 float[] inference = textEmbeddingResults.getInferenceAsFloat();
-                DenseVectorFieldMapper.DenseVectorFieldType denseVectorFieldType = new DenseVectorFieldMapper.DenseVectorFieldType(
-                    inferenceResultsFieldName,
-                    context.indexVersionCreated(),
-                    DenseVectorFieldMapper.ElementType.FLOAT, // TODO: get element type from external source?
-                    inference.length,
-                    true,
-                    DenseVectorFieldMapper.VectorSimilarity.COSINE, // TODO: get similarity from external source
-                    Map.of()
-                );
 
-                // TODO: Need to set parent filter?
-                // TODO: Where to get numCands from?
-                query = denseVectorFieldType.createKnnQuery(VectorData.fromFloats(inference), 10, null, null, null);
+                // TODO: Set numCands based on request size
+                query = new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, 10, null).toQuery(context);
             } else {
                 throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
             }

@@ -122,6 +122,82 @@ setup:
   - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
 
 ---
+"IN on text":
+  - skip:
+      version: " - 8.13.99"
+      reason: "IN on text fixed in v 8.14"
+      features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag IN ("abc", "baz") | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+
+---
+"IN on text and itself":
+  - skip:
+      version: " - 8.13.99"
+      reason: "IN on text fixed in v 8.14"
+      features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag IN ("abc", tag) | keep emp_no, name, job, tag | sort emp_no'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar"] }
+  - match: { values.1: [ 20, "John", "Payroll Specialist", "baz"] }
+
+---
+"NOT IN on text":
+  - skip:
+      version: " - 8.13.99"
+      reason: "IN on text fixed in v 8.14"
+      features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag NOT IN ("abc", "baz") | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar"] }
+
+---
 "eval and filter text":
   - do:
       allowed_warnings_regex:

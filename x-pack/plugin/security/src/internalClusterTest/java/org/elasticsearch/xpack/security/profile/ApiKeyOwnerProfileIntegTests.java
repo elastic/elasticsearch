@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -28,6 +29,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
 
@@ -37,8 +39,6 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        // Register both file and native realms under the same domain
-        // builder.put("xpack.security.authc.domains.my_domain.realms", "file,index");
         builder.put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true);
         builder.put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true);
         return builder.build();
@@ -104,22 +104,71 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         Client client = client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, password)));
         CreateApiKeyRequest request = new CreateApiKeyRequest("key1", null, null, null);
         request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        // activate profile, then create API key, or vice-versa
         boolean firstActivateProfile = randomBoolean();
         Profile userWithManageOwnProfile = null;
-        // activate profile, then create API key, or vice-versa
         if (firstActivateProfile) {
             userWithManageOwnProfile = AbstractProfileIntegTestCase.doActivateProfile(username, password);
         }
-        String keyId1 = client.execute(CreateApiKeyAction.INSTANCE, request).actionGet().getId();
+        String keyId = client.execute(CreateApiKeyAction.INSTANCE, request).actionGet().getId();
         if (false == firstActivateProfile) {
             userWithManageOwnProfile = AbstractProfileIntegTestCase.doActivateProfile(username, password);
         }
-        Tuple<ApiKey, String> apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
-            client,
-            keyId1,
-            ownKey || randomBoolean()
-        );
-        assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId1));
+        // assert key owner profile uid
+        Tuple<ApiKey, String> apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(client, keyId, ownKey || randomBoolean());
+        assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
         assertThat(apiKeyWithProfileUid.v2(), is(userWithManageOwnProfile.uid()));
+    }
+
+    public void testApiKeyOwnerJoinsDomain() throws Exception {
+        String username = randomFrom("user_with_manage_own_api_key_role", "user_with_manage_api_key_role");
+        SecureString password1;
+        SecureString password2;
+        if (randomBoolean()) {
+            password1 = FILE_USER_TEST_PASSWORD;
+            password2 = NATIVE_USER_TEST_PASSWORD;
+        } else {
+            password1 = NATIVE_USER_TEST_PASSWORD;
+            password2 = FILE_USER_TEST_PASSWORD;
+        }
+        // activate profile, then create API key, or vice-versa
+        boolean firstActivateProfile = randomBoolean();
+        Profile user2Profile = null;
+        if (firstActivateProfile) {
+            user2Profile = AbstractProfileIntegTestCase.doActivateProfile(username, password2);
+        }
+        Client client1 = client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, password1)));
+        CreateApiKeyRequest request = new CreateApiKeyRequest("key1", null, null, null);
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        String keyId = client1.execute(CreateApiKeyAction.INSTANCE, request).actionGet().getId();
+        if (false == firstActivateProfile) {
+            user2Profile = AbstractProfileIntegTestCase.doActivateProfile(username, password2);
+        }
+        // assert key owner (username1) without profile uid
+        Tuple<ApiKey, String> apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
+            client1,
+            keyId,
+            username.equals("user_with_manage_own_api_key_role") || randomBoolean()
+        );
+        assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
+        // no profile for API Key owner
+        assertThat(apiKeyWithProfileUid.v2(), nullValue());
+        // restart cluster nodes to add the 2 users to the same domain
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                // Register both file and native realms under the same domain
+                return Settings.builder().put("xpack.security.authc.domains.my_domain.realms", "file,index").build();
+            }
+        });
+        client1 = client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, password1)));
+        apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
+            client1,
+            keyId,
+            username.equals("user_with_manage_own_api_key_role") || randomBoolean()
+        );
+        assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
+        // API key owner (username1) now has a profile uid
+        assertThat(apiKeyWithProfileUid.v2(), is(user2Profile.uid()));
     }
 }

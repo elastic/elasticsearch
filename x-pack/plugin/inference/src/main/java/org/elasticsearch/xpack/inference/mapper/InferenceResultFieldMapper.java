@@ -174,12 +174,7 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
         XContentParser parser = context.parser();
         String fieldName = parser.currentName();
         Mapper mapper = findMapper(context.root(), fieldName);
-        if (mapper == null) {
-            throw new DocumentParsingException(
-                parser.getTokenLocation(),
-                Strings.format("Field [%s] is not registered as a field type", fieldName)
-            );
-        } else if (SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false) {
+        if ((mapper == null) || (SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false)) {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
                 Strings.format("Field [%s] is not registered as a %s field type", fieldName, SemanticTextFieldMapper.CONTENT_TYPE)

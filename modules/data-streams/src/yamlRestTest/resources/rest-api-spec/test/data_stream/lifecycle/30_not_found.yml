@@ -29,7 +29,9 @@ setup:
         name: "*"
   - length: { data_streams: 1}
   - match: { data_streams.0.name: my-data-stream-1 }
-  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.data_retention: "10d" }
+  - match: { data_streams.0.lifecycle.effective_retention: "10d"}
+  - match: { data_streams.0.lifecycle.retention_determined_by: "data_stream_configuration"}
   - match: { data_streams.0.lifecycle.enabled: true}
 
 ---
@@ -57,7 +59,9 @@ setup:
         name: "*"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: my-data-stream-1 }
-  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.data_retention: "10d" }
+  - match: { data_streams.0.lifecycle.effective_retention: "10d"}
+  - match: { data_streams.0.lifecycle.retention_determined_by: "data_stream_configuration"}
   - match: { data_streams.0.lifecycle.enabled: true }
 
 ---
@@ -74,5 +78,7 @@ setup:
         name: "*"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: my-data-stream-1 }
-  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.data_retention: "10d" }
+  - match: { data_streams.0.lifecycle.effective_retention: "10d"}
+  - match: { data_streams.0.lifecycle.retention_determined_by: "data_stream_configuration"}
   - match: { data_streams.0.lifecycle.enabled: true }

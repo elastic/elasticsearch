@@ -248,5 +248,7 @@
 
   - match: {template.lifecycle.enabled: true}
   - match: {template.lifecycle.data_retention: "7d"}
+  - match: {template.lifecycle.effective_retention: "7d"}
+  - match: {template.lifecycle.retention_determined_by: "data_stream_configuration"}
   - is_true: template.lifecycle.rollover
   - match: {overlapping: []}

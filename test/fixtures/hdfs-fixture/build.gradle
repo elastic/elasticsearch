@@ -12,9 +12,9 @@ apply plugin: 'com.github.johnrengelman.shadow'
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 configurations {
-  all {
-    transitive = true
-  }
+//  all {
+//    transitive = true
+//  }
   hdfs2
   hdfs3
   consumable("shadowedHdfs2")

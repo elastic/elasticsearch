@@ -49,22 +49,16 @@ dependencies {
   //  https://github.com/elastic/elasticsearch/issues/93714
   //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
 
-  testImplementation(project(':test:fixtures:hdfs-fixture')) {
-    transitive = false
-  }
+  testImplementation(project(':test:fixtures:hdfs-fixture'))
+  javaRestTestCompileOnly(project(':test:fixtures:hdfs-fixture'))
 
-  javaRestTestCompileOnly(project(':test:fixtures:hdfs-fixture')) {
-    transitive = false
-  }
   javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   javaRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
   javaRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
   javaRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
-  yamlRestTestCompileOnly(project(':test:fixtures:hdfs-fixture')) {
-    transitive = false
-  }
+  yamlRestTestCompileOnly(project(':test:fixtures:hdfs-fixture'))
   yamlRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   yamlRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   yamlRestTestRuntimeOnly "com.google.guava:guava:16.0.1"

@@ -1,8 +1,8 @@
 setup:
   - skip:
       features: allowed_warnings
-      version: " - 8.10.99"
-      reason: "Data stream lifecycles only supported in 8.11+"
+      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
+      reason: "Data stream lifecycles with global retention are only supported in 8.14+"
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [data-stream-with-lifecycle] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
@@ -40,9 +40,6 @@ setup:
 
 ---
 "Get data stream lifecycle":
-  - skip:
-      version: " - 8.13.99"
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
 
   - do:
       indices.get_data_lifecycle:
@@ -115,9 +112,6 @@ setup:
 
 ---
 "Enable lifecycle":
-  - skip:
-      version: " - 8.13.99"
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
 
   - do:
       indices.put_data_lifecycle:
@@ -142,9 +136,7 @@ setup:
 
 ---
 "Get data stream lifecycle with defaults":
-  - skip:
-      version: " - 8.13.99"
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
+
   - do:
       indices.get_data_lifecycle:
         name: "data-stream-with-lifecycle"
@@ -158,9 +150,6 @@ setup:
 
 ---
 "Delete data stream lifecycle from the data streams":
-  - skip:
-      version: " - 8.13.99"
-      reason: "Data stream lifecycle with effective retention was released in 8.14"
   - do:
       indices.put_data_lifecycle:
         name: "simple-data-stream1"

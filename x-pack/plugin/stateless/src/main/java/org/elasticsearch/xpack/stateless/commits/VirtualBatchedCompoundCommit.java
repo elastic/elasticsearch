@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticsearchException;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -91,8 +91,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final NavigableSet<PendingCompoundCommit> pendingCompoundCommits;
     // TODO: the internal files should be added to the corresponding BlobReferences
     private final Map<String, BlobLocation> internalLocations = new ConcurrentHashMap<>();
-    // Maps internal files (pending compound commits' headers and internal files) to their offset in the virtual batched compound commit
-    private final NavigableMap<Long, InternalHeaderOrFile> internalFilesByOffset = new ConcurrentSkipListMap<>();
+    // Maps internal data (pending compound commits' headers and internal files) to their offset in the virtual batched compound commit
+    private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
     private final String blobName;
     private final AtomicReference<Thread> appendingCommitThread = new AtomicReference<>();
@@ -179,20 +179,24 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             }
 
             final long headerOffset = currentOffset.get();
-            long startingOffset = headerOffset + header.length;
+            final long startingOffset = headerOffset + header.length;
             // TODO: get rid of the blob length
-            long blobLength = startingOffset + compoundCommitFilesSize;
+            final long blobLength = startingOffset + compoundCommitFilesSize;
+
+            internalDataReadersByOffset.put(headerOffset, new InternalHeaderReader(header));
             long internalFileOffset = startingOffset;
-            long[] offsets = new long[internalFiles.size()];
-            for (int i = 0; i < internalFiles.size(); i++) {
-                var internalFile = internalFiles.get(i);
-                offsets[i] = internalFileOffset;
+            for (var internalFile : internalFiles) {
                 var fileLength = internalFile.length();
                 var previousLocation = internalLocations.put(
                     internalFile.name(),
                     new BlobLocation(primaryTermAndGeneration.primaryTerm(), blobName, blobLength, internalFileOffset, fileLength)
                 );
                 assert previousLocation == null;
+                var previousOffset = internalDataReadersByOffset.put(
+                    internalFileOffset,
+                    new InternalFileReader(internalFile.name(), reference.getDirectory())
+                );
+                assert previousOffset == null;
                 internalFileOffset += fileLength;
             }
             currentOffset.set(internalFileOffset);
@@ -205,16 +209,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             );
             pendingCompoundCommits.add(pendingCompoundCommit);
             logger.debug("appended new CC [{}] to VBCC [{}]", pendingCompoundCommit, primaryTermAndGeneration);
-
-            internalFilesByOffset.put(headerOffset, new InternalHeaderOrFile(pendingCompoundCommit, null));
-            for (int i = 0; i < internalFiles.size(); i++) {
-                var internalFile = internalFiles.get(i);
-                var previousOffset = internalFilesByOffset.put(
-                    offsets[i],
-                    new InternalHeaderOrFile(pendingCompoundCommit, internalFile.name())
-                );
-                assert previousOffset == null;
-            }
         }
         // The consistency can be asserted outside the blocking code since appendCommit runs single-threaded
         assert assertInternalConsistency();
@@ -247,16 +241,14 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         final var sizeInBytes = pendingCompoundCommits.stream().mapToLong(PendingCompoundCommit::getSizeInBytes).sum();
         assert sizeInBytes == currentOffset.get() : "current offset must be at the end of the VBCC";
-        final Map<Boolean, List<String>> internalFileGroup = internalFilesByOffset.values()
+        // Group the internal data readers into 2 groups with boolean keys. True for InternalHeaderReader and False for InternalFileReader
+        final Map<Boolean, List<InternalDataReader>> internalDataReaderGroup = internalDataReadersByOffset.values()
             .stream()
-            .collect(
-                groupingBy(
-                    internalHeaderOrFile -> internalHeaderOrFile.internalFile == null,
-                    Collectors.mapping(pc -> pc.internalFile, Collectors.toList())
-                )
-            );
-        assert internalFileGroup.get(true).size() == pendingCompoundCommits.size() : "all pending CCs must have header offsets";
-        assert allInternalFiles.equals(Set.copyOf(internalFileGroup.get(false))) : "all internal files must have offsets";
+            .collect(groupingBy(internalHeaderOrFile -> internalHeaderOrFile instanceof InternalHeaderReader));
+        assert internalDataReaderGroup.get(true).size() == pendingCompoundCommits.size() : "all pending CCs must have header offsets";
+        assert allInternalFiles.equals(
+            Set.copyOf(internalDataReaderGroup.get(false).stream().map(r -> ((InternalFileReader) r).filename).toList())
+        ) : "all internal files must have offsets";
         return true;
     }
 
@@ -373,11 +365,12 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         if (tryIncRef()) {
             try {
-                NavigableMap<Long, InternalHeaderOrFile> subMap = internalFilesByOffset.subMap(
-                    internalFilesByOffset.floorKey(offset),
+                NavigableMap<Long, InternalDataReader> subMap = internalDataReadersByOffset.subMap(
+                    internalDataReadersByOffset.floorKey(offset),
                     true,
-                    internalFilesByOffset.floorKey(offset + length), // could have been offset + length - 1, but we avoid an `if` that we'd
-                                                                     // otherwise need to avoid a NPE for the case of getBytesByRange(0, 0).
+                    // could have been offset + length - 1, but we avoid an `if` that we'd
+                    // otherwise need to avoid a NPE for the case of getBytesByRange(0, 0).
+                    internalDataReadersByOffset.floorKey(offset + length),
                     true
                 );
                 long remainingBytesToRead = length;
@@ -385,26 +378,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                     if (remainingBytesToRead <= 0) {
                         break;
                     }
-                    InternalHeaderOrFile internalHeaderOrFile = entry.getValue();
+                    InternalDataReader internalDataReader = entry.getValue();
                     long skipBytes = Math.max(0, offset - entry.getKey()); // can be non-zero only for the first entry
-                    if (internalHeaderOrFile.internalFile() == null) {
-                        byte[] header = internalHeaderOrFile.pendingCompoundCommit.header;
-                        assert skipBytes < header.length : "skipBytes [" + skipBytes + "] more than header length [" + header.length + "]";
-                        int headerBytesToRead = (int) Math.min(remainingBytesToRead, header.length - skipBytes);
-                        output.write(header, (int) skipBytes, headerBytesToRead);
-                        remainingBytesToRead -= headerBytesToRead;
-                    } else {
-                        var directory = internalHeaderOrFile.pendingCompoundCommit.getCommitReference().getDirectory();
-                        var internalFile = internalHeaderOrFile.internalFile;
-                        long fileLength = directory.fileLength(internalFile);
-                        assert skipBytes < fileLength : "skipBytes [" + skipBytes + "] more than file length [" + fileLength + "]";
-                        long fileBytesToRead = Math.min(remainingBytesToRead, fileLength - skipBytes);
-                        try (IndexInput input = directory.openInput(internalFile, IOContext.READONCE)) {
-                            input.seek(skipBytes);
-                            Streams.copy(new InputStreamIndexInput(input, fileBytesToRead), output, false);
-                        }
-                        remainingBytesToRead -= fileBytesToRead;
-                    }
+                    long bytesRead = internalDataReader.read(skipBytes, remainingBytesToRead, output);
+                    remainingBytesToRead -= bytesRead;
                 }
                 assert remainingBytesToRead == 0 : "remaining bytes to read " + remainingBytesToRead;
             } finally {
@@ -494,12 +471,49 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     /**
-     * Helper record to associate a requested offset in the {@link VirtualBatchedCompoundCommit} with an internal header or file.
-     * @param pendingCompoundCommit the pending compound commit that contains the requested offset
-     * @param internalFile the internal file, that the offset belongs to, or null if the offset is the
-     *                     header of the {@link PendingCompoundCommit}
+     * Interface for reading internal data from a batched compound commit
      */
-    record InternalHeaderOrFile(PendingCompoundCommit pendingCompoundCommit, @Nullable String internalFile) {}
+    @FunctionalInterface
+    private interface InternalDataReader {
+        /**
+         * Read the internal data and copy it into the output.
+         * @param offset The starting position to read the data from. The value is relative to each individual data component.
+         * @param length The maximum length of data to read.
+         * @param output The destination where the data should be copied into.
+         * @return The number of bytes actually read and copied. It can be smaller than requested length if there is not enough data.
+         */
+        long read(long offset, long length, OutputStream output) throws IOException;
+    }
+
+    /**
+     * Internal data reader for header bytes
+     */
+    private record InternalHeaderReader(byte[] header) implements InternalDataReader {
+        @Override
+        public long read(long offset, long length, OutputStream output) throws IOException {
+            assert offset < header.length : "offset [" + offset + "] more than header length [" + header.length + "]";
+            long headerBytesToRead = Math.min(length, header.length - offset);
+            output.write(header, Math.toIntExact(offset), Math.toIntExact(headerBytesToRead));
+            return headerBytesToRead;
+        }
+    }
+
+    /**
+     * Internal data reader for an internal file
+     */
+    private record InternalFileReader(String filename, Directory directory) implements InternalDataReader {
+        @Override
+        public long read(long offset, long length, OutputStream output) throws IOException {
+            long fileLength = directory.fileLength(filename);
+            assert offset < fileLength : "offset [" + offset + "] more than file length [" + fileLength + "]";
+            long fileBytesToRead = Math.min(length, fileLength - offset);
+            try (IndexInput input = directory.openInput(filename, IOContext.READONCE)) {
+                input.seek(offset);
+                Streams.copy(new InputStreamIndexInput(input, fileBytesToRead), output, false);
+            }
+            return fileBytesToRead;
+        }
+    }
 
     public static class BatchedCompoundCommitAlreadyUploaded extends ElasticsearchException {
         public BatchedCompoundCommitAlreadyUploaded(ShardId shardId, PrimaryTermAndGeneration primaryTermAndGeneration) {

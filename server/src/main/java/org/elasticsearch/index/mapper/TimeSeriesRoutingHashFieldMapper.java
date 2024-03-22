@@ -25,7 +25,6 @@ import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
@@ -56,8 +55,7 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public void writeTo(StreamOutput out) {
-            }
+            public void writeTo(StreamOutput out) {}
 
             @Override
             public Object format(BytesRef value) {

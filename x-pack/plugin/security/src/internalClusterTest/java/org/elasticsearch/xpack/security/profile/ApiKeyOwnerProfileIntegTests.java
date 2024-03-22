@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -21,11 +22,9 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.authc.ApiKeyIntegTests;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
@@ -33,6 +32,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
 
     public static final SecureString FILE_USER_TEST_PASSWORD = new SecureString("file-user-test-password".toCharArray());
@@ -48,7 +48,7 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
 
     @Before
     public void createNativeUsers() {
-        internalCluster().wipe(Set.of());
+        ensureGreen();
         {
             PutUserRequest putUserRequest = new PutUserRequest();
             putUserRequest.username("user_with_manage_api_key_role");

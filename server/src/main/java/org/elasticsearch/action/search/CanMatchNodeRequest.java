@@ -24,7 +24,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -152,35 +151,32 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         indices = shards.stream().map(Shard::getOriginalIndices).flatMap(Arrays::stream).distinct().toArray(String[]::new);
     }
 
-    private static void collectSignificantTermsBackgroundFilters(
-        Collection<AggregationBuilder> aggregations,
-        List<QueryBuilder> backgroundFilters
-    ) {
+    private static void collectAggregationQueries(Collection<AggregationBuilder> aggregations, List<QueryBuilder> aggregationQueries) {
         for (AggregationBuilder aggregation : aggregations) {
-            if (aggregation instanceof SignificantTermsAggregationBuilder) {
-                QueryBuilder backgroundFilter = ((SignificantTermsAggregationBuilder) aggregation).backgroundFilter();
-                backgroundFilters.add(backgroundFilter != null ? backgroundFilter : QueryBuilders.matchAllQuery());
+            QueryBuilder aggregationQuery = aggregation.getQuery();
+            if (aggregationQuery != null) {
+                aggregationQueries.add(aggregationQuery);
             }
-            collectSignificantTermsBackgroundFilters(aggregation.getSubAggregations(), backgroundFilters);
+            collectAggregationQueries(aggregation.getSubAggregations(), aggregationQueries);
         }
     }
 
     private SearchSourceBuilder getCanMatchSource(SearchRequest searchRequest) {
-        // A significant terms aggregation contains a background query next to the top-level search
-        // query. To check whether a request can match a shard, either the top-level search query
-        // or one of the background queries can match the shard. Therefore, we take the union of
-        // the queries to determine whether a request can match.
-        List<QueryBuilder> backgroundFilters = new ArrayList<>();
+        // Aggregations may use a different query than the top-level search query. An example is
+        // the significant terms aggregation, which also collects data over a background that
+        // typically much larger than the search query. To accommodate for this, we take the union
+        // of all queries to determine whether a request can match.
+        List<QueryBuilder> aggregationQueries = new ArrayList<>();
         if (searchRequest.source() != null && searchRequest.source().aggregations() != null) {
-            collectSignificantTermsBackgroundFilters(searchRequest.source().aggregations().getAggregatorFactories(), backgroundFilters);
+            collectAggregationQueries(searchRequest.source().aggregations().getAggregatorFactories(), aggregationQueries);
         }
-        if (backgroundFilters.isEmpty()) {
+        if (aggregationQueries.isEmpty()) {
             return searchRequest.source();
         } else {
             BoolQueryBuilder query = QueryBuilders.boolQuery();
             query.should(searchRequest.source().query());
-            for (QueryBuilder backgroundFilter : backgroundFilters) {
-                query.should(backgroundFilter);
+            for (QueryBuilder aggregationQuery : aggregationQueries) {
+                query.should(aggregationQuery);
             }
             return SearchSourceBuilder.searchSource().query(query);
         }

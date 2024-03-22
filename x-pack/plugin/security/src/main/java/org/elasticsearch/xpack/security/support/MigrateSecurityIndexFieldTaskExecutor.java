@@ -10,31 +10,28 @@ package org.elasticsearch.xpack.security.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.core.security.support.MigrateSecurityIndexFieldTaskParams;
 
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Collections;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 
 public class MigrateSecurityIndexFieldTaskExecutor extends PersistentTasksExecutor<MigrateSecurityIndexFieldTaskParams> {
     private static final Logger logger = LogManager.getLogger(MigrateSecurityIndexFieldTaskExecutor.class);
@@ -69,48 +66,42 @@ public class MigrateSecurityIndexFieldTaskExecutor extends PersistentTasksExecut
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
 
         ActionListener<Void> listener = ActionListener.wrap((res) -> {
-            logger.info("Security Index Field Migration complete written to cluster state");
+            logger.info("Security Index Field Migration complete - written to cluster state");
             task.markAsCompleted();
         }, (exception) -> {
-            logger.warn("Security Index Field Migration completed but result couldn't be written to cluster state: " + exception);
+            logger.warn("Security Index Field Migration failed: " + exception);
             task.markAsFailed(exception);
         });
 
         if (frozenSecurityIndex.indexExists() == false) {
             logger.info("security index does not exist");
             notifyCompleted(listener); // There is nothing to migrate
-        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
             // This could be handled by frozenSecurityIndex.add/remove-StateListener() and just wait for the index to become available
-            logger.info("Search shards not available: " + frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            logger.info("Primary shards not available: " + frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
-            // This should be improved to:
-            // - Query and update in batches
-            // - Use threadpool that can afford being occupied for a while to finish the migration
-            // - Only iterate users and roles
-            SearchRequest searchRequest = new SearchRequest(SECURITY_MAIN_ALIAS);
+            UpdateByQueryRequestBuilder updateByQueryRequestBuilder = new UpdateByQueryRequestBuilder(client);
+            updateByQueryRequestBuilder.filter(
+                new BoolQueryBuilder().should(QueryBuilders.termQuery("type", "user")).should(QueryBuilders.termQuery("type", "role"))
+            // A filter on "metadata" exists could be added here too, but since it's not indexed it's not that straight forward, so leaving
+            // it out for now
+            );
+            updateByQueryRequestBuilder.source(securitySystemIndices.getMainIndexManager().aliasName());
+            updateByQueryRequestBuilder.script(
+                new Script(ScriptType.INLINE, "painless", "ctx._source.metadata_flattened = ctx._source.metadata", Collections.emptyMap())
+            );
+
             securityIndex.checkIndexVersionThenExecute(
                 (exception) -> logger.warn("Couldn't query security index " + exception),
                 () -> executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
-                    TransportSearchAction.TYPE,
-                    searchRequest,
-                    ActionListener.wrap(searchResponse -> {
-                        final long total = searchResponse.getHits().getTotalHits().value;
-                        if (total == 0) {
-                            logger.info("No data found for query [{}]", searchRequest.source().query());
-                            notifyCompleted(listener); // There is nothing to migrate
-                            return;
-                        }
-
-                        bulkUpdate(
-                            searchResponse.getHits().getHits(),
-                            params,
-                            ActionListener.wrap((response) -> notifyCompleted(listener), (exception) -> {
-                                logger.warn("Bulk Update failed for security index field migration " + exception);
-                            })
-                        );
-                    }, (exception) -> logger.info("Getting models failed!" + exception))
+                    UpdateByQueryAction.INSTANCE,
+                    updateByQueryRequestBuilder.request(),
+                    ActionListener.wrap(bulkByScrollResponse -> {
+                        logger.info("Migrated [{}] security index fields", bulkByScrollResponse.getUpdated());
+                        notifyCompleted(listener);
+                    }, (exception) -> logger.info("Updating security index fields failed!" + exception))
                 )
             );
         }
@@ -119,40 +110,5 @@ public class MigrateSecurityIndexFieldTaskExecutor extends PersistentTasksExecut
     private void notifyCompleted(ActionListener<Void> listener) {
         logger.info("Security Index Field Migration successful, writing result to cluster state");
         securitySystemIndices.getMainIndexManager().writeMetadataMigrated(listener);
-    }
-
-    private void bulkUpdate(SearchHit[] hits, MigrateSecurityIndexFieldTaskParams params, ActionListener<Void> listener) {
-        logger.info("Migrating [" + hits.length + "] documents");
-        // This updates while iterating the index, I think that's fine since any updates happening in parallel
-        // will write to both the source and the target field
-        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-
-        for (SearchHit hit : hits) {
-            Map<String, Object> sourceMap = hit.getSourceAsMap();
-            hit.getSourceAsMap();
-
-            if (sourceMap != null) {
-                Object sourceData = sourceMap.get(params.getSourceField());
-                Object targetData = sourceMap.get(params.getTargetField());
-                if (sourceData != null && sourceData != targetData) {
-                    UpdateRequestBuilder updateRequestBuilder = new UpdateRequestBuilder(client, SECURITY_MAIN_ALIAS, hit.getId());
-                    Map<String, Object> updatedSource = new HashMap<>(sourceMap);
-                    updatedSource.put(params.getTargetField(), sourceData);
-                    updateRequestBuilder.setDoc(updatedSource);
-                    bulkRequestBuilder.add(updateRequestBuilder);
-                }
-            }
-        }
-
-        BulkRequest request = bulkRequestBuilder.request();
-
-        securitySystemIndices.getMainIndexManager()
-            .checkIndexVersionThenExecute(
-                (exception) -> logger.warn("Bulk Update failed for security index field migration " + exception),
-                () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, request, ActionListener.wrap(updateResponse -> {
-                    logger.info("Bulk Update successful for security index field migration");
-                    listener.onResponse(null);
-                }, listener::onFailure))
-            );
     }
 }

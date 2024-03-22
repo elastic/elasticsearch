@@ -309,3 +309,37 @@ setup:
         id: doc_1
         body:
           non_inference_field: "non inference test"
+
+
+---
+"semantic_text multifields calculate inference for parent field":
+  - do:
+      indices.create:
+        index: test-multifield-index
+        body:
+          mappings:
+            properties:
+              top_level_field:
+                type: text
+                fields:
+                  semantic_multifield:
+                    type: semantic_text
+                    model_id: dense-inference-id
+  - do:
+      index:
+        index: test-multifield-index
+        id: doc_1
+        body:
+          top_level_field: "multifield inference test"
+
+  - do:
+      get:
+        index: test-multifield-index
+        id: doc_1
+
+  - match: { _source.top_level_field: "multifield inference test" }
+  - match: { _source._inference.top_level_field\.semantic_multifield.results.0.text: "multifield inference test" }
+  - exists: _source._inference.top_level_field\.semantic_multifield.results.0.inference
+  - exists: _source._inference.top_level_field\.semantic_multifield.results.0.inference
+
+

@@ -291,8 +291,9 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
                 for (var entry : fieldInferenceMetadata.getFieldInferenceOptions().entrySet()) {
                     String inferenceId = entry.getValue().inferenceId();
-                    for (var field : entry.getValue().sourceFields()) {
-                        var value = XContentMapValues.extractValue(field, docMap);
+                    String fieldName = entry.getKey();
+                    for (var sourceField : entry.getValue().sourceFields()) {
+                        var value = XContentMapValues.extractValue(sourceField, docMap);
                         if (value == null) {
                             continue;
                         }
@@ -311,13 +312,13 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
                                 inferenceId,
                                 k -> new ArrayList<>()
                             );
-                            fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
+                            fieldRequests.add(new FieldInferenceRequest(item.id(), fieldName, valueStr));
                         } else {
                             inferenceResults.get(item.id()).failures.add(
                                 new ElasticsearchStatusException(
                                     "Invalid format for field [{}], expected [String] got [{}]",
                                     RestStatus.BAD_REQUEST,
-                                    field,
+                                    fieldName,
                                     value.getClass().getSimpleName()
                                 )
                             );

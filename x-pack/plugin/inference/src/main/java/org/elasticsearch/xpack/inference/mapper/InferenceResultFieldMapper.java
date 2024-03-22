@@ -148,10 +148,15 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        XContentParser parser = context.parser();
-        failIfTokenIsNot(parser, XContentParser.Token.START_OBJECT);
-
-        parseAllFields(context);
+        boolean withinLeafObject = context.path().isWithinLeafObject();
+        try {
+            context.path().setWithinLeafObject(true);
+            XContentParser parser = context.parser();
+            failIfTokenIsNot(parser, XContentParser.Token.START_OBJECT);
+            parseAllFields(context);
+        } finally {
+            context.path().setWithinLeafObject(withinLeafObject);
+        }
     }
 
     private static void parseAllFields(DocumentParserContext context) throws IOException {
@@ -164,12 +169,18 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static void parseSingleField(DocumentParserContext context, MapperBuilderContext mapperBuilderContext) throws IOException {
+    private static void parseSingleField(DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
+        throws IOException {
 
         XContentParser parser = context.parser();
         String fieldName = parser.currentName();
-        Mapper mapper = context.getMapper(fieldName);
-        if (mapper == null || SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false) {
+        Mapper mapper = findMapper(context.root(), fieldName);
+        if (mapper == null) {
+            throw new DocumentParsingException(
+                parser.getTokenLocation(),
+                Strings.format("Field [%s] is not registered as a field type", fieldName)
+            );
+        } else if (SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false)  {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
                 Strings.format("Field [%s] is not registered as a %s field type", fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
@@ -190,7 +201,7 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
                     fieldName,
                     modelSettings
                 );
-                parseFieldInferenceChunks(context, mapperBuilderContext, fieldName, modelSettings, nestedObjectMapper);
+                parseFieldInferenceChunks(context, modelSettings, nestedObjectMapper);
             } else {
                 logger.debug("Skipping unrecognized field name [" + currentName + "]");
                 advancePastCurrentFieldName(parser);
@@ -198,10 +209,20 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    private static Mapper findMapper(Mapper mapper, String fullPath) {
+        String[] pathElements = fullPath.split("\\.");
+        for (int i = 0; i < pathElements.length; i++) {
+            Mapper next = mapper.getMapper(pathElements[i]);
+            if (next == null) {
+                return null;
+            }
+            mapper = next;
+        }
+        return mapper;
+    }
+
     private static void parseFieldInferenceChunks(
         DocumentParserContext context,
-        MapperBuilderContext mapperBuilderContext,
-        String fieldName,
         SemanticTextModelSettings modelSettings,
         NestedObjectMapper nestedObjectMapper
     ) throws IOException {
@@ -243,6 +264,8 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
             if (childMapper instanceof FieldMapper fieldMapper) {
                 parser.nextToken();
                 fieldMapper.parse(childContext);
+                // Reset leaf object after parsing the field
+                context.path().setWithinLeafObject(true);
             } else {
                 // This should never happen, but fail parsing if it does so that it's not a silent failure
                 throw new DocumentParsingException(

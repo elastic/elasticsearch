@@ -116,10 +116,9 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         List<AliasActionResult> actionResults = new ArrayList<>();
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
-
         for (AliasActions action : actions) {
+            int numAliasesRemoved = 0;
 
-            AliasActionResult actionResult = null;
             List<String> concreteDataStreams = indexNameExpressionResolver.dataStreamNames(
                 state,
                 request.indicesOptions(),
@@ -166,28 +165,21 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                                 finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
                             }
                         }
-                        actionResults.add(AliasActionResult.buildSuccess(action));
+                        actionResults.add(AliasActionResult.build(action, numAliasesRemoved));
                         continue;
                     }
                     case REMOVE -> {
                         for (String dataStreamName : concreteDataStreams) {
-                            var dataStreamAliases = concreteDataStreamAliases(action, state.metadata(), dataStreamName);
-                            for (String alias : dataStreamAliases) {
+                            for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
                                 finalActions.add(new AliasAction.RemoveDataStreamAlias(alias, dataStreamName, action.mustExist()));
+                                numAliasesRemoved++;
                             }
-
-                            AliasActionResult newResult = dataStreamAliases.length == 0
-                                ? AliasActionResult.REMOVE_MISSING
-                                : AliasActionResult.buildSuccess(action);
-                            actionResult = AliasActionResult.merge(actionResult, newResult);
                         }
-
                         if (nonBackingIndices.isEmpty() == false) {
                             // Regular aliases/indices match as well with the provided expression.
                             // (Only when adding new aliases, matching both data streams and indices is disallowed)
                         } else {
-                            // there are no additional regular indices, so add result directly
-                            actionResults.add(actionResult);
+                            actionResults.add(AliasActionResult.build(action, numAliasesRemoved));
                             continue;
                         }
                     }
@@ -221,7 +213,6 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             for (final Index index : concreteIndices) {
                 switch (action.actionType()) {
                     case ADD:
-                        actionResult = AliasActionResult.buildSuccess(action);
                         for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
                             String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(alias, now);
                             finalActions.add(
@@ -238,24 +229,20 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                         }
                         break;
                     case REMOVE:
-                        String[] matchingAliases = concreteAliases(action, state.metadata(), index.getName());
-                        AliasActionResult newResult = matchingAliases.length == 0
-                            ? AliasActionResult.REMOVE_MISSING
-                            : AliasActionResult.buildSuccess(action);
-                        actionResult = AliasActionResult.merge(actionResult, newResult);
-                        for (String alias : matchingAliases) {
+                        for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
                             finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
+                            numAliasesRemoved++;
                         }
                         break;
                     case REMOVE_INDEX:
-                        actionResult = AliasActionResult.buildSuccess(action);
                         finalActions.add(new AliasAction.RemoveIndex(index.getName()));
                         break;
                     default:
                         throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }
             }
-            actionResults.add(actionResult);
+
+            actionResults.add(AliasActionResult.build(action, numAliasesRemoved));
         }
         if (finalActions.isEmpty() && false == actions.isEmpty()) {
             throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));

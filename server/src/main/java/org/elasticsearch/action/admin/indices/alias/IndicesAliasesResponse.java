@@ -83,27 +83,12 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         private final boolean success;
         private final String error;
 
-        boolean getSuccess() {
-            return success;
-        }
-
-        public static AliasActionResult merge(AliasActionResult currResult, AliasActionResult newResult) {
-            // there is not currently a result value for this action, so return new value
-            if (currResult == null) {
-                return newResult;
+        public static AliasActionResult build(AliasActions action, int numAliasesRemoved) {
+            if (action.actionType() == AliasActions.Type.REMOVE && numAliasesRemoved == 0) {
+                return REMOVE_MISSING;
+            } else {
+                return new AliasActionResult(action.actionType(), true, null);
             }
-
-            // current value is error due to removal of missing alias, replace with newResult
-            if (currResult.success == false) {
-                return newResult;
-            }
-
-            // return current value the action has been successful
-            return currResult;
-        }
-
-        public static AliasActionResult buildSuccess(AliasActions action) {
-            return new AliasActionResult(action.actionType(), true, null);
         }
 
         private AliasActionResult(AliasActions.Type actionType, boolean success, String error) {

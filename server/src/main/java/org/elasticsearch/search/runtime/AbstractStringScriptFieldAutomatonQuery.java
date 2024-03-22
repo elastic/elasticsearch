@@ -35,13 +35,10 @@ public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractSt
         for (String value : values) {
             BytesRefBuilder scratch = bytesRefBuilderThreadLocal.get();
             scratch.copyChars(value);
-            System.out.println("copyChars - " + value + " - " + Thread.currentThread().getName());
             if (automaton.run(scratch.bytes(), 0, scratch.length())) {
-                System.out.println("match " + Thread.currentThread().getName());
                 return true;
             }
         }
-        System.out.println("no match " + Thread.currentThread().getName());
         return false;
     }
 

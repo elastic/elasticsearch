@@ -118,6 +118,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106647")
     public void testCollectedHitCount() throws Exception {
         Query query = new NonCountingTermQuery(new Term("string", "a1"));
         int threshold = randomIntBetween(1, 10000);

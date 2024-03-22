@@ -107,8 +107,8 @@ public class HostMetadataTests extends ESTestCase {
             String zone = zones[i];
 
             // tag::noformat
-            HostMetadata host = HostMetadata.fromSource (
-                Map.of (
+            HostMetadata host = HostMetadata.fromSource(
+                Map.of(
                     "host.id", hostID,
                     "host.arch", arch,
                     "gce.instance.zone", zone
@@ -141,8 +141,8 @@ public class HostMetadataTests extends ESTestCase {
                 String zone = sb.toString();
 
                 // tag::noformat
-                HostMetadata host = HostMetadata.fromSource (
-                    Map.of (
+                HostMetadata host = HostMetadata.fromSource(
+                    Map.of(
                         "host.id", hostID,
                         "host.arch", arch,
                         "gce.instance.zone", zone
@@ -167,8 +167,8 @@ public class HostMetadataTests extends ESTestCase {
         final String region = "eastus2";
 
         // tag::noformat
-        HostMetadata host = HostMetadata.fromSource (
-            Map.of (
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
                 "host.id", hostID,
                 "host.arch", arch,
                 "azure.compute.location", region
@@ -190,8 +190,8 @@ public class HostMetadataTests extends ESTestCase {
         final String region = "any-region";
 
         // tag::noformat
-        HostMetadata host = HostMetadata.fromSource (
-            Map.of (
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
                 "host.id", hostID,
                 "host.arch", arch,
                 "profiling.host.tags", Arrays.asList (
@@ -212,8 +212,8 @@ public class HostMetadataTests extends ESTestCase {
         final String arch = "amd64";
 
         // tag::noformat
-        HostMetadata host = HostMetadata.fromSource (
-            Map.of (
+        HostMetadata host = HostMetadata.fromSource(
+            Map.of(
                 "host.id", hostID,
                 "host.arch", arch
             )
@@ -232,9 +232,9 @@ public class HostMetadataTests extends ESTestCase {
         final String machine = "x86_64";
 
         // tag::noformat
-        HostMetadata host = HostMetadata.fromSource (
+        HostMetadata host = HostMetadata.fromSource(
             // Missing host.arch field, pre-8.14.0 architecture value
-            Map.of (
+            Map.of(
                 "host.id", hostID,
                 "profiling.host.machine", machine
             )

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -123,14 +123,36 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
-        // We cannot fully rewrite the query to a NestedQueryBuilder here because that query builder validates that the path is
-        // registered as a nested object. This is not the case for semantic_text fields; the SemanticTextInferenceResultFieldMapper
-        // metafield mapper indexes inference results for the field using a "shadow" nested field mapping that is coordinated between
-        // this query and the mapper. This "shadow" mapping is not registered with the ES index mappings.
-        //
-        // Instead, we extract the inference results from the supplier in a serializable format and handle creation of the Lucene query
-        // in this class in doToQuery.
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
+        if (searchExecutionContext != null) {
+            if (inferenceResults == null) {
+                throw new IllegalStateException("Query builder must have inference results before rewriting to another query type");
+            }
+
+            MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
+            if (fieldType == null) {
+                return new MatchNoneQueryBuilder();
+            } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+                List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
+                if (inferenceResultsList.isEmpty()) {
+                    throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
+                } else if (inferenceResultsList.size() > 1) {
+                    // TODO: How to handle multiple inference results?
+                    throw new IllegalArgumentException(
+                        inferenceResultsList.size() + " inference results retrieved for field [" + fieldName + "]"
+                    );
+                }
+
+                InferenceResults inferenceResults = inferenceResultsList.get(0);
+                return semanticTextFieldType.semanticQuery(inferenceResults, searchExecutionContext);
+            } else {
+                throw new IllegalArgumentException(
+                    "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
+                );
+            }
+        }
+
         if (inferenceResults != null) {
             return this;
         }
@@ -173,9 +195,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         } else {
             // The most likely reason for an empty inferenceIdsForField set is an invalid field name, invalid index name(s), or a
             // combination of both.
-            // Set the inference results to an empty list so that query rewriting can complete.
+            // Set the inference results to an empty list so that query rewriting can continue.
             // Invalid index names will be handled in TransportSearchAction, which will throw IndexNotFoundException.
-            // Invalid field names will be handled in doToQuery.
+            // Invalid field names will be handled later in the rewrite process.
             inferenceResultsSupplier = new SetOnce<>(new SparseEmbeddingResults(List.of()));
         }
 
@@ -184,31 +206,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        if (inferenceResults == null) {
-            throw new IllegalStateException("Query builder must be rewritten first");
-        }
-
-        MappedFieldType fieldType = context.getFieldType(fieldName);
-        if (fieldType == null) {
-            return new MatchNoDocsQuery();
-        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-            List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
-            if (inferenceResultsList.isEmpty()) {
-                throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
-            } else if (inferenceResultsList.size() > 1) {
-                // TODO: How to handle multiple inference results?
-                throw new IllegalArgumentException(
-                    inferenceResultsList.size() + " inference results retrieved for field [" + fieldName + "]"
-                );
-            }
-
-            InferenceResults inferenceResults = inferenceResultsList.get(0);
-            return semanticTextFieldType.semanticQuery(inferenceResults, context);
-        } else {
-            throw new IllegalArgumentException(
-                "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
-            );
-        }
+        throw new IllegalStateException(NAME + " should have been rewritten to another query type");
     }
 
     private Map<String, Set<String>> computeInferenceIdsForFields(Collection<IndexMetadata> indexMetadataCollection) {

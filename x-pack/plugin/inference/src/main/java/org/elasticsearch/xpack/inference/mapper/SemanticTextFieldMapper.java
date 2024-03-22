@@ -7,16 +7,9 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -35,8 +28,10 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.logging.LogManager;
@@ -253,32 +248,32 @@ public class SemanticTextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
 
-        public Query semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) throws IOException {
-            // Cant use QueryBuilders because a mapper is not registered for <field>.inference, causing TermQueryBuilder#doToQuery to fail
-            String inferenceResultsFieldName = name() + "." + RESULTS + "." + INFERENCE_CHUNKS_RESULTS;
-            Query query;
+        public QueryBuilder semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) throws IOException {
+            String nestedFieldPath = name() + "." + RESULTS;
+            String inferenceResultsFieldName = nestedFieldPath + "." + INFERENCE_CHUNKS_RESULTS;
+            QueryBuilder childQueryBuilder;
 
             if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
-                BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(1);
-                for (TextExpansionResults.WeightedToken weightedToken : textExpansionResults.getWeightedTokens()) {
-                    queryBuilder.add(
-                        new BoostQuery(new TermQuery(new Term(inferenceResultsFieldName, weightedToken.token())), weightedToken.weight()),
-                        BooleanClause.Occur.SHOULD
+                // TODO: Use WeightedTokensQueryBuilder
+                var boolQuery = QueryBuilders.boolQuery();
+                for (var weightedToken : textExpansionResults.getWeightedTokens()) {
+                    boolQuery.should(
+                        QueryBuilders.termQuery(inferenceResultsFieldName, weightedToken.token()).boost(weightedToken.weight())
                     );
                 }
+                boolQuery.minimumShouldMatch(1);
 
-                query = queryBuilder.build();
+                childQueryBuilder = boolQuery;
             } else if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
                 float[] inference = textEmbeddingResults.getInferenceAsFloat();
 
                 // TODO: Set numCands based on request size
-                query = new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, 10, null).toQuery(context);
+                childQueryBuilder = new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, 10, null);
             } else {
                 throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
             }
 
-            BitSetProducer parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
-            return new ESToParentBlockJoinQuery(query, parentFilter, ScoreMode.Total, name());
+            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Total);
         }
     }
 

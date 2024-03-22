@@ -204,6 +204,13 @@ configuration for other reasons. For example, you may want to send logs for a
 particular logger to another file. However, these use cases are rare.
 --
 
+IMPORTANT: {es}'s application logs are intended for humans to read and
+interpret. Different versions of {es} may report information in these logs in
+different ways, perhaps adding extra detail, removing unnecessary information,
+formatting the same information in different ways, renaming the logger or
+adjusting the log level for specific messages. Do not rely on the contents of
+the application logs remaining precisely the same between versions.
+
 [discrete]
 [[deprecation-logging]]
 === Deprecation logging

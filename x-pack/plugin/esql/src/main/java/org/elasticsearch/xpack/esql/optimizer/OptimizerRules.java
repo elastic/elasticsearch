@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -34,7 +35,10 @@ import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.plan.QueryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -50,6 +54,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
+import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineOr;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
 
@@ -230,4 +236,33 @@ class OptimizerRules {
             return e;
         }
     }
+
+    /**
+     * This rule must always be placed after {@link org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight}, since it looks
+     * at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
+     */
+    public static final class BooleanFunctionEqualsElimination extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+
+        BooleanFunctionEqualsElimination() {
+            super(org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(BinaryComparison bc) {
+            if ((bc instanceof Equals || bc instanceof NotEquals) && bc.left() instanceof Function) {
+                // for expression "==" or "!=" TRUE/FALSE, return the expression itself or its negated variant
+
+                // TODO: Replace use of QL Not with ESQL Not
+                if (TRUE.equals(bc.right())) {
+                    return bc instanceof Equals ? bc.left() : new Not(bc.left().source(), bc.left());
+                }
+                if (FALSE.equals(bc.right())) {
+                    return bc instanceof Equals ? new Not(bc.left().source(), bc.left()) : bc.left();
+                }
+            }
+
+            return bc;
+        }
+    }
+
 }

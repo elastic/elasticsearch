@@ -15,7 +15,10 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -25,7 +28,11 @@ import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.TestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.ql.TestUtils.notEqualsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
+import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
+import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 
@@ -142,5 +149,36 @@ public class OptimizerRulesTests extends ESTestCase {
         In in = (In) or.right();
         assertEquals(fa, in.value());
         assertThat(in.list(), contains(ONE, THREE));
+    }
+
+    // Test BooleanFunctionEqualsElimination
+    public void testBoolEqualsSimplificationOnExpressions() {
+        OptimizerRules.BooleanFunctionEqualsElimination s = new OptimizerRules.BooleanFunctionEqualsElimination();
+        Expression exp = new GreaterThan(EMPTY, getFieldAttribute("a"), new Literal(EMPTY, 0, DataTypes.INTEGER), null);
+
+        assertEquals(exp, s.rule(new Equals(EMPTY, exp, TRUE)));
+        // TODO: Replace use of QL Not with ESQL Not
+        assertEquals(new Not(EMPTY, exp), s.rule(new Equals(EMPTY, exp, FALSE)));
+    }
+
+    public void testBoolEqualsSimplificationOnFields() {
+        OptimizerRules.BooleanFunctionEqualsElimination s = new OptimizerRules.BooleanFunctionEqualsElimination();
+
+        FieldAttribute field = getFieldAttribute("a");
+
+        List<? extends BinaryComparison> comparisons = asList(
+            new Equals(EMPTY, field, TRUE),
+            new Equals(EMPTY, field, FALSE),
+            notEqualsOf(field, TRUE),
+            notEqualsOf(field, FALSE),
+            new Equals(EMPTY, NULL, TRUE),
+            new Equals(EMPTY, NULL, FALSE),
+            notEqualsOf(NULL, TRUE),
+            notEqualsOf(NULL, FALSE)
+        );
+
+        for (BinaryComparison comparison : comparisons) {
+            assertEquals(comparison, s.rule(comparison));
+        }
     }
 }

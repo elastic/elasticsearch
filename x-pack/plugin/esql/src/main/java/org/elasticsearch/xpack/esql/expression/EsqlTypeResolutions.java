@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 
@@ -55,6 +56,12 @@ public class EsqlTypeResolutions {
         GEO_SHAPE.typeName(),
         CARTESIAN_SHAPE.typeName() };
     private static final String[] POINT_TYPE_NAMES = new String[] { GEO_POINT.typeName(), CARTESIAN_POINT.typeName() };
+    private static final String[] NON_SPATIAL_TYPE_NAMES = EsqlDataTypes.types()
+        .stream()
+        .filter(EsqlDataTypes::isRepresentable)
+        .filter(t -> EsqlDataTypes.isSpatial(t) == false)
+        .map(DataType::esType)
+        .toArray(String[]::new);
 
     public static Expression.TypeResolution isSpatialPoint(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return isType(e, EsqlDataTypes::isSpatialPoint, operationName, paramOrd, POINT_TYPE_NAMES);
@@ -63,4 +70,9 @@ public class EsqlTypeResolutions {
     public static Expression.TypeResolution isSpatial(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return isType(e, EsqlDataTypes::isSpatial, operationName, paramOrd, SPATIAL_TYPE_NAMES);
     }
+
+    public static Expression.TypeResolution isNotSpatial(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(e, t -> EsqlDataTypes.isSpatial(t) == false, operationName, paramOrd, NON_SPATIAL_TYPE_NAMES);
+    }
+
 }

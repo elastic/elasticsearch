@@ -143,6 +143,9 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         bulkIndex("data/apm-legacy-test.ndjson");
 
         refresh();
+
+        // temporary workaround for #106657, see also #106308.
+        forceMerge();
     }
 
     @After

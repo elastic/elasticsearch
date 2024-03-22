@@ -38,9 +38,9 @@ without blocking the calling thread until the callback is called back. This bloc
 waste with unnecessary blocking) and at worst outright broken (the blocking can lead to deadlock). Unfortunately this means that most of our
 code ends up having to be written with callbacks, simply because it's ultimately calling into some other code that takes a callback. The
 entry points for all Elasticsearch APIs are callback-based (e.g. REST APIs all start at
-[`org.elasticsearch.rest.BaseRestHandler#prepareRequest`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java),
+[`org.elasticsearch.rest.BaseRestHandler#prepareRequest`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java#L158-L171),
 and transport APIs all start at
-[`org.elasticsearch.action.support.TransportAction#doExecute`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/TransportAction.java))
+[`org.elasticsearch.action.support.TransportAction#doExecute`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/TransportAction.java#L65))
 and the whole system fundamentally works in terms of an event loop (a `io.netty.channel.EventLoop`) which processes network events via
 callbacks.
 
@@ -62,10 +62,10 @@ the callbacks ourselves.
 
 Strictly speaking, CPS requires that a computation _only_ continues by calling the continuation. In Elasticsearch, this means that
 asynchronous methods must have `void` return type and may not throw any exceptions. This is mostly the case in our code as written today,
-and is a good guiding principle, but we don't enforce it and there are some deviations from this rule. In particular, it's not uncommon to
+and is a good guiding principle, but we don't enforce void exceptionless methods and there are some deviations from this rule. In particular, it's not uncommon to
 permit some methods to throw an exception, using things like
-[`ActionListener#run`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
-(or an equivalent `try ... catch ...` block) further up the stack to handle it.
+[`ActionListener#run`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/ActionListener.java#L381-L390)
+(or an equivalent `try ... catch ...` block) further up the stack to handle it. Some methods also take (and may execute) an ActionListener parameter, but still return a value separately for other local synchronous work.
 
 This pattern is often used in the transport action layer with the use of the
 [ChannelActionListener](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/support/ChannelActionListener.java)

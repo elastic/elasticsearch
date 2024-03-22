@@ -39,10 +39,6 @@ BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
-    systemProperty("tests.rest.blacklist", [
-      // https://github.com/elastic/elasticsearch/issues/106507
-      "esql/60_enrich/Enrich on keyword"
-    ].join(','))
     testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
     classpath = sourceSets.yamlRestTest.runtimeClasspath
   }

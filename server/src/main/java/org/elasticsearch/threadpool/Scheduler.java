@@ -107,7 +107,7 @@ public interface Scheduler {
      *         not be interrupted.
      */
     default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
-        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
+        var runnable = new ReschedulingRunnable(command, interval, executor, this, e -> {}, e -> {});
         runnable.start();
         return runnable;
     }
@@ -226,13 +226,25 @@ public interface Scheduler {
 
         @Override
         public void onFailure(Exception e) {
-            failureConsumer.accept(e);
+            try {
+                if (runnable instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onFailure(e);
+                }
+            } finally {
+                failureConsumer.accept(e);
+            }
         }
 
         @Override
         public void onRejection(Exception e) {
             run = false;
-            rejectionConsumer.accept(e);
+            try {
+                if (runnable instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onRejection(e);
+                }
+            } finally {
+                rejectionConsumer.accept(e);
+            }
         }
 
         @Override
@@ -245,6 +257,11 @@ public interface Scheduler {
                     onRejection(e);
                 }
             }
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return runnable instanceof AbstractRunnable abstractRunnable && abstractRunnable.isForceExecution();
         }
 
         @Override

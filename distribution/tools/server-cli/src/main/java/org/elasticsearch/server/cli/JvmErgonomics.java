@@ -8,6 +8,12 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.node.NodeRoleSettings;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,7 +37,7 @@ final class JvmErgonomics {
      * @param userDefinedJvmOptions A list of JVM options that have been defined by the user.
      * @return A list of additional JVM options to set.
      */
-    static List<String> choose(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
+    static List<String> choose(final List<String> userDefinedJvmOptions, Settings nodeSettings) throws InterruptedException, IOException {
         final List<String> ergonomicChoices = new ArrayList<>();
         final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
         final long heapSize = JvmOption.extractMaxHeapSize(finalJvmOptions);
@@ -53,6 +59,22 @@ final class JvmErgonomics {
         }
         if (tuneG1GCReservePercent != 0) {
             ergonomicChoices.add("-XX:G1ReservePercent=" + tuneG1GCReservePercent);
+        }
+
+        boolean isSearchTier = NodeRoleSettings.NODE_ROLES_SETTING.get(nodeSettings).contains(DiscoveryNodeRole.SEARCH_ROLE);
+        // override new percentage on small heaps on search tier to increase chance of staying free of the real memory circuit breaker limit
+        if (isSearchTier && heapSize < ByteSizeUnit.GB.toBytes(5)) {
+            ergonomicChoices.add("-XX:+UnlockExperimentalVMOptions");
+            ergonomicChoices.add("-XX:G1NewSizePercent=10");
+        }
+
+        // for dedicated search, using just 1 conc gc thread is not always enough to keep us below real memory breaker limit
+        // jvm use (2+processsors) / 4 (for small processor counts), so only affects 4/5 processors (for now)
+        if (EsExecutors.NODE_PROCESSORS_SETTING.exists(nodeSettings)) {
+            int allocated = EsExecutors.allocatedProcessors(nodeSettings);
+            if (allocated >= 4 && allocated <= 5 && isSearchTier) {
+                ergonomicChoices.add("-XX:ConcGCThreads=2");
+            }
         }
 
         return ergonomicChoices;

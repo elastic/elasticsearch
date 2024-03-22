@@ -1,9 +1,9 @@
 *Parameters*
 
-`mvLeft`::
+`string1`::
 A multivalued field
 
-`mvRight`::
+`string2`::
 A multivalued field
 
 `delim`::

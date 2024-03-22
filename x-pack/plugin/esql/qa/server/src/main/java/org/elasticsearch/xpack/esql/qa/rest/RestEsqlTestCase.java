@@ -16,10 +16,12 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -213,6 +215,57 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), containsString("Unknown index [doesNotExist]"));
+    }
+
+    public void useKnownWithUnknownIndex() throws IOException {
+        useKnownWithOther("noSuchIndex", "\"ignore_unavailable\"=\"true\"");
+    }
+
+    public void useKnownWithUnknownPattern() throws IOException {
+        useKnownWithOther("noSuchPattern*", "\"allow_no_indices\"=\"true\"");
+    }
+
+    private void useKnownWithOther(String other, String options) throws IOException {
+        final int count = randomIntBetween(1, 10);
+        bulkLoadTestData(count);
+
+        CheckedFunction<String, RequestObjectBuilder, IOException> builder = o -> {
+            String q = fromIndex() + ',' + other;
+            if (Strings.hasText(o)) {
+                q += " OPTIONS " + o;
+            }
+            q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
+            return builder().query(q);
+        };
+
+        // test failure without the given option
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(null)));
+        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("no such index [" + other + "]"));
+
+        // test success with the given option
+        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder.apply(options), "txt", null));
+    }
+
+    public void testSearchPreference() throws IOException {
+        final int count = randomIntBetween(1, 10);
+        bulkLoadTestData(count);
+
+        CheckedFunction<String, RequestObjectBuilder, IOException> builder = o -> {
+            String q = fromIndex();
+            if (Strings.hasText(o)) {
+                q += " OPTIONS " + o;
+            }
+            q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
+            return builder().query(q);
+        };
+
+        // verify that it returns as expected
+        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder.apply(null), "txt", null));
+
+        // returns nothing (0 for count), given the non-existing shard as preference
+        String option = "\"preference\"=\"_shards:666\"";
+        assertEquals(expectedTextBody("txt", 0, null), runEsqlAsTextWithFormat(builder.apply(option), "txt", null));
     }
 
     public void testNullInAggs() throws IOException {

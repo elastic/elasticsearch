@@ -91,7 +91,7 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
         builder.startObject();
 
         commonSettings.toXContentFragment(builder);
-        builder.field(EMBEDDING_TYPE, embeddingType.toElementType());
+        builder.field(EMBEDDING_TYPE, elementType());
 
         builder.endObject();
         return builder;

@@ -371,7 +371,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             if (a.expressionsResolved() == false && Resolvables.resolved(groupings)) {
-
                 AttributeMap<Expression> resolved = new AttributeMap<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
@@ -388,7 +387,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
                         if (maybeResolved != null) {
                             changed.set(true);
-                            // ne = maybeResolved.resolved() ? resolved.get(maybeResolved) : maybeResolved;
                             ne = maybeResolved;
                         }
                         return ne;

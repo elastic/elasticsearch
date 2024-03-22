@@ -157,8 +157,7 @@ public class Verifier {
 
     private static void checkAggregate(LogicalPlan p, Set<Failure> failures, AttributeMap<Expression> aliases) {
         if (p instanceof Aggregate agg) {
-
-            List<Expression> nakedGroups = new ArrayList<>(agg.groupings().size());
+            List<Expression> groups = new ArrayList<>(agg.groupings().size());
             AttributeSet groupRefs = new AttributeSet();
             // check grouping
             // The grouping can not be an aggregate function
@@ -168,8 +167,7 @@ public class Verifier {
                         failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
                     }
                 });
-                // remember naked expressions (to deal with implicit aliasing for grouping)
-                nakedGroups.add(e);
+                groups.add(e);
                 // keep the grouping attributes (common case)
                 Attribute attr = Expressions.attribute(e);
                 if (attr != null) {
@@ -177,7 +175,7 @@ public class Verifier {
                 }
             });
 
-            // check aggregates - accept only aggregate functions or expressions in which each naked attribute is copied as
+            // check aggregates - accept only aggregate functions or expressions where each attribute is copied as
             // specified in the grouping clause
             agg.aggregates().forEach(e -> {
                 var exp = Alias.unwrap(e);
@@ -185,7 +183,7 @@ public class Verifier {
                     failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
                 }
                 // traverse the tree to find invalid matches
-                checkInvalidNamedExpressionUsage(exp, nakedGroups, groupRefs, failures, 0);
+                checkInvalidNamedExpressionUsage(exp, groups, groupRefs, failures, 0);
             });
         }
     }

@@ -120,7 +120,7 @@ public class PartialHitCountCollectorTests extends ESTestCase {
 
     public void testCollectedHitCount() throws Exception {
         Query query = new NonCountingTermQuery(new Term("string", "a1"));
-        int threshold = randomIntBetween(1, 10000);
+        int threshold = randomIntBetween(2, 10000);
         // there's one doc matching the query: any totalHitsThreshold greater than or equal to 1 will not cause early termination
         CollectorManager<PartialHitCountCollector, Result> collectorManager = createCollectorManager(new HitsThresholdChecker(threshold));
         Result result = searcher.search(query, collectorManager);

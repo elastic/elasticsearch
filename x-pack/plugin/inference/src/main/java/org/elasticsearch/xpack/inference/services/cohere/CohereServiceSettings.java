@@ -20,6 +20,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.net.URI;
@@ -43,7 +44,7 @@ public class CohereServiceSettings implements ServiceSettings {
     public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
 
-    public static CohereServiceSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
+    public static CohereServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -56,7 +57,7 @@ public class CohereServiceSettings implements ServiceSettings {
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (logDeprecations && oldModelId != null) {
+        if (context == ConfigurationParseContext.REQUEST && oldModelId != null) {
             logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
         }
 

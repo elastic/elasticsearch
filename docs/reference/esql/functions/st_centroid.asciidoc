@@ -15,4 +15,9 @@ include::{esql-specs}/spatial.csv-spec[tag=st_centroid-airports-result]
 
 Supported types:
 
-include::types/st_centroid.asciidoc[]
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+v | result
+geo_point | geo_point
+cartesian_point | cartesian_point
+|===

@@ -73,7 +73,6 @@ import static java.util.regex.Pattern.quote;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UNSIGNED_LONG_TYPE_NAME;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
@@ -846,6 +845,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     // Double values testing
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingValidDoubleWithoutCasting() throws IOException, SQLException {
         List<Double> doubleTestValues = createTestDataForNumericValueTests(ESTestCase::randomDouble);
         double random1 = doubleTestValues.get(0);
@@ -1158,6 +1158,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingValidBigDecimalFromDoubleWithoutCasting() throws IOException, SQLException {
         List<Double> doubleTestValues = createTestDataForNumericValueTests(ESTestCase::randomDouble);
         doWithQuery(
@@ -1405,6 +1406,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingDateWithCalendar() throws Exception {
         long randomLongDate = randomMillisUpToYear9999();
         setupDataForDateTimeTests(randomLongDate);
@@ -1434,6 +1436,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingDateWithCalendarWithNanos() throws Exception {
         assumeTrue(
             "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
@@ -1597,6 +1600,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingTimestampWithoutCalendarWithNanos() throws Exception {
         assumeTrue(
             "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
@@ -1929,6 +1933,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testValidGetObjectCalls() throws IOException, SQLException {
         createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");

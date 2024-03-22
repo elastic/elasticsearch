@@ -1,7 +1,7 @@
 ---
 "Help":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: ["cat_templates_v2"]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -31,8 +31,8 @@
 
 ---
 "Normal templates":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "cat_templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -82,8 +82,8 @@
 
 ---
 "Filtered templates":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "cat_templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -124,8 +124,8 @@
 
 ---
 "Column headers":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "cat_templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -162,8 +162,8 @@
 
 ---
 "Select columns":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "cat_templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
@@ -196,10 +196,10 @@
 
 ---
 "Sort templates":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "cat_templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
-        features: default_shards, no_xpack
+        test_runner_features: default_shards, no_xpack
 
     - do:
         indices.put_template:
@@ -249,10 +249,10 @@
 
 ---
 "Multiple template":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "cat_templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
-        features: default_shards, no_xpack
+        test_runner_features: default_shards, no_xpack
 
     - do:
         indices.put_template:
@@ -285,10 +285,10 @@
 
 ---
 "Mixture of legacy and composable templates":
-    - skip:
-        version: " - 7.7.99"
+    - requires:
+        cluster_features: [ "cat_templates_v2" ]
         reason: "format changed in 7.8 to accomodate V2 index templates"
-        features: allowed_warnings
+        test_runner_features: allowed_warnings
 
     - do:
         cluster.put_component_template:

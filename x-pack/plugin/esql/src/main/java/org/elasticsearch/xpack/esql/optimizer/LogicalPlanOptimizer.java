@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -44,7 +46,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
@@ -68,7 +69,6 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,10 +82,9 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.FoldNull;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
@@ -120,17 +119,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ConvertStringToByteRef(),
             new FoldNull(),
             new SplitInWithFoldableValue(),
-            new ConstantFolding(),
             new PropagateEvalFoldables(),
+            new ConstantFolding(),
+            new PartiallyFoldCase(),
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
-            new BinaryComparisonSimplification(),
             // needs to occur before BinaryComparison combinations (see class)
             new PropagateEquals(),
             new PropagateNullable(),
             new BooleanFunctionEqualsElimination(),
-            new CombineDisjunctionsToIn(),
+            new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.CombineDisjunctionsToIn(),
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
             new PruneFilters(),
@@ -1118,28 +1117,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    /**
-     * Combine disjunctions on the same field into an In expression.
-     * This rule looks for both simple equalities:
-     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
-     * and combinations of In
-     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
-     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
-     *
-     * This rule does NOT check for type compatibility as that phase has been
-     * already be verified in the analyzer.
-     */
-    public static class CombineDisjunctionsToIn extends OptimizerRules.CombineDisjunctionsToIn {
-
-        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
-            return new In(key.source(), key, values);
-        }
-
-        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
-        }
-    }
-
     static class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRule<Limit> {
 
         @Override
@@ -1585,6 +1562,47 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 newAggs.add(newAgg);
             }
             return changed.get() ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
+        }
+    }
+
+    public static class FoldNull extends OptimizerRules.FoldNull {
+        @Override
+        protected Expression tryReplaceIsNullIsNotNull(Expression e) {
+            return e;
+        }
+    }
+
+    public static class PropagateNullable extends OptimizerRules.PropagateNullable {
+        protected Expression nullify(Expression exp, Expression nullExp) {
+            if (exp instanceof Coalesce) {
+                List<Expression> newChildren = new ArrayList<>(exp.children());
+                newChildren.removeIf(e -> e.semanticEquals(nullExp));
+                if (newChildren.size() != exp.children().size() && newChildren.size() > 0) { // coalesce needs at least one input
+                    return exp.replaceChildren(newChildren);
+                }
+            }
+            return Literal.of(exp, null);
+        }
+    }
+
+    /**
+     * Fold the arms of {@code CASE} statements.
+     * <pre>{@code
+     * EVAL c=CASE(true, foo, bar)
+     * }</pre>
+     * becomes
+     * <pre>{@code
+     * EVAL c=foo
+     * }</pre>
+     */
+    static class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionRule<Case> {
+        PartiallyFoldCase() {
+            super(DOWN);
+        }
+
+        @Override
+        protected Expression rule(Case c) {
+            return c.partiallyFold();
         }
     }
 }

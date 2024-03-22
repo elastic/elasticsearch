@@ -1,0 +1,5 @@
+pr: 105848
+summary: '`ProjectOperator` should not retain references to released blocks'
+area: ES|QL
+type: bug
+issues: []

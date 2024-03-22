@@ -163,7 +163,6 @@ public class LocalExecutionPlanner {
             AggregateExec.class,
             a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
-
         PhysicalOperation physicalOperation = plan(node, context);
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
@@ -461,15 +460,17 @@ public class LocalExecutionPlanner {
         if (enrichIndex == null) {
             throw new EsqlIllegalArgumentException("No concrete enrich index for cluster [" + clusterAlias + "]");
         }
+        Layout.ChannelAndType input = source.layout.get(enrich.matchField().id());
         return source.with(
             new EnrichLookupOperator.Factory(
                 sessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
-                source.layout.get(enrich.matchField().id()).channel(),
+                input.channel(),
                 enrichLookupService,
+                input.type(),
                 enrichIndex,
-                "match", // TODO: enrich should also resolve the match_type
+                enrich.matchType(),
                 enrich.policyMatchField(),
                 enrich.enrichFields()
             ),

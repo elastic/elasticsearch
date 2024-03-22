@@ -21,7 +21,6 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     LongVectorBlock(LongVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -36,7 +35,7 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 

@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.FieldExtractorTestCase;
 import org.junit.ClassRule;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105837")
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FieldExtractorIT extends FieldExtractorTestCase {
     @ClassRule

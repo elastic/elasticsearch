@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -56,6 +57,14 @@ import static org.hamcrest.Matchers.containsString;
  */
 public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
+
+    @Before
+    public void notOld() {
+        assumeTrue(
+            "support changed pretty radically in 8.12 so we don't test against 8.11",
+            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_12_0))
+        );
+    }
 
     public void testTextField() throws IOException {
         textTest().test(randomAlphaOfLength(20));
@@ -1431,12 +1440,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static void createIndex(String name, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
         Request request = new Request("PUT", "/" + name);
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
-        index.startObject("settings");
-        {
-            index.field("index.number_of_replicas", 0);
-            index.field("index.number_of_shards", 1);
-        }
-        index.endObject();
         index.startObject("mappings");
         mapping.accept(index);
         index.endObject();

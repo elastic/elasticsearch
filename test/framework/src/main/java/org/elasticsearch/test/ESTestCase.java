@@ -73,6 +73,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -168,7 +169,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1196,6 +1199,21 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Randomly choose between {@link EsExecutors#DIRECT_EXECUTOR_SERVICE} (which does not fork), {@link ThreadPool#generic}, and one of the
+     * other named threadpool executors.
+     */
+    public static Executor randomExecutor(ThreadPool threadPool, String... otherExecutorNames) {
+        final var choice = between(0, otherExecutorNames.length + 1);
+        if (choice < otherExecutorNames.length) {
+            return threadPool.executor(otherExecutorNames[choice]);
+        } else if (choice == otherExecutorNames.length) {
+            return threadPool.generic();
+        } else {
+            return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        }
+    }
+
+    /**
      * helper to randomly perform on <code>consumer</code> with <code>value</code>
      */
     public static <T> void maybeSet(Consumer<T> consumer, T value) {
@@ -2080,6 +2098,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
+        }
+    }
+
+    public static void safeAcquire(Semaphore semaphore) {
+        try {
+            assertTrue("safeAcquire: Semaphore did not acquire permit within the timeout", semaphore.tryAcquire(10, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
         }
     }
 

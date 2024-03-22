@@ -17,23 +17,29 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
 
     static final String EMBEDDING_TYPE = "embedding_type";
+    static final String EMBEDDING_TYPE_BYTE = "byte";
 
-    public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
+    public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
-        var commonServiceSettings = CohereServiceSettings.fromMap(map, logDeprecations);
+        var commonServiceSettings = CohereServiceSettings.fromMap(map, context);
+        translateEmbeddingType(map, context);
+
         CohereEmbeddingType embeddingTypes = extractOptionalEnum(
             map,
             EMBEDDING_TYPE,
@@ -48,6 +54,26 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
         }
 
         return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes);
+    }
+
+    private static void translateEmbeddingType(Map<String, Object> map, ConfigurationParseContext context) {
+        if (ConfigurationParseContext.isRequestContext(context) == false || map.containsKey(EMBEDDING_TYPE) == false) {
+            return;
+        }
+
+        ValidationException validationException = new ValidationException();
+
+        String embeddingType = extractRequiredString(map, EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        assert embeddingType != null;
+        if (embeddingType.toLowerCase(Locale.ROOT).equals(EMBEDDING_TYPE_BYTE)) {
+            map.put(EMBEDDING_TYPE, CohereEmbeddingType.INT8.toString());
+        } else {
+            map.put(EMBEDDING_TYPE, embeddingType);
+        }
     }
 
     private final CohereServiceSettings commonSettings;

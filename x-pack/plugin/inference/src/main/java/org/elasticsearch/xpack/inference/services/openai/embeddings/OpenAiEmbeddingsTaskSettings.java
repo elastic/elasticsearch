@@ -16,7 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,7 +35,7 @@ public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
     public static final String NAME = "openai_embeddings_task_settings";
     public static final String USER = "user";
 
-    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, OpenAiParseContext context) {
+    public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);

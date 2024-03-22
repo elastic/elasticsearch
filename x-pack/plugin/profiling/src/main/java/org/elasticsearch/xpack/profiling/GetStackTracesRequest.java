@@ -69,6 +69,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     // sample counts by default and remove this flag.
     private Boolean adjustSampleCount;
 
+    // This is only meant for testing and is intentionally not exposed in the REST API.
+    private Integer shardSeed;
+
     public GetStackTracesRequest() {
         this(null, null, null, null, null, null, null, null, null, null, null, null);
     }
@@ -165,6 +168,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     public void setAdjustSampleCount(Boolean adjustSampleCount) {
         this.adjustSampleCount = adjustSampleCount;
+    }
+
+    public Integer getShardSeed() {
+        return shardSeed;
+    }
+
+    public void setShardSeed(Integer shardSeed) {
+        this.shardSeed = shardSeed;
     }
 
     public void parseXContent(XContentParser parser) throws IOException {

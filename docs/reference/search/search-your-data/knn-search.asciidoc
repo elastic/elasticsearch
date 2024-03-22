@@ -242,6 +242,27 @@ POST byte-image-index/_search
 // TEST[s/"k": 10/"k": 3/]
 // TEST[s/"num_candidates": 100/"num_candidates": 3/]
 
+
+_Note_: In addition to the standard byte array, one can also provide a hex-encoded string value
+for the `query_vector` param. As an example, the search request above can also be expressed as follows,
+which would yield the same results
+[source,console]
+----
+POST byte-image-index/_search
+{
+  "knn": {
+    "field": "byte-image-vector",
+    "query_vector": "fb09",
+    "k": 10,
+    "num_candidates": 100
+  },
+  "fields": [ "title" ]
+}
+----
+// TEST[continued]
+// TEST[s/"k": 10/"k": 3/]
+// TEST[s/"num_candidates": 100/"num_candidates": 3/]
+
 [discrete]
 [[knn-search-quantized-example]]
 ==== Byte quantized kNN search

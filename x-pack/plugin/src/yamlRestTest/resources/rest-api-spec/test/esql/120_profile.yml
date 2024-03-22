@@ -121,11 +121,10 @@ setup:
 ---
 avg 8.14 or after:
   - skip:
-      features: ["node_selector"]
+      version: " - 8.13.99"
+      reason: "avg changed starting 8.14"
 
   - do:
-      node_selector:
-        version: "8.13.99 - "
       esql.query:
         body:
           query: 'FROM test | STATS AVG(data) | LIMIT 1'

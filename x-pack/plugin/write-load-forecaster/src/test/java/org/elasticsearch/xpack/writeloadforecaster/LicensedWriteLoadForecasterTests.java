@@ -287,65 +287,6 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         }
     }
 
-    public void testGetIndicesWithinMaxAgeRange() {
-        final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
-        final LicensedWriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
-
-        final Metadata.Builder metadataBuilder = Metadata.builder();
-        final int numberOfBackingIndicesOlderThanMinAge = randomIntBetween(0, 10);
-        final int numberOfBackingIndicesWithinMinAnge = randomIntBetween(0, 10);
-        final int numberOfShards = 1;
-        final List<Index> backingIndices = new ArrayList<>();
-        final String dataStreamName = "logs-es";
-        final List<Index> backingIndicesOlderThanMinAge = new ArrayList<>();
-        for (int i = 0; i < numberOfBackingIndicesOlderThanMinAge; i++) {
-            long creationDate = System.currentTimeMillis() - maxIndexAge.millis() * 2;
-            final IndexMetadata indexMetadata = createIndexMetadata(
-                DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), creationDate),
-                numberOfShards,
-                randomIndexWriteLoad(numberOfShards),
-                creationDate
-            );
-            backingIndices.add(indexMetadata.getIndex());
-            backingIndicesOlderThanMinAge.add(indexMetadata.getIndex());
-            metadataBuilder.put(indexMetadata, false);
-        }
-
-        final List<Index> backingIndicesWithinMinAge = new ArrayList<>();
-        for (int i = 0; i < numberOfBackingIndicesWithinMinAnge; i++) {
-            final long createdAt = System.currentTimeMillis() - (maxIndexAge.getMillis() / 2);
-            final IndexMetadata indexMetadata = createIndexMetadata(
-                DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size(), createdAt),
-                numberOfShards,
-                randomIndexWriteLoad(numberOfShards),
-                createdAt
-            );
-            backingIndices.add(indexMetadata.getIndex());
-            backingIndicesWithinMinAge.add(indexMetadata.getIndex());
-            metadataBuilder.put(indexMetadata, false);
-        }
-
-        final String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndices.size());
-        final IndexMetadata writeIndexMetadata = createIndexMetadata(writeIndexName, numberOfShards, null, System.currentTimeMillis());
-        backingIndices.add(writeIndexMetadata.getIndex());
-        metadataBuilder.put(writeIndexMetadata, false);
-
-        final DataStream dataStream = createDataStream(dataStreamName, backingIndices);
-
-        metadataBuilder.put(dataStream);
-
-        final List<Index> indicesWithinMaxAgeRange = writeLoadForecaster.getIndicesWithinMaxAgeRange(dataStream, metadataBuilder);
-
-        final List<Index> expectedIndicesWithinMaxAgeRange = new ArrayList<>();
-        if (numberOfBackingIndicesOlderThanMinAge > 0) {
-            expectedIndicesWithinMaxAgeRange.add(backingIndicesOlderThanMinAge.get(backingIndicesOlderThanMinAge.size() - 1));
-        }
-        expectedIndicesWithinMaxAgeRange.addAll(backingIndicesWithinMinAge);
-        expectedIndicesWithinMaxAgeRange.add(writeIndexMetadata.getIndex());
-
-        assertThat(indicesWithinMaxAgeRange, is(equalTo(expectedIndicesWithinMaxAgeRange)));
-    }
-
     private IndexWriteLoad randomIndexWriteLoad(int numberOfShards) {
         IndexWriteLoad.Builder builder = IndexWriteLoad.builder(numberOfShards);
         for (int shardId = 0; shardId < numberOfShards; shardId++) {

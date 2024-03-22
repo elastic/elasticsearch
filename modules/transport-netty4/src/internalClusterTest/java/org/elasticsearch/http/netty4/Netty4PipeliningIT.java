@@ -42,7 +42,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
@@ -243,9 +242,8 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
                     if (failAfterBytes < 0) {
                         throw new IllegalArgumentException("[" + FAIL_AFTER_BYTES_PARAM + "] must be present and non-negative");
                     }
-                    return channel -> client.threadPool()
-                        .executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
-                        .execute(() -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
+                    return channel -> randomExecutor(client.threadPool()).execute(
+                        () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
                             int bytesRemaining = failAfterBytes;
 
                             @Override
@@ -270,7 +268,8 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
                             public String getResponseContentTypeString() {
                                 return RestResponse.TEXT_CONTENT_TYPE;
                             }
-                        }, null)));
+                        }, null))
+                    );
                 }
             });
         }

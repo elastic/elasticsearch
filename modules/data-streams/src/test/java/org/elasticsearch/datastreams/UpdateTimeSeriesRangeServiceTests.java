@@ -153,7 +153,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                     d.getIndexMode(),
                     d.getLifecycle(),
                     d.isFailureStore(),
-                    d.getFailureIndices()
+                    d.getFailureIndices(),
+                    null
                 )
             )
             .build();

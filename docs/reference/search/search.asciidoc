@@ -558,11 +558,19 @@ Period of time used to extend the life of the PIT.
 (Optional, <<query-dsl,query object>>) Defines the search definition using the
 <<query-dsl,Query DSL>>.
 
+[[request-body-retriever]]
+`retriever`::
+preview:[]
+(Optional, <<retriever, retriever object>>) Defines a top-level retriever to specify
+a desired set of top documents instead of a standard query or knn search.
+
 [[request-body-rank]]
 `rank`::
 preview:[]
 This param is in technical preview and may change in the future. The syntax will
 likely change before GA.
++
+This parameter is deprecated and will be removed. Use <<retriever, retriever>> instead.
 +
 (Optional, object)
 Defines a method for combining and ranking result sets from
@@ -731,6 +739,8 @@ preview:[]
 This param is in technical preview and may change in the future. The syntax will
 likely change before GA.
 +
+This parameter is deprecated and will be removed. Use <<retriever, retriever>> instead.
++
 (Optional, array of objects)
 An array of `sub_search` objects where each `sub_search` is evaluated
 independently, and their result sets are later combined as part of
@@ -752,6 +762,7 @@ with a top-level <<request-body-search-query, `query`>> element.
 ----
 // NOTCONSOLE
 
+[[request-body-search-terminate-after]]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 +
 Defaults to `0`, which does not terminate query execution early.

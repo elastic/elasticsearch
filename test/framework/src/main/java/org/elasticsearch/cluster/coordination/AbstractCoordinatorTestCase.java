@@ -284,7 +284,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         @Nullable // null means construct a list from all the current nodes
         private List<TransportAddress> seedHostsList;
 
-        Cluster(int initialNodeCount) {
+        public Cluster(int initialNodeCount) {
             this(initialNodeCount, true, Settings.EMPTY);
         }
 
@@ -360,7 +360,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return addedNodes;
         }
 
-        int size() {
+        public int size() {
             return clusterNodes.size();
         }
 
@@ -753,7 +753,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        void bootstrapIfNecessary() {
+        public void bootstrapIfNecessary() {
             if (clusterNodes.stream().allMatch(ClusterNode::isNotUsefullyBootstrapped)) {
                 assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
                 assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
@@ -766,7 +766,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        void runFor(long runDurationMillis, String description) {
+        public void runFor(long runDurationMillis, String description) {
             final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + runDurationMillis;
             logger.info("--> runFor({}ms) running until [{}ms]: {}", runDurationMillis, endTime, description);
 
@@ -849,7 +849,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return getAnyNodeExcept();
         }
 
-        ClusterNode getAnyNodeExcept(ClusterNode... clusterNodesToExclude) {
+        public ClusterNode getAnyNodeExcept(ClusterNode... clusterNodesToExclude) {
             List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodesToExclude);
             assert filteredNodes.isEmpty() == false;
             return randomFrom(filteredNodes);
@@ -946,7 +946,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private static final Logger logger = LogManager.getLogger(ClusterNode.class);
 
             private final int nodeIndex;
-            Coordinator coordinator;
+            public Coordinator coordinator;
             private final DiscoveryNode localNode;
             final CoordinationState.PersistedState persistedState;
             final Settings nodeSettings;
@@ -1378,7 +1378,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 });
             }
 
-            AckCollector submitUpdateTask(
+            public AckCollector submitUpdateTask(
                 String source,
                 UnaryOperator<ClusterState> clusterStateUpdate,
                 CoordinatorTestClusterStateUpdateTask taskListener
@@ -1450,7 +1450,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 transportService.disconnectFromNode(clusterNode.localNode);
             }
 
-            ClusterState getLastAppliedClusterState() {
+            public ClusterState getLastAppliedClusterState() {
                 return clusterApplierService.state();
             }
 

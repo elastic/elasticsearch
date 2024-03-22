@@ -147,7 +147,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final MasterServiceTaskQueue<NodeLeftExecutor.Task> nodeLeftQueue;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     private final NoMasterBlockService noMasterBlockService;
-    final Object mutex = new Object(); // package-private to allow tests to call methods that assert that the mutex is held
+    public final Object mutex = new Object(); // public to allow tests to call methods that assert that the mutex is held
     private final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
     private volatile ClusterState applierState; // the state that should be exposed to the cluster state applier
 
@@ -540,15 +540,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             if (mode == Mode.CANDIDATE) {
                 final var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
                 if (nodeEligibility.mayWin() == false) {
-                    if (nodeEligibility.reason() == null) {
-                        logger.trace("skip election as local node may not win it: {}", getLastAcceptedState().coordinationMetadata());
-                    } else {
-                        logger.info(
-                            "skip election as local node may not win it ({}): {}",
-                            nodeEligibility.reason(),
-                            getLastAcceptedState().coordinationMetadata()
-                        );
-                    }
+                    logger.info(
+                        "skip election as local node may not win it ({}): {}",
+                        nodeEligibility.reason(),
+                        getLastAcceptedState().coordinationMetadata()
+                    );
                     return;
                 }
 
@@ -838,7 +834,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    void becomeCandidate(String method) {
+    public void becomeCandidate(String method) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.debug(
             "{}: coordinator becoming CANDIDATE in term {} (was {}, lastKnownLeader was [{}])",
@@ -1018,8 +1014,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    // package-visible for testing
-    Mode getMode() {
+    // visible for testing
+    public Mode getMode() {
         synchronized (mutex) {
             return mode;
         }
@@ -1273,8 +1269,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             metadataBuilder.coordinationMetadata(coordinationMetadata);
 
             coordinationState.get().setInitialState(ClusterState.builder(currentState).metadata(metadataBuilder).build());
-            assert localNodeMayWinElection(getLastAcceptedState(), electionStrategy).mayWin()
-                : "initial state does not allow local node to win election: " + getLastAcceptedState().coordinationMetadata();
+            var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
+            assert nodeEligibility.mayWin()
+                : "initial state does not allow local node to win election, reason: "
+                    + nodeEligibility.reason()
+                    + " , metadata: "
+                    + getLastAcceptedState().coordinationMetadata();
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
             return true;
@@ -1759,18 +1759,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
                         final var nodeEligibility = localNodeMayWinElection(lastAcceptedState, electionStrategy);
                         if (nodeEligibility.mayWin() == false) {
-                            if (nodeEligibility.reason() == null) {
-                                logger.trace(
-                                    "skip prevoting as local node may not win election: {}",
-                                    lastAcceptedState.coordinationMetadata()
-                                );
-                            } else {
-                                logger.info(
-                                    "skip prevoting as local node may not win election ({}): {}",
-                                    nodeEligibility.reason(),
-                                    lastAcceptedState.coordinationMetadata()
-                                );
-                            }
+                            logger.info(
+                                "skip prevoting as local node may not win election ({}): {}",
+                                nodeEligibility.reason(),
+                                lastAcceptedState.coordinationMetadata()
+                            );
                             return;
                         }
 

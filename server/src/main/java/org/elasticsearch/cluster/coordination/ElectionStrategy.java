@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
  * Custom additional quorum restrictions can be defined by implementing the {@link #satisfiesAdditionalQuorumConstraints} method.
  */
 public abstract class ElectionStrategy {
-
     public static final ElectionStrategy DEFAULT_INSTANCE = new ElectionStrategy() {
         @Override
         protected boolean satisfiesAdditionalQuorumConstraints(
@@ -33,6 +32,11 @@ public abstract class ElectionStrategy {
             return true;
         }
     };
+
+    /**
+     * Contains a result for whether a node may win an election and the reason if not.
+     */
+    public record NodeEligibility(boolean mayWin, String reason) {}
 
     /**
      * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
@@ -105,17 +109,17 @@ public abstract class ElectionStrategy {
         listener.onResponse(null);
     }
 
-    // Whether a node may win elections
-    public record NodeEligibility(boolean mayWin, String reason) {}
-
-    public static final NodeEligibility NODE_MAY_WIN_ELECTION = new NodeEligibility(true, null);
-    public static final NodeEligibility NODE_MAY_NOT_WIN_ELECTION = new NodeEligibility(false, null);
-
     public NodeEligibility nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
         final String nodeId = node.getId();
-        final boolean nodeMayWin = lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
-            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
-            || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId));
-        return nodeMayWin ? NODE_MAY_WIN_ELECTION : NODE_MAY_NOT_WIN_ELECTION;
+        if (lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId) == false) {
+            return new NodeEligibility(false, "node cannot win election, it is not part of the last committed cluster state");
+        }
+        if (lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId) == false) {
+            return new NodeEligibility(false, "node cannot win election, it is not part of the last accepted cluster state");
+        }
+        if (lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId)) == false) {
+            return new NodeEligibility(false, "node cannot win election, it is excluded from voting");
+        }
+        return new NodeEligibility(true, "");
     }
 }

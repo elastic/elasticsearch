@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.transport.netty4.Netty4Transport;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -29,7 +28,7 @@ public abstract class ESNetty4IntegTestCase extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         // randomize netty settings
         if (randomBoolean()) {
-            builder.put(Netty4Transport.WORKER_COUNT.getKey(), random().nextInt(3) + 1);
+            builder.put(Netty4Plugin.WORKER_COUNT.getKey(), random().nextInt(3) + 1);
         }
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME);
         builder.put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME);

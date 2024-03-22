@@ -70,6 +70,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -936,6 +937,10 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         }
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/87568",
+        value = "org.elasticsearch.indices.recovery:DEBUG"
+    )
     public void testRecoveryConcurrentlyWithIndexing() throws Exception {
         internalCluster().startDataOnlyNode();
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

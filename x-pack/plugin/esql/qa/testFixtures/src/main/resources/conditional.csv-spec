@@ -127,3 +127,44 @@ error_rate:double | hour:date
 0.6            |2023-10-23T13:00:00.000Z
 // end::docsCaseHourlyErrorRate-result[]
 ;
+
+
+nullOnMultivaluesMathOperation#[skip:-8.13.99,reason:fixed in 8.14+]
+ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NULL;
+warning:Line 1:37: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:37: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+a:integer | b:integer | sum:integer
+5         | [1, 2]    | null
+;
+
+
+notNullOnMultivaluesMathOperation#[skip:-8.13.99,reason:fixed in 8.14+]
+ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NOT NULL;
+warning:Line 1:37: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:37: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+a:integer | b:integer | sum:integer
+;
+
+
+nullOnMultivaluesComparisonOperation#[skip:-8.13.99,reason:fixed in 8.14+]
+ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NULL;
+
+a:integer | b:integer | same:boolean
+5         | [1, 2]    | null
+;
+
+
+notNullOnMultivaluesComparisonOperation#[skip:-8.13.99,reason:fixed in 8.14+]
+ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL;
+
+a:integer | b:integer | same:boolean
+;
+
+
+notNullOnMultivaluesComparisonOperationWithPartialMatch#[skip:-8.13.99,reason:fixed in 8.14+]
+ROW a = 5, b = [ 5, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL;
+
+a:integer | b:integer | same:boolean
+;

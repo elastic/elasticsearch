@@ -140,10 +140,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         if (isFinished()) {
             return null;
         }
-        if (isEmitting()) {
-            return emit(false);
-        } else {
-            return collect();
+        long start = System.nanoTime();
+        try {
+            if (isEmitting()) {
+                return emit(false);
+            } else {
+                return collect();
+            }
+        } finally {
+            processingNanos += System.nanoTime() - start;
         }
     }
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -30,6 +31,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,6 +41,7 @@ import java.util.stream.Stream;
 
 import javax.inject.Inject;
 
+import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
 import static org.objectweb.asm.Opcodes.V_PREVIEW;
 
 public class MrjarPlugin implements Plugin<Project> {
@@ -55,40 +60,52 @@ public class MrjarPlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
 
-        var srcDir = project.getProjectDir().toPath().resolve("src");
-        try (var subdirStream = Files.list(srcDir)) {
-            for (Path sourceset : subdirStream.toList()) {
-                assert Files.isDirectory(sourceset);
-                String sourcesetName = sourceset.getFileName().toString();
-                Matcher sourcesetMatcher = MRJAR_SOURCESET_PATTERN.matcher(sourcesetName);
-                if (sourcesetMatcher.matches()) {
-                    int javaVersion = Integer.parseInt(sourcesetMatcher.group(1));
-                    addMrjarSourceset(project, javaExtension, sourcesetName, javaVersion);
-                }
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        List<Integer> mainVersions = findSourceVersions(project);
+        List<String> mainSourceSets = new ArrayList<>();
+        mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
+        List<String> testSourceSets = new ArrayList<>(mainSourceSets);
+        testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME);
+        for (int javaVersion : mainVersions) {
+            String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
+            SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
+            configureSourceSetInJar(project, mainSourceSet, javaVersion);
+            mainSourceSets.add(mainSourceSetName);
+            testSourceSets.add(mainSourceSetName);
+
+            String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
+            SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
+            testSourceSets.add(testSourceSetName);
+            createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
         }
+
+        configureMrjar(project);
     }
 
-    private void addMrjarSourceset(Project project, JavaPluginExtension javaExtension, String sourcesetName, int javaVersion) {
-        SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourcesetName);
-        GradleUtils.extendSourceSet(project, SourceSet.MAIN_SOURCE_SET_NAME, sourcesetName);
-
+    private void configureMrjar(Project project) {
         var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
-        jarTask.configure(task -> {
-            task.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput()));
-            task.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); });
-        });
+        jarTask.configure(task -> { task.manifest(manifest -> { manifest.attributes(Map.of("Multi-Release", "true")); }); });
 
         project.getTasks().withType(Test.class).named(JavaPlugin.TEST_TASK_NAME).configure(testTask -> {
             testTask.dependsOn(jarTask);
 
             SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(project);
-            FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
+            FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getOutput();
             FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();
             testTask.setClasspath(testRuntime.minus(mainRuntime).plus(project.files(jarTask)));
         });
+    }
+
+    private SourceSet addSourceSet(
+        Project project,
+        JavaPluginExtension javaExtension,
+        String sourceSetName,
+        List<String> parentSourceSets,
+        int javaVersion
+    ) {
+        SourceSet sourceSet = javaExtension.getSourceSets().maybeCreate(sourceSetName);
+        for (String parentSourceSetName : parentSourceSets) {
+            GradleUtils.extendSourceSet(project, parentSourceSetName, sourceSetName);
+        }
 
         project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {
             compileTask.getJavaCompiler()
@@ -101,6 +118,64 @@ public class MrjarPlugin implements Plugin<Project> {
 
             compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
         });
+
+        // Since we configure MRJAR sourcesets to allow preview apis, class signatures for those
+        // apis are not known by forbidden apis, so we must ignore all missing classes. We could, in theory,
+        // run forbidden apis in a separate jvm matching the sourceset jvm, but it's not worth
+        // the complexity (according to forbidden apis author!)
+        String forbiddenApisTaskName = sourceSet.getTaskName(FORBIDDEN_APIS_TASK_NAME, null);
+        project.getTasks().withType(CheckForbiddenApisTask.class).named(forbiddenApisTaskName).configure(forbiddenApisTask -> {
+            forbiddenApisTask.setIgnoreMissingClasses(true);
+        });
+
+        return sourceSet;
+    }
+
+    private void configureSourceSetInJar(Project project, SourceSet sourceSet, int javaVersion) {
+        var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
+        jarTask.configure(task -> task.into("META-INF/versions/" + javaVersion, copySpec -> copySpec.from(sourceSet.getOutput())));
+    }
+
+    private void createTestTask(Project project, SourceSet sourceSet, int javaVersion, List<String> mainSourceSets) {
+        var jarTask = project.getTasks().withType(Jar.class).named(JavaPlugin.JAR_TASK_NAME);
+        var testTaskProvider = project.getTasks().register(JavaPlugin.TEST_TASK_NAME + javaVersion, Test.class);
+        testTaskProvider.configure(testTask -> {
+            testTask.dependsOn(jarTask);
+
+            SourceSetContainer sourceSets = GradleUtils.getJavaSourceSets(project);
+            FileCollection testRuntime = sourceSet.getRuntimeClasspath();
+            for (String mainSourceSetName : mainSourceSets) {
+                FileCollection mainRuntime = sourceSets.getByName(mainSourceSetName).getOutput();
+                testRuntime = testRuntime.minus(mainRuntime);
+            }
+            testTask.setClasspath(testRuntime.plus(project.files(jarTask)));
+            testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
+
+            testTask.getJavaLauncher()
+                .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion))));
+        });
+
+        project.getTasks().named("check").configure(checkTask -> checkTask.dependsOn(testTaskProvider));
+    }
+
+    private static List<Integer> findSourceVersions(Project project) {
+        var srcDir = project.getProjectDir().toPath().resolve("src");
+        List<Integer> versions = new ArrayList<>();
+        try (var subdirStream = Files.list(srcDir)) {
+            for (Path sourceSetPath : subdirStream.toList()) {
+                assert Files.isDirectory(sourceSetPath);
+                String sourcesetName = sourceSetPath.getFileName().toString();
+                Matcher sourcesetMatcher = MRJAR_SOURCESET_PATTERN.matcher(sourcesetName);
+                if (sourcesetMatcher.matches()) {
+                    versions.add(Integer.parseInt(sourcesetMatcher.group(1)));
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        Collections.sort(versions);
+        return versions;
     }
 
     private static void stripPreviewFromFiles(Path compileDir) {

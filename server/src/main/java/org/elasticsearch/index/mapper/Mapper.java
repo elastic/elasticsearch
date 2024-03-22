@@ -24,10 +24,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public abstract static class Builder {
 
-        private final String name;
+        private String name;
 
         protected Builder(String name) {
-            this.name = internFieldName(name);
+            setName(name);
         }
 
         // TODO rename this to leafName?
@@ -37,6 +37,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
+
+        void setName(String name) {
+            this.name = internFieldName(name);
+        }
     }
 
     public interface TypeParser {

@@ -13,7 +13,7 @@ setup:
           is_native: false
           service_type: super-connector
 ---
-"Update Connector Filtering":
+"Update Connector Filtering with advanced snippet value array":
   - do:
       connector.update_filtering:
         connector_id: test-connector
@@ -107,6 +107,7 @@ setup:
 
   - match: { filtering.0.domain: DEFAULT }
   - match: { filtering.0.active.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
+  - match: { filtering.0.active.advanced_snippet.value.0.tables.0.: "some_table" }
   - match: { filtering.0.active.rules.0.id: "RULE-ACTIVE-0" }
   - match: { filtering.0.draft.rules.0.id: "RULE-DRAFT-0" }
 
@@ -114,6 +115,181 @@ setup:
   - match: { filtering.1.active.advanced_snippet.created_at: "2021-05-25T12:30:00.000Z" }
   - match: { filtering.1.active.rules.0.id: "RULE-ACTIVE-1" }
   - match: { filtering.1.draft.rules.0.id: "RULE-DRAFT-1" }
+
+---
+"Update Connector Filtering with advanced snippet value object":
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          filtering:
+            - active:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value:
+                    some_filtering_key: "some_filtering_value"
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-0
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+              domain: DEFAULT
+              draft:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-0
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+            - active:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-1
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+              domain: TEST
+              draft:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-1
+                    order: 0
+                    policy: exclude
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.domain: DEFAULT }
+  - match: { filtering.0.active.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
+  - match: { filtering.0.active.advanced_snippet.value.some_filtering_key: "some_filtering_value" }
+  - match: { filtering.0.active.rules.0.id: "RULE-ACTIVE-0" }
+  - match: { filtering.0.draft.rules.0.id: "RULE-DRAFT-0" }
+
+  - match: { filtering.1.domain: TEST }
+  - match: { filtering.1.active.advanced_snippet.created_at: "2021-05-25T12:30:00.000Z" }
+  - match: { filtering.1.active.rules.0.id: "RULE-ACTIVE-1" }
+  - match: { filtering.1.draft.rules.0.id: "RULE-DRAFT-1" }
+
+---
+"Update Connector Filtering with value literal - Wrong advanced snippet value":
+  - do:
+      catch: "bad_request"
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          filtering:
+            - active:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: "string literal"
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-0
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+              domain: DEFAULT
+              draft:
+                advanced_snippet:
+                  created_at: "2023-05-25T12:30:00.000Z"
+                  updated_at: "2023-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2023-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-0
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2023-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+            - active:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-ACTIVE-1
+                    order: 0
+                    policy: include
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
+              domain: TEST
+              draft:
+                advanced_snippet:
+                  created_at: "2021-05-25T12:30:00.000Z"
+                  updated_at: "2021-05-25T12:30:00.000Z"
+                  value: {}
+                rules:
+                  - created_at: "2021-05-25T12:30:00.000Z"
+                    field: _
+                    id: RULE-DRAFT-1
+                    order: 0
+                    policy: exclude
+                    rule: regex
+                    updated_at: "2021-05-25T12:30:00.000Z"
+                    value: ".*"
+                validation:
+                  errors: []
+                  state: valid
 
 ---
 "Update Connector Filtering - Connector doesn't exist":

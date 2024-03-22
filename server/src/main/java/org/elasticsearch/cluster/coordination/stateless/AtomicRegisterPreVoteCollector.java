@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cluster.coordination.stateless;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -16,6 +18,8 @@ import org.elasticsearch.core.Releasable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AtomicRegisterPreVoteCollector extends PreVoteCollector {
+    private static final Logger logger = LogManager.getLogger(AtomicRegisterPreVoteCollector.class);
+
     private final StoreHeartbeatService heartbeatService;
     private final Runnable startElection;
 
@@ -27,11 +31,11 @@ public class AtomicRegisterPreVoteCollector extends PreVoteCollector {
     @Override
     public Releasable start(ClusterState clusterState, Iterable<DiscoveryNode> broadcastNodes) {
         final var shouldRun = new AtomicBoolean(true);
-        heartbeatService.runIfNoRecentLeader(() -> {
+        heartbeatService.checkLeaderHeartbeatAndRun(() -> {
             if (shouldRun.getAndSet(false)) {
                 startElection.run();
             }
-        });
+        }, heartbeat -> logger.info("skipping election since there is a recent heartbeat[{}] from the leader", heartbeat));
 
         return () -> shouldRun.set(false);
     }

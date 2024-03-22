@@ -1,0 +1,14 @@
+// tag::cohere[]
+
+A https://cohere.com/[Cohere account] is required to use the {infer} API with
+the Cohere service.
+
+// end::cohere[]
+
+
+// tag::openai[]
+
+An https://openai.com/[OpenAI account] is required to use the {infer} API with
+the OpenAI service.
+
+// end::openai[]

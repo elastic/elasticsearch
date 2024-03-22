@@ -22,12 +22,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyList;
@@ -89,14 +87,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Index index = (Translog.Index) operation;
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(
-                        index.id(),
-                        index.source(),
-                        XContentHelper.xContentType(index.source()),
-                        index.routing(),
-                        Map.of(),
-                        DocumentSizeObserver.EMPTY_INSTANCE
-                    ),
+                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing()),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

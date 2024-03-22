@@ -30,7 +30,9 @@ import org.elasticsearch.xpack.application.connector.configuration.Configuration
 import org.elasticsearch.xpack.application.connector.configuration.ConfigurationValidation;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -217,6 +219,62 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         );
     }
 
+    public String getCategory() {
+        return category;
+    }
+
+    public Object getDefaultValue() {
+        return defaultValue;
+    }
+
+    public List<ConfigurationDependency> getDependsOn() {
+        return dependsOn;
+    }
+
+    public ConfigurationDisplayType getDisplay() {
+        return display;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public List<ConfigurationSelectOption> getOptions() {
+        return options;
+    }
+
+    public Integer getOrder() {
+        return order;
+    }
+
+    public String getPlaceholder() {
+        return placeholder;
+    }
+
+    public boolean isRequired() {
+        return required;
+    }
+
+    public boolean isSensitive() {
+        return sensitive;
+    }
+
+    public String getTooltip() {
+        return tooltip;
+    }
+
+    public ConfigurationFieldType getType() {
+        return type;
+    }
+
+    public List<String> getUiRestrictions() {
+        return uiRestrictions;
+    }
+
+    public List<ConfigurationValidation> getValidations() {
+        return validations;
+    }
+
     public Object getValue() {
         return value;
     }
@@ -318,6 +376,46 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         out.writeOptionalStringCollection(uiRestrictions);
         out.writeOptionalCollection(validations);
         out.writeGenericValue(value);
+    }
+
+    public Map<String, Object> toMap() {
+        Map<String, Object> map = new HashMap<>();
+        if (category != null) {
+            map.put(CATEGORY_FIELD.getPreferredName(), category);
+        }
+        map.put(DEFAULT_VALUE_FIELD.getPreferredName(), defaultValue);
+        if (dependsOn != null) {
+            map.put(DEPENDS_ON_FIELD.getPreferredName(), dependsOn.stream().map(ConfigurationDependency::toMap).toList());
+        }
+        if (display != null) {
+            map.put(DISPLAY_FIELD.getPreferredName(), display.toString());
+        }
+        map.put(LABEL_FIELD.getPreferredName(), label);
+        if (options != null) {
+            map.put(OPTIONS_FIELD.getPreferredName(), options.stream().map(ConfigurationSelectOption::toMap).toList());
+        }
+        if (order != null) {
+            map.put(ORDER_FIELD.getPreferredName(), order);
+        }
+        if (placeholder != null) {
+            map.put(PLACEHOLDER_FIELD.getPreferredName(), placeholder);
+        }
+        map.put(REQUIRED_FIELD.getPreferredName(), required);
+        map.put(SENSITIVE_FIELD.getPreferredName(), sensitive);
+        if (tooltip != null) {
+            map.put(TOOLTIP_FIELD.getPreferredName(), tooltip);
+        }
+        if (type != null) {
+            map.put(TYPE_FIELD.getPreferredName(), type.toString());
+        }
+        if (uiRestrictions != null) {
+            map.put(UI_RESTRICTIONS_FIELD.getPreferredName(), uiRestrictions);
+        }
+        if (validations != null) {
+            map.put(VALIDATIONS_FIELD.getPreferredName(), validations.stream().map(ConfigurationValidation::toMap).toList());
+        }
+        map.put(VALUE_FIELD.getPreferredName(), value);
+        return map;
     }
 
     @Override

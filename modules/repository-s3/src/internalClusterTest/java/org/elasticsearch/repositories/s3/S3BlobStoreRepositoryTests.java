@@ -39,7 +39,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -345,6 +344,27 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertThat(newStats.keySet(), equalTo(allOperations));
         assertThat(newStats, not(equalTo(initialStats)));
 
+        // Exercise stats report that keep find grained information
+        final Map<String, Long> fineStats = statsCollectors.statsMap(true);
+        assertThat(
+            fineStats.keySet(),
+            equalTo(
+                statsCollectors.collectors.keySet().stream().map(S3BlobStore.StatsKey::toString).collect(Collectors.toUnmodifiableSet())
+            )
+        );
+        // fine stats are equal to coarse grained stats (without entries with value 0) by aggregation
+        assertThat(
+            fineStats.entrySet()
+                .stream()
+                .collect(Collectors.groupingBy(entry -> entry.getKey().split("_", 2)[1], Collectors.summingLong(Map.Entry::getValue))),
+            equalTo(
+                newStats.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue() != 0L)
+                    .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+            )
+        );
+
         final Set<String> operationsSeenForTheNewPurpose = statsCollectors.collectors.keySet()
             .stream()
             .filter(sk -> sk.purpose() != OperationPurpose.SNAPSHOT_METADATA)
@@ -460,9 +480,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            S3RepositoriesMetrics s3RepositoriesMetrics
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, repositoriesMetrics) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics) {
 
                 @Override
                 public BlobStore blobStore() {

@@ -610,8 +610,8 @@ public class HighlightBuilderTests extends ESTestCase {
     private static void setRandomCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         if (randomBoolean()) {
             // need to set this together, otherwise parsing will complain
-            highlightBuilder.preTags(randomStringArray(0, 3));
-            highlightBuilder.postTags(randomStringArray(0, 3));
+            highlightBuilder.preTags(randomStringArray(1, 3));
+            highlightBuilder.postTags(randomStringArray(1, 3));
         }
         if (randomBoolean()) {
             highlightBuilder.fragmentSize(randomIntBetween(0, 100));

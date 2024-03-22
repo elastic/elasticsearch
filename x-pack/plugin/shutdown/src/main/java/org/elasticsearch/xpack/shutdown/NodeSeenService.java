@@ -101,6 +101,7 @@ public final class NodeSeenService implements ClusterStateListener {
             var nodesNotPreviouslySeen = new HashSet<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 nodesNotPreviouslySeen.addAll(taskContext.getTask().nodesNotPreviouslySeen());
+                taskContext.success(() -> {});
             }
 
             var nodes = initialState.nodes();

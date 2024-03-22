@@ -32,6 +32,6 @@ public class CohereActionCreator implements CohereActionVisitor {
     public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
         var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings, inputType);
 
-        return new CohereEmbeddingsAction(sender, overriddenModel, serviceComponents);
+        return new CohereEmbeddingsAction(sender, overriddenModel);
     }
 }

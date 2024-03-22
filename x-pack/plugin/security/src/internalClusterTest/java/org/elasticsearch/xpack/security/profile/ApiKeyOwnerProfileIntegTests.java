@@ -21,9 +21,11 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.authc.ApiKeyIntegTests;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
@@ -46,6 +48,7 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
 
     @Before
     public void createNativeUsers() {
+        internalCluster().wipe(Set.of());
         {
             PutUserRequest putUserRequest = new PutUserRequest();
             putUserRequest.username("user_with_manage_api_key_role");
@@ -169,6 +172,82 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         );
         assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
         // API key owner (username1) now has a profile uid
+        assertThat(apiKeyWithProfileUid.v2(), is(user2Profile.uid()));
+    }
+
+    public void testDifferentKeyOwnersSameProfile() throws Exception {
+        // put the 2 realms under the same domain
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                // Register both file and native realms under the same domain
+                return Settings.builder().put("xpack.security.authc.domains.one_domain.realms", "file,index").build();
+            }
+        });
+        String username = randomFrom("user_with_manage_own_api_key_role", "user_with_manage_api_key_role");
+        SecureString password1;
+        SecureString password2;
+        boolean user1IsFile;
+        if (randomBoolean()) {
+            password1 = FILE_USER_TEST_PASSWORD;
+            user1IsFile = true;
+            password2 = NATIVE_USER_TEST_PASSWORD;
+        } else {
+            password1 = NATIVE_USER_TEST_PASSWORD;
+            user1IsFile = false;
+            password2 = FILE_USER_TEST_PASSWORD;
+        }
+        // activate the profile, then create the 2 keys, or vice-versa
+        Profile user1Profile = null;
+        Profile user2Profile = null;
+        boolean firstActivateProfile1 = randomBoolean();
+        if (firstActivateProfile1) {
+            user1Profile = AbstractProfileIntegTestCase.doActivateProfile(username, password1);
+        }
+        boolean firstActivateProfile2 = randomBoolean();
+        if (firstActivateProfile2) {
+            user2Profile = AbstractProfileIntegTestCase.doActivateProfile(username, password2);
+        }
+        Client client1 = client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, password1)));
+        CreateApiKeyRequest request1 = new CreateApiKeyRequest("key1", null, null, null);
+        request1.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        String key1Id = client1.execute(CreateApiKeyAction.INSTANCE, request1).actionGet().getId();
+        Client client2 = client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, password2)));
+        CreateApiKeyRequest request2 = new CreateApiKeyRequest("key2", null, null, null);
+        request2.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        String key2Id = client2.execute(CreateApiKeyAction.INSTANCE, request2).actionGet().getId();
+        if (false == firstActivateProfile1) {
+            user1Profile = AbstractProfileIntegTestCase.doActivateProfile(username, password1);
+        }
+        if (false == firstActivateProfile2) {
+            user2Profile = AbstractProfileIntegTestCase.doActivateProfile(username, password2);
+        }
+        // there should only be a single profile, because both users are under the same domain
+        assertThat(user1Profile.uid(), is(user2Profile.uid()));
+        // the 2 API keys should also show the one profile uid for the 2 owners
+        Tuple<ApiKey, String> apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
+            client1,
+            key1Id,
+            username.equals("user_with_manage_own_api_key_role") || randomBoolean()
+        );
+        assertThat(apiKeyWithProfileUid.v1().getId(), is(key1Id));
+        if (user1IsFile) {
+            assertThat(apiKeyWithProfileUid.v1().getRealm(), is("file"));
+        } else {
+            assertThat(apiKeyWithProfileUid.v1().getRealm(), is("index"));
+        }
+        assertThat(apiKeyWithProfileUid.v2(), is(user1Profile.uid()));
+        apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
+            client2,
+            key2Id,
+            username.equals("user_with_manage_own_api_key_role") || randomBoolean()
+        );
+        assertThat(apiKeyWithProfileUid.v1().getId(), is(key2Id));
+        if (user1IsFile) {
+            assertThat(apiKeyWithProfileUid.v1().getRealm(), is("index"));
+        } else {
+            assertThat(apiKeyWithProfileUid.v1().getRealm(), is("file"));
+        }
         assertThat(apiKeyWithProfileUid.v2(), is(user2Profile.uid()));
     }
 }

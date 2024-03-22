@@ -16,6 +16,7 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.BiPredicate;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -222,6 +223,38 @@ public class Iterators {
                 }
             }
             return value;
+        }
+    }
+
+    /**
+     * Returns an iterator over the same items as the provided {@code input} except that it stops yielding items (i.e. starts returning
+     * {@code false} from {@link Iterator#hasNext()} on failure.
+     */
+    public static <T> Iterator<T> failFast(Iterator<T> input, BooleanSupplier isFailingSupplier) {
+        if (isFailingSupplier.getAsBoolean()) {
+            return Collections.emptyIterator();
+        } else {
+            return new FailFastIterator<>(input, isFailingSupplier);
+        }
+    }
+
+    private static class FailFastIterator<T> implements Iterator<T> {
+        private final Iterator<T> delegate;
+        private final BooleanSupplier isFailingSupplier;
+
+        FailFastIterator(Iterator<T> delegate, BooleanSupplier isFailingSupplier) {
+            this.delegate = delegate;
+            this.isFailingSupplier = isFailingSupplier;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return isFailingSupplier.getAsBoolean() == false && delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return delegate.next();
         }
     }
 

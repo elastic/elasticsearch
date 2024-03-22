@@ -24,6 +24,7 @@ sourceCommand
     | fromCommand
     | rowCommand
     | showCommand
+    | metaCommand
     ;
 
 processingCommand
@@ -244,7 +245,10 @@ subqueryExpression
 
 showCommand
     : SHOW INFO                                                           #showInfo
-    | SHOW FUNCTIONS                                                      #showFunctions
+    ;
+
+metaCommand
+    : META FUNCTIONS                                                      #metaFunctions
     ;
 
 enrichCommand

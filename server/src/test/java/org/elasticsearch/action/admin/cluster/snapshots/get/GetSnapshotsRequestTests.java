@@ -50,7 +50,7 @@ public class GetSnapshotsRequestTests extends ESTestCase {
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false)
-                .after(new GetSnapshotsRequest.After("foo", "repo", "bar"));
+                .after(new SnapshotSortKey.After("foo", "repo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after with verbose=false"));
         }
@@ -61,14 +61,14 @@ public class GetSnapshotsRequestTests extends ESTestCase {
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").after(
-                new GetSnapshotsRequest.After("foo", "repo", "bar")
+                new SnapshotSortKey.After("foo", "repo", "bar")
             ).offset(randomIntBetween(1, 500));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after and offset simultaneously"));
         }
         {
             final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").fromSortValue("foo")
-                .after(new GetSnapshotsRequest.After("foo", "repo", "bar"));
+                .after(new SnapshotSortKey.After("foo", "repo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after and from_sort_value simultaneously"));
         }

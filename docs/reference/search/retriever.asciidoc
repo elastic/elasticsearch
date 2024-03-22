@@ -1,0 +1,225 @@
+[[retriever]]
+=== Retriever API
+
+preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
+
+A retriever is a specification to describe top documents returned from a
+search. A retriever replaces other elements of the <<search-search, search API>>
+that also return top documents such as <<query-dsl, `query`>> and
+<<search-api-knn, `knn`>>. A retriever may have child retrievers where a
+retriever with two or more children is considered a compound retriever. This
+allows for complex behavior to be depicted in a tree-like structure, called
+the retriever tree, to better clarify the order of operations that occur
+during a search.
+
+The following retrievers are available:
+
+`standard`::
+A <<standard-retriever, retriever>> that replaces the functionality of a traditional <<query-dsl, query>>.
+
+`knn`::
+A <<knn-retriever, retriever>> that replaces the functionality of a <<search-api-knn, knn search>>.
+
+`rrf`::
+A <<rrf-retriever, retriever>> that produces top documents from <<rrf, reciprocal rank fusion (RRF)>>.
+
+[[standard-retriever]]
+==== Standard Retriever
+
+A standard retriever returns top documents from a traditional <<query-dsl, query>>.
+
+===== Parameters:
+
+`query`::
+(Optional, <<query-dsl, query object>>)
++
+Defines a query to retrieve a set of top documents.
+
+`filter`::
+(Optional, <<query-dsl, query object or list of query objects>>)
++
+Applies a <<query-dsl-bool-query, boolean query filter>> to this retriever
+where all documents must match this query but do not contribute to the score.
+
+`search_after`::
+(Optional, <<search-after, search after object>>)
++
+Defines a search after object parameter used for pagination.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+
+`sort`::
++
+(Optional, <<sort-search-results, sort object>>)
+A sort object that that specifies the order of matching documents.
+
+`min_score`::
+(Optional, `float`)
++
+Minimum <<relevance-scores, `_score`>> for matching documents. Documents with a
+lower `_score` are not included in the top documents.
+
+`collapse`::
+(Optional, <<collapse-search-results, collapse object>>)
++
+Collapses the top documents by a specified key into a single top document per key.
+
+===== Restrictions
+
+When a retriever tree contains a compound retriever (a retriever with two or more child
+retrievers) *only* the query element is allowed.
+
+===== Example
+
+[source,js]
+----
+GET /index/_search
+{
+    "retriever": {
+        "standard": {
+            "query" { ... },
+            "filter" { ... },
+            "min_score": ...
+        }
+    },
+    "size": ...
+}
+----
+// NOTCONSOLE
+
+[[knn-retriever]]
+==== kNN Retriever
+
+A kNN retriever returns top documents from a <<knn-search, k-nearest neighbor search (kNN)>>.
+
+===== Parameters
+
+`field`::
+(Required, string)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
+
+`query_vector`::
+(Required if `query_vector_builder` is not defined, array of `float`)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
+
+`query_vector_builder`::
+(Required if `query_vector` is not defined, query vector builder object)
++
+Defines a <<knn-semantic-search, model>> to build a query vector.
+
+`k`::
+(Required, integer)
++
+Number of nearest neighbors to return as top hits. This value must be fewer than
+or equal to `num_candidates`.
+
+`num_candidates`::
+(Required, integer)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
+
+`filter`::
+(Optional, <<query-dsl, query object or list of query objects>>)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+
+`similarity`::
+(Optional, float)
++
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
+
+===== Restrictions
+
+The parameters `query_vector` and `query_vector_builder` cannot be used together.
+
+===== Example:
+
+[source,js]
+----
+GET /index/_search
+{
+    "retriever": {
+        "knn": {
+            "field": ...,
+            "query_vector": ...,
+            "k": ...,
+            "num_candidates": ...
+        }
+    }
+}
+----
+// NOTCONSOLE
+
+[[rrf-retriever]]
+==== RRF Retriever
+
+An <<rrf, RRF>> retriever returns top documents based on the RRF formula
+equally weighting two or more child retrievers.
+
+===== Parameters
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
+
+===== Restrictions
+
+An RRF retriever is a compound retriever. Child retrievers may not use
+elements that are restricted by having a compound retriever as part of
+the retriever tree.
+
+===== Example
+
+[source,js]
+----
+GET /index/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard" { ... }
+                },
+                {
+                    "knn": { ... }
+                }
+            ],
+            "rank_constant": ...
+            "window_size": ...
+        }
+    }
+}
+----
+// NOTCONSOLE
+
+==== Using `from` and `size` with a retriever tree
+
+The <<search-from-param, `from`>> and <<search-size-param, `size`>>
+parameters are provided globally as part of the general
+<<search-search, search API>>. They are applied to all retrievers in a
+retriever tree unless a specific retriever overrides the `size` parameter
+using a different parameter such as `window_size`. Though, the final
+search hits are always limited to `size`.
+
+==== Using aggregations with a retriever tree
+
+<<search-aggregations, Aggregations>> are globally specified as part of a search request.
+The query used for an aggregation is the combination of all leaf retrievers as `should`
+clauses in a <<query-dsl-bool-query, boolean query>>.
+
+==== Restrictions on search parameters when specifying a retriever
+
+When a retriever is specified as part of a search the following elements are not allowed
+at the top-level and instead are only allowed as elements of specific retrievers:
+
+* <<request-body-search-query, `query`>>
+* <<search-api-knn, `knn`>>
+* <<search-after, `search_after`>>
+* <<request-body-search-terminate-after, `terminate_after`>>
+* <<search-sort-param, `sort`>>
+* <<rescore, `rescore`>>
+* <<search-api-min-score, `min_score`>>

@@ -14,6 +14,7 @@ import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -182,6 +183,37 @@ public class SharedBytes extends AbstractRefCounted {
             assert adjustedBytesCopied == length : adjustedBytesCopied + " vs " + length;
             progressUpdater.accept(adjustedBytesCopied);
         }
+    }
+
+    /**
+     * Copy all bytes from {@code input} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
+     *
+     * @param fc output cache file reference
+     * @param input stream to read from
+     * @param fileChannelPos position in {@code fc} to write to
+     * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
+     * @param buffer bytebuffer to use for writing
+     * @return the number of bytes copied
+     * @throws IOException on failure
+     */
+    public static int copyToCacheFileAligned(IO fc, InputStream input, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
+        throws IOException {
+        int bytesCopied = 0;
+        while (true) {
+            final int bytesRead = Streams.read(input, buffer, buffer.remaining());
+            if (bytesRead <= 0) {
+                break;
+            }
+            if (buffer.hasRemaining()) {
+                // ensure that last write is aligned on 4k boundaries (= page size)
+                final int remainder = buffer.position() % PAGE_SIZE;
+                final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
+                buffer.position(buffer.position() + adjustment);
+            }
+            bytesCopied += positionalWrite(fc, fileChannelPos + bytesCopied, buffer);
+            progressUpdater.accept(bytesCopied);
+        }
+        return bytesCopied;
     }
 
     private static int positionalWrite(IO fc, int start, ByteBuffer byteBuffer) throws IOException {

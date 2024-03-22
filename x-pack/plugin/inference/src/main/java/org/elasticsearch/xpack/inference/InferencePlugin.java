@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -287,7 +287,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Map.of(InferenceResultFieldMapper.NAME, InferenceResultFieldMapper.PARSER);
+        return Map.of(InferenceMetadataFieldMapper.NAME, InferenceMetadataFieldMapper.PARSER);
     }
 
     @Override

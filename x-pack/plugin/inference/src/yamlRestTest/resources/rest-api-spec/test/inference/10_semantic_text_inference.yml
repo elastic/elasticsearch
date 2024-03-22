@@ -27,6 +27,7 @@ setup:
             "service_settings": {
               "model": "my_model",
               "dimensions": 10,
+              "similarity": "cosine",
               "api_key": "abc64"
             },
             "task_settings": {
@@ -41,10 +42,10 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: sparse-inference-id
+                inference_id: sparse-inference-id
               another_inference_field:
                 type: semantic_text
-                model_id: sparse-inference-id
+                inference_id: sparse-inference-id
               non_inference_field:
                 type: text
 
@@ -56,10 +57,10 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: dense-inference-id
+                inference_id: dense-inference-id
               another_inference_field:
                 type: semantic_text
-                model_id: dense-inference-id
+                inference_id: dense-inference-id
               non_inference_field:
                 type: text
 
@@ -247,10 +248,10 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: sparse-inference-id
+                inference_id: sparse-inference-id
               another_inference_field:
                 type: semantic_text
-                model_id: sparse-inference-id
+                inference_id: sparse-inference-id
               non_inference_field:
                 type: text
 
@@ -287,7 +288,7 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: non-existing-inference-id
+                inference_id: non-existing-inference-id
               non_inference_field:
                 type: text
 

@@ -32,7 +32,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
@@ -51,8 +51,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
-import static org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapperTests.randomSparseEmbeddings;
-import static org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapperTests.randomTextEmbeddings;
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapperTests.randomSparseEmbeddings;
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapperTests.randomTextEmbeddings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
@@ -285,7 +285,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             final ChunkedInferenceServiceResults results;
             switch (taskType) {
                 case TEXT_EMBEDDING:
-                    results = randomTextEmbeddings(chunks);
+                    results = randomTextEmbeddings(model, chunks);
                     break;
 
                 case SPARSE_EMBEDDING:
@@ -296,10 +296,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     throw new AssertionError("Unknown task type " + taskType.name());
             }
             model.putResult(text, results);
-            InferenceResultFieldMapper.applyFieldInference(inferenceResultsMap, field, model, results);
+            InferenceMetadataFieldMapper.applyFieldInference(inferenceResultsMap, field, model, results);
         }
         Map<String, Object> expectedDocMap = new LinkedHashMap<>(docMap);
-        expectedDocMap.put(InferenceResultFieldMapper.NAME, inferenceResultsMap);
+        expectedDocMap.put(InferenceMetadataFieldMapper.NAME, inferenceResultsMap);
         return new BulkItemRequest[] {
             new BulkItemRequest(id, new IndexRequest("index").source(docMap)),
             new BulkItemRequest(id, new IndexRequest("index").source(expectedDocMap)) };

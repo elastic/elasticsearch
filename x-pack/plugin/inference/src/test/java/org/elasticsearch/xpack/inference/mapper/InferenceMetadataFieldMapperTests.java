@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -51,26 +53,28 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper.INFERENCE_CHUNKS_RESULTS;
-import static org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper.INFERENCE_CHUNKS_TEXT;
-import static org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper.RESULTS;
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_RESULTS;
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_TEXT;
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.RESULTS;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
-public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
-    private record SemanticTextInferenceResults(String fieldName, ChunkedInferenceServiceResults results, List<String> text) {}
+public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
+    private record SemanticTextInferenceResults(String fieldName, Model model, ChunkedInferenceServiceResults results, List<String> text) {}
 
-    private record VisitedChildDocInfo(String path, int numChunks) {}
+    private record VisitedChildDocInfo(String path) {}
 
     private record SparseVectorSubfieldOptions(boolean include, boolean includeEmbedding, boolean includeIsTruncated) {}
 
     @Override
     protected String fieldName() {
-        return InferenceResultFieldMapper.NAME;
+        return InferenceMetadataFieldMapper.NAME;
     }
 
     @Override
@@ -94,109 +98,129 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSuccessfulParse() throws IOException {
-        final String fieldName1 = randomAlphaOfLengthBetween(5, 15);
-        final String fieldName2 = randomAlphaOfLengthBetween(5, 15);
+        for (int depth = 1; depth < 4; depth++) {
+            final String fieldName1 = randomFieldName(depth);
+            final String fieldName2 = randomFieldName(depth + 1);
 
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> {
-            addSemanticTextMapping(b, fieldName1, randomAlphaOfLength(8));
-            addSemanticTextMapping(b, fieldName2, randomAlphaOfLength(8));
-        }));
-        ParsedDocument doc = documentMapper.parse(
-            source(
-                b -> addSemanticTextInferenceResults(
-                    b,
-                    List.of(
-                        randomSemanticTextInferenceResults(fieldName1, List.of("a b", "c")),
-                        randomSemanticTextInferenceResults(fieldName2, List.of("d e f"))
+            Model model1 = randomModel(TaskType.SPARSE_EMBEDDING);
+            Model model2 = randomModel(TaskType.SPARSE_EMBEDDING);
+            XContentBuilder mapping = mapping(b -> {
+                addSemanticTextMapping(b, fieldName1, model1.getInferenceEntityId());
+                addSemanticTextMapping(b, fieldName2, model2.getInferenceEntityId());
+            });
+
+            MapperService mapperService = createMapperService(mapping);
+            SemanticTextFieldMapperTests.assertSemanticTextField(mapperService, fieldName1, false);
+            SemanticTextFieldMapperTests.assertSemanticTextField(mapperService, fieldName2, false);
+            DocumentMapper documentMapper = mapperService.documentMapper();
+            ParsedDocument doc = documentMapper.parse(
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        b,
+                        List.of(
+                            randomSemanticTextInferenceResults(fieldName1, model1, List.of("a b", "c")),
+                            randomSemanticTextInferenceResults(fieldName2, model2, List.of("d e f"))
+                        )
                     )
                 )
-            )
-        );
-
-        Set<VisitedChildDocInfo> visitedChildDocs = new HashSet<>();
-        Set<VisitedChildDocInfo> expectedVisitedChildDocs = Set.of(
-            new VisitedChildDocInfo(fieldName1, 2),
-            new VisitedChildDocInfo(fieldName1, 1),
-            new VisitedChildDocInfo(fieldName2, 3)
-        );
-
-        List<LuceneDocument> luceneDocs = doc.docs();
-        assertEquals(4, luceneDocs.size());
-        assertValidChildDoc(luceneDocs.get(0), doc.rootDoc(), visitedChildDocs);
-        assertValidChildDoc(luceneDocs.get(1), doc.rootDoc(), visitedChildDocs);
-        assertValidChildDoc(luceneDocs.get(2), doc.rootDoc(), visitedChildDocs);
-        assertEquals(doc.rootDoc(), luceneDocs.get(3));
-        assertNull(luceneDocs.get(3).getParent());
-        assertEquals(expectedVisitedChildDocs, visitedChildDocs);
-
-        MapperService nestedMapperService = createMapperService(mapping(b -> {
-            addInferenceResultsNestedMapping(b, fieldName1);
-            addInferenceResultsNestedMapping(b, fieldName2);
-        }));
-        withLuceneIndex(nestedMapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(
-                nestedMapperService.mappingLookup(),
-                QueryBitSetProducer::new,
-                IndexVersion.current()
-            );
-            LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
-
-            Set<SearchHit.NestedIdentity> visitedNestedIdentities = new HashSet<>();
-            Set<SearchHit.NestedIdentity> expectedVisitedNestedIdentities = Set.of(
-                new SearchHit.NestedIdentity(fieldName1, 0, null),
-                new SearchHit.NestedIdentity(fieldName1, 1, null),
-                new SearchHit.NestedIdentity(fieldName2, 0, null)
             );
 
-            assertChildLeafNestedDocument(leaf, 0, 3, visitedNestedIdentities);
-            assertChildLeafNestedDocument(leaf, 1, 3, visitedNestedIdentities);
-            assertChildLeafNestedDocument(leaf, 2, 3, visitedNestedIdentities);
-            assertEquals(expectedVisitedNestedIdentities, visitedNestedIdentities);
+            List<LuceneDocument> luceneDocs = doc.docs();
+            assertEquals(4, luceneDocs.size());
+            for (int i = 0; i < 3; i++) {
+                assertEquals(doc.rootDoc(), luceneDocs.get(i).getParent());
+            }
+            // nested docs are in reversed order
+            assertSparseFeatures(luceneDocs.get(0), fieldName1 + ".results.inference", 2);
+            assertSparseFeatures(luceneDocs.get(1), fieldName1 + ".results.inference", 1);
+            assertSparseFeatures(luceneDocs.get(2), fieldName2 + ".results.inference", 3);
+            assertEquals(doc.rootDoc(), luceneDocs.get(3));
+            assertNull(luceneDocs.get(3).getParent());
 
-            assertNull(leaf.advance(3));
-            assertEquals(3, leaf.doc());
-            assertEquals(3, leaf.rootDoc());
-            assertNull(leaf.nestedIdentity());
+            withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+                NestedDocuments nested = new NestedDocuments(
+                    mapperService.mappingLookup(),
+                    QueryBitSetProducer::new,
+                    IndexVersion.current()
+                );
+                LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
-            IndexSearcher searcher = newSearcher(reader);
-            {
-                TopDocs topDocs = searcher.search(
-                    generateNestedTermSparseVectorQuery(nestedMapperService.mappingLookup().nestedLookup(), fieldName1, List.of("a")),
-                    10
+                Set<SearchHit.NestedIdentity> visitedNestedIdentities = new HashSet<>();
+                Set<SearchHit.NestedIdentity> expectedVisitedNestedIdentities = Set.of(
+                    new SearchHit.NestedIdentity(fieldName1 + "." + RESULTS, 0, null),
+                    new SearchHit.NestedIdentity(fieldName1 + "." + RESULTS, 1, null),
+                    new SearchHit.NestedIdentity(fieldName2 + "." + RESULTS, 0, null)
                 );
-                assertEquals(1, topDocs.totalHits.value);
-                assertEquals(3, topDocs.scoreDocs[0].doc);
-            }
-            {
-                TopDocs topDocs = searcher.search(
-                    generateNestedTermSparseVectorQuery(nestedMapperService.mappingLookup().nestedLookup(), fieldName1, List.of("a", "b")),
-                    10
-                );
-                assertEquals(1, topDocs.totalHits.value);
-                assertEquals(3, topDocs.scoreDocs[0].doc);
-            }
-            {
-                TopDocs topDocs = searcher.search(
-                    generateNestedTermSparseVectorQuery(nestedMapperService.mappingLookup().nestedLookup(), fieldName2, List.of("d")),
-                    10
-                );
-                assertEquals(1, topDocs.totalHits.value);
-                assertEquals(3, topDocs.scoreDocs[0].doc);
-            }
-            {
-                TopDocs topDocs = searcher.search(
-                    generateNestedTermSparseVectorQuery(nestedMapperService.mappingLookup().nestedLookup(), fieldName2, List.of("z")),
-                    10
-                );
-                assertEquals(0, topDocs.totalHits.value);
-            }
-        });
+
+                assertChildLeafNestedDocument(leaf, 0, 3, visitedNestedIdentities);
+                assertChildLeafNestedDocument(leaf, 1, 3, visitedNestedIdentities);
+                assertChildLeafNestedDocument(leaf, 2, 3, visitedNestedIdentities);
+                assertEquals(expectedVisitedNestedIdentities, visitedNestedIdentities);
+
+                assertNull(leaf.advance(3));
+                assertEquals(3, leaf.doc());
+                assertEquals(3, leaf.rootDoc());
+                assertNull(leaf.nestedIdentity());
+
+                IndexSearcher searcher = newSearcher(reader);
+                {
+                    TopDocs topDocs = searcher.search(
+                        generateNestedTermSparseVectorQuery(
+                            mapperService.mappingLookup().nestedLookup(),
+                            fieldName1 + "." + RESULTS,
+                            List.of("a")
+                        ),
+                        10
+                    );
+                    assertEquals(1, topDocs.totalHits.value);
+                    assertEquals(3, topDocs.scoreDocs[0].doc);
+                }
+                {
+                    TopDocs topDocs = searcher.search(
+                        generateNestedTermSparseVectorQuery(
+                            mapperService.mappingLookup().nestedLookup(),
+                            fieldName1 + "." + RESULTS,
+                            List.of("a", "b")
+                        ),
+                        10
+                    );
+                    assertEquals(1, topDocs.totalHits.value);
+                    assertEquals(3, topDocs.scoreDocs[0].doc);
+                }
+                {
+                    TopDocs topDocs = searcher.search(
+                        generateNestedTermSparseVectorQuery(
+                            mapperService.mappingLookup().nestedLookup(),
+                            fieldName2 + "." + RESULTS,
+                            List.of("d")
+                        ),
+                        10
+                    );
+                    assertEquals(1, topDocs.totalHits.value);
+                    assertEquals(3, topDocs.scoreDocs[0].doc);
+                }
+                {
+                    TopDocs topDocs = searcher.search(
+                        generateNestedTermSparseVectorQuery(
+                            mapperService.mappingLookup().nestedLookup(),
+                            fieldName2 + "." + RESULTS,
+                            List.of("z")
+                        ),
+                        10
+                    );
+                    assertEquals(0, topDocs.totalHits.value);
+                }
+            });
+        }
     }
 
     public void testMissingSubfields() throws IOException {
         final String fieldName = randomAlphaOfLengthBetween(5, 15);
+        final Model model = randomModel(randomBoolean() ? TaskType.SPARSE_EMBEDDING : TaskType.TEXT_EMBEDDING);
 
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8))));
+        DocumentMapper documentMapper = createDocumentMapper(
+            mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId()))
+        );
 
         {
             DocumentParsingException ex = expectThrows(
@@ -206,7 +230,7 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
                     source(
                         b -> addSemanticTextInferenceResults(
                             b,
-                            List.of(randomSemanticTextInferenceResults(fieldName, List.of("a b"))),
+                            List.of(randomSemanticTextInferenceResults(fieldName, model, List.of("a b"))),
                             new SparseVectorSubfieldOptions(false, true, true),
                             true,
                             Map.of()
@@ -224,7 +248,7 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
                     source(
                         b -> addSemanticTextInferenceResults(
                             b,
-                            List.of(randomSemanticTextInferenceResults(fieldName, List.of("a b"))),
+                            List.of(randomSemanticTextInferenceResults(fieldName, model, List.of("a b"))),
                             new SparseVectorSubfieldOptions(true, true, true),
                             false,
                             Map.of()
@@ -242,7 +266,7 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
                     source(
                         b -> addSemanticTextInferenceResults(
                             b,
-                            List.of(randomSemanticTextInferenceResults(fieldName, List.of("a b"))),
+                            List.of(randomSemanticTextInferenceResults(fieldName, model, List.of("a b"))),
                             new SparseVectorSubfieldOptions(false, true, true),
                             false,
                             Map.of()
@@ -259,15 +283,18 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
 
     public void testExtraSubfields() throws IOException {
         final String fieldName = randomAlphaOfLengthBetween(5, 15);
+        final Model model = randomModel(randomBoolean() ? TaskType.SPARSE_EMBEDDING : TaskType.TEXT_EMBEDDING);
         final List<SemanticTextInferenceResults> semanticTextInferenceResultsList = List.of(
-            randomSemanticTextInferenceResults(fieldName, List.of("a b"))
+            randomSemanticTextInferenceResults(fieldName, model, List.of("a b"))
         );
 
-        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, fieldName, randomAlphaOfLength(8))));
+        DocumentMapper documentMapper = createDocumentMapper(
+            mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId()))
+        );
 
         Consumer<ParsedDocument> checkParsedDocument = d -> {
             Set<VisitedChildDocInfo> visitedChildDocs = new HashSet<>();
-            Set<VisitedChildDocInfo> expectedVisitedChildDocs = Set.of(new VisitedChildDocInfo(fieldName, 2));
+            Set<VisitedChildDocInfo> expectedVisitedChildDocs = Set.of(new VisitedChildDocInfo(fieldName + "." + RESULTS));
 
             List<LuceneDocument> luceneDocs = d.docs();
             assertEquals(2, luceneDocs.size());
@@ -358,28 +385,97 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
             DocumentParsingException.class,
             DocumentParsingException.class,
             () -> documentMapper.parse(
-                source(b -> addSemanticTextInferenceResults(b, List.of(randomSemanticTextInferenceResults(fieldName, List.of("a b")))))
+                source(
+                    b -> addSemanticTextInferenceResults(
+                        b,
+                        List.of(
+                            randomSemanticTextInferenceResults(
+                                fieldName,
+                                randomModel(randomFrom(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)),
+                                List.of("a b")
+                            )
+                        )
+                    )
+                )
             )
         );
         assertThat(
             ex.getMessage(),
             containsString(
-                Strings.format("Field [%s] is not registered as a %s field type", fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
+                Strings.format("Field [%s] is not registered as a [%s] field type", fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
             )
         );
+    }
+
+    public void testMissingInferenceId() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id")));
+        IllegalArgumentException ex = expectThrows(
+            DocumentParsingException.class,
+            IllegalArgumentException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> b.startObject(InferenceMetadataFieldMapper.NAME)
+                        .startObject("field")
+                        .startObject(SemanticTextModelSettings.NAME)
+                        .field(SemanticTextModelSettings.TASK_TYPE_FIELD.getPreferredName(), TaskType.SPARSE_EMBEDDING)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            )
+        );
+        assertThat(ex.getMessage(), containsString("required [inference_id] is missing"));
+    }
+
+    public void testMissingModelSettings() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id")));
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            DocumentParsingException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> b.startObject(InferenceMetadataFieldMapper.NAME)
+                        .startObject("field")
+                        .field(InferenceMetadataFieldMapper.INFERENCE_ID, "my_id")
+                        .endObject()
+                        .endObject()
+                )
+            )
+        );
+        assertThat(ex.getMessage(), containsString("Missing required [model_settings] for field [field] of type [semantic_text]"));
+    }
+
+    public void testMissingTaskType() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(mapping(b -> addSemanticTextMapping(b, "field", "my_id")));
+        DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            DocumentParsingException.class,
+            () -> documentMapper.parse(
+                source(
+                    b -> b.startObject(InferenceMetadataFieldMapper.NAME)
+                        .startObject("field")
+                        .field(InferenceMetadataFieldMapper.INFERENCE_ID, "my_id")
+                        .startObject(SemanticTextModelSettings.NAME)
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            )
+        );
+        assertThat(ex.getCause().getMessage(), containsString(" Failed to parse [model_settings], required [task_type] is missing"));
     }
 
     private static void addSemanticTextMapping(XContentBuilder mappingBuilder, String fieldName, String modelId) throws IOException {
         mappingBuilder.startObject(fieldName);
         mappingBuilder.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
-        mappingBuilder.field("model_id", modelId);
+        mappingBuilder.field("inference_id", modelId);
         mappingBuilder.endObject();
     }
 
-    public static ChunkedTextEmbeddingResults randomTextEmbeddings(List<String> inputs) {
+    public static ChunkedTextEmbeddingResults randomTextEmbeddings(Model model, List<String> inputs) {
         List<org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            double[] values = new double[5];
+            double[] values = new double[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomDouble();
             }
@@ -400,8 +496,17 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
         return new ChunkedSparseEmbeddingResults(chunks);
     }
 
-    private static SemanticTextInferenceResults randomSemanticTextInferenceResults(String semanticTextFieldName, List<String> chunks) {
-        return new SemanticTextInferenceResults(semanticTextFieldName, randomSparseEmbeddings(chunks), chunks);
+    private static SemanticTextInferenceResults randomSemanticTextInferenceResults(
+        String semanticTextFieldName,
+        Model model,
+        List<String> chunks
+    ) {
+        ChunkedInferenceServiceResults chunkedResults = switch (model.getTaskType()) {
+            case TEXT_EMBEDDING -> randomTextEmbeddings(model, chunks);
+            case SPARSE_EMBEDDING -> randomSparseEmbeddings(chunks);
+            default -> throw new AssertionError("unkwnown task type: " + model.getTaskType().name());
+        };
+        return new SemanticTextInferenceResults(semanticTextFieldName, model, chunkedResults, chunks);
     }
 
     private static void addSemanticTextInferenceResults(
@@ -425,12 +530,12 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
         boolean includeTextSubfield,
         Map<String, Object> extraSubfields
     ) throws IOException {
-        Map<String, Object> inferenceResultsMap = new HashMap<>();
+        Map<String, Object> inferenceResultsMap = new LinkedHashMap<>();
         for (SemanticTextInferenceResults semanticTextInferenceResult : semanticTextInferenceResults) {
-            InferenceResultFieldMapper.applyFieldInference(
+            InferenceMetadataFieldMapper.applyFieldInference(
                 inferenceResultsMap,
                 semanticTextInferenceResult.fieldName,
-                randomModel(),
+                semanticTextInferenceResult.model,
                 semanticTextInferenceResult.results
             );
             Map<String, Object> optionsMap = (Map<String, Object>) inferenceResultsMap.get(semanticTextInferenceResult.fieldName);
@@ -445,43 +550,31 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
                 entry.putAll(extraSubfields);
             }
         }
-        sourceBuilder.field(InferenceResultFieldMapper.NAME, inferenceResultsMap);
+        sourceBuilder.field(InferenceMetadataFieldMapper.NAME, inferenceResultsMap);
     }
 
-    private static Model randomModel() {
+    static String randomFieldName(int numLevel) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < numLevel; i++) {
+            if (i > 0) {
+                builder.append('.');
+            }
+            builder.append(randomAlphaOfLengthBetween(5, 15));
+        }
+        return builder.toString();
+    }
+
+    private static Model randomModel(TaskType taskType) {
         String serviceName = randomAlphaOfLengthBetween(5, 10);
         String inferenceId = randomAlphaOfLengthBetween(5, 10);
         return new TestModel(
             inferenceId,
-            TaskType.SPARSE_EMBEDDING,
+            taskType,
             serviceName,
             new TestModel.TestServiceSettings("my-model"),
             new TestModel.TestTaskSettings(randomIntBetween(1, 100)),
             new TestModel.TestSecretSettings(randomAlphaOfLength(10))
         );
-    }
-
-    private static void addInferenceResultsNestedMapping(XContentBuilder mappingBuilder, String semanticTextFieldName) throws IOException {
-        mappingBuilder.startObject(semanticTextFieldName);
-        {
-            mappingBuilder.field("type", "nested");
-            mappingBuilder.startObject("properties");
-            {
-                mappingBuilder.startObject(INFERENCE_CHUNKS_RESULTS);
-                {
-                    mappingBuilder.field("type", "sparse_vector");
-                }
-                mappingBuilder.endObject();
-                mappingBuilder.startObject(INFERENCE_CHUNKS_TEXT);
-                {
-                    mappingBuilder.field("type", "text");
-                    mappingBuilder.field("index", false);
-                }
-                mappingBuilder.endObject();
-            }
-            mappingBuilder.endObject();
-        }
-        mappingBuilder.endObject();
     }
 
     private static Query generateNestedTermSparseVectorQuery(NestedLookup nestedLookup, String path, List<String> tokens) {
@@ -503,12 +596,10 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
     private static void assertValidChildDoc(
         LuceneDocument childDoc,
         LuceneDocument expectedParent,
-        Set<VisitedChildDocInfo> visitedChildDocs
+        Collection<VisitedChildDocInfo> visitedChildDocs
     ) {
         assertEquals(expectedParent, childDoc.getParent());
-        visitedChildDocs.add(
-            new VisitedChildDocInfo(childDoc.getPath(), childDoc.getFields(childDoc.getPath() + "." + INFERENCE_CHUNKS_RESULTS).size())
-        );
+        visitedChildDocs.add(new VisitedChildDocInfo(childDoc.getPath()));
     }
 
     private static void assertChildLeafNestedDocument(
@@ -523,5 +614,16 @@ public class InferenceResultFieldMapperTests extends MetadataMapperTestCase {
         assertEquals(expectedRootDoc, leaf.rootDoc());
         assertNotNull(leaf.nestedIdentity());
         visitedNestedIdentities.add(leaf.nestedIdentity());
+    }
+
+    private static void assertSparseFeatures(LuceneDocument doc, String fieldName, int expectedCount) {
+        int count = 0;
+        for (IndexableField field : doc.getFields()) {
+            if (field instanceof FeatureField featureField) {
+                assertThat(featureField.name(), equalTo(fieldName));
+                ++count;
+            }
+        }
+        assertThat(count, equalTo(expectedCount));
     }
 }

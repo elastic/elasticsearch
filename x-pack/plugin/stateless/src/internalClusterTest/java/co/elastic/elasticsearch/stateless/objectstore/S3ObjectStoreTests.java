@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -60,15 +61,30 @@ import static org.hamcrest.Matchers.oneOf;
 
 public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
-    private static final Set<String> EXPECTED_REQUEST_NAMES = Set.of(
-        "HeadObject",
-        "GetObject",
-        "ListObjects",
-        "PutObject",
-        "PutMultipartObject",
-        "DeleteObjects",
-        "AbortMultipartObject"
-    );
+    private static final Set<String> EXPECTED_MAIN_STORE_REQUEST_NAMES;
+    private static final Set<String> EXPECTED_OBS_REQUEST_NAMES;
+
+    static {
+        final var mainStorePurposeNames = Set.of("ClusterState", "Indices", "Translog");
+        final var obsPurposeNames = Set.of("SnapshotData", "SnapshotMetadata", "RepositoryAnalysis");
+        final var operationNames = Set.of(
+            "HeadObject",
+            "GetObject",
+            "ListObjects",
+            "PutObject",
+            "PutMultipartObject",
+            "DeleteObjects",
+            "AbortMultipartObject"
+        );
+
+        EXPECTED_MAIN_STORE_REQUEST_NAMES = Stream.concat(mainStorePurposeNames.stream(), obsPurposeNames.stream())
+            .flatMap(p -> operationNames.stream().map(o -> p + "_" + o))
+            .collect(Collectors.toUnmodifiableSet());
+
+        EXPECTED_OBS_REQUEST_NAMES = obsPurposeNames.stream()
+            .flatMap(p -> operationNames.stream().map(o -> p + "_" + o))
+            .collect(Collectors.toUnmodifiableSet());
+    }
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     private InterceptableS3HttpHandler s3HttpHandler;
@@ -112,17 +128,11 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/pull/1543")
-    @Override
-    public void testBlobStoreStats() throws IOException {
-        super.testBlobStoreStats();
-    }
-
     @Override
     protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
+        assertTrue(EXPECTED_MAIN_STORE_REQUEST_NAMES.containsAll(repositoryStats.requestCounts.keySet()));
         repositoryStats.requestCounts.forEach((metricName, count) -> {
-            if ("AbortMultipartObject".equals(metricName) || "HeadObject".equals(metricName)) {
+            if (metricName.endsWith("_AbortMultipartObject") || metricName.endsWith("_HeadObject")) {
                 assertThat(metricName, count, greaterThanOrEqualTo(0L));
             } else {
                 assertThat(metricName, count, greaterThan(0L));
@@ -132,9 +142,9 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     @Override
     protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
-        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.requestCounts.keySet());
+        assertTrue(EXPECTED_OBS_REQUEST_NAMES.containsAll(repositoryStats.requestCounts.keySet()));
         repositoryStats.requestCounts.forEach((metricName, count) -> {
-            if ("AbortMultipartObject".equals(metricName) || "PutMultipartObject".equals(metricName)) {
+            if (metricName.endsWith("_AbortMultipartObject") || metricName.endsWith("_PutMultipartObject")) {
                 assertThat(count, greaterThanOrEqualTo(0L));
             } else {
                 assertThat(count, greaterThan(0L));

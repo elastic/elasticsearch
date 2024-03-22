@@ -67,9 +67,18 @@ public class MigrateSecurityIndexFieldTaskExecutor extends PersistentTasksExecut
         logger.info("Running migrate security index field from: " + params.getSourceField() + ", to: " + params.getTargetField());
         SecurityIndexManager securityIndex = securitySystemIndices.getMainIndexManager();
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+
+        ActionListener<Void> listener = ActionListener.wrap((res) -> {
+            logger.info("Security Index Field Migration complete written to cluster state");
+            task.markAsCompleted();
+        }, (exception) -> {
+            logger.warn("Security Index Field Migration completed but result couldn't be written to cluster state: " + exception);
+            task.markAsFailed(exception);
+        });
+
         if (frozenSecurityIndex.indexExists() == false) {
             logger.info("security index does not exist");
-            notifyCompleted(); // There is nothing to migrate
+            notifyCompleted(listener); // There is nothing to migrate
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             // This could be handled by frozenSecurityIndex.add/remove-StateListener() and just wait for the index to become available
             logger.info("Search shards not available: " + frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
@@ -90,14 +99,14 @@ public class MigrateSecurityIndexFieldTaskExecutor extends PersistentTasksExecut
                         final long total = searchResponse.getHits().getTotalHits().value;
                         if (total == 0) {
                             logger.info("No data found for query [{}]", searchRequest.source().query());
-                            notifyCompleted(); // There is nothing to migrate
+                            notifyCompleted(listener); // There is nothing to migrate
                             return;
                         }
 
                         bulkUpdate(
                             searchResponse.getHits().getHits(),
                             params,
-                            ActionListener.wrap((response) -> notifyCompleted(), (exception) -> {
+                            ActionListener.wrap((response) -> notifyCompleted(listener), (exception) -> {
                                 logger.warn("Bulk Update failed for security index field migration " + exception);
                             })
                         );
@@ -107,17 +116,9 @@ public class MigrateSecurityIndexFieldTaskExecutor extends PersistentTasksExecut
         }
     }
 
-    private void notifyCompleted() {
+    private void notifyCompleted(ActionListener<Void> listener) {
         logger.info("Security Index Field Migration successful, writing result to cluster state");
-        securitySystemIndices.getMainIndexManager()
-            .writeMetadataMigrated(
-                ActionListener.wrap(
-                    (res) -> logger.info("Security Index Field Migration complete written to cluster state"),
-                    (exception) -> logger.warn(
-                        "Security Index Field Migration completed but result couldn't be written to cluster state: " + exception
-                    )
-                )
-            );
+        securitySystemIndices.getMainIndexManager().writeMetadataMigrated(listener);
     }
 
     private void bulkUpdate(SearchHit[] hits, MigrateSecurityIndexFieldTaskParams params, ActionListener<Void> listener) {

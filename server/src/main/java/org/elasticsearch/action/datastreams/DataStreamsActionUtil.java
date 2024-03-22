@@ -6,13 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams.action;
+package org.elasticsearch.action.datastreams;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.index.Index;
 
 import java.util.List;
+import java.util.SortedMap;
+import java.util.stream.Stream;
 
 public class DataStreamsActionUtil {
 
@@ -39,5 +44,27 @@ public class DataStreamsActionUtil {
                 .build();
         }
         return indicesOptions;
+    }
+
+    public static Stream<String> resolveConcreteIndexNames(
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterState clusterState,
+        String[] names,
+        IndicesOptions indicesOptions
+    ) {
+        List<String> abstractionNames = getDataStreamNames(indexNameExpressionResolver, clusterState, names, indicesOptions);
+        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
+
+        return abstractionNames.stream().flatMap(abstractionName -> {
+            IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
+            assert indexAbstraction != null;
+            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                DataStream dataStream = (DataStream) indexAbstraction;
+                List<Index> indices = dataStream.getIndices();
+                return indices.stream().map(Index::getName);
+            } else {
+                return Stream.empty();
+            }
+        });
     }
 }

@@ -25,8 +25,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
@@ -41,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings.DEFAULT_SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings.DIMENSIONS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -368,6 +371,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
         mlTrainedModelResults.add(ChunkedTextEmbeddingResultsTests.createRandomResults());
         mlTrainedModelResults.add(ChunkedTextEmbeddingResultsTests.createRandomResults());
+        mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
         var response = new InferTrainedModelDeploymentAction.Response(mlTrainedModelResults);
 
         ThreadPool threadpool = new TestThreadPool("test");
@@ -394,7 +398,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         var gotResults = new AtomicBoolean();
         var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
-            assertThat(chunkedResponse, hasSize(2));
+            assertThat(chunkedResponse, hasSize(3));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedTextEmbeddingResults.class));
             var result1 = (ChunkedTextEmbeddingResults) chunkedResponse.get(0);
             assertEquals(
@@ -407,6 +411,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults) mlTrainedModelResults.get(1)).getChunks(),
                 result2.getChunks()
             );
+            var result3 = (ErrorChunkedInferenceResults) chunkedResponse.get(2);
+            assertThat(result3.getException(), instanceOf(RuntimeException.class));
+            assertThat(result3.getException().getMessage(), containsString("boom"));
             gotResults.set(true);
         }, ESTestCase::fail);
 

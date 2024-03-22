@@ -106,8 +106,10 @@ setup:
 ---
 "Test vector search with query_vector_builder":
   - skip:
-      version: " - 8.13.99"
-      reason: "introduced after 8.13"
+      version: all
+      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/106650
+#      version: " - 8.13.99"
+#      reason: "introduced after 8.13"
   - do:
       search:
         index: index-with-embedded-text

@@ -80,6 +80,16 @@ class OptimizerRules {
 
     static class LogicalPlanDependencyCheck extends DependencyConsistency<LogicalPlan> {
         @Override
+        protected AttributeSet references(LogicalPlan plan) {
+            if (plan instanceof Enrich enrich) {
+                // The enrichFields are NamedExpressions, so we compute their references as well when just calling enrich.references().
+                // But they are not actually referring to attributes from the input plan - only the match field does.
+                return enrich.matchField().references();
+            }
+            return super.references(plan);
+        }
+
+        @Override
         protected AttributeSet generates(LogicalPlan logicalPlan) {
             // source-like operators
             if (logicalPlan instanceof EsRelation

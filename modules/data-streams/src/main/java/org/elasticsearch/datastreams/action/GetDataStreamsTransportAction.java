@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.IndexProperties;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;

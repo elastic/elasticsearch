@@ -1217,3 +1217,26 @@ FROM airports
 c:l
 891
 ;
+
+emptyProjectInStatWithEval
+FROM employees
+| STATS c = COUNT(salary)
+| EVAL x = 3.14
+| DROP c
+;
+
+x:d
+3.14
+;
+
+emptyProjectInStatWithGroupAndEval
+FROM employees
+| STATS c = COUNT(salary) BY emp_no
+| EVAL x = 3.14
+| DROP c, emp_no
+| STATS rows = COUNT(*) BY x
+;
+
+rows:l | x:d
+100    | 3.14
+;

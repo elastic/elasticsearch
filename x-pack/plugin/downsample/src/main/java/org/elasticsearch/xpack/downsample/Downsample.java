@@ -137,7 +137,6 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        DownsampleMetrics.INSTANCE.setMeterRegistry(services.telemetryProvider().getMeterRegistry());
-        return super.createComponents(services);
+        return List.of(new DownsampleMetrics(services.telemetryProvider().getMeterRegistry()));
     }
 }

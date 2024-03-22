@@ -7,25 +7,33 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.io.IOException;
 import java.util.Map;
 
-class DownsampleMetrics {
+public class DownsampleMetrics extends AbstractLifecycleComponent {
 
     public static final String LATENCY_SHARD = "es.tsdb.downsample.latency.shard.histogram";
 
-    private MeterRegistry meterRegistry = MeterRegistry.NOOP;
+    private final MeterRegistry meterRegistry;
 
-    // Singleton.
-    public static final DownsampleMetrics INSTANCE = new DownsampleMetrics();
-
-    private DownsampleMetrics() {}
-
-    void setMeterRegistry(MeterRegistry meterRegistry) {
+    public DownsampleMetrics(MeterRegistry meterRegistry) {
+        super();
         this.meterRegistry = meterRegistry;
+    }
+
+    @Override
+    protected void doStart() {
         meterRegistry.registerLongHistogram(LATENCY_SHARD, "Downsampling action latency per shard", "ms");
     }
+
+    @Override
+    protected void doStop() {}
+
+    @Override
+    protected void doClose() throws IOException {}
 
     enum ShardActionStatus {
 

@@ -40,12 +40,12 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 /**
@@ -171,7 +171,9 @@ public final class ResponseValueUtils {
                 var builder = results.get(c);
                 var value = row.get(c);
                 switch (dataTypes.get(c)) {
-                    case "unsigned_long" -> ((LongBlock.Builder) builder).appendLong(asLongUnsigned(((Number) value).longValue()));
+                    case "unsigned_long" -> ((LongBlock.Builder) builder).appendLong(
+                        longToUnsignedLong(((Number) value).longValue(), true)
+                    );
                     case "long" -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case "integer" -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case "double" -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());

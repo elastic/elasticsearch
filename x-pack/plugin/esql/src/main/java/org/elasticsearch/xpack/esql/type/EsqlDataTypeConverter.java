@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
@@ -43,6 +44,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.UNSPECIFIED;
 
@@ -276,21 +278,23 @@ public class EsqlDataTypeConverter {
         return asLongUnsigned(safeToUnsignedLong(field));
     }
 
+    public static Number stringToIntegral(String field) {
+        return StringUtils.parseIntegral(field);
+    }
+
     /**
      * The following conversion are between unsignedLong and other numeric data types.
-     * TODO: More refactor can be done for UnsignedLong.
-     * There are quite a few places in ES|QL call NumericUtils for UnsignedLong.
      */
     public static double unsignedLongToDouble(long field) {
-        return unsignedLongAsNumber(field).doubleValue();
+        return NumericUtils.unsignedLongAsNumber(field).doubleValue();
     }
 
     public static long doubleToUnsignedLong(double field) {
-        return asLongUnsigned(safeToUnsignedLong(field));
+        return NumericUtils.asLongUnsigned(safeToUnsignedLong(field));
     }
 
     public static int unsignedLongToInt(Long field) {
-        Number n = unsignedLongAsNumber(field);
+        Number n = NumericUtils.unsignedLongAsNumber(field);
         int i = n.intValue();
         if (i != n.longValue()) {
             throw new InvalidArgumentException("[{}] out of [integer] range", n);
@@ -299,23 +303,32 @@ public class EsqlDataTypeConverter {
     }
 
     public static long intToUnsignedLong(int field) {
-        return longToUnsignedLong(field);
+        return longToUnsignedLong(field, false);
     }
 
     public static long unsignedLongToLong(long field) {
-        return safeToLong(unsignedLongAsNumber(field));
+        return DataTypeConverter.safeToLong(unsignedLongAsNumber(field));
     }
 
-    public static long longToUnsignedLong(long field) {
-        return asLongUnsigned(safeToUnsignedLong(field));
+    public static long longToUnsignedLong(long field, boolean allowNegative) {
+        return allowNegative == false ? NumericUtils.asLongUnsigned(safeToUnsignedLong(field)) : NumericUtils.asLongUnsigned(field);
+    }
+
+    public static long bigIntegerToUnsignedLong(BigInteger field) {
+        BigInteger unsignedLong = asUnsignedLong(field);
+        return NumericUtils.asLongUnsigned(unsignedLong);
+    }
+
+    public static BigInteger unsignedLongToBigInteger(long field) {
+        return NumericUtils.unsignedLongAsBigInteger(field);
     }
 
     public static boolean unsignedLongToBoolean(long field) {
-        Number n = unsignedLongAsNumber(field);
+        Number n = NumericUtils.unsignedLongAsNumber(field);
         return n instanceof BigInteger || n.longValue() != 0;
     }
 
-    public static long booleanToUnsignedlong(boolean field) {
+    public static long booleanToUnsignedLong(boolean field) {
         return field ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
     }
 

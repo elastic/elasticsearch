@@ -91,6 +91,6 @@ public class Cast {
     @Evaluator(extraName = "LongToUnsignedLong")
     // TODO: catch-to-null in evaluator?
     static long castLongToUnsignedLong(long v) {
-        return longToUnsignedLong(v);
+        return longToUnsignedLong(v, false);
     }
 }

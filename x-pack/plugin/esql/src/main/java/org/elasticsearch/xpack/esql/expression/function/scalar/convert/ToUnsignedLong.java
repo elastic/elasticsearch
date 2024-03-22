@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.booleanToUnsignedlong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.booleanToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.doubleToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
@@ -80,7 +80,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromBoolean")
     static long fromBoolean(boolean bool) {
-        return booleanToUnsignedlong(bool);
+        return booleanToUnsignedLong(bool);
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class, NumberFormatException.class })
@@ -95,7 +95,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromLong", warnExceptions = { InvalidArgumentException.class })
     static long fromLong(long lng) {
-        return longToUnsignedLong(lng);
+        return longToUnsignedLong(lng, false);
     }
 
     @ConvertEvaluator(extraName = "FromInt", warnExceptions = { InvalidArgumentException.class })

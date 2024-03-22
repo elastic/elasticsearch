@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoin
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -2927,62 +2928,73 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
-    public void testPushSpatialWithinStringToSource() {
-        var plan = this.physicalPlan("""
-            FROM airports
-            | WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
-            """, airports);
-        var limit = as(plan, LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var limit2 = as(fragment.fragment(), Limit.class);
-        var filter = as(limit2.child(), Filter.class);
-        assertThat("filter contains ST_WITHIN", filter.condition(), instanceOf(SpatialWithin.class));
+    private record TestSpatialRelation(ShapeRelation relation, boolean literalRight) {
+        String function() {
+            return switch (relation) {
+                case INTERSECTS -> "ST_INTERSECTS";
+                case WITHIN -> "ST_WITHIN";
+                case CONTAINS -> "ST_CONTAINS";
+                default -> throw new IllegalArgumentException("Unsupported relation: " + relation);
+            };
+        }
 
-        var optimized = optimizedPlan(plan);
-        var topLimit = as(optimized, LimitExec.class);
-        exchange = as(topLimit.child(), ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
-        var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var source = source(fieldExtract.child());
-        // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-        // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-        var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
-        assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
-        assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.WITHIN));
-        assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
-        var polygon = as(condition.shape(), Polygon.class);
-        assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
-        assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+        Class<? extends SpatialRelatesFunction> functionClass() {
+            return switch (relation) {
+                case INTERSECTS -> SpatialIntersects.class;
+                case WITHIN -> literalRight ? SpatialWithin.class : SpatialContains.class;
+                case CONTAINS -> literalRight ? SpatialContains.class : SpatialWithin.class;
+                default -> throw new IllegalArgumentException("Unsupported relation: " + relation);
+            };
+        }
+
+        ShapeRelation relationship() {
+            return switch (relation) {
+                case WITHIN -> literalRight ? ShapeRelation.WITHIN : ShapeRelation.CONTAINS;
+                case CONTAINS -> literalRight ? ShapeRelation.CONTAINS : ShapeRelation.WITHIN;
+                default -> relation;
+            };
+        }
+
+        String predicate() {
+            String field = "location";
+            String literal = "TO_GEOSHAPE(\"POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))\")";
+            return literalRight ? function() + "(" + field + ", " + literal + ")" : function() + "(" + literal + ", " + field + ")";
+        }
     }
 
-    public void testPushSpatialContainsStringToSource() {
-        var plan = this.physicalPlan("""
-            FROM airports
-            | WHERE ST_CONTAINS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
-            """, airports);
-        var limit = as(plan, LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var limit2 = as(fragment.fragment(), Limit.class);
-        var filter = as(limit2.child(), Filter.class);
-        assertThat("filter contains ST_CONTAINS", filter.condition(), instanceOf(SpatialContains.class));
+    public void testPushDownSpatialRelatesStringToSource() {
+        TestSpatialRelation[] tests = new TestSpatialRelation[] {
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, false),
+            new TestSpatialRelation(ShapeRelation.WITHIN, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, false),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, false) };
+        for (TestSpatialRelation test : tests) {
+            var plan = this.physicalPlan("FROM airports | WHERE " + test.predicate(), airports);
+            var limit = as(plan, LimitExec.class);
+            var exchange = as(limit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var limit2 = as(fragment.fragment(), Limit.class);
+            var filter = as(limit2.child(), Filter.class);
+            assertThat(test.predicate(), filter.condition(), instanceOf(test.functionClass()));
 
-        var optimized = optimizedPlan(plan);
-        var topLimit = as(optimized, LimitExec.class);
-        exchange = as(topLimit.child(), ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
-        var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var source = source(fieldExtract.child());
-        // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-        // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-        var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
-        assertThat("Geometry field name", condition.fieldName(), equalTo("location"));
-        assertThat("Spatial relationship", condition.relation(), equalTo(ShapeRelation.CONTAINS));
-        assertThat("Geometry is Polygon", condition.shape().type(), equalTo(ShapeType.POLYGON));
-        var polygon = as(condition.shape(), Polygon.class);
-        assertThat("Polygon shell length", polygon.getPolygon().length(), equalTo(5));
-        assertThat("Polygon holes", polygon.getNumberOfHoles(), equalTo(0));
+            var optimized = optimizedPlan(plan);
+            var topLimit = as(optimized, LimitExec.class);
+            exchange = as(topLimit.child(), ExchangeExec.class);
+            var project = as(exchange.child(), ProjectExec.class);
+            var fieldExtract = as(project.child(), FieldExtractExec.class);
+            var source = source(fieldExtract.child());
+            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+            assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
+            assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
+            assertThat("Geometry is Polygon: " + test.predicate(), condition.shape().type(), equalTo(ShapeType.POLYGON));
+            var polygon = as(condition.shape(), Polygon.class);
+            assertThat("Polygon shell length: " + test.predicate(), polygon.getPolygon().length(), equalTo(5));
+            assertThat("Polygon holes: " + test.predicate(), polygon.getNumberOfHoles(), equalTo(0));
+        }
     }
 
     /**

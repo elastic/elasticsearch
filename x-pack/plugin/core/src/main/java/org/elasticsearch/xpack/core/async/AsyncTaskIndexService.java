@@ -510,34 +510,43 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         Class<T> tClass,
         Function<T, SR> statusProducerFromTask,
         TriFunction<R, Long, String, SR> statusProducerFromIndex,
-        ActionListener<SR> outerListener
+        ActionListener<SR> originalListener
     ) {
         // check if the result has expired
-        outerListener = outerListener.delegateFailure((listener, resp) -> {
+        final ActionListener<SR> outerListener = originalListener.delegateFailure((listener, resp) -> {
             if (resp.getExpirationTime() < System.currentTimeMillis()) {
                 listener.onFailure(new ResourceNotFoundException(request.getId()));
             } else {
                 listener.onResponse(resp);
             }
         });
-        AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
-        try {
-            T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
-            if (asyncTask != null) { // get status response from task
-                SR response = statusProducerFromTask.apply(asyncTask);
-                outerListener.onResponse(response);
-            } else {
-                // get status response from index
-                getResponseFromIndex(
-                    asyncExecutionId,
-                    false,
-                    false,
-                    outerListener.map(resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))
-                );
+        security.currentUserCanSeeStatusOfAllSearches(ActionListener.wrap(canSeeAll -> {
+            AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
+            try {
+                T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
+                if (asyncTask != null) { // get status response from task
+                    if (canSeeAll || security.currentUserHasAccessToTask(asyncTask)) {
+                        var response = statusProducerFromTask.apply(asyncTask);
+                        outerListener.onResponse(response);
+                    } else {
+                        outerListener.onFailure(new ResourceNotFoundException(request.getId()));
+                    }
+                } else {
+                    // get status response from index
+                    final boolean checkAuthentication = canSeeAll == false;
+                    getResponseFromIndex(
+                        asyncExecutionId,
+                        false,
+                        checkAuthentication,
+                        outerListener.map(
+                            resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded())
+                        )
+                    );
+                }
+            } catch (Exception exc) {
+                outerListener.onFailure(exc);
             }
-        } catch (Exception exc) {
-            outerListener.onFailure(exc);
-        }
+        }, outerListener::onFailure));
     }
 
     /**

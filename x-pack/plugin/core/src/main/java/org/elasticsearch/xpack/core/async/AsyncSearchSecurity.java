@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -47,24 +48,32 @@ public class AsyncSearchSecurity {
     }
 
     public void currentUserHasCancelTaskPrivilege(Consumer<Boolean> consumer) {
+        hasClusterPrivilege(
+            ClusterPrivilegeResolver.CANCEL_TASK.name(),
+            ActionListener.wrap(consumer::accept, ex -> consumer.accept(false))
+        );
+    }
+
+    public void currentUserCanSeeStatusOfAllSearches(ActionListener<Boolean> listener) {
+        // If the user has access to the action by-name, then they can get the status of any async search
+        hasClusterPrivilege(GetAsyncStatusAction.NAME, listener);
+    }
+
+    private void hasClusterPrivilege(String privilegeName, ActionListener<Boolean> listener) {
         final Authentication current = securityContext.getAuthentication();
         if (current != null) {
             HasPrivilegesRequest req = new HasPrivilegesRequest();
             req.username(current.getEffectiveSubject().getUser().principal());
-            req.clusterPrivileges(ClusterPrivilegeResolver.CANCEL_TASK.name());
+            req.clusterPrivileges(privilegeName);
             req.indexPrivileges(new RoleDescriptor.IndicesPrivileges[] {});
             req.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[] {});
             try {
-                client.execute(
-                    HasPrivilegesAction.INSTANCE,
-                    req,
-                    ActionListener.wrap(resp -> consumer.accept(resp.isCompleteMatch()), exc -> consumer.accept(false))
-                );
+                client.execute(HasPrivilegesAction.INSTANCE, req, listener.map(resp -> resp.isCompleteMatch()));
             } catch (Exception exc) {
-                consumer.accept(false);
+                listener.onFailure(exc);
             }
         } else {
-            consumer.accept(false);
+            listener.onResponse(false);
         }
     }
 
@@ -106,4 +115,5 @@ public class AsyncSearchSecurity {
             listener.onResponse(headers);
         }, exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
     }
+
 }

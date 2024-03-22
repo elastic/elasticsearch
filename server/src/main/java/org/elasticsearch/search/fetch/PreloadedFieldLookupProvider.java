@@ -32,25 +32,12 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
 
     @Override
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
-        if (storedFields == null) {
-            loadDirect(fieldLookup, doc);
-            return;
-        }
-        final String field = fieldLookup.fieldType().name();
+        String field = fieldLookup.fieldType().name();
         if (storedFields.containsKey(field)) {
             fieldLookup.setValues(storedFields.get(field));
             return;
         }
-        loadDirect(fieldLookup, doc);
-    }
-
-    /**
-     * If stored fields are not pre-loaded load directly
-     * @param fieldLookup a {@link FieldLookup} object with the field and its values
-     * @param doc the doc id of the document for which we are loading fields
-     * @throws IOException throws if the loading fails
-     */
-    private void loadDirect(final FieldLookup fieldLookup, int doc) throws IOException {
+        // stored field not preloaded, go and get it directly
         if (backUpLoader == null) {
             backUpLoader = loaderSupplier.get();
         }

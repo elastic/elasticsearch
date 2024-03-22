@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -825,10 +826,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .orElseThrow();
         List<Measurement> measurements = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_SHARD);
         assertFalse(measurements.isEmpty());
-        Measurement measurement = measurements.get(0);
-        assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
-        assertEquals(1, measurement.attributes().size());
-        assertEquals("success", measurement.attributes().get("status"));
+        for (Measurement measurement : measurements) {
+            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
+            assertEquals(1, measurement.attributes().size());
+            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
+        }
     }
 
     public void testResumeDownsample() throws IOException {

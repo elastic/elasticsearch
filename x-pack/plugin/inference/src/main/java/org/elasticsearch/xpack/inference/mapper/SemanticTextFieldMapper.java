@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -40,9 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.CHUNKS;
 import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_RESULTS;
 import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_TEXT;
-import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.RESULTS;
 
 /**
  * A {@link FieldMapper} for semantic text fields.
@@ -132,7 +133,6 @@ public class SemanticTextFieldMapper extends FieldMapper {
             }
         });
 
-        @SuppressWarnings("unchecked")
         private final Parameter<SemanticTextModelSettings> modelSettings = new Parameter<>(
             "model_settings",
             true,
@@ -167,7 +167,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
             final String fullName = context.buildFullName(name());
-            NestedObjectMapper.Builder nestedBuilder = new NestedObjectMapper.Builder(RESULTS, indexVersionCreated);
+            NestedObjectMapper.Builder nestedBuilder = new NestedObjectMapper.Builder(CHUNKS, indexVersionCreated);
             nestedBuilder.dynamic(ObjectMapper.Dynamic.FALSE);
             KeywordFieldMapper.Builder textMapperBuilder = new KeywordFieldMapper.Builder(INFERENCE_CHUNKS_TEXT, indexVersionCreated)
                 .indexed(false)
@@ -239,6 +239,11 @@ public class SemanticTextFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return super.syntheticFieldLoader();
     }
 
     private static Mapper.Builder createInferenceMapperBuilder(

@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
  *                  "model_settings": {
  *                      "task_type": "SPARSE_EMBEDDING"
  *                  },
- *                  "results" [
+ *                  "chunks" [
  *                      {
  *                          "inference": {
  *                              "lucas": 0.05212344,
@@ -89,22 +89,25 @@ import java.util.stream.Collectors;
  * }
  * </pre>
  *
- * This mapper parses the contents of the {@code _semantic_text_inference} field and indexes it as if the mapping were configured like so:
+ * This mapper parses the contents of the {@code _inference} field and indexes it as if the mapping were configured like so:
  * <br>
  * <br>
  * <pre>
  * {
  *     "mappings": {
  *         "properties": {
- *             "my_semantic_text_field": {
- *                 "type": "nested",
- *                 "properties": {
- *                     "sparse_embedding": {
- *                         "type": "sparse_vector"
- *                     },
- *                     "text": {
- *                         "type": "text",
- *                         "index": false
+ *             "my_semantic_field": {
+ *                 "chunks": {
+ *                      "type": "nested",
+ *                      "properties": {
+ *                          "embedding": {
+ *                              "type": "sparse_vector|dense_vector"
+ *                          },
+ *                          "text": {
+ *                              "type": "keyword",
+ *                              "index": false,
+ *                              "doc_values": false
+ *                          }
  *                     }
  *                 }
  *             }
@@ -118,7 +121,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_inference";
 
     public static final String INFERENCE_ID = "inference_id";
-    public static final String RESULTS = "results";
+    public static final String CHUNKS = "chunks";
     public static final String INFERENCE_CHUNKS_RESULTS = "inference";
     public static final String INFERENCE_CHUNKS_TEXT = "text";
 
@@ -283,10 +286,10 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
             XContentType.JSON
         );
         DocumentParserContext mapContext = context.switchParser(subParser);
-        parseFieldInferenceObject(xContentLocation, subParser, mapContext, nestedObjectMapper);
+        parseFieldInference(xContentLocation, subParser, mapContext, nestedObjectMapper);
     }
 
-    private void parseFieldInferenceObject(
+    private void parseFieldInference(
         XContentLocation xContentLocation,
         XContentParser parser,
         DocumentParserContext context,
@@ -296,13 +299,13 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         failIfTokenIsNot(xContentLocation, parser, XContentParser.Token.START_OBJECT);
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             switch (parser.currentName()) {
-                case RESULTS -> parseResultsList(xContentLocation, parser, context, nestedMapper);
+                case CHUNKS -> parseChunks(xContentLocation, parser, context, nestedMapper);
                 default -> throw new DocumentParsingException(xContentLocation, "Unknown field name " + parser.currentName());
             }
         }
     }
 
-    private void parseResultsList(
+    private void parseChunks(
         XContentLocation xContentLocation,
         XContentParser parser,
         DocumentParserContext context,
@@ -404,7 +407,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         Map<String, Object> fieldMap = new LinkedHashMap<>();
         fieldMap.put(INFERENCE_ID, model.getInferenceEntityId());
         fieldMap.putAll(new SemanticTextModelSettings(model).asMap());
-        fieldMap.put(RESULTS, chunks);
+        fieldMap.put(CHUNKS, chunks);
         inferenceMap.put(field, fieldMap);
     }
 
@@ -417,19 +420,18 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
      */
     static SemanticTextMapperContext createSemanticFieldContext(DocumentParserContext docContext, String fullName) {
         ObjectMapper rootMapper = docContext.mappingLookup().getMapping().getRoot();
-        return createSemanticFieldContext(MapperBuilderContext.root(false, false), rootMapper, fullName, fullName.split("\\."));
+        return createSemanticFieldContext(MapperBuilderContext.root(false, false), rootMapper, fullName.split("\\."));
     }
 
     static SemanticTextMapperContext createSemanticFieldContext(
         MapperBuilderContext mapperContext,
         ObjectMapper objectMapper,
-        String fullName,
         String[] paths
     ) {
         Mapper mapper = objectMapper.getMapper(paths[0]);
         if (mapper instanceof ObjectMapper newObjectMapper) {
             mapperContext = mapperContext.createChildContext(paths[0], ObjectMapper.Dynamic.FALSE);
-            return createSemanticFieldContext(mapperContext, newObjectMapper, fullName, Arrays.copyOfRange(paths, 1, paths.length));
+            return createSemanticFieldContext(mapperContext, newObjectMapper, Arrays.copyOfRange(paths, 1, paths.length));
         } else if (mapper instanceof SemanticTextFieldMapper semanticMapper) {
             return new SemanticTextMapperContext(mapperContext, semanticMapper);
         } else {

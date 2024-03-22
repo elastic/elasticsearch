@@ -223,7 +223,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         InferenceMetadataFieldMapper.SemanticTextMapperContext res = createSemanticFieldContext(
             MapperBuilderContext.root(false, false),
             mapperService.mappingLookup().getMapping().getRoot(),
-            fieldName,
             fieldName.split("\\.")
         );
         Mapper mapper = res.mapper();
@@ -242,7 +241,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         NestedObjectMapper nestedObjectMapper = mapperService.mappingLookup()
             .nestedLookup()
             .getNestedMappers()
-            .get(fieldName + "." + InferenceMetadataFieldMapper.RESULTS);
+            .get(fieldName + "." + InferenceMetadataFieldMapper.CHUNKS);
         assertThat(nestedObjectMapper, equalTo(semanticFieldMapper.getSubMappers()));
         Mapper textMapper = nestedObjectMapper.getMapper(InferenceMetadataFieldMapper.INFERENCE_CHUNKS_TEXT);
         assertNotNull(textMapper);

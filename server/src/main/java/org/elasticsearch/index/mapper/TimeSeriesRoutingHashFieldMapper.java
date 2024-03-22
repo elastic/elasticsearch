@@ -10,6 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
@@ -20,8 +22,10 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
+import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
 
@@ -43,6 +47,22 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
     static final class TimeSeriesRoutingHashFieldType extends MappedFieldType {
 
         private static final TimeSeriesRoutingHashFieldType INSTANCE = new TimeSeriesRoutingHashFieldType();
+        private static final DocValueFormat DOC_VALUE_FORMAT = new DocValueFormat() {
+
+            @Override
+            public String getWriteableName() {
+                return NAME;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+
+            @Override
+            public Object format(BytesRef value) {
+                return Uid.decodeId(value.bytes, value.offset, value.length);
+            }
+
+        };
 
         private TimeSeriesRoutingHashFieldType() {
             super(NAME, false, false, true, TextSearchInfo.NONE, Collections.emptyMap());
@@ -74,6 +94,11 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException("[" + NAME + "] is not searchable");
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+            return DOC_VALUE_FORMAT;
         }
     }
 

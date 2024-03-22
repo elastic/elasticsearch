@@ -41,11 +41,11 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -264,7 +264,8 @@ class OptimizerRules {
      * This rule must always be placed after {@link org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight}, since it looks
      * at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
      */
-    public static final class BooleanFunctionEqualsElimination extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+    public static final class BooleanFunctionEqualsElimination extends
+        org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
 
         BooleanFunctionEqualsElimination() {
             super(org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP);
@@ -287,7 +288,6 @@ class OptimizerRules {
             return bc;
         }
     }
-
 
     /**
      * Propagate Equals to eliminate conjuncted Ranges or BinaryComparisons.

@@ -92,13 +92,19 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
             """;
     }
 
-    public void testApiKeyOwnerProfileNoDomain() {
-        String username = randomFrom("user_with_manage_own_api_key_role", "user_with_manage_api_key_role");
+    public void testApiKeyOwnerProfileWithoutDomain() {
+        boolean ownKey = randomBoolean();
+        final String username;
+        if (ownKey) {
+            username = "user_with_manage_own_api_key_role";
+        } else {
+            username = "user_with_manage_api_key_role";
+        }
         SecureString password = randomFrom(FILE_USER_TEST_PASSWORD, NATIVE_USER_TEST_PASSWORD);
         Client client = client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, password)));
         CreateApiKeyRequest request = new CreateApiKeyRequest("key1", null, null, null);
         request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
-        final boolean firstActivateProfile = randomBoolean();
+        boolean firstActivateProfile = randomBoolean();
         Profile userWithManageOwnProfile = null;
         // activate profile, then create API key, or vice-versa
         if (firstActivateProfile) {
@@ -108,7 +114,11 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         if (false == firstActivateProfile) {
             userWithManageOwnProfile = AbstractProfileIntegTestCase.doActivateProfile(username, password);
         }
-        Tuple<ApiKey, String> apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(client, keyId1, randomBoolean());
+        Tuple<ApiKey, String> apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
+            client,
+            keyId1,
+            ownKey || randomBoolean()
+        );
         assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId1));
         assertThat(apiKeyWithProfileUid.v2(), is(userWithManageOwnProfile.uid()));
     }

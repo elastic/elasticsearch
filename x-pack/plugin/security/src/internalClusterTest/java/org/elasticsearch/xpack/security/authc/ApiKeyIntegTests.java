@@ -3352,12 +3352,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public static Tuple<ApiKey, String> getApiKeyInfoWithProfileUid(Client client, String apiKeyId, boolean withLimitedBy) {
+    public static Tuple<ApiKey, String> getApiKeyInfoWithProfileUid(Client client, String apiKeyId, boolean ownKey) {
         if (randomBoolean()) {
             PlainActionFuture<GetApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 GetApiKeyAction.INSTANCE,
-                GetApiKeyRequest.builder().apiKeyId(apiKeyId).withLimitedBy(withLimitedBy).withProfileUid(true).build(),
+                GetApiKeyRequest.builder()
+                    .apiKeyId(apiKeyId)
+                    .withLimitedBy(randomBoolean())
+                    .withProfileUid(true)
+                    .ownedByAuthenticatedUser(ownKey)
+                    .build(),
                 future
             );
             GetApiKeyResponse getApiKeyResponse = future.actionGet();
@@ -3368,7 +3373,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             PlainActionFuture<QueryApiKeyResponse> future = new PlainActionFuture<>();
             client.execute(
                 QueryApiKeyAction.INSTANCE,
-                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, null, withLimitedBy, true),
+                new QueryApiKeyRequest(QueryBuilders.idsQuery().addIds(apiKeyId), null, null, null, null, null, randomBoolean(), true),
                 future
             );
             QueryApiKeyResponse queryApiKeyResponse = future.actionGet();

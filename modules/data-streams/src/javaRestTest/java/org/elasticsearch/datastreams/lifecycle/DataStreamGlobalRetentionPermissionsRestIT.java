@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.datastreams;
+package org.elasticsearch.datastreams.lifecycle;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;

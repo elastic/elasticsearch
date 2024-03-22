@@ -106,7 +106,7 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
              * This test checks that a user with the "manage_data_stream_lifecycle" index privilege on "data-stream-lifecycle-*" data
              * streams can delete and put a lifecycle on the "data-stream-lifecycle-test" data stream, while a user with who does not have
              * that privilege (but does have all the other same "data-stream-lifecycle-*" privileges) cannot delete or put a lifecycle on
-             * that datastream.
+             * that data stream.
              */
             String dataStreamName = "data-stream-lifecycle-test"; // Needs to match the pattern of the names in roles.yml
             createDataStreamAsAdmin(dataStreamName);

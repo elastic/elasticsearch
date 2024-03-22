@@ -25,9 +25,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -180,15 +178,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private class ExchangeTransportAction implements TransportRequestHandler<ExchangeRequest> {
         @Override
-        public void messageReceived(ExchangeRequest request, TransportChannel channel, Task transportTask) {
+        public void messageReceived(ExchangeRequest request, TransportChannel channel, Task task) {
             final String exchangeId = request.exchangeId();
             ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
             final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
             if (sinkHandler == null) {
                 listener.onResponse(new ExchangeResponse(blockFactory, null, true));
             } else {
-                CancellableTask task = (CancellableTask) transportTask;
-                task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException(task.getReasonCancelled())));
                 sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
             }
         }

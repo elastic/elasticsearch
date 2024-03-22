@@ -173,8 +173,8 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
 
         XContentParser parser = context.parser();
         String fieldName = parser.currentName();
-        Mapper mapper = findMapper(context.root(), fieldName);
-        if ((mapper == null) || (SemanticTextFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false)) {
+        MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldName);
+        if ((fieldType == null) || (SemanticTextFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) == false)) {
             throw new DocumentParsingException(
                 parser.getTokenLocation(),
                 Strings.format("Field [%s] is not registered as a %s field type", fieldName, SemanticTextFieldMapper.CONTENT_TYPE)
@@ -201,18 +201,6 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
                 advancePastCurrentFieldName(parser);
             }
         }
-    }
-
-    private static Mapper findMapper(Mapper mapper, String fullPath) {
-        String[] pathElements = fullPath.split("\\.");
-        for (int i = 0; i < pathElements.length; i++) {
-            Mapper next = mapper.getMapper(pathElements[i]);
-            if (next == null) {
-                return null;
-            }
-            mapper = next;
-        }
-        return mapper;
     }
 
     private static void parseFieldInferenceChunks(

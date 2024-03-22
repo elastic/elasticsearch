@@ -171,42 +171,71 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var internalFiles = computeInternalFiles(reference);
         long compoundCommitFilesSize = internalFiles.stream().mapToLong(StatelessCompoundCommit.InternalFile::length).sum();
         var header = materializeCompoundCommitHeader(reference, internalFiles);
-        var pendingCompoundCommit = new PendingCompoundCommit(header, header.length + compoundCommitFilesSize, reference, internalFiles);
 
         // Blocking when adding the new CC and updating relevant fields so that they offer consistent view to other (freezing) threads
         synchronized (this) {
             if (isFrozen()) {
                 return false;
             }
-            pendingCompoundCommits.add(pendingCompoundCommit);
-            logger.debug("appended new CC [{}] to VBCC [{}]", pendingCompoundCommit, primaryTermAndGeneration);
 
-            long headerOffset = currentOffset.get();
-            internalFilesByOffset.put(headerOffset, new InternalHeaderOrFile(pendingCompoundCommit, null));
+            final long headerOffset = currentOffset.get();
             long startingOffset = headerOffset + header.length;
             // TODO: get rid of the blob length
             long blobLength = startingOffset + compoundCommitFilesSize;
             long internalFileOffset = startingOffset;
-            for (var internalFile : internalFiles) {
+            long[] offsets = new long[internalFiles.size()];
+            for (int i = 0; i < internalFiles.size(); i++) {
+                var internalFile = internalFiles.get(i);
+                offsets[i] = internalFileOffset;
                 var fileLength = internalFile.length();
                 var previousLocation = internalLocations.put(
                     internalFile.name(),
                     new BlobLocation(primaryTermAndGeneration.primaryTerm(), blobName, blobLength, internalFileOffset, fileLength)
                 );
                 assert previousLocation == null;
+                internalFileOffset += fileLength;
+            }
+            currentOffset.set(internalFileOffset);
+
+            var pendingCompoundCommit = new PendingCompoundCommit(
+                header,
+                reference,
+                internalFiles,
+                createStatelessCompoundCommit(reference, header.length + compoundCommitFilesSize)
+            );
+            pendingCompoundCommits.add(pendingCompoundCommit);
+            logger.debug("appended new CC [{}] to VBCC [{}]", pendingCompoundCommit, primaryTermAndGeneration);
+
+            internalFilesByOffset.put(headerOffset, new InternalHeaderOrFile(pendingCompoundCommit, null));
+            for (int i = 0; i < internalFiles.size(); i++) {
+                var internalFile = internalFiles.get(i);
                 var previousOffset = internalFilesByOffset.put(
-                    internalFileOffset,
+                    offsets[i],
                     new InternalHeaderOrFile(pendingCompoundCommit, internalFile.name())
                 );
                 assert previousOffset == null;
-                internalFileOffset += fileLength;
             }
-
-            currentOffset.set(internalFileOffset);
         }
         // The consistency can be asserted outside the blocking code since appendCommit runs single-threaded
         assert assertInternalConsistency();
         return true;
+    }
+
+    private StatelessCompoundCommit createStatelessCompoundCommit(StatelessCommitRef reference, long sizeInBytes) {
+        Map<String, BlobLocation> commitLocations = Maps.newMapWithExpectedSize(reference.getCommitFiles().size());
+        for (String commitFile : reference.getCommitFiles()) {
+            var blobLocation = getBlobLocation(commitFile);
+            assert blobLocation != null;
+            commitLocations.put(commitFile, blobLocation);
+        }
+        return new StatelessCompoundCommit(
+            reference.getShardId(),
+            new PrimaryTermAndGeneration(reference.getPrimaryTerm(), reference.getGeneration()),
+            reference.getTranslogRecoveryStartFile(),
+            nodeEphemeralId,
+            Collections.unmodifiableMap(commitLocations),
+            sizeInBytes
+        );
     }
 
     private boolean assertInternalConsistency() {
@@ -216,7 +245,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             .collect(Collectors.toUnmodifiableSet());
         assert allInternalFiles.equals(internalLocations.keySet()) : "all internal files must have internal blobLocations";
 
-        final var sizeInBytes = pendingCompoundCommits.stream().mapToLong(pendingCompoundCommit -> pendingCompoundCommit.sizeInBytes).sum();
+        final var sizeInBytes = pendingCompoundCommits.stream().mapToLong(PendingCompoundCommit::getSizeInBytes).sum();
         assert sizeInBytes == currentOffset.get() : "current offset must be at the end of the VBCC";
         final Map<Boolean, List<String>> internalFileGroup = internalFilesByOffset.values()
             .stream()
@@ -254,24 +283,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         List<StatelessCompoundCommit> compoundCommits = new ArrayList<>(pendingCompoundCommits.size());
         for (PendingCompoundCommit pendingCompoundCommit : pendingCompoundCommits) {
-            var commitRef = pendingCompoundCommit.getCommitReference();
-
-            Map<String, BlobLocation> commitLocations = Maps.newMapWithExpectedSize(commitRef.getCommitFiles().size());
-            for (String commitFile : commitRef.getCommitFiles()) {
-                var blobLocation = getBlobLocation(commitFile);
-                assert blobLocation != null;
-                commitLocations.put(commitFile, blobLocation);
-            }
-            compoundCommits.add(
-                new StatelessCompoundCommit(
-                    shardId,
-                    new PrimaryTermAndGeneration(commitRef.getPrimaryTerm(), commitRef.getGeneration()),
-                    commitRef.getTranslogRecoveryStartFile(),
-                    nodeEphemeralId,
-                    Collections.unmodifiableMap(commitLocations),
-                    pendingCompoundCommit.getSizeInBytes()
-                )
-            );
+            compoundCommits.add(pendingCompoundCommit.getStatelessCompoundCommit());
         }
         return new BatchedCompoundCommit(primaryTermAndGeneration, Collections.unmodifiableList(compoundCommits));
     }
@@ -420,25 +432,25 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     static class PendingCompoundCommit implements Closeable, Comparable<PendingCompoundCommit> {
         private final byte[] header;
         private final List<StatelessCompoundCommit.InternalFile> internalFiles;
-        private final long sizeInBytes;
         private final StatelessCommitRef reference;
+        private final StatelessCompoundCommit statelessCompoundCommit;
 
         /**
          * Creates a new pending to upload compound commit
          * @param header the materialized compound commit header
-         * @param sizeInBytes the size of the compound commit including codec, header, checksums and all files
          * @param reference the lucene commit reference
+         * @param statelessCompoundCommit the associated compound commit that will be uploaded
          */
         PendingCompoundCommit(
             byte[] header,
-            long sizeInBytes,
             StatelessCommitRef reference,
-            List<StatelessCompoundCommit.InternalFile> internalFiles
+            List<StatelessCompoundCommit.InternalFile> internalFiles,
+            StatelessCompoundCommit statelessCompoundCommit
         ) {
-            this.sizeInBytes = sizeInBytes;
             this.reference = reference;
             this.header = header;
             this.internalFiles = internalFiles;
+            this.statelessCompoundCommit = statelessCompoundCommit;
         }
 
         void writeToStore(OutputStream output) throws IOException {
@@ -454,8 +466,15 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             return reference;
         }
 
+        /**
+         * the size of the compound commit including codec, header, checksums and all files
+         */
         public long getSizeInBytes() {
-            return sizeInBytes;
+            return statelessCompoundCommit.sizeInBytes();
+        }
+
+        public StatelessCompoundCommit getStatelessCompoundCommit() {
+            return statelessCompoundCommit;
         }
 
         // package-private for testing

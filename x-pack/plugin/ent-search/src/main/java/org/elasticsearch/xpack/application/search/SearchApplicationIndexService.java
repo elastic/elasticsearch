@@ -333,8 +333,8 @@ public class SearchApplicationIndexService {
         );
         client.admin().indices().aliases(aliasesRequest, new ActionListener<>() {
             @Override
-            public void onResponse(IndicesAliasesResponse acknowledgedResponse) {
-                listener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
+            public void onResponse(IndicesAliasesResponse response) {
+                listener.onResponse(response);
             }
 
             @Override

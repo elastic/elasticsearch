@@ -105,6 +105,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user-dls", "x-pack-test-password", "user-dls", false)
         .user("user-cancel", "x-pack-test-password", "user-cancel", false)
+        .user("user-monitor", "x-pack-test-password", "user-monitor", false)
         .build();
 
     @Override
@@ -174,24 +175,43 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             Response submitResp = submitAsyncSearch(indexName, "foo:bar", TimeValue.timeValueSeconds(10), user);
             assertOK(submitResp);
             String id = extractResponseId(submitResp);
+
+            Response statusResp = getAsyncStatus(id, user);
+            assertOK(statusResp);
+
             Response getResp = getAsyncSearch(id, user);
             assertOK(getResp);
 
-            // other cannot access the result
-            ResponseException exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, other));
+            // other (user) cannot access the status
+            ResponseException exc = expectThrows(ResponseException.class, () -> getAsyncStatus(id, other));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+            // other (user) cannot access the result
+            exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, other));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             // user-cancel cannot access the result
             exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, "user-cancel"));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
+            // user-monitor can access the status
+            assertOK(getAsyncStatus(id, "user-monitor"));
+
+            // user-monitor cannot access the result
+            exc = expectThrows(ResponseException.class, () -> getAsyncSearch(id, "user-monitor"));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
             // other cannot delete the result
             exc = expectThrows(ResponseException.class, () -> deleteAsyncSearch(id, other));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
-            // other and user cannot access the result from direct get calls
+            // user-monitor cannot delete the result
+            exc = expectThrows(ResponseException.class, () -> deleteAsyncSearch(id, "user-monitor"));
+            assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+            // none of the users can access the result from direct get calls on the index
             AsyncExecutionId searchId = AsyncExecutionId.decode(id);
-            for (String runAs : new String[] { user, other }) {
+            for (String runAs : new String[] { user, other, "user-monitor", "user-cancel" }) {
                 exc = expectThrows(ResponseException.class, () -> get(ASYNC_RESULTS_INDEX, searchId.getDocId(), runAs));
                 assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
                 assertThat(exc.getMessage(), containsString("unauthorized"));
@@ -399,6 +419,12 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         request.addParameter("wait_for_completion_timeout", waitForCompletion.toString());
         // we do the cleanup explicitly
         request.addParameter("keep_on_completion", "true");
+        return client().performRequest(request);
+    }
+
+    static Response getAsyncStatus(String id, String user) throws IOException {
+        final Request request = new Request("GET", "/_async_search/status/" + id);
+        setRunAsHeader(request, user);
         return client().performRequest(request);
     }
 

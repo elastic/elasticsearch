@@ -9,18 +9,22 @@ setup:
       indices.put_index_template:
         name: my-lifecycle
         body:
-          index_patterns: [my-data-stream-1]
+          index_patterns: [my-data-stream-*]
           template:
             settings:
               index.number_of_replicas: 0
             lifecycle: {}
           data_stream: {}
 
+---
+"CRUD global retention":
   - do:
       indices.create_data_stream:
         name: my-data-stream-1
----
-"CRUD global retention":
+  - do:
+      cluster.health:
+        index: my-data-stream-1
+        wait_for_status: green
   - do:
       data_streams.put_global_retention:
         body:
@@ -49,14 +53,21 @@ setup:
       data_streams.get_global_retention: { }
   - is_false: default_retention
   - is_false: max_retention
+
+  - do:
+      indices.delete_data_stream:
+        name: my-data-stream-1
 ---
 "Dry run global retention":
   - do:
+      indices.create_data_stream:
+        name: my-data-stream-2
+  - do:
       indices.put_data_lifecycle:
-        name: "*"
+        name: "my-data-stream-2"
         body: >
           {
-            "data_retention": "30d"
+            "data_retention": "90d"
           }
   - is_true: acknowledged
 
@@ -64,10 +75,65 @@ setup:
       data_streams.put_global_retention:
         dry_run: true
         body:
-          default_retention: "1d"
-          max_retention: "3d"
+          default_retention: "7d"
+          max_retention: "30d"
   - is_false: acknowledged
   - is_true: dry_run
-  - match: {affected_data_streams.0.name: "my-data-stream-1"}
-  - match: {affected_data_streams.0.previous_effective_retention: "30d"}
-  - match: {affected_data_streams.0.new_effective_retention: "3d"}
+  - match: {affected_data_streams.0.name: "my-data-stream-2"}
+  - match: {affected_data_streams.0.previous_effective_retention: "90d"}
+  - match: {affected_data_streams.0.new_effective_retention: "30d"}
+
+  - do:
+      indices.get_data_stream:
+        name: "my-data-stream-2"
+        include_defaults: true
+  - match: { data_streams.0.name: my-data-stream-2 }
+  - match: { data_streams.0.lifecycle.effective_retention: '90d' }
+  - match: { data_streams.0.lifecycle.retention_determined_by: 'data_stream_configuration' }
+  - do:
+      indices.delete_data_stream:
+        name: my-data-stream-2
+---
+"Default global retention is retrieved by data stream and index templates":
+  - do:
+      indices.create_data_stream:
+        name: my-data-stream-3
+
+  - do:
+      data_streams.put_global_retention:
+        body:
+          default_retention: "7d"
+          max_retention: "90d"
+  - is_true: acknowledged
+  - is_false: dry_run
+  - match: {affected_data_streams.0.name: "my-data-stream-3"}
+  - match: {affected_data_streams.0.previous_effective_retention: "infinite"}
+  - match: {affected_data_streams.0.new_effective_retention: "7d"}
+
+  - do:
+      data_streams.get_global_retention: { }
+  - match: { default_retention: "7d" }
+  - match: { max_retention: "90d" }
+
+  - do:
+      indices.get_data_stream:
+        name: "my-data-stream-3"
+  - match: { data_streams.0.name: my-data-stream-3 }
+  - match: { data_streams.0.lifecycle.effective_retention: '7d' }
+  - match: { data_streams.0.lifecycle.retention_determined_by: 'default_global_retention' }
+  - match: { data_streams.0.lifecycle.enabled: true }
+
+  - do:
+      indices.get_index_template:
+        name: my-lifecycle
+
+  - match: { index_templates.0.name: my-lifecycle }
+  - match: { index_templates.0.index_template.template.lifecycle.enabled: true }
+  - match: { index_templates.0.index_template.template.lifecycle.effective_retention: "7d" }
+  - match: { index_templates.0.index_template.template.lifecycle.retention_determined_by: "default_global_retention" }
+
+  - do:
+      data_streams.delete_global_retention: { }
+  - do:
+      indices.delete_data_stream:
+        name: my-data-stream-3

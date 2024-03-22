@@ -45,9 +45,4 @@ public class HaHdfsFailoverTestSuiteIT extends AbstractHaHdfsFailoverTestSuiteIT
     HdfsFixture getHdfsFixture() {
         return hdfsFixture;
     }
-
-    @Override
-    String securityCredentials() {
-        return "";
-    }
 }

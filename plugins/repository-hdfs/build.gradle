@@ -104,6 +104,10 @@ tasks.register("yamlRestTestHdfs2", RestIntegTestTask) {
   classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture2
 }
 
+tasks.named("check").configure {
+  dependsOn(tasks.withType(RestIntegTestTask))
+}
+
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
   ignoreViolations(

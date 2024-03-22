@@ -22,7 +22,7 @@ public class SecureHaHdfsFailoverTestSuiteIT extends AbstractHaHdfsFailoverTestS
     public static Krb5kDcContainer krb5Fixture = new Krb5kDcContainer();
 
     public static HdfsFixture hdfsFixture = new HdfsFixture().withHAService("ha-hdfs")
-        .withKerberos(() -> krb5Fixture.getPrincipal(), () -> krb5Fixture.getConfPath(), () -> krb5Fixture.getKeytab());
+        .withKerberos(() -> krb5Fixture.getPrincipal(), () -> krb5Fixture.getKeytab());
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)

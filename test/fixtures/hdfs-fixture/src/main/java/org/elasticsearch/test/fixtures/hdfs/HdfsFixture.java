@@ -58,7 +58,6 @@ public class HdfsFixture extends ExternalResource {
     private MiniDFSCluster dfs;
     private String haNameService;
     private Supplier<String> principalConfig = null;
-    private Supplier<Path> krb5Conf = null;
     private Supplier<Path> keytab = null;
     private Configuration cfg;
 
@@ -71,9 +70,8 @@ public class HdfsFixture extends ExternalResource {
         return this;
     }
 
-    public HdfsFixture withKerberos(Supplier<String> principalConfig, Supplier<Path> krb5confFile, Supplier<Path> keytabFile) {
+    public HdfsFixture withKerberos(Supplier<String> principalConfig, Supplier<Path> keytabFile) {
         this.principalConfig = principalConfig;
-        this.krb5Conf = krb5confFile;
         this.keytab = keytabFile;
         return this;
     }
@@ -81,11 +79,8 @@ public class HdfsFixture extends ExternalResource {
     @Override
     protected void before() throws Throwable {
         temporaryFolder.create();
-        // TODO fix assumeHdfsAvailable();
-        // assumeHdfsAvailable();
-        // UserGroupInformation.reset();
+        assumeHdfsAvailable();
         startMinHdfs();
-        super.before();
     }
 
     private void assumeHdfsAvailable() {
@@ -299,7 +294,7 @@ public class HdfsFixture extends ExternalResource {
             }
             dfs.close();
         }
-        super.after();
+        temporaryFolder.delete();
     }
 
     private boolean isHA() {

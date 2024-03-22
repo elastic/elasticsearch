@@ -27,7 +27,9 @@ abstract class AbstractHaHdfsFailoverTestSuiteIT extends ESRestTestCase {
 
     abstract HdfsFixture getHdfsFixture();
 
-    abstract String securityCredentials();
+    String securityCredentials() {
+        return "";
+    }
 
     public void testHAFailoverWithRepository() throws Exception {
         getHdfsFixture().setupHA();
@@ -69,4 +71,5 @@ abstract class AbstractHaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         Response response = client.performRequest(request);
         Assert.assertEquals(200, response.getStatusLine().getStatusCode());
     }
+
 }

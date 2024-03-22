@@ -26,11 +26,7 @@ public class SecureHdfsSnapshotRepoTestKitIT extends AbstractHdfsSnapshotRepoTes
 
     public static Krb5kDcContainer krb5Fixture = new Krb5kDcContainer();
 
-    public static HdfsFixture hdfsFixture = new HdfsFixture().withKerberos(
-        () -> krb5Fixture.getPrincipal(),
-        () -> krb5Fixture.getConfPath(),
-        () -> krb5Fixture.getKeytab()
-    );
+    public static HdfsFixture hdfsFixture = new HdfsFixture().withKerberos(() -> krb5Fixture.getPrincipal(), () -> krb5Fixture.getKeytab());
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)

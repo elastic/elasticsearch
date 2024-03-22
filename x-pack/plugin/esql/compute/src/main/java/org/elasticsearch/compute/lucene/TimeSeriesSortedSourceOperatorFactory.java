@@ -261,29 +261,20 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                     }
                 } else {
                     int previousTsidOrd = leaf.timeSeriesHashOrd;
-                    boolean breakOnNextTsidChange = false;
                     // Only one segment, so no need to use priority queue and use segment ordinals as tsid ord.
                     while (leaf.nextDoc()) {
-                        if (remainingDocs <= 0) {
-                            break;
-                        }
-                        if (currentPagePos > maxPageSize) {
-                            breakOnNextTsidChange = true;
-                        }
-                        if (breakOnNextTsidChange) {
-                            if (previousTsidOrd != leaf.timeSeriesHashOrd) {
-                                break;
-                            }
-                        }
-
-                        currentPagePos++;
-                        remainingDocs--;
-
                         tsOrdBuilder.appendInt(leaf.timeSeriesHashOrd);
                         timestampIntervalBuilder.appendLong(leaf.timestamp);
                         // Don't append segment ord, because there is only one segment.
                         docsBuilder.appendInt(leaf.iterator.docID());
-                        previousTsidOrd = leaf.timeSeriesHashOrd;
+                        currentPagePos++;
+                        remainingDocs--;
+                        if (previousTsidOrd != leaf.timeSeriesHashOrd) {
+                            break;
+                        }
+                        if (remainingDocs <= 0 || currentPagePos >= maxPageSize) {
+                            break;
+                        }
                     }
                 }
             }

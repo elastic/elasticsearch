@@ -203,7 +203,7 @@ The type of the associated action, the values will be one of `add`, `remove`, or
 
 `success`::
 (boolean)
-If true, the requested action was successfully applied at least once.
+If true, the requested action was successfully applied to at least one alias.
 
 `error`::
 (Optional, string)

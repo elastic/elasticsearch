@@ -54,6 +54,8 @@ import java.util.function.Supplier;
 
 public class HdfsFixture extends ExternalResource {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(HdfsFixture.class);
+
     private TemporaryFolder temporaryFolder = new TemporaryFolder();
     private MiniDFSCluster dfs;
     private String haNameService;
@@ -61,7 +63,6 @@ public class HdfsFixture extends ExternalResource {
     private Supplier<Path> keytab = null;
     private Configuration cfg;
 
-    private final Logger logger = LoggerFactory.getLogger(getClass());
     private Configuration haConfiguration;
     private int explicitPort = findAvailablePort();
 
@@ -125,7 +126,7 @@ public class HdfsFixture extends ExternalResource {
      */
     public void failoverHDFS(String from, String to) throws IOException {
         assert isHA() && haConfiguration != null : "HA Configuration must be set up before performing failover";
-        logger.info("Swapping active namenodes: [{}] to standby and [{}] to active", from, to);
+        LOGGER.info("Swapping active namenodes: [{}] to standby and [{}] to active", from, to);
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 CloseableHAAdmin haAdmin = new CloseableHAAdmin();
@@ -164,7 +165,7 @@ public class HdfsFixture extends ExternalResource {
             if (Files.isReadable(kt) != true) {
                 throw new IllegalStateException("Could not read keytab at " + keytab.get());
             }
-            logger.info("Keytab Length: " + Files.readAllBytes(kt).length);
+            LOGGER.info("Keytab Length: " + Files.readAllBytes(kt).length);
 
             // set principal names
             String hdfsKerberosPrincipal = principalConfig.get();
@@ -431,7 +432,7 @@ public class HdfsFixture extends ExternalResource {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         } catch (Exception ex) {
-            ex.printStackTrace();
+            LOGGER.error("Failed to find available port", ex);
         }
         return -1;
     }

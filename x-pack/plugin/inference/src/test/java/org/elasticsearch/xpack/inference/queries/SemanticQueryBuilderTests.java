@@ -43,6 +43,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_RESULTS;
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.RESULTS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -73,7 +74,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(PutMappingRequest.simpleMapping(SEMANTIC_TEXT_SPARSE_FIELD, "type=semantic_text,model_id=test_service"))
+                Strings.toString(
+                    PutMappingRequest.simpleMapping(SEMANTIC_TEXT_SPARSE_FIELD, "type=semantic_text,inference_id=test_service")
+                )
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
@@ -125,7 +128,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             assertThat(boostQuery.getQuery(), instanceOf(TermQuery.class));
 
             TermQuery termQuery = (TermQuery) boostQuery.getQuery();
-            assertThat(termQuery.getTerm().field(), equalTo(SEMANTIC_TEXT_SPARSE_FIELD + "." + INFERENCE_CHUNKS_RESULTS));
+            assertThat(termQuery.getTerm().field(), equalTo(SEMANTIC_TEXT_SPARSE_FIELD + "." + RESULTS + "." + INFERENCE_CHUNKS_RESULTS));
             assertThat(termQuery.getTerm().text().length(), equalTo(QUERY_TOKEN_LENGTH));
         }
     }

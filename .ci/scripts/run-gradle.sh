@@ -36,9 +36,7 @@ if [[ "$MAX_WORKERS" == "0" ]]; then
   MAX_WORKERS=1
 fi
 # TODO remove this
-if [[ "$MAX_WORKERS" == "16" ]]; then
-  MAX_WORKERS=4
-fi
+MAX_WORKERS=4
 
 set -e
 $GRADLEW -S --max-workers=$MAX_WORKERS $@

@@ -46,6 +46,9 @@ public class FieldFetcher {
     /**
      * Build a FieldFetcher for a given search context and collection of fields and formats.
      *
+     * @implNote : see {@link org.elasticsearch.index.query.QueryRewriteContext} to see why we
+     * skip null {@link MappedFieldType}.
+     *
      * @param context The {@link SearchExecutionContext} used to retrieve the {@link MappedFieldType}.
      * @param fieldAndFormats field names to fetch and their display format.
      * @param fetchStoredFields whether stored fields should be fetched or not.
@@ -71,8 +74,9 @@ public class FieldFetcher {
 
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
-                // NOTE: unmapped field when field included in `stored_fields`, can't use ValueFetcher.
-                // The field will be fetched as part of the `StoredFieldsPhase`
+                // NOTE: fields that are not allowed for security reasons behave as if they are unmapped.
+                // In that case we do not expect to return values for those fields so the ValueFetcher
+                // is not needed.
                 if (ft == null) {
                     continue;
                 }

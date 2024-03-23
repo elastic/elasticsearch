@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
@@ -95,6 +96,14 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         boolean leftDV = leftDocValues || foundField(left(), attributes);
         boolean rightDV = rightDocValues || foundField(right(), attributes);
         return new SpatialWithin(source(), left(), right(), leftDV, rightDV);
+    }
+
+    /**
+     * Push-down to Lucene is currently not possible for CARTESIAN data.
+     */
+    @Override
+    public boolean canPushToSource(Predicate<FieldAttribute> isAggregatable) {
+        return crsType() == SpatialCrsType.GEO && super.canPushToSource(isAggregatable);
     }
 
     @Override

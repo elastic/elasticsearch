@@ -123,6 +123,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.expression.Expressions.names;
@@ -2928,7 +2929,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
     }
 
-    private record TestSpatialRelation(ShapeRelation relation, boolean literalRight) {
+    private record TestSpatialRelation(ShapeRelation relation, TestDataSource index, boolean literalRight, boolean canPushToSource) {
         String function() {
             return switch (relation) {
                 case INTERSECTS -> "ST_INTERSECTS";
@@ -2955,23 +2956,37 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             };
         }
 
+        DataType locationType() {
+            return index.index.name().endsWith("_web") ? CARTESIAN_POINT : GEO_POINT;
+        }
+
+        String castFunction() {
+            return index.index.name().endsWith("_web") ? "TO_CARTESIANSHAPE" : "TO_GEOSHAPE";
+        }
+
         String predicate() {
             String field = "location";
-            String literal = "TO_GEOSHAPE(\"POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))\")";
+            String literal = castFunction() + "(\"POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))\")";
             return literalRight ? function() + "(" + field + ", " + literal + ")" : function() + "(" + literal + ", " + field + ")";
         }
     }
 
     public void testPushDownSpatialRelatesStringToSource() {
         TestSpatialRelation[] tests = new TestSpatialRelation[] {
-            new TestSpatialRelation(ShapeRelation.INTERSECTS, true),
-            new TestSpatialRelation(ShapeRelation.INTERSECTS, false),
-            new TestSpatialRelation(ShapeRelation.WITHIN, true),
-            new TestSpatialRelation(ShapeRelation.WITHIN, false),
-            new TestSpatialRelation(ShapeRelation.CONTAINS, true),
-            new TestSpatialRelation(ShapeRelation.CONTAINS, false) };
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, false, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, false),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, false),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, false),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, false, false) };
         for (TestSpatialRelation test : tests) {
-            var plan = this.physicalPlan("FROM airports | WHERE " + test.predicate(), airports);
+            var plan = this.physicalPlan("FROM " + test.index.index.name() + " | WHERE " + test.predicate(), test.index);
             var limit = as(plan, LimitExec.class);
             var exchange = as(limit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
@@ -2984,36 +2999,54 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             exchange = as(topLimit.child(), ExchangeExec.class);
             var project = as(exchange.child(), ProjectExec.class);
             var fieldExtract = as(project.child(), FieldExtractExec.class);
-            var source = source(fieldExtract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
-            assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
-            assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
-            assertThat("Geometry is Polygon: " + test.predicate(), condition.shape().type(), equalTo(ShapeType.POLYGON));
-            var polygon = as(condition.shape(), Polygon.class);
-            assertThat("Polygon shell length: " + test.predicate(), polygon.getPolygon().length(), equalTo(5));
-            assertThat("Polygon holes: " + test.predicate(), polygon.getNumberOfHoles(), equalTo(0));
+            if (test.canPushToSource) {
+                var source = source(fieldExtract.child());
+                // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+                // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+                var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+                assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
+                assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
+                assertThat("Geometry is Polygon: " + test.predicate(), condition.shape().type(), equalTo(ShapeType.POLYGON));
+                var polygon = as(condition.shape(), Polygon.class);
+                assertThat("Polygon shell length: " + test.predicate(), polygon.getPolygon().length(), equalTo(5));
+                assertThat("Polygon holes: " + test.predicate(), polygon.getNumberOfHoles(), equalTo(0));
+            } else {
+                // Currently CARTESIAN fields do not support lucene push-down for CONTAINS/WITHIN
+                var limitExec = as(fieldExtract.child(), LimitExec.class);
+                var filterExec = as(limitExec.child(), FilterExec.class);
+                var fieldExtractLocation = as(filterExec.child(), FieldExtractExec.class);
+                assertThat(test.predicate(), fieldExtractLocation.attributesToExtract().size(), equalTo(1));
+                assertThat(test.predicate(), fieldExtractLocation.attributesToExtract().get(0).name(), equalTo("location"));
+                var source = source(fieldExtractLocation.child());
+                assertThat(test.predicate(), source.query(), equalTo(null));
+            }
         }
     }
 
     public void testPushDownSpatialRelatesStringToSourceAndUseDocValuesForCentroid() {
         TestSpatialRelation[] tests = new TestSpatialRelation[] {
-            new TestSpatialRelation(ShapeRelation.INTERSECTS, true),
-            new TestSpatialRelation(ShapeRelation.INTERSECTS, false),
-            new TestSpatialRelation(ShapeRelation.WITHIN, true),
-            new TestSpatialRelation(ShapeRelation.WITHIN, false),
-            new TestSpatialRelation(ShapeRelation.CONTAINS, true),
-            new TestSpatialRelation(ShapeRelation.CONTAINS, false) };
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, false),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, false),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, false),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, false, false) };
         for (TestSpatialRelation test : tests) {
             var centroidExpr = "centroid=ST_CENTROID(location), count=COUNT()";
-            var plan = this.physicalPlan("FROM airports | WHERE " + test.predicate() + " | STATS " + centroidExpr, airports);
+            var plan = this.physicalPlan(
+                "FROM " + test.index.index.name() + " | WHERE " + test.predicate() + " | STATS " + centroidExpr,
+                test.index
+            );
             var limit = as(plan, LimitExec.class);
             var agg = as(limit.child(), AggregateExec.class);
             assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
             // Before optimization the aggregation does not use doc-values
             assertAggregation(agg, "count", Count.class);
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, test.locationType(), false);
             var exchange = as(agg.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
             var fAgg = as(fragment.fragment(), Aggregate.class);
@@ -3026,28 +3059,41 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             agg = as(limit.child(), AggregateExec.class);
             // Above the exchange (in coordinator) the aggregation is not using doc-values
             assertAggregation(agg, "count", Count.class);
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, test.locationType(), false);
             exchange = as(agg.child(), ExchangeExec.class);
             agg = as(exchange.child(), AggregateExec.class);
             assertThat("Aggregation is PARTIAL", agg.getMode(), equalTo(PARTIAL));
             // below the exchange (in data node) the aggregation is using doc-values
             assertAggregation(agg, "count", Count.class);
-            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-            var extract = as(agg.child(), FieldExtractExec.class);
-            assertTrue(
-                "Expect field attribute to be extracted as doc-values",
-                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-            );
-            var source = source(extract.child());
-            // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
-            // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
-            var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
-            assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
-            assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
-            assertThat("Geometry is Polygon: " + test.predicate(), condition.shape().type(), equalTo(ShapeType.POLYGON));
-            var polygon = as(condition.shape(), Polygon.class);
-            assertThat("Polygon shell length: " + test.predicate(), polygon.getPolygon().length(), equalTo(5));
-            assertThat("Polygon holes: " + test.predicate(), polygon.getNumberOfHoles(), equalTo(0));
+            assertAggregation(agg, "centroid", SpatialCentroid.class, test.locationType(), true);
+            if (test.canPushToSource) {
+                var extract = as(agg.child(), FieldExtractExec.class);
+                assertTrue(
+                    "Expect field attribute to be extracted as doc-values",
+                    extract.attributesToExtract()
+                        .stream()
+                        .allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == test.locationType())
+                );
+                var source = source(extract.child());
+                // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+                // var condition = as(sv(source.query(), "location"), AbstractGeometryQueryBuilder.class);
+                var condition = as(source.query(), SpatialRelatesQuery.ShapeQueryBuilder.class);
+                assertThat("Geometry field name: " + test.predicate(), condition.fieldName(), equalTo("location"));
+                assertThat("Spatial relationship: " + test.predicate(), condition.relation(), equalTo(test.relationship()));
+                assertThat("Geometry is Polygon: " + test.predicate(), condition.shape().type(), equalTo(ShapeType.POLYGON));
+                var polygon = as(condition.shape(), Polygon.class);
+                assertThat("Polygon shell length: " + test.predicate(), polygon.getPolygon().length(), equalTo(5));
+                assertThat("Polygon holes: " + test.predicate(), polygon.getNumberOfHoles(), equalTo(0));
+            } else {
+                // Currently CARTESIAN fields do not support lucene push-down for CONTAINS/WITHIN
+                var filterExec = as(agg.child(), FilterExec.class);
+                var fieldExtractLocation = as(filterExec.child(), FieldExtractExec.class);
+                assertThat(test.predicate(), fieldExtractLocation.attributesToExtract().size(), equalTo(1));
+                assertThat(test.predicate(), fieldExtractLocation.attributesToExtract().get(0).name(), equalTo("location"));
+                var source = source(fieldExtractLocation.child());
+                assertThat(test.predicate(), source.query(), equalTo(null));
+
+            }
         }
     }
 

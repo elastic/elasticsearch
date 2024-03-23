@@ -13,17 +13,12 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Snapshot status response
@@ -53,23 +48,6 @@ public class SnapshotsStatusResponse extends ActionResponse implements ChunkedTo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(snapshots);
-    }
-
-    private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshots_status_response",
-        true,
-        (Object[] parsedObjects) -> {
-            @SuppressWarnings("unchecked")
-            List<SnapshotStatus> snapshots = (List<SnapshotStatus>) parsedObjects[0];
-            return new SnapshotsStatusResponse(snapshots);
-        }
-    );
-    static {
-        PARSER.declareObjectArray(constructorArg(), SnapshotStatus.PARSER, new ParseField("snapshots"));
-    }
-
-    public static SnapshotsStatusResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 
     @Override

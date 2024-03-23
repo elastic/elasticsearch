@@ -129,7 +129,9 @@ error_rate:double | hour:date
 ;
 
 
-nullOnMultivaluesMathOperation#[skip:-8.13.99,reason:fixed in 8.14+]
+nullOnMultivaluesMathOperation
+required_feature: esql.disable_nullable_opts
+
 ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NULL;
 warning:Line 1:37: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:37: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -139,7 +141,9 @@ a:integer | b:integer | sum:integer
 ;
 
 
-notNullOnMultivaluesMathOperation#[skip:-8.13.99,reason:fixed in 8.14+]
+notNullOnMultivaluesMathOperation
+required_feature: esql.disable_nullable_opts
+
 ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NOT NULL;
 warning:Line 1:37: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:37: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -148,7 +152,9 @@ a:integer | b:integer | sum:integer
 ;
 
 
-nullOnMultivaluesComparisonOperation#[skip:-8.13.99,reason:fixed in 8.14+]
+nullOnMultivaluesComparisonOperation
+required_feature: esql.disable_nullable_opts
+
 ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NULL;
 
 a:integer | b:integer | same:boolean
@@ -156,14 +162,18 @@ a:integer | b:integer | same:boolean
 ;
 
 
-notNullOnMultivaluesComparisonOperation#[skip:-8.13.99,reason:fixed in 8.14+]
+notNullOnMultivaluesComparisonOperation
+required_feature: esql.disable_nullable_opts
+
 ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL;
 
 a:integer | b:integer | same:boolean
 ;
 
 
-notNullOnMultivaluesComparisonOperationWithPartialMatch#[skip:-8.13.99,reason:fixed in 8.14+]
+notNullOnMultivaluesComparisonOperationWithPartialMatch
+required_feature: esql.disable_nullable_opts
+
 ROW a = 5, b = [ 5, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL;
 
 a:integer | b:integer | same:boolean

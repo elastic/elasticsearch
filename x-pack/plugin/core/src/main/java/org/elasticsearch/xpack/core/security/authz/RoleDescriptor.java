@@ -1623,7 +1623,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return sb.toString();
         }
 
-        static Restriction parse(String roleName, XContentParser parser) throws IOException {
+        public static Restriction parse(String roleName, XContentParser parser) throws IOException {
             // advance to the START_OBJECT token if needed
             XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
             if (token != XContentParser.Token.START_OBJECT) {

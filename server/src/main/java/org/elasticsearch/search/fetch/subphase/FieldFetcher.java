@@ -93,7 +93,7 @@ public class FieldFetcher {
         }
 
         // The fields need to be sorted so that the nested partition functions will work correctly.
-        resolvedFields.sort(Comparator.comparing(resolvedField -> resolvedField.field));
+        resolvedFields.sort(Comparator.comparing(resolvedField -> resolvedField.mappedFieldType.name()));
 
         Map<String, FieldContext> fieldContexts = buildFieldContexts(context, "", resolvedFields, unmappedFetchPattern);
 

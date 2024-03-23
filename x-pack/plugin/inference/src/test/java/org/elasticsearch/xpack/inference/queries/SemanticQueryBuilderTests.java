@@ -10,17 +10,24 @@ package org.elasticsearch.xpack.inference.queries;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
@@ -28,11 +35,15 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -41,21 +52,79 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
+import static org.apache.lucene.search.BooleanClause.Occur.MUST;
+import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_RESULTS;
-import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.RESULTS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-// TODO: Add dense vector tests
-
 public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQueryBuilder> {
-    private static final String SEMANTIC_TEXT_SPARSE_FIELD = "semantic_sparse";
+    private static final String SEMANTIC_TEXT_FIELD = "semantic";
     private static final float TOKEN_WEIGHT = 0.5f;
     private static final int QUERY_TOKEN_LENGTH = 4;
+    private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 10;
+
+    private static final String SPARSE_EMBEDDING_INFERENCE_RESULTS = Strings.format("""
+                {
+                    "%s": {
+                        "%s": {
+                            "inference_id": "test_service",
+                            "model_settings": {
+                                "task_type": "SPARSE_EMBEDDING"
+                            },
+                            "results": [
+                                {
+                                    "inference": {
+                                        "feature_0": 1.0
+                                    },
+                                    "text": "feature_0"
+                                }
+                            ]
+                        }
+                    }
+                }
+            """, InferenceMetadataFieldMapper.NAME, SEMANTIC_TEXT_FIELD);
+
+    // TODO: Dynamically generate proper inference results
+    private static final String TEXT_EMBEDDING_INFERENCE_RESULTS = Strings.format("""
+                {
+                    "%s": {
+                        "%s": {
+                            "inference_id": "test_service",
+                            "model_settings": {
+                                "task_type": "TEXT_EMBEDDING",
+                                "dimensions": %d,
+                                "similarity": "cosine"
+                            },
+                            "results": [
+                                {
+                                    "inference": [ 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ],
+                                    "text": "feature_0"
+                                }
+                            ]
+                        }
+                    }
+                }
+            """, InferenceMetadataFieldMapper.NAME, SEMANTIC_TEXT_FIELD, TEXT_EMBEDDING_DIMENSION_COUNT);
+
+    private static InferenceResultType inferenceResultType;
+
+    private enum InferenceResultType {
+        NONE,
+        SPARSE_EMBEDDING,
+        TEXT_EMBEDDING
+    }
 
     private Integer queryTokenCount;
+
+    @BeforeClass
+    public static void setInferenceResultType()  {
+        // The inference result type is a class variable because it is used when initializing additional mappings,
+        // which happens once per test suite run in AbstractBuilderTestCase#beforeTest as part of service holder creation.
+        inferenceResultType = randomFrom(InferenceResultType.values());
+    }
 
     @Override
     @Before
@@ -70,16 +139,44 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     @Override
+    protected Settings createTestIndexSettings() {
+        // TODO: Randomize index version within compatible range
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+    }
+
+    @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge(
             "_doc",
             new CompressedXContent(
                 Strings.toString(
-                    PutMappingRequest.simpleMapping(SEMANTIC_TEXT_SPARSE_FIELD, "type=semantic_text,inference_id=test_service")
+                    PutMappingRequest.simpleMapping(SEMANTIC_TEXT_FIELD, "type=semantic_text,inference_id=test_service")
                 )
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
+
+        applyRandomInferenceResults(mapperService);
+    }
+
+    private void applyRandomInferenceResults(MapperService mapperService) {
+        // Parse random inference results (or no inference results) to set up the dynamic inference result mappings under the semantic text
+        // field
+        String source = switch (inferenceResultType) {
+            case SPARSE_EMBEDDING -> SPARSE_EMBEDDING_INFERENCE_RESULTS;
+            case TEXT_EMBEDDING -> TEXT_EMBEDDING_INFERENCE_RESULTS;
+            default -> null;
+        };
+
+        if (source != null) {
+            SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
+            ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
+            mapperService.merge(
+                "_doc",
+                parsedDocument.dynamicMappingsUpdate().toCompressedXContent(),
+                MapperService.MergeReason.MAPPING_UPDATE
+            );
+        }
     }
 
     @Override
@@ -90,7 +187,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             queryTokens.add(randomAlphaOfLength(QUERY_TOKEN_LENGTH));
         }
 
-        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_SPARSE_FIELD, String.join(" ", queryTokens));
+        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_FIELD, String.join(" ", queryTokens));
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -108,29 +205,54 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
 
         ESToParentBlockJoinQuery nestedQuery = (ESToParentBlockJoinQuery) query;
-        assertThat(nestedQuery.getPath(), equalTo(SEMANTIC_TEXT_SPARSE_FIELD));
         assertThat(nestedQuery.getScoreMode(), equalTo(ScoreMode.Total));
-        assertThat(nestedQuery.getChildQuery(), instanceOf(BooleanQuery.class));
 
-        assertSparseVectorBooleanQuery((BooleanQuery) nestedQuery.getChildQuery());
+        switch (inferenceResultType) {
+            case NONE -> assertThat(nestedQuery.getChildQuery(), instanceOf(MatchNoDocsQuery.class));
+            case SPARSE_EMBEDDING -> assertSparseEmbeddingLuceneQuery(nestedQuery.getChildQuery());
+            case TEXT_EMBEDDING -> assertTextEmbeddingLuceneQuery(nestedQuery.getChildQuery());
+        }
     }
 
-    private void assertSparseVectorBooleanQuery(BooleanQuery booleanQuery) {
-        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(1));
-        assertThat(booleanQuery.clauses().size(), equalTo(queryTokenCount));
+    private void assertSparseEmbeddingLuceneQuery(Query query) {
+        Query innerQuery = assertOuterBooleanQuery(query);
+        assertThat(innerQuery, instanceOf(BooleanQuery.class));
 
-        for (BooleanClause booleanClause : booleanQuery.clauses()) {
-            assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-            assertThat(booleanClause.getQuery(), instanceOf(BoostQuery.class));
+        BooleanQuery innerBooleanQuery = (BooleanQuery) innerQuery;
+        assertThat(innerBooleanQuery.clauses().size(), equalTo(queryTokenCount));
+        innerBooleanQuery.forEach(c -> {
+            assertThat(c.getOccur(), equalTo(SHOULD));
+            assertThat(c.getQuery(), instanceOf(BoostQuery.class));
+            assertThat(((BoostQuery) c.getQuery()).getBoost(), equalTo(TOKEN_WEIGHT));
+        });
+    }
 
-            BoostQuery boostQuery = (BoostQuery) booleanClause.getQuery();
-            assertThat(boostQuery.getBoost(), equalTo(TOKEN_WEIGHT));
-            assertThat(boostQuery.getQuery(), instanceOf(TermQuery.class));
+    private void assertTextEmbeddingLuceneQuery(Query query) {
+        Query innerQuery = assertOuterBooleanQuery(query);
+        assertThat(innerQuery, instanceOf(KnnFloatVectorQuery.class));  // TODO: Accept KnnByteVectorQuery here as well?
+    }
 
-            TermQuery termQuery = (TermQuery) boostQuery.getQuery();
-            assertThat(termQuery.getTerm().field(), equalTo(SEMANTIC_TEXT_SPARSE_FIELD + "." + RESULTS + "." + INFERENCE_CHUNKS_RESULTS));
-            assertThat(termQuery.getTerm().text().length(), equalTo(QUERY_TOKEN_LENGTH));
+    private Query assertOuterBooleanQuery(Query query) {
+        assertThat(query, instanceOf(BooleanQuery.class));
+        BooleanQuery outerBooleanQuery = (BooleanQuery) query;
+
+        List<BooleanClause> outerMustClauses = new ArrayList<>();
+        List<BooleanClause> outerFilterClauses = new ArrayList<>();
+        for (BooleanClause clause : outerBooleanQuery.clauses()) {
+            BooleanClause.Occur occur = clause.getOccur();
+            if (occur == MUST) {
+                outerMustClauses.add(clause);
+            } else if (occur == FILTER) {
+                outerFilterClauses.add(clause);
+            } else {
+                fail("Unexpected boolean " + occur + " clause");
+            }
         }
+
+        assertThat(outerMustClauses.size(), equalTo(1));
+        assertThat(outerFilterClauses.size(), equalTo(1));
+
+        return outerMustClauses.get(0).getQuery();
     }
 
     @Override
@@ -147,18 +269,40 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
         List<String> input = request.getInput();
         assertThat(input.size(), equalTo(1));
+        String query = input.get(0);
 
-        List<TextExpansionResults.WeightedToken> weightedTokens = Arrays.stream(input.get(0).split("\\s+"))
-            .map(s -> new TextExpansionResults.WeightedToken(s, TOKEN_WEIGHT))
-            .toList();
-        TextExpansionResults textExpansionResults = new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
-        InferenceAction.Response response = new InferenceAction.Response(SparseEmbeddingResults.of(List.of(textExpansionResults)));
+        InferenceAction.Response response = switch (inferenceResultType) {
+            case NONE -> randomBoolean() ?
+                generateSparseEmbeddingInferenceResponse(query) :
+                generateTextEmbeddingInferenceResponse();
+            case SPARSE_EMBEDDING -> generateSparseEmbeddingInferenceResponse(query);
+            case TEXT_EMBEDDING -> generateTextEmbeddingInferenceResponse();
+        };
 
         @SuppressWarnings("unchecked")  // We matched the method above.
         ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) args[2];
         listener.onResponse(response);
 
         return null;
+    }
+
+    private InferenceAction.Response generateSparseEmbeddingInferenceResponse(String query) {
+        List<TextExpansionResults.WeightedToken> weightedTokens = Arrays.stream(query.split("\\s+"))
+            .map(s -> new TextExpansionResults.WeightedToken(s, TOKEN_WEIGHT))
+            .toList();
+        TextExpansionResults textExpansionResults = new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
+
+        return new InferenceAction.Response(SparseEmbeddingResults.of(List.of(textExpansionResults)));
+    }
+
+    private InferenceAction.Response generateTextEmbeddingInferenceResponse() {
+        double[] inference = new double[TEXT_EMBEDDING_DIMENSION_COUNT];
+        Arrays.fill(inference, 1.0);
+        TextEmbeddingResults textEmbeddingResults = new TextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);
+
+        return new InferenceAction.Response(
+            org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults.of(List.of(textEmbeddingResults))
+        );
     }
 
     @Override

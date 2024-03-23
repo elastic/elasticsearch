@@ -1,6 +1,6 @@
 *Parameters*
 
-`str`::
+`string`::
 The string from which to return a substring.
 
 `length`::

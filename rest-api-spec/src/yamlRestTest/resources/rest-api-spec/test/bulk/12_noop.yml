@@ -1,5 +1,8 @@
 ---
 "Noop":
+  - skip:
+      version: " - 8.13.99"
+      reason: fixed in 8.14.0
   - do:
       indices.create:
         index: test_1

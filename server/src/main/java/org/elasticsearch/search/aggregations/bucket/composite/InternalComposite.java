@@ -213,6 +213,8 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                 earlyTerminated |= sortedAgg.earlyTerminated;
                 for (InternalBucket bucket : sortedAgg.getBuckets()) {
                     if (queue.add(bucket) == false) {
+                        // if the bucket is not competitive, we can break
+                        // because incoming buckets are sorted
                         break;
                     }
                 }
@@ -270,6 +272,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             };
         }
 
+        /** adds a bucket to the queue. Return false if the bucket is not competitive, otherwise true.*/
         boolean add(InternalBucket bucket) {
             DelayedMultiBucketAggregatorsReducer delayed = bucketReducers.get(bucket.key);
             if (delayed == null) {
@@ -292,6 +295,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             return true;
         }
 
+        /** Return the list of reduced buckets */
         List<InternalBucket> get() {
             final int bucketsSize = (int) bucketReducers.size();
             final InternalBucket[] result = new InternalBucket[bucketsSize];

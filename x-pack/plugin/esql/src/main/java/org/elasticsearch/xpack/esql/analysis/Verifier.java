@@ -157,11 +157,12 @@ public class Verifier {
 
     private static void checkAggregate(LogicalPlan p, Set<Failure> failures, AttributeMap<Expression> aliases) {
         if (p instanceof Aggregate agg) {
-            List<Expression> groups = new ArrayList<>(agg.groupings().size());
+            List<Expression> groupings = agg.groupings();
+            List<Expression> groups = new ArrayList<>(groupings.size());
             AttributeSet groupRefs = new AttributeSet();
             // check grouping
             // The grouping can not be an aggregate function
-            agg.groupings().forEach(e -> {
+            groupings.forEach(e -> {
                 e.forEachUp(g -> {
                     if (g instanceof AggregateFunction af) {
                         failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
@@ -175,9 +176,11 @@ public class Verifier {
                 }
             });
 
-            // check aggregates - accept only aggregate functions or expressions where each attribute is copied as
-            // specified in the grouping clause
-            agg.aggregates().forEach(e -> {
+            // check aggregates - accept only aggregate functions or expressions over grouping
+            // don't allow the group by itself to avoid duplicates in the output
+            // and since the groups are copied, only look at the declared aggregates
+            List<? extends NamedExpression> aggs = agg.aggregates();
+            aggs.subList(0, aggs.size() - groupings.size()).forEach(e -> {
                 var exp = Alias.unwrap(e);
                 if (exp.foldable()) {
                     failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
@@ -205,9 +208,9 @@ public class Verifier {
         } else if (e.foldable()) {
             // don't do anything
         } else if (groups.contains(e) || groupRefs.contains(e)) {
-            // if (level != 0) {
-            // failures.add(fail(e, "scalar functions over groupings [{}] not allowed yet", e.sourceText()));
-            // }
+            if (level == 0) {
+                failures.add(fail(e, "remove grouping key [{}] as is already included in the STATS output", e.sourceText()));
+            }
         }
         // if a reference is found, mark it as an error
         else if (e instanceof NamedExpression ne) {

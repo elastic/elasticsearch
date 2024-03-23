@@ -83,7 +83,27 @@ public class VerifierTests extends ESTestCase {
             "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = count_distinct(languages, languages) by emp_no")
         );
+        // no agg function
+        assertEquals("1:19: expected an aggregate function but found [5]", error("from test | stats 5 by emp_no"));
+        // don't allow naked group
+        assertEquals(
+            "1:19: Remove grouping key [emp_no] as is already included in the STATS output",
+            error("from test | stats emp_no BY emp_no")
+        );
+        // don't allow naked group - even when it's an expression
+        assertEquals(
+            "1:19: Remove grouping key [languages + emp_no] as is already included in the STATS output",
+            error("from test | stats languages + emp_no BY languages + emp_no")
+        );
+        // don't allow group alias
+        assertEquals(
+            "1:19: Remove grouping key [e] as is already included in the STATS output",
+            error("from test | stats e BY e = languages + emp_no")
+        );
 
+        var message = error("from test | stats languages + emp_no BY e = languages + emp_no");
+        assertThat(message, containsString("column [languages] must appear in the STATS BY clause or be used in an aggregate function"));
+        assertThat(message, containsString("column [emp_no] must appear in the STATS BY clause or be used in an aggregate function"));
     }
 
     public void testAggsInsideGrouping() {

@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternContext;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
+import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.parser.ParserUtils;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -54,6 +57,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -221,11 +225,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         // grouping keys are automatically added as aggregations however the user is not allowed to specify them
         if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
-            var groupNames = new LinkedHashSet<>(Expressions.names(Expressions.references(groupings)));
+            var groupNames = new LinkedHashSet<>(Expressions.names(groupings));
+            var groupRefNames = new LinkedHashSet<>(Expressions.names(Expressions.references(groupings)));
 
             for (NamedExpression aggregate : aggregates) {
-                if (Alias.unwrap(aggregate) instanceof UnresolvedAttribute ua && groupNames.contains(ua.name())) {
-                    throw new ParsingException(ua.source(), "Cannot specify grouping expression [{}] as an aggregate", ua.name());
+                Expression e = Alias.unwrap(aggregate);
+                if (e.resolved() == false && e instanceof UnresolvedFunction == false) {
+                    String name = e.sourceText();
+                    if (groupNames.contains(name)) {
+                        fail(e, "Remove grouping key [{}] as is already included in the STATS output", name);
+                    } else if (groupRefNames.contains(name)) {
+                        fail(e, "Cannot specify grouping expression [{}] as an aggregate", name);
+                    }
                 }
             }
         }
@@ -235,6 +246,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates);
+    }
+
+    private void fail(Expression exp, String message, Object... args) {
+        throw new VerificationException(Collections.singletonList(Failure.fail(exp, message, args)));
     }
 
     @Override

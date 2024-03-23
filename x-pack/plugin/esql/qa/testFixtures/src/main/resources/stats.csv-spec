@@ -1220,26 +1220,32 @@ nestedAggsOverGroupingWithAliasAndProjection#[skip:-8.13.99,reason:supported in 
 FROM employees
 | STATS e = length(f) + 1, c = count(*) by f = first_name
 | KEEP e
-| LIMIT 3
+| SORT e
+| LIMIT 5
 ;
 
 e:i
-null
-7
-8
+4
+4
+4
+4
+5
 ;
 
 nestedAggsOverGroupingAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS e = length(f) + count(*), m = max(emp_no) by f = first_name
 | KEEP e
-| LIMIT 3
+| SORT e
+| LIMIT 5
 ;
 
 e:l
-null
-7
-8  
+4
+4
+4
+4
+5  
 ;
 
 nestedAggsOverGroupingExpAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]

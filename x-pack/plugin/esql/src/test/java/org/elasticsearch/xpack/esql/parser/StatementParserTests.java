@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -297,7 +298,7 @@ public class StatementParserTests extends ESTestCase {
             """ };
 
         for (String query : queries) {
-            expectError(query, "Cannot specify grouping expression [a] as an aggregate");
+            expectVerificationError(query, "Remove grouping key [a] as is already included in the STATS output");
         }
     }
 
@@ -1000,6 +1001,11 @@ public class StatementParserTests extends ESTestCase {
 
     private void expectError(String query, String errorMessage) {
         ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
+        assertThat(e.getMessage(), containsString(errorMessage));
+    }
+
+    private void expectVerificationError(String query, String errorMessage) {
+        VerificationException e = expectThrows(VerificationException.class, "Expected syntax error for " + query, () -> statement(query));
         assertThat(e.getMessage(), containsString(errorMessage));
     }
 

@@ -45,8 +45,7 @@ public class FieldFetcher {
 
     /**
      * Build a FieldFetcher for a given search context and collection of fields and formats.
-     *
-     * @implNote : see {@link org.elasticsearch.index.query.QueryRewriteContext} to see why we
+     * See {@link org.elasticsearch.index.query.QueryRewriteContext} to see why we
      * skip null {@link MappedFieldType}.
      *
      * @param context The {@link SearchExecutionContext} used to retrieve the {@link MappedFieldType}.

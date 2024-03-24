@@ -404,7 +404,7 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleAggregator.java"
   }
 
-  File multivalueDedupeInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/operator/X-MultivalueDedupe.java.st")
+  File multivalueDedupeInputFile = file("src/main/java/org/elasticsearch/compute/operator/X-MultivalueDedupe.java.st")
   template {
     it.properties = intProperties
     it.inputFile =  multivalueDedupeInputFile

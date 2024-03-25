@@ -8,6 +8,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.SerializableString;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,8 +33,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -44,13 +49,24 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, ToXContentObject {
 
     private static final String _SHARDS = "_shards";
+    private static final SerializableString _SHARDS_FIELD = SerializableString.of(_SHARDS);
     private static final String _INDEX = "_index";
+    private static final SerializableString _INDEX_FIELD = SerializableString.of(_INDEX);
     private static final String _ID = "_id";
+    private static final SerializableString _ID_FIELD = SerializableString.of(_ID);
     private static final String _VERSION = "_version";
+    private static final SerializableString _VERSION_FIELD = SerializableString.of(_VERSION);
     private static final String _SEQ_NO = "_seq_no";
+    private static final SerializableString _SEQ_NO_FIELD = SerializableString.of(_SEQ_NO);
     private static final String _PRIMARY_TERM = "_primary_term";
+    private static final SerializableString _PRIMARY_TERM_FIELD = SerializableString.of(_PRIMARY_TERM);
     private static final String RESULT = "result";
+    private static final SerializableString RESULT_FIELD = SerializableString.of(RESULT);
     private static final String FORCED_REFRESH = "forced_refresh";
+    private static final SerializableString FORCED_REFRESH_FIELD = SerializableString.of(FORCED_REFRESH);
+
+    private static final Map<Result, SerializableString> RESULT_MAP = Arrays.stream(Result.values())
+        .collect(Collectors.toUnmodifiableMap(r -> r, r -> SerializableString.of(r.getLowercase())));
 
     /**
      * An enum that represents the results of CRUD operations, primarily used to communicate the type of
@@ -286,18 +302,20 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
-        builder.field(_INDEX, shardId.getIndexName());
-        builder.field(_ID, id).field(_VERSION, version).field(RESULT, getResult().getLowercase());
+        builder.field(_INDEX_FIELD, shardId.getIndexName());
+        builder.field(_ID_FIELD, id);
+        builder.field(_VERSION_FIELD).value(version);
+        builder.field(RESULT_FIELD).value(RESULT_MAP.get(getResult()));
         if (forcedRefresh) {
-            builder.field(FORCED_REFRESH, true);
+            builder.field(FORCED_REFRESH_FIELD).value(true);
         }
-        builder.field(_SHARDS, shardInfo);
+        builder.field(_SHARDS_FIELD).value(shardInfo);
         if (getSeqNo() >= 0) {
-            builder.field(_SEQ_NO, getSeqNo());
-            builder.field(_PRIMARY_TERM, getPrimaryTerm());
+            builder.field(_SEQ_NO_FIELD).value(getSeqNo());
+            builder.field(_PRIMARY_TERM_FIELD).value(getPrimaryTerm());
         }
         if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
+            builder.field(BulkItemResponse.TYPE_FIELD).value(BulkItemResponse.TYPE_VALUE);
         }
         return builder;
     }

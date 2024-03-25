@@ -41,10 +41,6 @@ record SimpleStruct(int i, double d, String s) implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-            .field(I.getPreferredName(), i)
-            .field(D.getPreferredName(), d)
-            .field(S.getPreferredName(), s)
-            .endObject();
+        return builder.startObject().field(I, i).field(D, d).field(S, s).endObject();
     }
 }

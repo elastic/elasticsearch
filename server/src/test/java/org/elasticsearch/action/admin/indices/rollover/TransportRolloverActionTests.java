@@ -110,7 +110,8 @@ public class TransportRolloverActionTests extends ESTestCase {
         mockCreateIndexService,
         mdIndexAliasesService,
         EmptySystemIndices.INSTANCE,
-        WriteLoadForecaster.DEFAULT
+        WriteLoadForecaster.DEFAULT,
+        mockClusterService
     );
 
     final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(

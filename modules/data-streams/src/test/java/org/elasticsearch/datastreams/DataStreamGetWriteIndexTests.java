@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -277,7 +278,8 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 createIndexService,
                 indexAliasesService,
                 EmptySystemIndices.INSTANCE,
-                WriteLoadForecaster.DEFAULT
+                WriteLoadForecaster.DEFAULT,
+                clusterService
             );
         }
 
@@ -318,7 +320,19 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
         List<Condition<?>> metConditions = Collections.singletonList(condition);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-        return rolloverService.rolloverClusterState(state, name, null, createIndexRequest, metConditions, time, false, false, null, null);
+        return rolloverService.rolloverClusterState(
+            state,
+            name,
+            null,
+            createIndexRequest,
+            metConditions,
+            time,
+            false,
+            false,
+            null,
+            null,
+            IndicesOptions.FailureStoreOptions.DEFAULT
+        );
     }
 
     private Index getWriteIndex(ClusterState state, String name, String timestamp) {

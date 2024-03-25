@@ -101,6 +101,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
+    private IndicesOptions.FailureStoreOptions failureStoreOptions;
 
     public RolloverRequest(StreamInput in) throws IOException {
         super(in);
@@ -113,6 +114,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             lazy = in.readBoolean();
         } else {
             lazy = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+            failureStoreOptions = in.readOptionalWriteable(IndicesOptions.FailureStoreOptions::read);
         }
     }
 
@@ -138,6 +142,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
+        if (failureStoreOptions != null && failureStoreOptions.includeRegularIndices() && failureStoreOptions.includeFailureIndices()) {
+            validationException = addValidationError(
+                "rollover cannot be applied to both regular and failure indices at the same time",
+                validationException
+            );
+        }
+
         return validationException;
     }
 
@@ -152,6 +163,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         if (out.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
             out.writeBoolean(lazy);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ROLLOVER)) {
+            out.writeOptionalWriteable(failureStoreOptions);
+        }
     }
 
     @Override
@@ -161,7 +175,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        var indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        if (failureStoreOptions != null) {
+            indicesOptions = IndicesOptions.builder(indicesOptions).failureStoreOptions(failureStoreOptions).build();
+        }
+        return indicesOptions;
     }
 
     @Override
@@ -209,6 +227,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      */
     public void lazy(boolean lazy) {
         this.lazy = lazy;
+    }
+
+    public void setFailureStoreOptions(IndicesOptions.FailureStoreOptions failureStoreOptions) {
+        this.failureStoreOptions = failureStoreOptions;
     }
 
     public boolean isDryRun() {
@@ -282,11 +304,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             && Objects.equals(rolloverTarget, that.rolloverTarget)
             && Objects.equals(newIndexName, that.newIndexName)
             && Objects.equals(conditions, that.conditions)
-            && Objects.equals(createIndexRequest, that.createIndexRequest);
+            && Objects.equals(createIndexRequest, that.createIndexRequest)
+            && Objects.equals(failureStoreOptions, that.failureStoreOptions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest, lazy);
+        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest, lazy, failureStoreOptions);
     }
 }

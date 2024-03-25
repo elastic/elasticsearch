@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.support.IndicesOptions.FailureStoreOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -120,7 +121,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 randomBoolean(),
                 false,
                 indexStats,
-                null
+                null,
+                FailureStoreOptions.DEFAULT
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -220,7 +222,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 randomBoolean(),
                 false,
                 null,
-                null
+                null,
+                FailureStoreOptions.DEFAULT
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -313,7 +316,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 randomBoolean(),
                 false,
                 null,
-                null
+                null,
+                FailureStoreOptions.DEFAULT
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -379,7 +383,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 randomBoolean(),
                 false,
                 indexStats,
-                null
+                null,
+                FailureStoreOptions.DEFAULT
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -460,7 +465,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                     randomBoolean(),
                     false,
                     indexStats,
-                    null
+                    null,
+                    FailureStoreOptions.DEFAULT
                 )
             );
             assertThat(e.getMessage(), containsString("is overlapping with backing index"));

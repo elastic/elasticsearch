@@ -1218,6 +1218,15 @@ c:l
 891
 ;
 
+countMV#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS vals = COUNT(salary_change.int)
+;
+
+vals:l
+183
+;
+
 emptyProjectInStatWithEval
 FROM employees
 | STATS c = COUNT(salary)

@@ -22,10 +22,10 @@ if ! uname -a | grep -q MING; then
         exit 1
     fi
   fi
-  if pwd | grep -v -q ^/dev/shm ; then
-    echo "Not running on a ramdisk, reducing number of workers"
-    MAX_WORKERS=$(($MAX_WORKERS*2/3))
-  fi
+  # if pwd | grep -v -q ^/dev/shm ; then
+  #   echo "Not running on a ramdisk, reducing number of workers"
+  #   MAX_WORKERS=$(($MAX_WORKERS*2/3))
+  # fi
 
   # Export glibc version as environment variable since some BWC tests are incompatible with later versions
   export GLIBC_VERSION=$(ldd --version | grep '^ldd' | sed 's/.* \([1-9]\.[0-9]*\).*/\1/')
@@ -35,6 +35,12 @@ fi
 if [[ "$MAX_WORKERS" == "0" ]]; then
   MAX_WORKERS=1
 fi
+
+# if [[ "$MAX_WORKERS" -gt 12 ]]; then
+#   MAX_WORKERS=12
+# fi
+
+MAX_WORKERS=$(($MAX_WORKERS*3/4))
 
 set -e
 $GRADLEW -S --max-workers=$MAX_WORKERS $@

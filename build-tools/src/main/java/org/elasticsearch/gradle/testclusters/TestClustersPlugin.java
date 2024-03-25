@@ -120,7 +120,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             .registerIfAbsent(
                 THROTTLE_SERVICE_NAME,
                 TestClustersThrottle.class,
-                spec -> spec.getMaxParallelUsages().set(Math.max(1, Math.min(8, project.getGradle().getStartParameter().getMaxWorkerCount())))
+                spec -> spec.getMaxParallelUsages().set(Math.max(1, Math.min(12, project.getGradle().getStartParameter().getMaxWorkerCount())))
             );
 
         project.getTasks().withType(TestClustersAware.class).configureEach(task -> { task.usesService(testClustersThrottleProvider); });

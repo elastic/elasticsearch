@@ -145,7 +145,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 }
 
                 InferenceResults inferenceResults = inferenceResultsList.get(0);
-                return semanticTextFieldType.semanticQuery(inferenceResults, searchExecutionContext);
+                return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName());
             } else {
                 throw new IllegalArgumentException(
                     "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"

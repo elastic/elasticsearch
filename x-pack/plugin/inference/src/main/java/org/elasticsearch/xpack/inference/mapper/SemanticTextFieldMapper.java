@@ -248,7 +248,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
 
-        public QueryBuilder semanticQuery(InferenceResults inferenceResults, SearchExecutionContext context) throws IOException {
+        public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) throws IOException {
             String nestedFieldPath = name() + "." + RESULTS;
             String inferenceResultsFieldName = nestedFieldPath + "." + INFERENCE_CHUNKS_RESULTS;
             QueryBuilder childQueryBuilder;
@@ -273,7 +273,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
             }
 
-            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Total);
+            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Total).boost(boost).queryName(queryName);
         }
     }
 

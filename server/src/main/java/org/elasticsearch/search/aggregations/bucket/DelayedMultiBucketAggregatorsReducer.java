@@ -29,7 +29,7 @@ public final class DelayedMultiBucketAggregatorsReducer {
     // the maximum size of this array is the number of shards to be reduced. We currently do it in a batches of 256
     // if we expect bigger batches, we might consider to use ObjectArray.
     private final List<InternalAggregations> internalAggregations;
-    long count = 0;
+    private long count = 0;
 
     public DelayedMultiBucketAggregatorsReducer(AggregationReduceContext context) {
         this.context = context;

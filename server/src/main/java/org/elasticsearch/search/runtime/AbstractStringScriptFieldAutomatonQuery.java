@@ -8,7 +8,9 @@
 
 package org.elasticsearch.search.runtime;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
@@ -17,7 +19,6 @@ import org.elasticsearch.script.StringFieldScript;
 import java.util.List;
 
 public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractStringScriptFieldQuery {
-    private final ThreadLocal<BytesRefBuilder> bytesRefBuilderThreadLocal = ThreadLocal.withInitial(BytesRefBuilder::new);
     private final ByteRunAutomaton automaton;
 
     public AbstractStringScriptFieldAutomatonQuery(
@@ -31,15 +32,35 @@ public abstract class AbstractStringScriptFieldAutomatonQuery extends AbstractSt
     }
 
     @Override
-    protected final boolean matches(List<String> values) {
+    protected TwoPhaseIterator createTwoPhaseIterator(StringFieldScript scriptContext, DocIdSetIterator approximation) {
+        BytesRefBuilder scratch = new BytesRefBuilder();
+        return new TwoPhaseIterator(approximation) {
+            @Override
+            public boolean matches() {
+                scriptContext.runForDoc(approximation.docID());
+                return AbstractStringScriptFieldAutomatonQuery.this.matches(scriptContext.getValues(), scratch);
+            }
+
+            @Override
+            public float matchCost() {
+                return MATCH_COST;
+            }
+        };
+    }
+
+    protected final boolean matches(List<String> values, BytesRefBuilder scratch) {
         for (String value : values) {
-            BytesRefBuilder scratch = bytesRefBuilderThreadLocal.get();
             scratch.copyChars(value);
             if (automaton.run(scratch.bytes(), 0, scratch.length())) {
                 return true;
             }
         }
         return false;
+    }
+
+    @Override
+    protected final boolean matches(List<String> values) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

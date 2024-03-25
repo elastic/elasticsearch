@@ -71,18 +71,7 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
             public Scorer scorer(LeafReaderContext ctx) {
                 S scriptContext = scriptContextFunction.apply(ctx);
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
-                TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
-                    @Override
-                    public boolean matches() {
-                        return AbstractScriptFieldQuery.this.matches(scriptContext, approximation.docID());
-                    }
-
-                    @Override
-                    public float matchCost() {
-                        return MATCH_COST;
-                    }
-                };
-                return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                return new ConstantScoreScorer(this, score(), scoreMode, createTwoPhaseIterator(scriptContext, approximation));
             }
 
             @Override
@@ -92,6 +81,20 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
                     return explainMatch(boost, constantExplanation.getDescription());
                 }
                 return constantExplanation;
+            }
+        };
+    }
+
+    protected TwoPhaseIterator createTwoPhaseIterator(S scriptContext, DocIdSetIterator approximation) {
+        return new TwoPhaseIterator(approximation) {
+            @Override
+            public boolean matches() {
+                return AbstractScriptFieldQuery.this.matches(scriptContext, approximation.docID());
+            }
+
+            @Override
+            public float matchCost() {
+                return MATCH_COST;
             }
         };
     }

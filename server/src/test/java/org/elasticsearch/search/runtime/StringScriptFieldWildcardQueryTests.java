@@ -9,6 +9,7 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
@@ -58,18 +59,19 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
     @Override
     public void testMatches() {
         StringScriptFieldWildcardQuery query = new StringScriptFieldWildcardQuery(randomScript(), leafFactory, "test", "a*b", false);
-        assertTrue(query.matches(List.of("astuffb")));
-        assertFalse(query.matches(List.of("Astuffb")));
-        assertFalse(query.matches(List.of("fffff")));
-        assertFalse(query.matches(List.of("a")));
-        assertFalse(query.matches(List.of("b")));
-        assertFalse(query.matches(List.of("aasdf")));
-        assertFalse(query.matches(List.of("dsfb")));
-        assertTrue(query.matches(List.of("astuffb", "fffff")));
+        BytesRefBuilder scratch = new BytesRefBuilder();
+        assertTrue(query.matches(List.of("astuffb"), scratch));
+        assertFalse(query.matches(List.of("Astuffb"), scratch));
+        assertFalse(query.matches(List.of("fffff"), scratch));
+        assertFalse(query.matches(List.of("a"), scratch));
+        assertFalse(query.matches(List.of("b"), scratch));
+        assertFalse(query.matches(List.of("aasdf"), scratch));
+        assertFalse(query.matches(List.of("dsfb"), scratch));
+        assertTrue(query.matches(List.of("astuffb", "fffff"), scratch));
 
         StringScriptFieldWildcardQuery ciQuery = new StringScriptFieldWildcardQuery(randomScript(), leafFactory, "test", "a*b", true);
-        assertTrue(ciQuery.matches(List.of("Astuffb")));
-        assertTrue(ciQuery.matches(List.of("astuffB", "fffff")));
+        assertTrue(ciQuery.matches(List.of("Astuffb"), scratch));
+        assertTrue(ciQuery.matches(List.of("astuffB", "fffff"), scratch));
 
     }
 
@@ -78,11 +80,11 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
         List<Future<?>> futures = new ArrayList<>();
         ExecutorService executorService = Executors.newFixedThreadPool(3);
         try {
-            futures.add(executorService.submit(() -> assertTrue(query.matches(List.of("astuffb")))));
-            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("Astuffb")))));
-            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("fffff")))));
-            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("a")))));
-            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("b")))));
+            futures.add(executorService.submit(() -> assertTrue(query.matches(List.of("astuffb"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("Astuffb"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("fffff"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("a"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("b"), new BytesRefBuilder()))));
             for (Future<?> future : futures) {
                 try {
                     future.get();

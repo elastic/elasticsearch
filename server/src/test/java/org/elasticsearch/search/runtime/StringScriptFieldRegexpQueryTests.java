@@ -9,6 +9,7 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
@@ -90,13 +91,14 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             0,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
-        assertTrue(query.matches(List.of("astuffb")));
-        assertFalse(query.matches(List.of("astuffB")));
-        assertFalse(query.matches(List.of("fffff")));
-        assertFalse(query.matches(List.of("ab")));
-        assertFalse(query.matches(List.of("aasdf")));
-        assertFalse(query.matches(List.of("dsfb")));
-        assertTrue(query.matches(List.of("astuffb", "fffff")));
+        BytesRefBuilder scratch = new BytesRefBuilder();
+        assertTrue(query.matches(List.of("astuffb"), scratch));
+        assertFalse(query.matches(List.of("astuffB"), scratch));
+        assertFalse(query.matches(List.of("fffff"), scratch));
+        assertFalse(query.matches(List.of("ab"), scratch));
+        assertFalse(query.matches(List.of("aasdf"), scratch));
+        assertFalse(query.matches(List.of("dsfb"), scratch));
+        assertTrue(query.matches(List.of("astuffb", "fffff"), scratch));
 
         StringScriptFieldRegexpQuery ciQuery = new StringScriptFieldRegexpQuery(
             randomScript(),
@@ -125,13 +127,13 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
         List<Future<?>> futures = new ArrayList<>();
         ExecutorService executorService = Executors.newFixedThreadPool(3);
         try {
-            futures.add(executorService.submit(() -> assertTrue(query.matches(List.of("astuffb")))));
-            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("astuffB")))));
-            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("fffff")))));
-            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("ab")))));
-            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("aasdf")))));
-            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("dsfb")))));
-            futures.add(executorService.submit(() -> assertTrue(query.matches(List.of("astuffb", "fffff")))));
+            futures.add(executorService.submit(() -> assertTrue(query.matches(List.of("astuffb"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("astuffB"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("fffff"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("ab"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("aasdf"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertFalse(query.matches(List.of("dsfb"), new BytesRefBuilder()))));
+            futures.add(executorService.submit(() -> assertTrue(query.matches(List.of("astuffb", "fffff"), new BytesRefBuilder()))));
             for (Future<?> future : futures) {
                 try {
                     future.get();

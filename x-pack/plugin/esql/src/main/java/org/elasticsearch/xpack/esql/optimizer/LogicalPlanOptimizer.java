@@ -254,7 +254,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     // Replace by a local relation with one row, followed by an eval, e.g.
                     // \_Eval[[MVAVG([1, 2][INTEGER]) AS s]]
                     // \_LocalRelation[[{e}#21],[ConstantNullBlock[positions=1]]]
-                    return new LocalRelation(
+                    plan = new LocalRelation(
                         source,
                         List.of(new EmptyAttribute(source)),
                         LocalSupplier.of(new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) })

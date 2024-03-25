@@ -293,11 +293,13 @@ public class MetadataRolloverService {
             ? dataStream.getAutoShardingEvent()
             : switch (autoShardingResult.type()) {
                 case NO_CHANGE_REQUIRED -> {
-                    logger.info(
-                        "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
-                        dataStreamName,
-                        dataStream.getAutoShardingEvent()
-                    );
+                    if (dataStream.getAutoShardingEvent() != null) {
+                        logger.info(
+                            "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
+                            dataStreamName,
+                            dataStream.getAutoShardingEvent()
+                        );
+                    }
                     yield dataStream.getAutoShardingEvent();
                 }
                 case INCREASE_SHARDS, DECREASE_SHARDS -> {

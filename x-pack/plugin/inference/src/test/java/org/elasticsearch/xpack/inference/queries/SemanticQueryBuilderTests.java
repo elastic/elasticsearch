@@ -310,7 +310,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SearchExecutionContext context = createSearchExecutionContext();
         SemanticQueryBuilder builder = new SemanticQueryBuilder("foo", "bar");
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> builder.toQuery(context));
-        assertThat(e.getMessage(), equalTo("Query builder must be rewritten first"));
+        assertThat(e.getMessage(), equalTo(SemanticQueryBuilder.NAME + " should have been rewritten to another query type"));
     }
 
     public void testIllegalValues() {

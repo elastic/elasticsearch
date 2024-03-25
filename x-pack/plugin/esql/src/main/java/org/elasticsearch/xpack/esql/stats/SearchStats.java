@@ -201,6 +201,7 @@ public class SearchStats {
                     var sec = context.getSearchExecutionContext();
                     MappedFieldType mappedType = sec.isFieldMapped(field) ? null : sec.getFieldType(field);
                     if (mappedType != null) {
+                        sv[0] = true;
                         doWithContexts(r -> {
                             sv[0] &= detectSingleValue(r, mappedType, field);
                             return sv[0];

@@ -33,8 +33,6 @@ public final class BucketReducer<B extends MultiBucketsAggregation.Bucket> imple
      * Adds a {@link B} for reduction.
      */
     public void accept(B bucket) {
-        assert bucket.getKey().equals(proto.getKey())
-            : "expected bucket with key [" + proto.getKeyAsString() + "], got [" + bucket.getKeyAsString() + "]";
         count += bucket.getDocCount();
         aggregatorsReducer.accept(bucket.getAggregations());
     }

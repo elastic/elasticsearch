@@ -30,6 +30,7 @@ import java.util.Map;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -124,18 +125,7 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
         assertThat(apiKeyWithProfileUid.v2(), is(userWithManageOwnProfile.uid()));
         // manage_api_key user can similarly observe the API key with the profile uid
-        if (ownKey) {
-            client = client().filterWithHeader(
-                Map.of(
-                    "Authorization",
-                    basicAuthHeaderValue("user_with_manage_api_key_role", randomFrom(FILE_USER_TEST_PASSWORD, NATIVE_USER_TEST_PASSWORD))
-                )
-            );
-            List<Tuple<ApiKey, String>> allApiKeysWithProfileUid = ApiKeyIntegTests.getAllApiKeyInfoWithProfileUid(client);
-            assertThat(allApiKeysWithProfileUid, iterableWithSize(1));
-            assertThat(allApiKeysWithProfileUid.get(0).v1().getId(), is(keyId));
-            assertThat(allApiKeysWithProfileUid.get(0).v2(), is(userWithManageOwnProfile.uid()));
-        }
+        assertAllKeysWithProfiles(new String[] { keyId }, new String[] { userWithManageOwnProfile.uid() });
     }
 
     public void testApiKeyOwnerJoinsDomain() throws Exception {
@@ -171,6 +161,8 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
         // no profile for API Key owner
         assertThat(apiKeyWithProfileUid.v2(), nullValue());
+        // manage all api keys user can similarly see the key WITHOUT the profile uid
+        assertAllKeysWithProfiles(new String[] { keyId }, new String[] { null });
         // restart cluster nodes to add the 2 users to the same domain
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
@@ -189,17 +181,8 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
         // API key owner (username1) now has a profile uid
         assertThat(apiKeyWithProfileUid.v2(), is(user2Profile.uid()));
-        // manage all api key can similarly see the key with the profile uid
-        client1 = client().filterWithHeader(
-            Map.of(
-                "Authorization",
-                basicAuthHeaderValue("user_with_manage_api_key_role", randomFrom(FILE_USER_TEST_PASSWORD, NATIVE_USER_TEST_PASSWORD))
-            )
-        );
-        List<Tuple<ApiKey, String>> allApiKeysWithProfileUid = ApiKeyIntegTests.getAllApiKeyInfoWithProfileUid(client1);
-        assertThat(allApiKeysWithProfileUid, iterableWithSize(1));
-        assertThat(allApiKeysWithProfileUid.get(0).v1().getId(), is(keyId));
-        assertThat(allApiKeysWithProfileUid.get(0).v2(), is(user2Profile.uid()));
+        // manage all api keys user can similarly see the key with the profile uid
+        assertAllKeysWithProfiles(new String[] { keyId }, new String[] { user2Profile.uid() });
     }
 
     public void testDifferentKeyOwnersSameProfile() throws Exception {
@@ -252,6 +235,7 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         }
         // there should only be a single profile, because both users are under the same domain
         assertThat(user1Profile.uid(), is(user2Profile.uid()));
+        String profileUid = user1Profile.uid();
         // the 2 API keys should also show the one profile uid for the 2 owners
         Tuple<ApiKey, String> apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
             client1,
@@ -264,7 +248,7 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         } else {
             assertThat(apiKeyWithProfileUid.v1().getRealm(), is("index"));
         }
-        assertThat(apiKeyWithProfileUid.v2(), is(user1Profile.uid()));
+        assertThat(apiKeyWithProfileUid.v2(), is(profileUid));
         apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
             client2,
             key2Id,
@@ -276,6 +260,25 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         } else {
             assertThat(apiKeyWithProfileUid.v1().getRealm(), is("file"));
         }
-        assertThat(apiKeyWithProfileUid.v2(), is(user2Profile.uid()));
+        assertThat(apiKeyWithProfileUid.v2(), is(profileUid));
+        assertAllKeysWithProfiles(new String[] { key1Id, key2Id }, new String[] { profileUid, profileUid });
+    }
+
+    private void assertAllKeysWithProfiles(String[] keyIds, String[] profileUids) {
+        assert keyIds.length == profileUids.length;
+        Client client = client().filterWithHeader(
+            Map.of(
+                "Authorization",
+                basicAuthHeaderValue("user_with_manage_api_key_role", randomFrom(FILE_USER_TEST_PASSWORD, NATIVE_USER_TEST_PASSWORD))
+            )
+        );
+        List<Tuple<String, String>> allApiKeyIdsWithProfileUid = ApiKeyIntegTests.getAllApiKeyInfoWithProfileUid(client)
+            .stream()
+            .map(t -> new Tuple<>(t.v1().getId(), t.v2()))
+            .toList();
+        assertThat(allApiKeyIdsWithProfileUid, iterableWithSize(keyIds.length));
+        for (int i = 0; i < keyIds.length; i++) {
+            assertThat(allApiKeyIdsWithProfileUid, hasItem(new Tuple<>(keyIds[i], profileUids[i])));
+        }
     }
 }

@@ -19,6 +19,9 @@ final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScorer {
 
     @Override
     public float score(int firstOrd, int secondOrd) {
+        checkOrdinal(firstOrd);
+        checkOrdinal(secondOrd);
+
         final int length = dims;
         int firstByteOffset = firstOrd * (length + Float.BYTES);
         MemorySegment firstSeg = data.addressFor(firstByteOffset, length);
@@ -28,7 +31,7 @@ final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScorer {
         MemorySegment secondSeg = data.addressFor(secondByteOffset, length);
         float secondOffset = data.readFloat(secondByteOffset + length);
 
-        int dotProduct = NativeVectorDistance.dotProduct(firstSeg, secondSeg, length);
+        int dotProduct = DISTANCE_FUNCS.dotProduct(firstSeg, secondSeg, length);
         float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
         return scaleMaxInnerProductScore(adjustedDistance);
     }

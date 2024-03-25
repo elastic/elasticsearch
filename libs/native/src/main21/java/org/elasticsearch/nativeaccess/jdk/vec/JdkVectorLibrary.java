@@ -20,11 +20,13 @@ public class JdkVectorLibrary implements VectorLibrary {
 
     static {
         try {
-            MethodHandles.lookup().ensureInitialized(NativeVectorDistance.class);
+            MethodHandles.lookup().ensureInitialized(VectorDistanceProvider.class);
         } catch (IllegalAccessException e) {
             throw new AssertionError(e);
         }
     }
+
+    public JdkVectorLibrary() {}
 
     @Override
     public VectorScorer getScalarQuantizedVectorScorer(

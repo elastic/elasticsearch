@@ -8,6 +8,7 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.apache.lucene.util.Unwrappable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
     // TODO: test maximum inner product, cosine, euclidean
 
     public void testDotProductSimple() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
+        //assumeTrue(notSupportedMsg(), supported());
         Path topLevelDir = createTempDir(getTestName());
 
         // dimensions that cross the scalar / native boundary (stride)
@@ -46,6 +47,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
             byte[] bytes = concat(vec1, oneFactor, vec2, oneFactor);
             Path path = topLevelDir.resolve("data-" + dims + ".vec");
             Files.write(path, bytes, CREATE_NEW);
+            path = Unwrappable.unwrapAll(path);
 
             try (var scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, DOT_PRODUCT, path)) {
                 assertThat(scorer.score(0, 1), equalTo(scalarQuantizedDotProductScore(vec1, vec2, 1, 1, 1)));
@@ -101,6 +103,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     offsets[i] = off;
                 }
             }
+            path = Unwrappable.unwrapAll(path);
             try (var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, path)) {
                 int idx0 = randomIntBetween(0, size - 1);
                 int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.

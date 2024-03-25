@@ -19,7 +19,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
-final class NativeVectorDistance {
+final class NativeVectorDistance implements VectorDistance {
 
     static {
         loadLibrary();
@@ -51,7 +51,8 @@ final class NativeVectorDistance {
      * @param b address of the second vector
      * @param length the vector dimensions
      */
-    static int dotProduct(MemorySegment a, MemorySegment b, int length) {
+    @Override
+    public int dotProduct(MemorySegment a, MemorySegment b, int length) {
         assert length >= 0;
         if (a.byteSize() != b.byteSize()) {
             throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
@@ -74,8 +75,9 @@ final class NativeVectorDistance {
         return res;
     }
 
-    static float squareDistance(MemorySegment a, MemorySegment b, int length) {
-        return 0f; // TODO
+    @Override
+    public int squareDistance(MemorySegment a, MemorySegment b, int length) {
+        return 0; // TODO
     }
 
     private static int stride() {

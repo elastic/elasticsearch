@@ -32,7 +32,7 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         logger.info(platformMsg());
     }
 
-    static boolean supported() {
+    public static boolean supported() {
         var jdkVersion = Runtime.version().feature();
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");
@@ -47,11 +47,11 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         }
     }
 
-    static String notSupportedMsg() {
+    public static String notSupportedMsg() {
         return "Not supported on [" + platformMsg() + "]";
     }
 
-    static String platformMsg() {
+    public static String platformMsg() {
         var jdkVersion = Runtime.version().feature();
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");
@@ -59,14 +59,14 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
     }
 
     /** Computes the scalar quantized dot product of the given vectors a and b. */
-    static float scalarQuantizedDotProductScore(byte[] a, byte[] b, float correction, float aOffsetValue, float bOffsetValue) {
+    public static float scalarQuantizedDotProductScore(byte[] a, byte[] b, float correction, float aOffsetValue, float bOffsetValue) {
         int dotProduct = dotProductScalar(a, b);
         float adjustedDistance = dotProduct * correction + aOffsetValue + bOffsetValue;
         return (1 + adjustedDistance) / 2;
     }
 
     /** Computes the dot product of the given vectors a and b. */
-    static int dotProductScalar(byte[] a, byte[] b) {
+    public static int dotProductScalar(byte[] a, byte[] b) {
         int res = 0;
         for (int i = 0; i < a.length; i++) {
             res += a[i] * b[i];
@@ -74,7 +74,7 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         return res;
     }
 
-    static float scaleMaxInnerProductScore(float rawSimilarity) {
+    public static float scaleMaxInnerProductScore(float rawSimilarity) {
         if (rawSimilarity < 0) {
             return 1 / (1 + -1 * rawSimilarity);
         }
@@ -82,12 +82,12 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
     }
 
     /** Converts a float value to a byte array. */
-    static byte[] floatToByteArray(float value) {
+    public static byte[] floatToByteArray(float value) {
         return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putFloat(value).array();
     }
 
     /** Concatenates byte arrays. */
-    static byte[] concat(byte[]... arrays) throws IOException {
+    public static byte[] concat(byte[]... arrays) throws IOException {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             for (var ba : arrays) {
                 baos.write(ba);

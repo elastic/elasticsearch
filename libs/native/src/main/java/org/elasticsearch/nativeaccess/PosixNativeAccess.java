@@ -14,6 +14,7 @@ import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Optional;
 
 abstract class PosixNativeAccess extends AbstractNativeAccess {
 
@@ -23,7 +24,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     PosixNativeAccess(String name, NativeLibraryProvider libraryProvider) {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
-        this.vectorScorerFactory = isNativeVectorLibSupported() ? libraryProvider.getLibrary(VectorLibrary.class) : null;
+        this.vectorScorerFactory = Runtime.version().feature() >= 21 ? libraryProvider.getLibrary(VectorLibrary.class) : null;
     }
 
     @Override
@@ -37,12 +38,20 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     static boolean isNativeVectorLibSupported() {
-        return Runtime.version().feature() >= 21 && getProperty("os.arch").equals("aarch64") && isMacOrLinux();
+        return Runtime.version().feature() >= 21 && isMacOrLinuxAarch64() && checkEnableSystemProperty();
     }
 
-    static boolean isMacOrLinux() {
+    /** Returns true iff the OS is Mac or Linux, and the architecture is aarch64. */
+    static boolean isMacOrLinuxAarch64() {
         String name = getProperty("os.name");
-        return name.startsWith("Mac") || name.startsWith("Linux");
+        return (name.startsWith("Mac") || name.startsWith("Linux")) && getProperty("os.arch").equals("aarch64");
+    }
+
+    /** -Dorg.elasticsearch.nativeaccess.JdkVectorLibrary=false} to disable.*/
+    static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.JdkVectorLibrary";
+
+    static boolean checkEnableSystemProperty() {
+        return Optional.ofNullable(getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
     }
 
     @SuppressWarnings("removal")

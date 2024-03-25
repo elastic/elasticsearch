@@ -10,7 +10,7 @@ package org.elasticsearch.nativeaccess.jdk.vec;
 
 import java.lang.foreign.MemorySegment;
 
-// Scalar Quantized vectors are inherently bytes.
+// Scalar Quantized vectors are inherently byte sized, so dims is equal to length.
 final class DotProduct extends AbstractScalarQuantizedVectorScorer {
 
     DotProduct(int dims, int maxOrd, float scoreCorrectionConstant, VectorDataInput data) {
@@ -31,14 +31,8 @@ final class DotProduct extends AbstractScalarQuantizedVectorScorer {
         MemorySegment secondSeg = data.addressFor(secondByteOffset, length);
         float secondOffset = data.readFloat(secondByteOffset + length);
 
-        int dotProduct = NativeVectorDistance.dotProduct(firstSeg, secondSeg, length);
+        int dotProduct = DISTANCE_FUNCS.dotProduct(firstSeg, secondSeg, length);
         float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
         return (1 + adjustedDistance) / 2;
-    }
-
-    private void checkOrdinal(int ord) {
-        if (ord < 0 || ord > maxOrd) {
-            throw new IllegalArgumentException("illegal ordinal: " + ord);
-        }
     }
 }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.nativeaccess.jdk.vec;
 
+import java.lang.foreign.MemorySegment;
+
 // Scalar Quantized vectors are inherently bytes.
 final class Euclidean extends AbstractScalarQuantizedVectorScorer {
 
@@ -17,7 +19,18 @@ final class Euclidean extends AbstractScalarQuantizedVectorScorer {
 
     @Override
     public float score(int firstOrd, int secondOrd) {
-        throw new UnsupportedOperationException("implement me");
-    }
+        checkOrdinal(firstOrd);
+        checkOrdinal(secondOrd);
 
+        final int length = dims;
+        int firstByteOffset = firstOrd * (length + Float.BYTES);
+        MemorySegment firstSeg = data.addressFor(firstByteOffset, length);
+
+        int secondByteOffset = secondOrd * (length + Float.BYTES);
+        MemorySegment secondSeg = data.addressFor(secondByteOffset, length);
+
+        int squareDistance = DISTANCE_FUNCS.squareDistance(firstSeg, secondSeg, length);
+        float adjustedDistance = squareDistance * scoreCorrectionConstant;
+        return 1 / (1f + adjustedDistance);
+    }
 }

@@ -44,6 +44,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.Unwrappable;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
@@ -434,7 +435,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
             // assert unwrappedDir instanceof FSDirectory : "Expected FSDirectory, got: " + unwrappedDir ;
             if (factory != null && unwrappedDir instanceof FSDirectory dir) {
                 var similarity = VectorSimilarityTypeConverter.of(fieldInfo.getVectorSimilarityFunction());
-                var path = dir.getDirectory().resolve(tempQuantizedVectorData.getName());
+                var path = Unwrappable.unwrapAll(dir.getDirectory().resolve(tempQuantizedVectorData.getName()));
                 var sc = mergedQuantizationState.getConstantMultiplier();
                 var dim = byteVectorValues.dimension();
                 var maxOrd = docsWithField.cardinality();

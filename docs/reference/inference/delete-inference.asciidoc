@@ -34,7 +34,7 @@ own model, use the <<ml-df-trained-models-apis>>.
 
 <inference_id>::
 (Required, string)
-The unique {infer} identifier to delete.
+The unique identifier of the {infer} endpoint to delete.
 
 <task_type>::
 (Optional, string)

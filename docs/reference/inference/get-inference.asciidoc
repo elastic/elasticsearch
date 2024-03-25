@@ -49,7 +49,7 @@ and a wildcard expression,
 
 `<inference_id>`::
 (Optional, string)
-The unique {infer} identifier.
+The unique identifier of the {infer} endpoint.
 
 
 `<task_type>`::

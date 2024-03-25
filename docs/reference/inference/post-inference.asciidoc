@@ -44,7 +44,7 @@ that has been defined when the model was created with the <<put-inference-api>>.
 
 `<inference_id>`::
 (Required, string)
-The unique {infer} identifier.
+The unique identifier of the {infer} endpoint.
 
 
 `<task_type>`::

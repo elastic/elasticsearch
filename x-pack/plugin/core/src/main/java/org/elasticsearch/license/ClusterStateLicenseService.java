@@ -9,10 +9,13 @@ package org.elasticsearch.license;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -37,7 +40,11 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.time.Clock;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -241,9 +248,9 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                     int maxCompatibleLicenseVersion = LicenseUtils.getMaxLicenseVersion();
                     if (newLicense.version() <= maxCompatibleLicenseVersion == false) {
                         throw new IllegalStateException(
-                            String.format(
-                                "The provided license is of version [%s] but this node is only compatible with version [%s] " +
-                                    "licences or older",
+                            LoggerMessageFormat.format(
+                                "The provided license is of version [{}] but this node is only compatible with version [{}] "
+                                    + "licences or older",
                                 newLicense.version(),
                                 maxCompatibleLicenseVersion
                             )

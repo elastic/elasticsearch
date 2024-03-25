@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -26,9 +24,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
         return new MultilingualE5SmallInternalServiceSettings(
             randomIntBetween(1, 4),
             randomIntBetween(1, 4),
-            randomFrom(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS),
-            randomFrom(EnumSet.allOf(SimilarityMeasure.class)),
-            randomIntBetween(1, 1000)
+            randomFrom(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS)
         );
     }
 
@@ -60,17 +56,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
                 )
             )
         ).build();
-        assertEquals(
-            new MultilingualE5SmallInternalServiceSettings(
-                1,
-                4,
-                randomModelVariant,
-                // uses default values
-                MultilingualE5SmallInternalServiceSettings.DEFAULT_SIMILARITY,
-                MultilingualE5SmallInternalServiceSettings.DIMENSIONS
-            ),
-            serviceSettings
-        );
+        assertEquals(new MultilingualE5SmallInternalServiceSettings(1, 4, randomModelVariant), serviceSettings);
     }
 
     public void testFromMapInvalidVersion() {
@@ -144,16 +130,12 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
             case 0 -> new MultilingualE5SmallInternalServiceSettings(
                 instance.getNumAllocations() + 1,
                 instance.getNumThreads(),
-                instance.getModelId(),
-                instance.similarity(),
-                instance.dimensions()
+                instance.getModelId()
             );
             case 1 -> new MultilingualE5SmallInternalServiceSettings(
                 instance.getNumAllocations(),
                 instance.getNumThreads() + 1,
-                instance.getModelId(),
-                instance.similarity(),
-                instance.dimensions()
+                instance.getModelId()
             );
             case 2 -> {
                 var versions = new HashSet<>(ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_VALID_IDS);
@@ -161,9 +143,7 @@ public class MultilingualE5SmallInternalServiceSettingsTests extends AbstractWir
                 yield new MultilingualE5SmallInternalServiceSettings(
                     instance.getNumAllocations(),
                     instance.getNumThreads(),
-                    versions.iterator().next(),
-                    instance.similarity(),
-                    instance.dimensions()
+                    versions.iterator().next()
                 );
             }
             default -> throw new IllegalStateException();

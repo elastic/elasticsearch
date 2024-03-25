@@ -12,11 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -29,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.license.internal.TrialLicenseVersion;
@@ -40,11 +37,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -65,6 +58,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     private final Settings settings;
 
     private final ClusterService clusterService;
+    private final FeatureService featureService;
 
     /**
      * The xpack feature state to update when license changes are made.
@@ -103,10 +97,12 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        XPackLicenseState xPacklicenseState
+        XPackLicenseState xPacklicenseState,
+        FeatureService featureService
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.startTrialTaskQueue = clusterService.createTaskQueue(
             "license-service-start-trial",
             Priority.NORMAL,
@@ -242,10 +238,15 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                    final TransportVersion oldestTransportVersion = currentState.getMinTransportVersion();
-                    if (licenseIsCompatible(newLicense, oldestTransportVersion) == false) {
+                    int maxCompatibleLicenseVersion = LicenseUtils.getMaxLicenseVersion();
+                    if (newLicense.version() <= maxCompatibleLicenseVersion == false) {
                         throw new IllegalStateException(
-                            "The provided license is not compatible with transport version [" + oldestTransportVersion + "]"
+                            String.format(
+                                "The provided license is of version [%s] but this node is only compatible with version [%s] " +
+                                    "licences or older",
+                                newLicense.version(),
+                                maxCompatibleLicenseVersion
+                            )
                         );
                     }
                     Metadata currentMetadata = currentState.metadata();
@@ -265,11 +266,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
-
-    private static boolean licenseIsCompatible(License license, TransportVersion version) {
-        final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
-        return license.version() <= maxVersion;
     }
 
     private boolean isAllowedLicenseType(License.LicenseType type) {
@@ -341,7 +337,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         }
         startTrialTaskQueue.submitTask(
             StartTrialClusterTask.TASK_SOURCE,
-            new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener),
+            new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, featureService, request, listener),
             null             // TODO should pass in request.masterNodeTimeout() here
         );
     }

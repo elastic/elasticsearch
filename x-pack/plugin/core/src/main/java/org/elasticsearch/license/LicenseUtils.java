@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.time.DateFormatter;
@@ -74,10 +73,10 @@ public class LicenseUtils {
     }
 
     public static int compatibleLicenseVersion(ClusterState state) {
-        return getMaxLicenseVersion(state.getMinTransportVersion());
+        return getMaxLicenseVersion();
     }
 
-    public static int getMaxLicenseVersion(TransportVersion compatibleWith) {
+    public static int getMaxLicenseVersion() {
         assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
         return License.VERSION_ENTERPRISE;
     }

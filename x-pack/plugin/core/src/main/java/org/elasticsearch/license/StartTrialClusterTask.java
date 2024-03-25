@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -40,11 +41,13 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
     private final PostStartTrialRequest request;
     private final ActionListener<PostStartTrialResponse> listener;
     private final Clock clock;
+    private final FeatureService featureService;
 
     StartTrialClusterTask(
         Logger logger,
         String clusterName,
         Clock clock,
+        FeatureService featureService,
         PostStartTrialRequest request,
         ActionListener<PostStartTrialResponse> listener
     ) {
@@ -53,6 +56,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         this.request = request;
         this.listener = listener;
         this.clock = clock;
+        this.featureService = featureService;
     }
 
     private LicensesMetadata execute(
@@ -61,7 +65,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         ClusterStateTaskExecutor.TaskContext<StartTrialClusterTask> taskContext
     ) {
         assert taskContext.getTask() == this;
-        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
+        if (featureService.clusterHasFeature(state, License.INDEPENDENT_TRIAL_VERSION_FEATURE) == false) {
             throw new IllegalStateException(
                 "Please ensure all nodes are on the same version before starting your trial, the highest node version in this cluster is ["
                     + state.nodes().getMaxNodeVersion()

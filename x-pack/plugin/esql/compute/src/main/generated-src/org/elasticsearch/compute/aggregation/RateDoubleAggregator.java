@@ -57,7 +57,7 @@ public class RateDoubleAggregator {
 
     public static void combineStates(
         DoubleRateGroupingState current,
-        int currentGroupId,//
+        int currentGroupId, // make the stylecheck happy
         DoubleRateGroupingState state,
         int statePosition
     ) {
@@ -85,6 +85,7 @@ public class RateDoubleAggregator {
         }
 
         private double dv(double v0, double v1) {
+            // counter reset detection
             return v0 > v1 ? v1 : v1 - v0;
         }
 

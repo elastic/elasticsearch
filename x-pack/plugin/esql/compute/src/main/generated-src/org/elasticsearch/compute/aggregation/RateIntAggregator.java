@@ -58,7 +58,7 @@ public class RateIntAggregator {
 
     public static void combineStates(
         IntRateGroupingState current,
-        int currentGroupId,//
+        int currentGroupId, // make the stylecheck happy
         IntRateGroupingState state,
         int statePosition
     ) {
@@ -86,6 +86,7 @@ public class RateIntAggregator {
         }
 
         private int dv(int v0, int v1) {
+            // counter reset detection
             return v0 > v1 ? v1 : v1 - v0;
         }
 

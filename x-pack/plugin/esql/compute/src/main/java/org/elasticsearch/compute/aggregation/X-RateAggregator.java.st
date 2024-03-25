@@ -60,7 +60,7 @@ public class Rate$Type$Aggregator {
 
     public static void combineStates(
         $Type$RateGroupingState current,
-        int currentGroupId,//
+        int currentGroupId, // make the stylecheck happy
         $Type$RateGroupingState state,
         int statePosition
     ) {
@@ -88,6 +88,7 @@ public class Rate$Type$Aggregator {
         }
 
         private $type$ dv($type$ v0, $type$ v1) {
+            // counter reset detection
             return v0 > v1 ? v1 : v1 - v0;
         }
 

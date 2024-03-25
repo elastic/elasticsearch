@@ -57,7 +57,7 @@ public class RateLongAggregator {
 
     public static void combineStates(
         LongRateGroupingState current,
-        int currentGroupId,//
+        int currentGroupId, // make the stylecheck happy
         LongRateGroupingState state,
         int statePosition
     ) {
@@ -85,6 +85,7 @@ public class RateLongAggregator {
         }
 
         private long dv(long v0, long v1) {
+            // counter reset detection
             return v0 > v1 ? v1 : v1 - v0;
         }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -19,8 +20,12 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
+import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
@@ -32,10 +37,16 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
-import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.ONE_AS_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class EsqlDataTypeConverter {
 
@@ -161,6 +172,9 @@ public class EsqlDataTypeConverter {
         };
     }
 
+    /**
+     * The following conversions are used by DateExtract.
+     */
     private static ChronoField stringToChrono(Object value) {
         ChronoField chronoField = null;
         try {
@@ -172,10 +186,6 @@ public class EsqlDataTypeConverter {
         return chronoField;
     }
 
-    private static BytesRef stringToIP(BytesRef value) {
-        return parseIP(value.utf8ToString());
-    }
-
     public static long chronoToLong(long dateTime, BytesRef chronoField, ZoneId zone) {
         ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
         return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chrono);
@@ -183,6 +193,45 @@ public class EsqlDataTypeConverter {
 
     public static long chronoToLong(long dateTime, ChronoField chronoField, ZoneId zone) {
         return Instant.ofEpochMilli(dateTime).atZone(zone).getLong(chronoField);
+    }
+
+    /**
+     * The following conversions are between String and other data types.
+     */
+    public static BytesRef stringToIP(BytesRef field) {
+        return StringUtils.parseIP(field.utf8ToString());
+    }
+
+    public static BytesRef stringToIP(String field) {
+        return StringUtils.parseIP(field);
+    }
+
+    public static String ipToString(BytesRef field) {
+        return DocValueFormat.IP.format(field);
+    }
+
+    public static BytesRef stringToVersion(BytesRef field) {
+        return new Version(field.utf8ToString()).toBytesRef();
+    }
+
+    public static BytesRef stringToVersion(String field) {
+        return new Version(field).toBytesRef();
+    }
+
+    public static String versionToString(BytesRef field) {
+        return new Version(field).toString();
+    }
+
+    public static String versionToString(Version field) {
+        return field.toString();
+    }
+
+    public static String spatialToString(BytesRef field) {
+        return UNSPECIFIED.wkbToWkt(field);
+    }
+
+    public static BytesRef stringToSpatial(String field) {
+        return UNSPECIFIED.wktToWkb(field);
     }
 
     public static long dateTimeToLong(String dateTime) {
@@ -201,12 +250,93 @@ public class EsqlDataTypeConverter {
         return formatter == null ? dateTimeToString(dateTime) : formatter.formatMillis(dateTime);
     }
 
+    public static BytesRef numericBooleanToString(Object field) {
+        return new BytesRef(String.valueOf(field));
+    }
+
+    public static boolean stringToBoolean(String field) {
+        return Boolean.parseBoolean(field);
+    }
+
+    public static int stringToInt(String field) {
+        return Integer.parseInt(field);
+    }
+
+    public static long stringToLong(String field) {
+        return StringUtils.parseLong(field);
+    }
+
+    public static double stringToDouble(String field) {
+        return StringUtils.parseDouble(field);
+    }
+
+    public static BytesRef unsignedLongToString(long field) {
+        return new BytesRef(unsignedLongAsNumber(field).toString());
+    }
+
+    public static long stringToUnsignedLong(String field) {
+        return asLongUnsigned(safeToUnsignedLong(field));
+    }
+
+    public static Number stringToIntegral(String field) {
+        return StringUtils.parseIntegral(field);
+    }
+
+    /**
+     * The following conversion are between unsignedLong and other numeric data types.
+     */
+    public static double unsignedLongToDouble(long field) {
+        return NumericUtils.unsignedLongAsNumber(field).doubleValue();
+    }
+
+    public static long doubleToUnsignedLong(double field) {
+        return NumericUtils.asLongUnsigned(safeToUnsignedLong(field));
+    }
+
+    public static int unsignedLongToInt(Long field) {
+        Number n = NumericUtils.unsignedLongAsNumber(field);
+        int i = n.intValue();
+        if (i != n.longValue()) {
+            throw new InvalidArgumentException("[{}] out of [integer] range", n);
+        }
+        return i;
+    }
+
+    public static long intToUnsignedLong(int field) {
+        return longToUnsignedLong(field, false);
+    }
+
+    public static long unsignedLongToLong(long field) {
+        return DataTypeConverter.safeToLong(unsignedLongAsNumber(field));
+    }
+
+    public static long longToUnsignedLong(long field, boolean allowNegative) {
+        return allowNegative == false ? NumericUtils.asLongUnsigned(safeToUnsignedLong(field)) : NumericUtils.asLongUnsigned(field);
+    }
+
+    public static long bigIntegerToUnsignedLong(BigInteger field) {
+        BigInteger unsignedLong = asUnsignedLong(field);
+        return NumericUtils.asLongUnsigned(unsignedLong);
+    }
+
+    public static BigInteger unsignedLongToBigInteger(long field) {
+        return NumericUtils.unsignedLongAsBigInteger(field);
+    }
+
+    public static boolean unsignedLongToBoolean(long field) {
+        Number n = NumericUtils.unsignedLongAsNumber(field);
+        return n instanceof BigInteger || n.longValue() != 0;
+    }
+
+    public static long booleanToUnsignedLong(boolean field) {
+        return field ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
+    }
+
     public enum EsqlConverter implements Converter {
 
         STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.DATE_PERIOD)),
         STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.TIME_DURATION)),
-        STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
-        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((BytesRef) x));
+        STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono);
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

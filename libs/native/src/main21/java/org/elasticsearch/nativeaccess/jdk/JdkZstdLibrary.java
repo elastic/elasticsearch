@@ -54,10 +54,12 @@ class JdkZstdLibrary implements ZstdLibrary {
         assert src instanceof JdkCloseableByteBuffer;
         var nativeDst = (JdkCloseableByteBuffer) dst;
         var nativeSrc = (JdkCloseableByteBuffer) src;
-        var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dst.buffer().remaining());
-        var segmentSrc = nativeSrc.segment.asSlice(src.buffer().position(), src.buffer().remaining());
+        var dstSize = dst.buffer().remaining();
+        var srcSize = src.buffer().remaining();
+        var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
+        var segmentSrc = nativeSrc.segment.asSlice(src.buffer().position(), srcSize);
         try {
-            return (long) compress$mh.invokeExact(segmentDst, segmentDst.byteSize(), segmentSrc, segmentSrc.byteSize(), compressionLevel);
+            return (long) compress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize, compressionLevel);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -88,10 +90,12 @@ class JdkZstdLibrary implements ZstdLibrary {
         assert src instanceof JdkCloseableByteBuffer;
         var nativeDst = (JdkCloseableByteBuffer) dst;
         var nativeSrc = (JdkCloseableByteBuffer) src;
-        var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dst.buffer().remaining());
-        var segmentSrc = nativeSrc.segment.asSlice(src.buffer().position(), src.buffer().remaining());
+        var dstSize = dst.buffer().remaining();
+        var srcSize = src.buffer().remaining();
+        var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
+        var segmentSrc = nativeSrc.segment.asSlice(src.buffer().position(), srcSize);
         try {
-            return (long) decompress$mh.invokeExact(segmentDst, segmentDst.byteSize(), segmentSrc, segmentSrc.byteSize());
+            return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

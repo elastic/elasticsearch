@@ -118,6 +118,6 @@ public abstract class ElectionStrategy {
             return new NodeEligibility(true, "");
         }
 
-        return new NodeEligibility(true, "node is ineligible for election, not part of the voting configuration");
+        return new NodeEligibility(false, "node is ineligible for election, not part of the voting configuration");
     }
 }

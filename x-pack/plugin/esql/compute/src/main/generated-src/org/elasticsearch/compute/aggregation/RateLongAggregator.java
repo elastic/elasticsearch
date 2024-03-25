@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -35,9 +36,9 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "resets", type = "DOUBLE") }
 )
 public class RateLongAggregator {
-    public static LongRateGroupingState initGrouping(BigArrays bigArrays, long unitInMillis) {
-        // TODO: pass BlockFactory instead bigArrays so we can use the breaker
-        return new LongRateGroupingState(bigArrays, unitInMillis);
+
+    public static LongRateGroupingState initGrouping(DriverContext driverContext, long unitInMillis) {
+        return new LongRateGroupingState(driverContext.bigArrays(), driverContext.breaker(), unitInMillis);
     }
 
     public static void combine(LongRateGroupingState current, int groupId, long timestamp, long value) {
@@ -68,7 +69,7 @@ public class RateLongAggregator {
         return state.evaluateFinal(selected, driverContext.blockFactory());
     }
 
-    private static class LongRateState implements Accountable {
+    private static class LongRateState {
         static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(LongRateState.class);
         final long[] timestamps; // descending order
         final long[] values;
@@ -101,9 +102,10 @@ public class RateLongAggregator {
             return timestamps.length;
         }
 
-        @Override
-        public long ramBytesUsed() {
-            return BASE_RAM_USAGE;
+        static long bytesUsed(int entries) {
+            var ts = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * entries);
+            var vs = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * entries);
+            return BASE_RAM_USAGE + ts + vs;
         }
     }
 
@@ -111,9 +113,12 @@ public class RateLongAggregator {
         private ObjectArray<LongRateState> states;
         private final long unitInMillis;
         private final BigArrays bigArrays;
+        private final CircuitBreaker breaker;
+        private long stateBytes; // for individual states
 
-        LongRateGroupingState(BigArrays bigArrays, long unitInMillis) {
+        LongRateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, long unitInMillis) {
             this.bigArrays = bigArrays;
+            this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
             this.unitInMillis = unitInMillis;
         }
@@ -122,16 +127,25 @@ public class RateLongAggregator {
             states = bigArrays.grow(states, groupId + 1);
         }
 
+        void adjustBreaker(long bytes) {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            stateBytes += bytes;
+            assert stateBytes >= 0 : stateBytes;
+        }
+
         void append(int groupId, long timestamp, long value) {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
+                adjustBreaker(LongRateState.bytesUsed(1));
                 state = new LongRateState(new long[] { timestamp }, new long[] { value });
                 states.set(groupId, state);
             } else {
                 if (state.entries() == 1) {
+                    adjustBreaker(LongRateState.bytesUsed(2));
                     state = new LongRateState(new long[] { state.timestamps[0], timestamp }, new long[] { state.values[0], value });
                     states.set(groupId, state);
+                    adjustBreaker(-LongRateState.bytesUsed(1)); // old state
                 } else {
                     state.append(timestamp, value);
                 }
@@ -147,6 +161,7 @@ public class RateLongAggregator {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
+                adjustBreaker(LongRateState.bytesUsed(valueCount));
                 state = new LongRateState(valueCount);
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
@@ -155,9 +170,11 @@ public class RateLongAggregator {
                     state.values[i] = values.getLong(firstIndex + i);
                 }
             } else {
+                adjustBreaker(LongRateState.bytesUsed(state.entries() + valueCount));
                 var newState = new LongRateState(state.entries() + valueCount);
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
+                adjustBreaker(-LongRateState.bytesUsed(state.entries())); // old state
             }
             state.reset += reset;
         }
@@ -193,12 +210,12 @@ public class RateLongAggregator {
 
         @Override
         public long ramBytesUsed() {
-            return states.ramBytesUsed();
+            return states.ramBytesUsed() + stateBytes;
         }
 
         @Override
         public void close() {
-            Releasables.close(states);
+            Releasables.close(states, () -> adjustBreaker(-stateBytes));
         }
 
         @Override

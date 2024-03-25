@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -38,9 +39,9 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "resets", type = "DOUBLE") }
 )
 public class Rate$Type$Aggregator {
-    public static $Type$RateGroupingState initGrouping(BigArrays bigArrays, long unitInMillis) {
-        // TODO: pass BlockFactory instead bigArrays so we can use the breaker
-        return new $Type$RateGroupingState(bigArrays, unitInMillis);
+
+    public static $Type$RateGroupingState initGrouping(DriverContext driverContext, long unitInMillis) {
+        return new $Type$RateGroupingState(driverContext.bigArrays(), driverContext.breaker(), unitInMillis);
     }
 
     public static void combine($Type$RateGroupingState current, int groupId, long timestamp, $type$ value) {
@@ -71,7 +72,7 @@ public class Rate$Type$Aggregator {
         return state.evaluateFinal(selected, driverContext.blockFactory());
     }
 
-    private static class $Type$RateState implements Accountable {
+    private static class $Type$RateState {
         static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$RateState.class);
         final long[] timestamps; // descending order
         final $type$[] values;
@@ -104,9 +105,10 @@ public class Rate$Type$Aggregator {
             return timestamps.length;
         }
 
-        @Override
-        public long ramBytesUsed() {
-            return BASE_RAM_USAGE;
+        static long bytesUsed(int entries) {
+            var ts = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * entries);
+            var vs = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $BYTES$ * entries);
+            return BASE_RAM_USAGE + ts + vs;
         }
     }
 
@@ -114,9 +116,12 @@ public class Rate$Type$Aggregator {
         private ObjectArray<$Type$RateState> states;
         private final long unitInMillis;
         private final BigArrays bigArrays;
+        private final CircuitBreaker breaker;
+        private long stateBytes; // for individual states
 
-        $Type$RateGroupingState(BigArrays bigArrays, long unitInMillis) {
+        $Type$RateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, long unitInMillis) {
             this.bigArrays = bigArrays;
+            this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
             this.unitInMillis = unitInMillis;
         }
@@ -125,16 +130,25 @@ public class Rate$Type$Aggregator {
             states = bigArrays.grow(states, groupId + 1);
         }
 
+        void adjustBreaker(long bytes) {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            stateBytes += bytes;
+            assert stateBytes >= 0 : stateBytes;
+        }
+
         void append(int groupId, long timestamp, $type$ value) {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
+                adjustBreaker($Type$RateState.bytesUsed(1));
                 state = new $Type$RateState(new long[] { timestamp }, new $type$[] { value });
                 states.set(groupId, state);
             } else {
                 if (state.entries() == 1) {
+                    adjustBreaker($Type$RateState.bytesUsed(2));
                     state = new $Type$RateState(new long[] { state.timestamps[0], timestamp }, new $type$[] { state.values[0], value });
                     states.set(groupId, state);
+                    adjustBreaker(-$Type$RateState.bytesUsed(1)); // old state
                 } else {
                     state.append(timestamp, value);
                 }
@@ -150,6 +164,7 @@ public class Rate$Type$Aggregator {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
+                adjustBreaker($Type$RateState.bytesUsed(valueCount));
                 state = new $Type$RateState(valueCount);
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
@@ -158,9 +173,11 @@ public class Rate$Type$Aggregator {
                     state.values[i] = values.get$Type$(firstIndex + i);
                 }
             } else {
+                adjustBreaker($Type$RateState.bytesUsed(state.entries() + valueCount));
                 var newState = new $Type$RateState(state.entries() + valueCount);
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
+                adjustBreaker(-$Type$RateState.bytesUsed(state.entries())); // old state
             }
             state.reset += reset;
         }
@@ -196,12 +213,12 @@ public class Rate$Type$Aggregator {
 
         @Override
         public long ramBytesUsed() {
-            return states.ramBytesUsed();
+            return states.ramBytesUsed() + stateBytes;
         }
 
         @Override
         public void close() {
-            Releasables.close(states);
+            Releasables.close(states, () -> adjustBreaker(-stateBytes));
         }
 
         @Override

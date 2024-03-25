@@ -127,6 +127,7 @@ class FieldCapabilitiesFetcher {
         FieldPredicate fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         if (indexMappingHash != null) {
             indexMappingHash = fieldPredicate.modifyHash(indexMappingHash);
+            System.err.println(shardId.getIndex() + " " + indexMappingHash);
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
             if (existing != null) {
                 return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true);

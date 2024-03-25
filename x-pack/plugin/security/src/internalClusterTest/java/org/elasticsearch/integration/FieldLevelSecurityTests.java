@@ -70,6 +70,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -223,11 +224,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                        grant: [ 'field*', 'query' ]
             role_different_fields:
               indices:
-                - names: [ 'partial1' ]
+                - names: [ 'partial1*' ]
                   privileges: [ 'read' ]
                   field_security:
                     grant: [ value, partial ]
-                - names: [ 'partial2' ]
+                - names: [ 'partial2*' ]
                   privileges: [ 'read' ]
                   field_security:
                     grant: [ value ]
@@ -2355,7 +2356,9 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testSearchDifferentFieldsVisible() {
-        indexPartial();
+        String firstName = "partial1*" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String secondName = "partial2*" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        indexPartial(firstName, secondName);
         SearchResponse response = client().filterWithHeader(
             Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_different_fields", USERS_PASSWD))
         ).prepareSearch("partial*").addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC)).get();
@@ -2371,22 +2374,25 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
      * The fields {@code partial} is only visible in one of the two backing indices and field caps should show it.
      */
     public void testFieldCapsDifferentFieldsVisible() {
-        indexPartial();
+        String firstName = "partial1_" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String secondName = "partial2_" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        indexPartial(firstName, secondName);
         FieldCapabilitiesResponse response = client().filterWithHeader(
             Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_different_fields", USERS_PASSWD))
         ).prepareFieldCaps("partial*").setFields("value", "partial").get();
         try {
-            assertMap(response.getField("value").keySet(), equalTo(Set.of("long")));
-            assertMap(response.getField("partial").keySet(), equalTo(Set.of("long")));
+            assertThat(response.get().keySet(), equalTo(Set.of("value", "partial")));
+            assertThat(response.getField("value").keySet(), equalTo(Set.of("long")));
+            assertThat(response.getField("partial").keySet(), equalTo(Set.of("long")));
         } finally {
             response.decRef();
         }
     }
 
-    private void indexPartial() {
+    private void indexPartial(String firstName, String secondName) {
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex("partial1").setSource("value", 1, "partial", 2))
-            .add(client().prepareIndex("partial2").setSource("value", 2, "partial", "192.168.0.1"))
+            .add(client().prepareIndex(firstName).setSource("value", 1, "partial", 2))
+            .add(client().prepareIndex(secondName).setSource("value", 2, "partial", 3))
             .setRefreshPolicy(IMMEDIATE)
             .get();
         for (var i : bulkResponse.getItems()) {

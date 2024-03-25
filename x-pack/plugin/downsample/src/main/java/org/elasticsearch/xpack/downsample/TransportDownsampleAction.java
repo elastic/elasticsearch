@@ -808,8 +808,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsampleInterval)
             .put(IndexSettings.MODE.getKey(), sourceIndexMetadata.getIndexMode())
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths())
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey()))
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey()));
+            .put(
+                IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+            )
+            .put(
+                IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+            );
         if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             builder.put(
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),

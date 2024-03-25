@@ -52,22 +52,33 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     private final long length;
     private final BlobContainer blobContainer;
-
-    private final StatelessSharedBlobCacheService cacheService;
+    private final CacheRangeSupplier cacheRangeSupplier;
     private final long offset;
+
+    @FunctionalInterface
+    interface CacheRangeSupplier {
+        /**
+         * Computes the range of bytes to fetch and to write in cache
+         *
+         * @param position the position of the read
+         * @param length the length of the read
+         * @return a range of bytes to write in cache
+         */
+        ByteRange getCacheRange(long position, int length);
+    }
 
     public SearchIndexInput(
         String name,
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         IOContext context,
         BlobContainer blobContainer,
-        StatelessSharedBlobCacheService cacheService,
+        CacheRangeSupplier rangeSupplier,
         long length,
         long offset
     ) {
         super(name, context);
         this.blobContainer = blobContainer;
-        this.cacheService = cacheService;
+        this.cacheRangeSupplier = rangeSupplier;
         this.length = length;
         this.offset = offset;
         this.context = context;
@@ -97,7 +108,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             cacheFile,
             context,
             blobContainer,
-            cacheService,
+            cacheRangeSupplier,
             length,
             this.offset + offset
         );
@@ -110,7 +121,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             cacheFile,
             context,
             blobContainer,
-            cacheService,
+            cacheRangeSupplier,
             length,
             offset
         );
@@ -157,12 +168,13 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
         final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
         try {
-            final ByteRange rangeToWrite = BlobCacheUtils.computeRange(
-                cacheService.getRangeSize(),
-                position,
-                length,
-                cacheFile.getLength()
-            );
+            // Compute the range of bytes of the blob to fetch and to write to the cache.
+            //
+            // The range represents one or more full regions to fetch. It can also be larger (in both directions) than the file opened by
+            // the current SearchIndexInput instance. The range can also be larger than the real length of the blob in the object store.
+            // This is OK, we rely on the object store to return as many bytes as possible without failing.
+            final ByteRange rangeToWrite = cacheRangeSupplier.getCacheRange(position, length);
+
             assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
                 : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;
             final ByteRange rangeToRead = ByteRange.of(position, position + length);
@@ -185,6 +197,8 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                             OperationPurpose.INDICES,
                             this.cacheFile.getCacheKey().fileName(),
                             streamStartPosition,
+                            // this length is computed from the rangeToWrite and the sum of "streamStartPosition + len" can exceed the real
+                            // length of the blob in the object store
                             len
                         )
                     ) {
@@ -196,15 +210,17 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                             streamStartPosition,
                             streamStartPosition + len
                         );
-                        SharedBytes.copyToCacheFileAligned(
+                        var bytesCopied = SharedBytes.copyToCacheFileAligned(
                             channel,
                             in,
                             channelPos,
-                            relativePos,
-                            len,
                             progressUpdater,
                             writeBuffer.get().clear()
                         );
+                        if (bytesCopied < len) {
+                            // TODO we should remove this and allow gap completion in SparseFileTracker even if progress < range end
+                            progressUpdater.accept(len);
+                        }
                     }
                 });
                 byteBufferReference.finish(bytesRead);
@@ -243,11 +259,6 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     // for tests only
     StatelessSharedBlobCacheService.CacheFile cacheFile() {
         return cacheFile;
-    }
-
-    // for tests only
-    StatelessSharedBlobCacheService getCacheService() {
-        return cacheService;
     }
 
     @Override

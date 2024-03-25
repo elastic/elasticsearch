@@ -28,9 +28,11 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -39,6 +41,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec.TIMESTAMP_FIELD;
+import static org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec.TSID_FIELD;
 
 public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
@@ -214,7 +218,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      *
      * It's similar to the code above (groupingPhysicalOperation) but ignores the factory creation.
      */
-    public static List<Attribute> intermediateAttributes(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
+    public static List<Attribute> intermediateAttributes(
+        List<? extends NamedExpression> aggregates,
+        List<? extends Expression> groupings,
+        boolean timeSeriesMode
+    ) {
         var aggregateMapper = new AggregateMapper();
 
         List<Attribute> attrs = new ArrayList<>();
@@ -255,6 +263,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
             attrs.addAll(Expressions.asAttributes(aggregateMapper.mapGrouping(aggregates)));
         }
+
+        if (timeSeriesMode) {
+            attrs.add(new FieldAttribute(Source.EMPTY, TSID_FIELD.getName(), TSID_FIELD));
+            attrs.add(new FieldAttribute(Source.EMPTY, TIMESTAMP_FIELD.getName(), TIMESTAMP_FIELD));
+        }
+
         return attrs;
     }
 

@@ -195,7 +195,11 @@ public class Mapper {
             child = addExchangeForFragment(aggregate, child);
             // exchange was added - use the intermediates for the output
             if (child instanceof ExchangeExec exchange) {
-                var output = AbstractPhysicalOperationProviders.intermediateAttributes(aggregate.aggregates(), aggregate.groupings());
+                var output = AbstractPhysicalOperationProviders.intermediateAttributes(
+                    aggregate.aggregates(),
+                    aggregate.groupings(),
+                    true // NO MERGE: this should be based on time series query pragme
+                );
                 child = new ExchangeExec(child.source(), output, true, exchange.child());
             }
             // if no exchange was added, create the partial aggregate

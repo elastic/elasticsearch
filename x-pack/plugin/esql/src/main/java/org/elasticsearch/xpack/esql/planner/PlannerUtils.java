@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -55,8 +54,6 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
-import static org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec.TIMESTAMP_FIELD;
-import static org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec.TSID_FIELD;
 import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
 
 public class PlannerUtils {
@@ -69,15 +66,8 @@ public class PlannerUtils {
             // remember the datanode subplan and wire it to a sink
             var subplan = e.child();
             dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.isInBetweenAggs(), subplan));
-            List<Attribute> output;
-            if (config.pragmas().timeSeriesMode()) {
-                output = new ArrayList<>(e.output());
-                output.add(new FieldAttribute(e.source(), TSID_FIELD.getName(), TSID_FIELD));
-                output.add(new FieldAttribute(e.source(), TIMESTAMP_FIELD.getName(), TIMESTAMP_FIELD));
-            } else {
-                output = e.output();
-            }
-            return new ExchangeSourceExec(e.source(), output, e.isInBetweenAggs());
+
+            return new ExchangeSourceExec(e.source(), e.output(), e.isInBetweenAggs());
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }

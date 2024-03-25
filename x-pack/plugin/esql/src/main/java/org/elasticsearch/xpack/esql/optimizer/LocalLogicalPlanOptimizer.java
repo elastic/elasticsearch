@@ -55,8 +55,11 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirec
 
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
+    private final boolean timeSeriesMode;
+
     public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
         super(localLogicalOptimizerContext);
+        this.timeSeriesMode = localLogicalOptimizerContext.configuration().pragmas().timeSeriesMode();
     }
 
     @Override
@@ -83,7 +86,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             var rules = batch.rules();
             for (int i = 0; i < rules.length; i++) {
                 if (rules[i] instanceof PropagateEmptyRelation) {
-                    rules[i] = new LocalPropagateEmptyRelation();
+                    rules[i] = new LocalPropagateEmptyRelation(timeSeriesMode);
                 }
             }
         }
@@ -184,12 +187,18 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
      */
     private static class LocalPropagateEmptyRelation extends PropagateEmptyRelation {
 
+        private final boolean timeSeriesMode;
+
+        private LocalPropagateEmptyRelation(boolean timeSeriesMode) {
+            this.timeSeriesMode = timeSeriesMode;
+        }
+
         /**
          * Local variant of the aggregation that returns the intermediate value.
          */
         @Override
         protected void aggOutput(NamedExpression agg, AggregateFunction aggFunc, BlockFactory blockFactory, List<Block> blocks) {
-            List<Attribute> output = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(agg), List.of());
+            List<Attribute> output = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(agg), List.of(), timeSeriesMode);
             for (Attribute o : output) {
                 DataType dataType = o.dataType();
                 // boolean right now is used for the internal #seen so always return true

@@ -266,9 +266,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
                 childQueryBuilder = boolQuery;
             } else if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
                 float[] inference = textEmbeddingResults.getInferenceAsFloat();
-
-                // TODO: Set numCands based on request size
-                childQueryBuilder = new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, 10, null);
+                childQueryBuilder = new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null);
             } else {
                 throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
             }

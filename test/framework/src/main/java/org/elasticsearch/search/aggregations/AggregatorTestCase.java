@@ -113,6 +113,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -1280,7 +1281,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 ScriptCompiler.NONE,
                 null,
                 indexSettings,
-                null
+                null,
+                MapperMetrics.NOOP
             );
         }
 

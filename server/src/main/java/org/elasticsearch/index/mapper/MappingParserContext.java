@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.function.Function;
@@ -38,6 +39,7 @@ public class MappingParserContext {
     private final IndexSettings indexSettings;
     private final IdFieldMapper idFieldMapper;
     private final long mappingObjectDepthLimit;
+    private final MapperMetrics mapperMetrics;
     private long mappingObjectDepth = 0;
 
     public MappingParserContext(
@@ -50,7 +52,8 @@ public class MappingParserContext {
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
-        IdFieldMapper idFieldMapper
+        IdFieldMapper idFieldMapper,
+        MapperMetrics mapperMetrics
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -63,6 +66,7 @@ public class MappingParserContext {
         this.indexSettings = indexSettings;
         this.idFieldMapper = idFieldMapper;
         this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
+        this.mapperMetrics = mapperMetrics;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -132,6 +136,10 @@ public class MappingParserContext {
         return scriptCompiler;
     }
 
+    public MapperMetrics getIndicesMetrics() {
+        return mapperMetrics;
+    }
+
     void incrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth++;
         if (mappingObjectDepth > mappingObjectDepthLimit) {
@@ -159,7 +167,8 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper
+                in.idFieldMapper,
+                in.mapperMetrics
             );
         }
 
@@ -188,7 +197,8 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldMapper
+                in.idFieldMapper,
+                in.mapperMetrics
             );
             this.dateFormatter = dateFormatter;
         }

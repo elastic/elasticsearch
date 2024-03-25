@@ -64,7 +64,7 @@ public class YamlTestLegacyFeatures implements FeatureSpecification {
     private static final NodeFeature CLUSTER_DESIRED_NODES_NO_SETTINGS_VALIDATION = new NodeFeature(
         "cluster_desired_nodes_no_settings_validation"
     );
-    
+
     private static final NodeFeature CLUSTER_HEALTH_INDICES_OPTIONS = new NodeFeature("cluster_health_indices_options");
 
     private static final NodeFeature CLUSTER_INFO = new NodeFeature("cluster_info");

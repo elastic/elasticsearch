@@ -174,19 +174,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return asList(substitutions, operators(), skip, cleanup(), defaultTopN, label);
     }
 
-    private static Block SINGLE_NULL_VALUE = BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1);
-
-    /**
-     * Create an (essentially) empty row; the row still has 1 placeholder attribute since plans with empty schemas are pruned.
-     */
-    // TODO: cherry-picked from https://github.com/elastic/elasticsearch/pull/105454/commits/9c5810d51cc5f6827a2cffcffca2c8dbf883fde7
-    // Avoid duplication once https://github.com/elastic/elasticsearch/pull/105454 is merged.
-    private static LocalRelation emptyRow(Source source) {
-        Block block = SINGLE_NULL_VALUE;
-        block.incRef();
-        return new LocalRelation(source, List.of(new EmptyAttribute(Source.EMPTY)), LocalSupplier.of(new Block[] { block }));
-    }
-
     // TODO: currently this rule only works for aggregate functions (AVG)
     static class SubstituteSurrogates extends OptimizerRules.OptimizerRule<Aggregate> {
 
@@ -1016,7 +1003,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             if (remaining.isEmpty()) {
                                 // We still need to have a plan that produces 1 row per group.
                                 if (aggregate.groupings().isEmpty()) {
-                                    p = emptyRow(aggregate.source());
+                                    p = new LocalRelation(
+                                        aggregate.source(),
+                                        List.of(new EmptyAttribute(aggregate.source())),
+                                        LocalSupplier.of(
+                                            new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) }
+                                        )
+                                    );
                                 } else {
                                     // Aggs cannot produce pages with 0 columns, so retain one grouping.
                                     remaining = List.of(Expressions.attribute(aggregate.groupings().get(0)));

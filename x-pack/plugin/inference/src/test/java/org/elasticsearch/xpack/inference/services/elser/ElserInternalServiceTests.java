@@ -404,53 +404,55 @@ public class ElserInternalServiceTests extends ESTestCase {
 
         ThreadPool threadpool = new TestThreadPool("test");
         Client client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadpool);
-        doAnswer(invocationOnMock -> {
-            var request = (InferTrainedModelDeploymentAction.Request) invocationOnMock.getArguments()[1];
-            assertThat(request.getUpdate(), instanceOf(TokenizationConfigUpdate.class));
-            var update = (TokenizationConfigUpdate) request.getUpdate();
-            assertEquals(update.getSpanSettings().span(), expectedSpan.get());
-            assertEquals(update.getSpanSettings().maxSequenceLength(), expectedWindowSize.get());
-            return null;
-        }).when(client)
-            .execute(
-                same(InferTrainedModelDeploymentAction.INSTANCE),
-                any(InferTrainedModelDeploymentAction.Request.class),
-                any(ActionListener.class)
+        try {
+            when(client.threadPool()).thenReturn(threadpool);
+            doAnswer(invocationOnMock -> {
+                var request = (InferTrainedModelDeploymentAction.Request) invocationOnMock.getArguments()[1];
+                assertThat(request.getUpdate(), instanceOf(TokenizationConfigUpdate.class));
+                var update = (TokenizationConfigUpdate) request.getUpdate();
+                assertEquals(update.getSpanSettings().span(), expectedSpan.get());
+                assertEquals(update.getSpanSettings().maxSequenceLength(), expectedWindowSize.get());
+                return null;
+            }).when(client)
+                .execute(
+                    same(InferTrainedModelDeploymentAction.INSTANCE),
+                    any(InferTrainedModelDeploymentAction.Request.class),
+                    any(ActionListener.class)
+                );
+
+            var model = new ElserInternalModel(
+                "foo",
+                TaskType.SPARSE_EMBEDDING,
+                "elser",
+                new ElserInternalServiceSettings(1, 1, "elser"),
+                new ElserMlNodeTaskSettings()
+            );
+            var service = createService(client);
+
+            expectedSpan.set(-1);
+            expectedWindowSize.set(null);
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                Map.of(),
+                InputType.SEARCH,
+                null,
+                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
             );
 
-        var model = new ElserInternalModel(
-            "foo",
-            TaskType.SPARSE_EMBEDDING,
-            "elser",
-            new ElserInternalServiceSettings(1, 1, "elser"),
-            new ElserMlNodeTaskSettings()
-        );
-        var service = createService(client);
-
-        expectedSpan.set(-1);
-        expectedWindowSize.set(null);
-        service.chunkedInfer(
-            model,
-            List.of("foo", "bar"),
-            Map.of(),
-            InputType.SEARCH,
-            null,
-            ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
-        );
-
-        expectedSpan.set(-1);
-        expectedWindowSize.set(256);
-        service.chunkedInfer(
-            model,
-            List.of("foo", "bar"),
-            Map.of(),
-            InputType.SEARCH,
-            new ChunkingOptions(256, null),
-            ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
-        );
-
-        terminate(threadpool);
+            expectedSpan.set(-1);
+            expectedWindowSize.set(256);
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                Map.of(),
+                InputType.SEARCH,
+                new ChunkingOptions(256, null),
+                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+            );
+        } finally {
+            terminate(threadpool);
+        }
     }
 
     private ElserInternalService createService(Client client) {

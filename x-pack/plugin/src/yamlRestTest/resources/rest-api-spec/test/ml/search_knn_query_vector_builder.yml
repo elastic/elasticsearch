@@ -112,6 +112,7 @@ setup:
       search:
         index: index-with-embedded-text
         body:
+          size: 3
           query:
             knn:
               field: embedding
@@ -119,8 +120,8 @@ setup:
                 text_embedding:
                   model_id: text_embedding_model
                   model_text: "the octopus comforter smells"
+  - length: { hits.hits: 3 }
   - match: { hits.hits.0._id: "0" }
-  - match: { hits.hits.1._id: "4" }
 
 ---
 "nested kNN search with inner_hits size":

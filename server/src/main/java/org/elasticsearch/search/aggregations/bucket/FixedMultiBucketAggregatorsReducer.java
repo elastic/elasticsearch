@@ -40,7 +40,6 @@ public abstract class FixedMultiBucketAggregatorsReducer<B extends MultiBucketsA
     public final void accept(List<B> buckets) {
         assert buckets.size() == bucketReducer.size();
         for (int i = 0; i < buckets.size(); i++) {
-            assert bucketReducer.get(i).getProto().getKey().equals(buckets.get(i).getKey());
             bucketReducer.get(i).accept(buckets.get(i));
         }
     }

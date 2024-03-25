@@ -163,7 +163,6 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1526")
     public void testTranslogFileHoldDirectoryReflectsWhenFilesPruned() throws Exception {
         startMasterOnlyNode();
 
@@ -197,8 +196,9 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0)));
         assertBusy(() -> assertTrue(translogBlobContainer.listBlobs(operationPurpose).isEmpty()));
 
+        long minReferencedFile = translogReplicator.getMaxUploadedFile() + 1;
         indexDocs(indexName, randomIntBetween(1, 20));
-        long onlyReferencedFile = translogReplicator.getMaxUploadedFile();
+        long maxUploadedFile = translogReplicator.getMaxUploadedFile();
 
         final int iters2 = randomIntBetween(1, 10);
         for (int i = 0; i < iters2; i++) {
@@ -206,7 +206,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         }
 
         Set<TranslogReplicator.BlobTranslogFile> secondActiveTranslogFiles = translogReplicator.getActiveTranslogFiles();
-        assertThat(translogReplicator.getMaxUploadedFile(), greaterThan(onlyReferencedFile));
+        assertThat(translogReplicator.getMaxUploadedFile(), greaterThan(maxUploadedFile));
         assertTranslogBlobsExist(secondActiveTranslogFiles, translogBlobContainer);
 
         List<BlobMetadata> blobs = translogBlobContainer.listBlobs(operationPurpose)
@@ -226,7 +226,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                 .mapToLong(r -> generation - r)
                 .min()
                 .getAsLong();
-            assertThat(minReferenced, equalTo(onlyReferencedFile));
+            assertThat(minReferenced, equalTo(minReferencedFile));
         }
     }
 

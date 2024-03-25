@@ -632,7 +632,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             null,
             null,
             randomBoolean(),
-            false
+            randomBoolean()
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
         assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));
@@ -739,7 +739,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             null,
             null,
             randomBoolean(),
-            false
+            randomBoolean()
         );
         final QueryApiKeyResponse queryApiKeyResponse = client().execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest).actionGet();
         assertThat(queryApiKeyResponse.getApiKeyInfoList(), iterableWithSize(1));

@@ -24,6 +24,26 @@
           }
         },
         {
+          "ecs_event_original_non_indexed_keyword": {
+            "mapping": {
+              "type": "keyword",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": "event.original"
+          }
+        },
+        {
+          "ecs_x509_public_key_exponent_non_indexed_keyword": {
+            "mapping": {
+              "type": "keyword",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": "*.x509.public_key_exponent"
+          }
+        },
+        {
           "ecs_ip": {
             "mapping": {
               "type": "ip"

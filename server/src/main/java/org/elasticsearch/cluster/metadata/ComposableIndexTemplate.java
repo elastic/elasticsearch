@@ -259,19 +259,23 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null);
     }
 
     /**
      * Converts the composable index template to XContent and passes the RolloverConditions, when provided, to the template.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-        throws IOException {
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.template.toXContent(builder, params, rolloverConfiguration);
+            this.template.toXContent(builder, params, rolloverConfiguration, globalRetention);
         }
         if (this.componentTemplates != null) {
             builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);

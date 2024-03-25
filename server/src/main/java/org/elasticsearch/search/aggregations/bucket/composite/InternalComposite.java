@@ -9,9 +9,10 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -200,7 +201,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final PriorityQueue<BucketIterator> pq = new PriorityQueue<>(size) {
+            final ObjectArrayPriorityQueue<BucketIterator> pq = new ObjectArrayPriorityQueue<>(size, reduceContext.bigArrays()) {
                 @Override
                 protected boolean lessThan(BucketIterator a, BucketIterator b) {
                     return a.compareTo(b) < 0;
@@ -270,6 +271,11 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                 );
                 reduced.validateAfterKey();
                 return reduced;
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(pq);
             }
         };
     }

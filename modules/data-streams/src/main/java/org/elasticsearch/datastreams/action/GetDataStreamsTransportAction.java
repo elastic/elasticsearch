@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.IndexProperties;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -199,7 +201,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         }
         return new GetDataStreamAction.Response(
             dataStreamInfos,
-            request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null
+            request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
+            DataStreamGlobalRetention.getFromClusterState(state)
         );
     }
 

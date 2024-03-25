@@ -60,8 +60,13 @@ def extractLibs = tasks.register('extractLibs', Copy) {
       it.path = it.path.replace("win32", "windows")
     }
   }
-
   from layout.projectDirectory.dir('static')
+  filePermissions {
+    unix("644")
+  }
+  dirPermissions {
+    unix("755")
+  }
 }
 
 artifacts {

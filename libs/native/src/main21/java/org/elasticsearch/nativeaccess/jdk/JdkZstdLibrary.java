@@ -72,7 +72,7 @@ class JdkZstdLibrary implements ZstdLibrary {
     public String getErrorName(long code) {
         try {
             MemorySegment str = (MemorySegment) getErrorName$mh.invokeExact(code);
-            return str.reinterpret(Long.MAX_VALUE).getUtf8String(0);
+            return MemorySegmentUtil.getString(str.reinterpret(Long.MAX_VALUE), 0);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

@@ -9,6 +9,7 @@ setup:
         index: tsdb
         body:
           settings:
+            number_of_shards: 1
             mode: time_series
             routing_path: [key]
             time_series:

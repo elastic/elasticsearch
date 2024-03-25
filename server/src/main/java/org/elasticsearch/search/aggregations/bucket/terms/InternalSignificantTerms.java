@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -24,7 +25,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -202,7 +202,10 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         return new AggregatorReducer() {
             long globalSubsetSize = 0;
             long globalSupersetSize = 0;
-            final Map<String, ReducerAndProto<B>> buckets = new HashMap<>();
+            final ObjectObjectPagedHashMap<String, ReducerAndProto<B>> buckets = new ObjectObjectPagedHashMap<>(
+                getBuckets().size(),
+                reduceContext.bigArrays()
+            );
 
             @Override
             public void accept(InternalAggregation aggregation) {
@@ -213,10 +216,19 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
                 globalSubsetSize += terms.getSubsetSize();
                 globalSupersetSize += terms.getSupersetSize();
                 for (B bucket : terms.getBuckets()) {
-                    final ReducerAndProto<B> reducerAndProto = buckets.computeIfAbsent(
-                        bucket.getKeyAsString(),
-                        k -> new ReducerAndProto<>(new MultiBucketAggregatorsReducer(reduceContext, size), bucket)
-                    );
+                    ReducerAndProto<B> reducerAndProto = buckets.get(bucket.getKeyAsString());
+                    if (reducerAndProto == null) {
+                        reducerAndProto = new ReducerAndProto<>(new MultiBucketAggregatorsReducer(reduceContext, size), bucket);
+                        boolean success = false;
+                        try {
+                            buckets.put(bucket.getKeyAsString(), reducerAndProto);
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                Releasables.close(reducerAndProto.reducer);
+                            }
+                        }
+                    }
                     reducerAndProto.reducer.accept(bucket);
                     reducerAndProto.subsetDf[0] += bucket.subsetDf;
                     reducerAndProto.supersetDf[0] += bucket.supersetDf;
@@ -226,41 +238,41 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             @Override
             public InternalAggregation get() {
                 final SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
-                final int size = reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size());
-                final BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
-                for (ReducerAndProto<B> reducerAndProto : buckets.values()) {
-                    final B b = createBucket(
-                        reducerAndProto.subsetDf[0],
-                        globalSubsetSize,
-                        reducerAndProto.supersetDf[0],
-                        globalSupersetSize,
-                        reducerAndProto.reducer.get(),
-                        reducerAndProto.proto
-                    );
-                    b.updateScore(heuristic);
-                    if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
-                        final B removed = ordered.insertWithOverflow(b);
-                        if (removed == null) {
-                            reduceContext.consumeBucketsAndMaybeBreak(1);
+                final int size = (int) (reduceContext.isFinalReduce() == false ? buckets.size() : Math.min(requiredSize, buckets.size()));
+                try (BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size, reduceContext.bigArrays())) {
+                    buckets.iterator().forEachRemaining(entry -> {
+                        final B b = createBucket(
+                            entry.value.subsetDf[0],
+                            globalSubsetSize,
+                            entry.value.supersetDf[0],
+                            globalSupersetSize,
+                            entry.value.reducer.get(),
+                            entry.value.proto
+                        );
+                        b.updateScore(heuristic);
+                        if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
+                            final B removed = ordered.insertWithOverflow(b);
+                            if (removed == null) {
+                                reduceContext.consumeBucketsAndMaybeBreak(1);
+                            } else {
+                                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                            }
                         } else {
-                            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(removed));
+                            reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
                         }
-                    } else {
-                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(b));
+                    });
+                    final B[] list = createBucketsArray((int) ordered.size());
+                    for (int i = (int) ordered.size() - 1; i >= 0; i--) {
+                        list[i] = ordered.pop();
                     }
+                    return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
                 }
-                final B[] list = createBucketsArray(ordered.size());
-                for (int i = ordered.size() - 1; i >= 0; i--) {
-                    list[i] = ordered.pop();
-                }
-                return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
             }
 
             @Override
             public void close() {
-                for (ReducerAndProto<B> reducerAndProto : buckets.values()) {
-                    Releasables.close(reducerAndProto.reducer);
-                }
+                buckets.iterator().forEachRemaining(entry -> Releasables.close(entry.value.reducer));
+                Releasables.close(buckets);
             }
         };
     }

@@ -75,8 +75,8 @@
 ---
 "get cluster stats returns packaging types":
 
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["cluster_stats_packaging_types"]
       reason:  "packaging types are added for v7.2.0"
 
   - do:
@@ -85,8 +85,8 @@
   - is_true: nodes.packaging_types
 ---
 "get cluster stats without runtime fields":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["cluster_stats_runtime_fields"]
       reason:  "cluster stats includes runtime fields from 7.13 on"
   - do:
       indices.create:
@@ -98,8 +98,8 @@
 
 ---
 "Usage stats with script-less runtime fields":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["cluster_stats_runtime_fields"]
       reason:  "cluster stats includes runtime fields from 7.13 on"
   - do:
       indices.create:
@@ -168,8 +168,8 @@
 
 ---
 "mappings sizes reported in get cluster stats":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["cluster_stats_mapping_sizes"]
       reason:  "mapping sizes reported from 8.4 onwards"
   - do:
       indices.create:
@@ -188,8 +188,8 @@
 
 ---
 "snapshot stats reported in get cluster stats":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["cluster_stats_snapshots"]
       reason:  "snapshot stats reported from 8.8 onwards"
 
   - do:
@@ -231,8 +231,8 @@
 
 ---
 "Dense vector stats":
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["cluster_stats_dense_vectors"]
       reason:  "dense vector stats added in 8.10"
   - do:
       indices.create:

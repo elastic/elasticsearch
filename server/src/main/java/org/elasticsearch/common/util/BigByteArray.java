@@ -146,14 +146,17 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     public BytesRefIterator iterator() {
         return new BytesRefIterator() {
             int i = 0;
+            long remained = size;
 
             @Override
             public BytesRef next() {
-                if (i >= pages.length) {
+                if (remained == 0) {
                     return null;
                 }
-                int len = i == pages.length - 1 ? Math.toIntExact(size - (pages.length - 1L) * PAGE_SIZE_IN_BYTES) : PAGE_SIZE_IN_BYTES;
-                return new BytesRef(pages[i++], 0, len);
+                byte[] page = pages[i++];
+                int len = Math.toIntExact(Math.min(page.length, remained));
+                remained -= len;
+                return new BytesRef(page, 0, len);
             }
         };
     }

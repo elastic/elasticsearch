@@ -114,6 +114,9 @@ $endif$
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
             case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
             case SERIALIZE_VECTOR_ARRAY -> $Type$ArrayVector.readArrayVector(positions, in, blockFactory);
+$if(BytesRef)$$else$
+            case SERIALIZE_VECTOR_BIG_ARRAY -> $Type$BigArrayVector.readArrayVector(positions, in, blockFactory);
+$endif$
             default -> {
                 assert false : "invalid vector serialization type [" + serializationType + "]";
                 throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
@@ -136,6 +139,11 @@ $endif$
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof $Type$ArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
+$if(BytesRef)$$else$
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof $Type$BigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
+            v.writeArrayVector(positions, out);
+$endif$
         } else {
             out.writeByte(SERIALIZE_VECTOR_VALUES);
             writeValues(this, positions, out);

@@ -23,7 +23,8 @@ import java.security.MessageDigest;
 import java.util.Base64;
 
 /**
- * Build a SHA256 of the contents of an {@link Automaton}.
+ * An implementation of {@link FieldPredicate} which matches fields
+ * against an {@link Automaton}.
  */
 class AutomatonFieldPredicate implements FieldPredicate {
     private final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(AutomatonFieldPredicate.class);

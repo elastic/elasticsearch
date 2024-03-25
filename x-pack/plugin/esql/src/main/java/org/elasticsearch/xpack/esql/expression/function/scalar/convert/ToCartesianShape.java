@@ -37,7 +37,7 @@ public class ToCartesianShape extends AbstractConvertFunction {
     @FunctionInfo(returnType = "cartesian_shape", description = "Converts an input value to a shape value.")
     public ToCartesianShape(
         Source source,
-        @Param(name = "v", type = { "cartesian_point", "cartesian_shape", "keyword", "text" }) Expression field
+        @Param(name = "field", type = { "cartesian_point", "cartesian_shape", "keyword", "text" }) Expression field
     ) {
         super(source, field);
     }

@@ -6,9 +6,9 @@
 
 The instructions in this tutorial shows you how to use the {infer} API with
 various services to perform semantic search on your data. The following examples 
-use Cohere's `embed-english-light-v3.0` model and OpenAI's 
-`text-embedding-ada-002` second generation embedding model. You can use any
-Cohere and OpenAI models, they are all supported by the {infer} API.
+use Cohere's `embed-english-v3.0` model and OpenAI's `text-embedding-ada-002`
+second generation embedding model. You can use any Cohere and OpenAI models,
+they are all supported by the {infer} API.
 
 Click the name of the service you want to use on any of the widgets below to
 review the corresponding instructions.

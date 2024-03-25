@@ -304,3 +304,4 @@ setup:
               source_text:
                 model_id: text_expansion_model
                 model_text: "octopus comforter smells"
+                pruning_config: {}

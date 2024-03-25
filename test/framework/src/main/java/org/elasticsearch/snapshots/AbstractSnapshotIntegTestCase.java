@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.SnapshotSortKey;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -734,11 +734,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         });
     }
 
-    public static void assertSnapshotListSorted(
-        List<SnapshotInfo> snapshotInfos,
-        @Nullable GetSnapshotsRequest.SortBy sort,
-        SortOrder sortOrder
-    ) {
+    public static void assertSnapshotListSorted(List<SnapshotInfo> snapshotInfos, @Nullable SnapshotSortKey sort, SortOrder sortOrder) {
         final BiConsumer<SnapshotInfo, SnapshotInfo> assertion;
         if (sort == null) {
             assertion = (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1));

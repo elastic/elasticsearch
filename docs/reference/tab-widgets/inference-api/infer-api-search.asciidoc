@@ -9,7 +9,7 @@ GET cohere-embeddings/_search
     "query_vector_builder": {
       "text_embedding": {
         "model_id": "cohere_embeddings",
-        "model_text": "Calculate fuel cost"
+        "model_text": "Muscles in human body"
       }
     },
     "k": 10,

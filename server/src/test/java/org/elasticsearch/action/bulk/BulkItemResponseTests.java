@@ -192,17 +192,16 @@ public class BulkItemResponseTests extends ESTestCase {
         if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
             final IndexResponse.Builder indexResponseBuilder = new IndexResponse.Builder();
             builder = indexResponseBuilder;
-            itemParser = (indexParser) -> IndexResponse.parseXContentFields(indexParser, indexResponseBuilder);
-
+            itemParser = indexParser -> DocWriteResponse.parseInnerToXContent(indexParser, indexResponseBuilder);
         } else if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateResponse.Builder updateResponseBuilder = new UpdateResponse.Builder();
             builder = updateResponseBuilder;
-            itemParser = (updateParser) -> UpdateResponse.parseXContentFields(updateParser, updateResponseBuilder);
+            itemParser = updateParser -> UpdateResponseTests.parseXContentFields(updateParser, updateResponseBuilder);
 
         } else if (opType == DocWriteRequest.OpType.DELETE) {
             final DeleteResponse.Builder deleteResponseBuilder = new DeleteResponse.Builder();
             builder = deleteResponseBuilder;
-            itemParser = (deleteParser) -> DeleteResponse.parseXContentFields(deleteParser, deleteResponseBuilder);
+            itemParser = deleteParser -> DocWriteResponse.parseInnerToXContent(deleteParser, deleteResponseBuilder);
         } else {
             throwUnknownField(currentFieldName, parser);
         }

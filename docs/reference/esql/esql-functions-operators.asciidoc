@@ -21,6 +21,9 @@ include::functions/string-functions.asciidoc[tag=string_list]
 <<esql-date-time-functions>>::
 include::functions/date-time-functions.asciidoc[tag=date_list]
 
+<<esql-spatial-functions>>::
+include::functions/spatial-functions.asciidoc[tag=spatial_list]
+
 <<esql-type-conversion-functions>>::
 include::functions/type-conversion-functions.asciidoc[tag=type_list]
 
@@ -37,6 +40,7 @@ include::functions/aggregation-functions.asciidoc[]
 include::functions/math-functions.asciidoc[]
 include::functions/string-functions.asciidoc[]
 include::functions/date-time-functions.asciidoc[]
+include::functions/spatial-functions.asciidoc[]
 include::functions/type-conversion-functions.asciidoc[]
 include::functions/conditional-functions-and-expressions.asciidoc[]
 include::functions/mv-functions.asciidoc[]

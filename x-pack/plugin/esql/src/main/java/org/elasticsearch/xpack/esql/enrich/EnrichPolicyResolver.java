@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -80,7 +79,7 @@ public class EnrichPolicyResolver {
         this.threadPool = transportService.getThreadPool();
         transportService.registerRequestHandler(
             RESOLVE_ACTION_NAME,
-            threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME),
+            threadPool.executor(ThreadPool.Names.SEARCH),
             LookupRequest::new,
             new RequestHandler()
         );
@@ -272,7 +271,7 @@ public class EnrichPolicyResolver {
                         new ActionListenerResponseHandler<>(
                             refs.acquire(resp -> lookupResponses.put(cluster, resp)),
                             LookupResponse::new,
-                            threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME)
+                            threadPool.executor(ThreadPool.Names.SEARCH)
                         )
                     );
                 }
@@ -290,7 +289,7 @@ public class EnrichPolicyResolver {
                     new ActionListenerResponseHandler<>(
                         refs.acquire(resp -> lookupResponses.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, resp)),
                         LookupResponse::new,
-                        threadPool.executor(EsqlPlugin.ESQL_THREAD_POOL_NAME)
+                        threadPool.executor(ThreadPool.Names.SEARCH)
                     )
                 );
             }

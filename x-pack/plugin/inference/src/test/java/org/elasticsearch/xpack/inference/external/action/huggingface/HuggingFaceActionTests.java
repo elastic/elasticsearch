@@ -16,7 +16,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -54,7 +53,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderThrows() {
         var sender = mock(Sender.class);
-        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
+        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(URL, sender);
 
@@ -71,11 +70,11 @@ public class HuggingFaceActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[1];
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
-        }).when(sender).send(any(), any());
+        }).when(sender).send(any(), any(), any());
 
         var action = createAction(URL, sender, "inferenceEntityId");
 
@@ -92,7 +91,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
     public void testExecute_ThrowsException() {
         var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
+        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(URL, sender, "inferenceEntityId");
 

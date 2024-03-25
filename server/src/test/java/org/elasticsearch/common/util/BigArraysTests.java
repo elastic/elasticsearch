@@ -9,9 +9,12 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -243,6 +246,81 @@ public class BigArraysTests extends ESTestCase {
         array2.close();
     }
 
+    public void testSerializeDoubleArray() throws Exception {
+        int len = randomIntBetween(1, 100_000);
+        DoubleArray array1 = bigArrays.newDoubleArray(len, randomBoolean());
+        for (int i = 0; i < len; ++i) {
+            array1.set(i, randomDouble());
+        }
+        if (randomBoolean()) {
+            len = randomIntBetween(len, len * 3 / 2);
+            array1 = bigArrays.resize(array1, len);
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        array1.writeTo(out);
+        final DoubleArray array2 = bigArrays.newDoubleArray(len, randomBoolean());
+        array2.fillWith(out.bytes().streamInput());
+        for (int i = 0; i < len; i++) {
+            assertThat(array2.get(i), equalTo(array1.get(i)));
+        }
+        final DoubleArray array3 = DoubleArray.readFrom(out.bytes().streamInput());
+        assertThat(array3.size(), equalTo((long) len));
+        for (int i = 0; i < len; i++) {
+            assertThat(array3.get(i), equalTo(array1.get(i)));
+        }
+        Releasables.close(array1, array2, array3);
+    }
+
+    public void testSerializeLongArray() throws Exception {
+        int len = randomIntBetween(1, 100_000);
+        LongArray array1 = bigArrays.newLongArray(len, randomBoolean());
+        for (int i = 0; i < len; ++i) {
+            array1.set(i, randomLong());
+        }
+        if (randomBoolean()) {
+            len = randomIntBetween(len, len * 3 / 2);
+            array1 = bigArrays.resize(array1, len);
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        array1.writeTo(out);
+        final LongArray array2 = bigArrays.newLongArray(len, randomBoolean());
+        array2.fillWith(out.bytes().streamInput());
+        for (int i = 0; i < len; i++) {
+            assertThat(array2.get(i), equalTo(array1.get(i)));
+        }
+        final LongArray array3 = LongArray.readFrom(out.bytes().streamInput());
+        assertThat(array3.size(), equalTo((long) len));
+        for (int i = 0; i < len; i++) {
+            assertThat(array3.get(i), equalTo(array1.get(i)));
+        }
+        Releasables.close(array1, array2, array3);
+    }
+
+    public void testSerializeIntArray() throws Exception {
+        int len = randomIntBetween(1, 100_000);
+        IntArray array1 = bigArrays.newIntArray(len, randomBoolean());
+        for (int i = 0; i < len; ++i) {
+            array1.set(i, randomInt());
+        }
+        if (randomBoolean()) {
+            len = randomIntBetween(len, len * 3 / 2);
+            array1 = bigArrays.resize(array1, len);
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        array1.writeTo(out);
+        final IntArray array2 = bigArrays.newIntArray(len, randomBoolean());
+        array2.fillWith(out.bytes().streamInput());
+        for (int i = 0; i < len; i++) {
+            assertThat(array2.get(i), equalTo(array1.get(i)));
+        }
+        final IntArray array3 = IntArray.readFrom(out.bytes().streamInput());
+        assertThat(array3.size(), equalTo((long) len));
+        for (int i = 0; i < len; i++) {
+            assertThat(array3.get(i), equalTo(array1.get(i)));
+        }
+        Releasables.close(array1, array2, array3);
+    }
+
     public void testByteArrayBulkGet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
         random().nextBytes(array1);
@@ -273,6 +351,40 @@ public class BigArraysTests extends ESTestCase {
             assertEquals(array1[i], array2.get(i));
         }
         array2.close();
+    }
+
+    public void testByteIterator() throws Exception {
+        final byte[] bytes = new byte[randomIntBetween(1, 4000000)];
+        random().nextBytes(bytes);
+        ByteArray array = bigArrays.newByteArray(bytes.length, randomBoolean());
+        array.fillWith(new ByteArrayStreamInput(bytes));
+        for (int i = 0; i < bytes.length; i++) {
+            assertEquals(bytes[i], array.get(i));
+        }
+        BytesRefIterator it = array.iterator();
+        BytesRef ref;
+        int offset = 0;
+        while ((ref = it.next()) != null) {
+            for (int i = 0; i < ref.length; i++) {
+                assertEquals(bytes[offset], ref.bytes[ref.offset + i]);
+                offset++;
+            }
+        }
+        assertThat(offset, equalTo(bytes.length));
+        int newLen = randomIntBetween(bytes.length, bytes.length + 100_000);
+        array = bigArrays.resize(array, newLen);
+        it = array.iterator();
+        offset = 0;
+        while ((ref = it.next()) != null) {
+            for (int i = 0; i < ref.length; i++) {
+                if (offset < bytes.length) {
+                    assertEquals(bytes[offset], ref.bytes[ref.offset + i]);
+                }
+                offset++;
+            }
+        }
+        assertThat(offset, equalTo(newLen));
+        array.close();
     }
 
     public void testByteArrayEquals() {

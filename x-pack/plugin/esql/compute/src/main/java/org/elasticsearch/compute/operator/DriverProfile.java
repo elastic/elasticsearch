@@ -102,7 +102,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
         return iterations;
     }
 
-    List<DriverStatus.OperatorStatus> operators() {
+    public List<DriverStatus.OperatorStatus> operators() {
         return operators;
     }
 

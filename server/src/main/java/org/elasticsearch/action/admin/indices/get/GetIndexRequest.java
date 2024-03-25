@@ -9,7 +9,9 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
@@ -92,7 +94,15 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private transient boolean includeDefaults = false;
 
     public GetIndexRequest() {
-
+        super(
+            DataStream.isFailureStoreEnabled()
+                ? IndicesOptions.builder(IndicesOptions.strictExpandOpen())
+                    .failureStoreOptions(
+                        IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true)
+                    )
+                    .build()
+                : IndicesOptions.strictExpandOpen()
+        );
     }
 
     public GetIndexRequest(StreamInput in) throws IOException {

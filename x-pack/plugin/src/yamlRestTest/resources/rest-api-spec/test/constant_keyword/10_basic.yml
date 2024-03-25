@@ -450,3 +450,20 @@ Cardinality agg:
                 field: test
 
   - match: { aggregations.card.value: 1 }
+---
+"deprecated use of multi-fields":
+  - skip:
+      version: " - 8.13.99"
+      reason: "deprecation added in 8.14"
+      features: warnings
+
+  - do:
+      warnings:
+        - "Adding multifields to [constant_keyword] mappers has no effect and will be forbidden in future"
+      indices.create:
+        index: constant_keyword-multi-field
+        body:
+          mappings:
+            properties:
+              keyword: { "type": "constant_keyword", "fields": {"keyword": {"type": "keyword"}} }
+

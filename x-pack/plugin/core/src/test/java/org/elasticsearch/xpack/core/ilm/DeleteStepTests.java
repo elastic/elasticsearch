@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.is;
@@ -158,14 +159,17 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             .metadata(Metadata.builder().put(index1, false).put(sourceIndexMetadata, false).put(dataStream).build())
             .build();
 
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
         createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
             @Override
             public void onResponse(Void complete) {
+                listenerCalled.set(true);
                 fail("unexpected listener callback");
             }
 
             @Override
             public void onFailure(Exception e) {
+                listenerCalled.set(true);
                 assertThat(
                     e.getMessage(),
                     is(
@@ -180,5 +184,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
                 );
             }
         });
+
+        assertThat(listenerCalled.get(), is(true));
     }
 }

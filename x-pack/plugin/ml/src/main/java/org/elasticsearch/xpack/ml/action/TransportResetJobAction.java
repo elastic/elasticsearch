@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
@@ -124,7 +125,14 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
                 waitExistingResetTaskToComplete(
                     job.getBlocked().getTaskId(),
                     request,
-                    ActionListener.wrap(r -> resetIfJobIsStillBlockedOnReset(task, request, listener), listener::onFailure)
+                    ActionListener.wrap(r -> resetIfJobIsStillBlockedOnReset(task, request, listener), e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                            // If the task is not found then the node it was running on likely died, so try again.
+                            resetIfJobIsStillBlockedOnReset(task, request, listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    })
                 );
             } else {
                 ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client, taskId);

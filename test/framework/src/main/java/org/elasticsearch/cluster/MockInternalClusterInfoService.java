@@ -89,7 +89,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getAdaptiveSelectionStats(),
                 nodeStats.getScriptCacheStats(),
                 nodeStats.getIndexingPressureStats(),
-                nodeStats.getRepositoriesStats()
+                nodeStats.getRepositoriesStats(),
+                nodeStats.getNodeAllocationStats()
             );
         }).collect(Collectors.toList());
     }

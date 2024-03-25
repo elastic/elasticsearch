@@ -36,23 +36,47 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = CohereServiceSettings.fromMap(map, context);
 
-        CohereEmbeddingType embeddingTypes = Objects.requireNonNullElse(
-            extractOptionalEnum(
-                map,
-                EMBEDDING_TYPE,
-                ModelConfigurations.SERVICE_SETTINGS,
-                CohereEmbeddingType::fromString,
-                EnumSet.allOf(CohereEmbeddingType.class),
-                validationException
-            ),
-            CohereEmbeddingType.FLOAT
-        );
+        CohereEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
         return new CohereEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes);
+    }
+
+    private static CohereEmbeddingType parseEmbeddingType(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        if (context == ConfigurationParseContext.REQUEST) {
+            return Objects.requireNonNullElse(
+                extractOptionalEnum(
+                    map,
+                    EMBEDDING_TYPE,
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    CohereEmbeddingType::fromString,
+                    EnumSet.allOf(CohereEmbeddingType.class),
+                    validationException
+                ),
+                CohereEmbeddingType.FLOAT
+            );
+        }
+
+        DenseVectorFieldMapper.ElementType elementType = Objects.requireNonNullElse(
+            extractOptionalEnum(
+                map,
+                EMBEDDING_TYPE,
+                ModelConfigurations.SERVICE_SETTINGS,
+                DenseVectorFieldMapper.ElementType::fromString,
+                CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES,
+                validationException
+            ),
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+
+        return CohereEmbeddingType.fromElementType(elementType);
     }
 
     private final CohereServiceSettings commonSettings;

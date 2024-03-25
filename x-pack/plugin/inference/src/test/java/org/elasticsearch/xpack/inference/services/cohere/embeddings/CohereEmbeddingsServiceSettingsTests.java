@@ -63,7 +63,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     CohereServiceSettings.OLD_MODEL_ID_FIELD,
                     model,
                     CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
-                    CohereEmbeddingType.INT8.toString()
+                    DenseVectorFieldMapper.ElementType.BYTE.toString()
                 )
             ),
             ConfigurationParseContext.PERSISTENT
@@ -74,7 +74,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new CohereEmbeddingsServiceSettings(
                     new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model),
-                    CohereEmbeddingType.INT8
+                    CohereEmbeddingType.BYTE
                 )
             )
         );
@@ -103,7 +103,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     CohereEmbeddingType.INT8.toString()
                 )
             ),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         );
 
         MatcherAssert.assertThat(
@@ -139,7 +139,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     CohereServiceSettings.MODEL_ID,
                     model,
                     CohereEmbeddingsServiceSettings.EMBEDDING_TYPE,
-                    CohereEmbeddingType.INT8.toString()
+                    CohereEmbeddingType.BYTE.toString()
                 )
             ),
             ConfigurationParseContext.PERSISTENT
@@ -150,7 +150,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 new CohereEmbeddingsServiceSettings(
                     new CohereServiceSettings(ServiceUtils.createUri(url), SimilarityMeasure.DOT_PRODUCT, dims, maxInputTokens, model),
-                    CohereEmbeddingType.INT8
+                    CohereEmbeddingType.BYTE
                 )
             )
         );
@@ -181,12 +181,12 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_InvalidEmbeddingType_ThrowsError() {
+    public void testFromMap_InvalidEmbeddingType_ThrowsError_ForRequest() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "abc")),
-                ConfigurationParseContext.PERSISTENT
+                ConfigurationParseContext.REQUEST
             )
         );
 
@@ -201,13 +201,23 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_PersistsByteEmbedding_AsByte() {
-        assertThat(
-            CohereEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.BYTE.toString())),
+    public void testFromMap_InvalidEmbeddingType_ThrowsError_ForPersistent() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, "abc")),
                 ConfigurationParseContext.PERSISTENT
-            ),
-            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings((URI) null, null, null, null, null), CohereEmbeddingType.BYTE))
+            )
+        );
+
+        MatcherAssert.assertThat(
+            thrownException.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [abc] received. "
+                        + "[embedding_type] must be one of [byte, float];"
+                )
+            )
         );
     }
 
@@ -230,7 +240,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, DenseVectorFieldMapper.ElementType.BYTE.toString())),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.PERSISTENT
             ),
             is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings((URI) null, null, null, null, null), CohereEmbeddingType.BYTE))
         );
@@ -240,7 +250,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, DenseVectorFieldMapper.ElementType.FLOAT.toString())),
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.PERSISTENT
             ),
             is(
                 new CohereEmbeddingsServiceSettings(
@@ -251,7 +261,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
-    public void testFromMap_ConvertsCohereEmbeddingTypeInt8_ToCohereEmbeddingTypeByte() {
+    public void testFromMap_ConvertsInt8_ToCohereEmbeddingTypeInt8() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.INT8.toString())),
@@ -299,11 +309,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         return new NamedWriteableRegistry(entries);
     }
 
-    public static Map<String, Object> getServiceSettingsMap(
-        @Nullable String url,
-        @Nullable String model,
-        @Nullable CohereEmbeddingType embeddingType
-    ) {
+    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model, @Nullable Enum<?> embeddingType) {
         var map = new HashMap<>(CohereServiceSettingsTests.getServiceSettingsMap(url, model));
 
         if (embeddingType != null) {

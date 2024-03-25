@@ -11,9 +11,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.hamcrest.Description;
 import org.hamcrest.Matchers;
+import org.hamcrest.StringDescription;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -23,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
@@ -184,7 +188,7 @@ public final class CsvAssert {
             actualValues.sort(resultRowComparator(expected.columnTypes()));
         }
         var expectedValues = expected.values();
-        ArrayList<DataFailure> dataFailures = new ArrayList<>();
+        List<DataFailure> dataFailures = new ArrayList<>();
 
         for (int row = 0; row < expectedValues.size(); row++) {
             try {
@@ -230,7 +234,7 @@ public final class CsvAssert {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
-                        fail("Data mismatch: " + dataFailures);
+                        dataFailure(dataFailures);
                     }
                 }
 
@@ -247,13 +251,34 @@ public final class CsvAssert {
             }
         }
         if (dataFailures.isEmpty() == false) {
-            fail("Data mismatch: " + dataFailures);
+            dataFailure(dataFailures);
         }
         if (expectedValues.size() < actualValues.size()) {
             fail(
                 "Elasticsearch still has data after [" + expectedValues.size() + "] entries:\n" + row(actualValues, expectedValues.size())
             );
         }
+    }
+
+    private static void dataFailure(List<DataFailure> dataFailures) {
+        fail("Data mismatch:\n" + dataFailures.stream().map(f -> {
+            Description description = new StringDescription();
+            ListMatcher expected;
+            if (f.expected instanceof List<?> e) {
+                expected = ListMatcher.matchesList(e);
+            } else {
+                expected = ListMatcher.matchesList().item(f.expected);
+            }
+            List<?> actualList;
+            if (f.actual instanceof List<?> a) {
+                actualList = a;
+            } else {
+                actualList = List.of(f.actual);
+            }
+            expected.describeMismatch(actualList, description);
+            String prefix = "row " + f.row + " column " + f.column + ":";
+            return prefix + description.toString().replace("\n", "\n" + prefix);
+        }).collect(Collectors.joining("\n")));
     }
 
     private static Comparator<List<Object>> resultRowComparator(List<Type> types) {

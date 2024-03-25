@@ -17,8 +17,6 @@ Multivalue expression.
 Converts a multivalued expression into a single valued column containing a count
 of the number of values.
 
-*Supported types*
-
 include::types/mv_count.asciidoc[]
 
 *Example*

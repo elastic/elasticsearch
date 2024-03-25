@@ -61,6 +61,7 @@ public class CsvTestsDataLoader {
     private static final TestsDataset HEIGHTS = new TestsDataset("heights", "mapping-heights.json", "heights.csv");
     private static final TestsDataset DECADES = new TestsDataset("decades", "mapping-decades.json", "decades.csv");
     private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
+    private static final TestsDataset AIRPORTS_MP = new TestsDataset("airports_mp", "mapping-airports.json", "airports_mp.csv");
     private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
     private static final TestsDataset COUNTRIES_BBOX = new TestsDataset(
         "countries_bbox",
@@ -91,6 +92,7 @@ public class CsvTestsDataLoader {
         Map.entry(HEIGHTS.indexName, HEIGHTS),
         Map.entry(DECADES.indexName, DECADES),
         Map.entry(AIRPORTS.indexName, AIRPORTS),
+        Map.entry(AIRPORTS_MP.indexName, AIRPORTS_MP),
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
@@ -105,6 +107,7 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig DECADES_ENRICH = new EnrichConfig("decades_policy", "enrich-policy-decades.json");
     private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
     private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
+    private static final EnrichConfig CITY_AIRPORTS_ENRICH = new EnrichConfig("city_airports", "enrich-policy-city_airports.json");
 
     public static final List<String> ENRICH_SOURCE_INDICES = List.of(
         "languages",
@@ -123,7 +126,8 @@ public class CsvTestsDataLoader {
         HEIGHTS_ENRICH,
         DECADES_ENRICH,
         CITY_NAMES_ENRICH,
-        CITY_BOUNDARIES_ENRICH
+        CITY_BOUNDARIES_ENRICH,
+        CITY_AIRPORTS_ENRICH
     );
 
     /**
@@ -281,6 +285,7 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
+        ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
             String line;
@@ -390,13 +395,19 @@ public class CsvTestsDataLoader {
                 }
                 lineNumber++;
                 if (builder.length() > BULK_DATA_SIZE) {
-                    sendBulkRequest(indexName, builder, client, logger);
+                    sendBulkRequest(indexName, builder, client, logger, failures);
                     builder.setLength(0);
                 }
             }
         }
         if (builder.isEmpty() == false) {
-            sendBulkRequest(indexName, builder, client, logger);
+            sendBulkRequest(indexName, builder, client, logger, failures);
+        }
+        if (failures.isEmpty() == false) {
+            for (String failure : failures) {
+                logger.error(failure);
+            }
+            throw new IOException("Data loading failed with " + failures.size() + " errors: " + failures.get(0));
         }
     }
 
@@ -405,7 +416,8 @@ public class CsvTestsDataLoader {
         return isQuoted ? value : "\"" + value + "\"";
     }
 
-    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger) throws IOException {
+    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)
+        throws IOException {
         // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
         builder.append("\n");
         logger.debug("Sending bulk request of [{}] bytes for [{}]", builder.length(), indexName);
@@ -422,12 +434,24 @@ public class CsvTestsDataLoader {
                 if (Boolean.FALSE.equals(errors)) {
                     logger.info("Data loading of [{}] bytes into [{}] OK", builder.length(), indexName);
                 } else {
-                    throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
+                    addError(failures, indexName, builder, "errors: " + result);
                 }
             }
         } else {
-            throw new IOException("Data loading of [" + indexName + "] failed with status: " + response.getStatusLine());
+            addError(failures, indexName, builder, "status: " + response.getStatusLine());
         }
+    }
+
+    private static void addError(List<String> failures, String indexName, StringBuilder builder, String message) {
+        failures.add(
+            format(
+                "Data loading of [{}] bytes into [{}] failed with {}: Data [{}...]",
+                builder.length(),
+                indexName,
+                message,
+                builder.substring(0, 100)
+            )
+        );
     }
 
     private static void forceMerge(RestClient client, Set<String> indices, Logger logger) throws IOException {

@@ -90,9 +90,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
+import org.elasticsearch.xpack.ql.plugin.QlPlugin;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
@@ -154,7 +156,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             SnapshotLifecycle.class,
             // The feature reset API touches transform custom cluster state so we need this plugin to understand it
             Transform.class,
-            DataStreamsPlugin.class
+            DataStreamsPlugin.class,
+            // ESQL and its dependency needed for node features
+            QlPlugin.class,
+            EsqlPlugin.class
         );
     }
 

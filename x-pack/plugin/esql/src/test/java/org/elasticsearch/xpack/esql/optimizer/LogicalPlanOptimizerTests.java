@@ -134,6 +134,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.ql.TestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
@@ -329,6 +330,39 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.name(condition.right()), equalTo("1 + 4"));
         var con = as(condition.right(), Literal.class);
         assertThat(con.value(), equalTo(5));
+    }
+
+    public void testCombineDisjunctionToInEquals() {
+        LogicalPlan plan = plan("""
+            from test
+            | where emp_no == 1 or emp_no == 2
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var condition = as(filter.condition(), In.class);
+        assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
+    }
+
+    public void testCombineDisjunctionToInMixed() {
+        LogicalPlan plan = plan("""
+            from test
+            | where emp_no == 1 or emp_no in (2)
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var condition = as(filter.condition(), In.class);
+        assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
+    }
+
+    public void testCombineDisjunctionToInFromIn() {
+        LogicalPlan plan = plan("""
+            from test
+            | where emp_no in (1) or emp_no in (2)
+            """);
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var condition = as(filter.condition(), In.class);
+        assertThat(condition.list(), equalTo(List.of(new Literal(EMPTY, 1, INTEGER), new Literal(EMPTY, 2, INTEGER))));
     }
 
     public void testCombineProjectionWithPruning() {
@@ -3451,7 +3485,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105436")
     public void testPlanSanityCheck() throws Exception {
         var plan = optimizedPlan("""
             from test
@@ -3477,7 +3510,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             )
         );
 
-        VerificationException e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(invalidPlan));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(invalidPlan));
         assertThat(e.getMessage(), containsString("Plan [OrderBy[[Order[salary"));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }
@@ -3630,15 +3663,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private void assertNullLiteral(Expression expression) {
         assertEquals(Literal.class, expression.getClass());
         assertNull(expression.fold());
-    }
-
-    // TODO: move these from org.elasticsearch.xpack.ql.optimizer.OptimizerRulesTests to org.elasticsearch.xpack.ql.TestUtils
-    public static FieldAttribute getFieldAttribute(String name) {
-        return getFieldAttribute(name, INTEGER);
-    }
-
-    private static FieldAttribute getFieldAttribute(String name, DataType dataType) {
-        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {

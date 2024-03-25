@@ -1218,6 +1218,15 @@ c:l
 891
 ;
 
+countMV#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS vals = COUNT(salary_change.int)
+;
+
+vals:l
+183
+;
+
 sumOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_null = sum(null), rows = count(*)

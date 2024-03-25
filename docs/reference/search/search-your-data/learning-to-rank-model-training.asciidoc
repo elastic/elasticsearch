@@ -109,7 +109,7 @@ The FeatureLogger provides an `extract_features` method which enables you to ext
 [source,python]
 ----
 feature_logger.extract_features(
-    query_params:{"query": "foo"},
+    query_params={"query": "foo"},
     doc_ids=["doc-1", "doc-2"]
 )
 ----

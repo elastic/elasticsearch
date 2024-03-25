@@ -17,6 +17,7 @@
 * <<esql-mv_max>>
 * <<esql-mv_median>>
 * <<esql-mv_min>>
+* <<esql-mv_sort>>
 * <<esql-mv_slice>>
 * <<esql-mv_sum>>
 * <<esql-mv_zip>>
@@ -31,6 +32,7 @@ include::mv_last.asciidoc[]
 include::mv_max.asciidoc[]
 include::mv_median.asciidoc[]
 include::mv_min.asciidoc[]
+include::mv_sort.asciidoc[]
 include::mv_slice.asciidoc[]
 include::mv_sum.asciidoc[]
 include::mv_zip.asciidoc[]

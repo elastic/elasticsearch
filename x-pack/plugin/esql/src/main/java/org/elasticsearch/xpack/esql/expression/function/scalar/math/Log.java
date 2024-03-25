@@ -32,11 +32,11 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression base, value;
 
-    @FunctionInfo(returnType = "double", description = "Returns the logarithm of a value to a base.")
+    @FunctionInfo(returnType = "double", description = "Returns the logarithm of a number to a base.")
     public Log(
         Source source,
         @Param(name = "base", type = { "integer", "unsigned_long", "long", "double" }, optional = true) Expression base,
-        @Param(name = "value", type = { "integer", "unsigned_long", "long", "double" }) Expression value
+        @Param(name = "number", type = { "integer", "unsigned_long", "long", "double" }) Expression value
     ) {
         super(source, value != null ? Arrays.asList(base, value) : Arrays.asList(base));
         this.value = value != null ? value : base;

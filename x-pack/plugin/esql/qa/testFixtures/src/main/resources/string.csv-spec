@@ -714,14 +714,18 @@ ROW a=[10, 9, 8]
 // end::mv_concat-to_string-result[]
 ;
 
-mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+mvSort
+required_feature: esql.mv_sort
+
 row a = ["Mon", "Tues", "Wed", "Thu", "Fri"] | eval sa = mv_sort(a), sd = mv_sort(a, "DESC");
 
 a:keyword                            | sa:keyword                 | sd:keyword
 ["Mon", "Tues", "Wed", "Thu", "Fri"] | [Fri, Mon, Thu, Tues, Wed] | [Wed, Tues, Thu, Mon, Fri]
 ;
 
-mvSortEmp#[skip:-8.13.99, reason:newly added in 8.14]
+mvSortEmp
+required_feature: esql.mv_sort
+
 FROM employees
 | eval sd = mv_sort(job_positions, "DESC"), sa = mv_sort(job_positions)
 | sort emp_no
@@ -737,7 +741,9 @@ emp_no:integer | job_positions:keyword                                          
 10005          | null                                                                   | null                                                                   | null
 ;
 
-mvSliceEmp#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmp
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.keyword, 0, 1)
 | keep emp_no, salary_change.keyword, a1
@@ -752,7 +758,9 @@ emp_no:integer | salary_change.keyword:keyword | a1:keyword
 10005          | [-2.14,13.07]                 | [-2.14,13.07]
 ;
 
-mvZip#[skip:-8.13.99, reason:newly added in 8.14]
+mvZip
+required_feature: esql.mv_sort
+
 // tag::mv_zip[]
 ROW a = ["x", "y", "z"], b = ["1", "2"]
 | EVAL c = mv_zip(a, b, "-")
@@ -766,7 +774,9 @@ a:keyword | b:keyword | c:keyword
 // end::mv_zip-result[]
 ;
 
-mvZipEmp#[skip:-8.13.99, reason:newly added in 8.14]
+mvZipEmp
+required_feature: esql.mv_sort
+
 from employees
 | eval full_name = mv_zip(first_name, last_name, " "), full_name_2 = mv_zip(last_name, first_name), jobs = mv_zip(job_positions, salary_change.keyword, "#")
 | keep emp_no, full_name, full_name_2, job_positions, salary_change.keyword, jobs

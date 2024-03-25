@@ -287,7 +287,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                     // bucket replaces existing bucket
                     delayed = bucketReducers.remove(out.key);
                     assert delayed != null;
-                    delayed.reset();
+                    delayed.reset(bucket);
                 }
                 bucketReducers.put(bucket.key, delayed);
             }

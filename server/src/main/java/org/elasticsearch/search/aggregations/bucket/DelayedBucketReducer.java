@@ -19,14 +19,15 @@ import java.util.List;
  *  Class for reducing a list of {@link B} to a single {@link InternalAggregations}
  *  and the number of documents in a delayable fashion.
  *
- *  This class can be reused by calling {@link #reset()}.
+ *  This class can be reused by calling {@link #reset(B)}.
  *
  * @see BucketReducer
  */
 public final class DelayedBucketReducer<B extends MultiBucketsAggregation.Bucket> {
 
     private final AggregationReduceContext context;
-    private final B proto;
+    // changes at reset time
+    private B proto;
     // the maximum size of this array is the number of shards to be reduced. We currently do it in a batches of 256
     // by default. if we expect bigger batches, we might consider to use ObjectArray.
     private final List<InternalAggregations> internalAggregations;
@@ -58,7 +59,8 @@ public final class DelayedBucketReducer<B extends MultiBucketsAggregation.Bucket
     /**
      * Reset the content of this reducer.
      */
-    public void reset() {
+    public void reset(B proto) {
+        this.proto = proto;
         count = 0L;
         internalAggregations.clear();
     }

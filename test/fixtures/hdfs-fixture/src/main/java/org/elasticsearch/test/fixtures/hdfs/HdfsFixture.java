@@ -192,12 +192,10 @@ public class HdfsFixture extends ExternalResource {
         }
         // hdfs-data/, where any data is going
         Path hdfsHome = baseDir.resolve("hdfs-data");
-        // new File(hdfsHome.toFile(), "data").mkdirs();
+        new File(hdfsHome.toFile(), "data").mkdirs();
         // configure cluster
         cfg = new Configuration();
         cfg.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, hdfsHome.toAbsolutePath().toString());
-        // lower default permission: TODO: needed?
-        cfg.set(DFSConfigKeys.DFS_DATANODE_DATA_DIR_PERMISSION_KEY, "766");
         cfg.set("hadoop.security.group.mapping", "org.apache.hadoop.security.JniBasedUnixGroupsMappingWithFallback");
 
         // optionally configure security

@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
@@ -129,6 +130,7 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
     }
 
     public void testApiKeyOwnerJoinsDomain() throws Exception {
+        // one user creates the API Key, the other activates the profile
         String username = randomFrom("user_with_manage_own_api_key_role", "user_with_manage_api_key_role");
         SecureString password1;
         SecureString password2;
@@ -183,6 +185,97 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
         assertThat(apiKeyWithProfileUid.v2(), is(user2Profile.uid()));
         // manage all api keys user can similarly see the key with the profile uid
         assertAllKeysWithProfiles(new String[] { keyId }, new String[] { user2Profile.uid() });
+    }
+
+    public void testApiKeyOwnerLeavesDomain() throws Exception {
+        // put the 2 realms under the same domain
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                // Register both file and native realms under the same domain
+                return Settings.builder().put("xpack.security.authc.domains.file_and_index_domain.realms", "file,index").build();
+            }
+        });
+        ensureGreen();
+
+        // one user creates the API Key, the other activates the profile
+        String username = randomFrom("user_with_manage_own_api_key_role", "user_with_manage_api_key_role");
+        SecureString password1;
+        SecureString password2;
+        if (randomBoolean()) {
+            password1 = FILE_USER_TEST_PASSWORD;
+            password2 = NATIVE_USER_TEST_PASSWORD;
+        } else {
+            password1 = NATIVE_USER_TEST_PASSWORD;
+            password2 = FILE_USER_TEST_PASSWORD;
+        }
+        // activate profile, then create API key, or vice-versa
+        boolean firstActivateProfile = randomBoolean();
+        Profile user2Profile = null;
+        if (firstActivateProfile) {
+            user2Profile = AbstractProfileIntegTestCase.doActivateProfile(username, password2);
+        }
+        Client client1 = client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, password1)));
+        CreateApiKeyRequest request = new CreateApiKeyRequest("key1", null, null, null);
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        String keyId = client1.execute(CreateApiKeyAction.INSTANCE, request).actionGet().getId();
+        if (false == firstActivateProfile) {
+            user2Profile = AbstractProfileIntegTestCase.doActivateProfile(username, password2);
+        }
+        // assert the key owner (password1) has profile uid of password2
+        Tuple<ApiKey, String> apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
+            client1,
+            keyId,
+            username.equals("user_with_manage_own_api_key_role") || randomBoolean()
+        );
+        assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
+        // API Key owner (password1) has profile of password2
+        assertThat(apiKeyWithProfileUid.v2(), is(user2Profile.uid()));
+        // manage all api keys user can similarly see the key with the profile uid of username2
+        assertAllKeysWithProfiles(new String[] { keyId }, new String[] { user2Profile.uid() });
+        // the realms are not under the same domain anymore
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                // Register both file and native realms under the same domain
+                Settings.Builder settingsBuilder = Settings.builder();
+                settingsBuilder.put("xpack.security.authc.domains.file_and_index_domain.realms", (String) null);
+                if (randomBoolean()) {
+                    settingsBuilder.put("xpack.security.authc.domains.file_domain.realms", "file");
+                }
+                if (randomBoolean()) {
+                    settingsBuilder.put("xpack.security.authc.domains.index_domain.realms", "index");
+                }
+                return settingsBuilder.build();
+            }
+        });
+        ensureGreen();
+        // assert the key owner (username1) now has no profile
+        client1 = client().filterWithHeader(Map.of("Authorization", basicAuthHeaderValue(username, password1)));
+        apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
+            client1,
+            keyId,
+            username.equals("user_with_manage_own_api_key_role") || randomBoolean()
+        );
+        assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
+        // no profile for API Key owner
+        assertThat(apiKeyWithProfileUid.v2(), nullValue());
+        // manage all api keys user can similarly see the key WITHOUT the profile uid
+        assertAllKeysWithProfiles(new String[] { keyId }, new String[] { null });
+        // but password1 can also activate its own profile now
+        Profile user1Profile = AbstractProfileIntegTestCase.doActivateProfile(username, password1);
+        assertThat(user1Profile.uid(), not(user2Profile.uid()));
+        // which is reflected in the API key owner profile uid information
+        apiKeyWithProfileUid = ApiKeyIntegTests.getApiKeyInfoWithProfileUid(
+            client1,
+            keyId,
+            username.equals("user_with_manage_own_api_key_role") || randomBoolean()
+        );
+        assertThat(apiKeyWithProfileUid.v1().getId(), is(keyId));
+        // no profile for API Key owner
+        assertThat(apiKeyWithProfileUid.v2(), is(user1Profile.uid()));
+        // manage all api keys user can similarly see the key with the profile uid of username1 now
+        assertAllKeysWithProfiles(new String[] { keyId }, new String[] { user1Profile.uid() });
     }
 
     public void testDifferentKeyOwnersSameProfile() throws Exception {
@@ -261,6 +354,7 @@ public class ApiKeyOwnerProfileIntegTests extends SecurityIntegTestCase {
             assertThat(apiKeyWithProfileUid.v1().getRealm(), is("file"));
         }
         assertThat(apiKeyWithProfileUid.v2(), is(profileUid));
+        // manage all api keys user can similarly see the 2 keys with the same profile uid
         assertAllKeysWithProfiles(new String[] { key1Id, key2Id }, new String[] { profileUid, profileUid });
     }
 

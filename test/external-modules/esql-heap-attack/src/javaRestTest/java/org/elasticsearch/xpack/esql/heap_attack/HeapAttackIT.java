@@ -92,7 +92,6 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * This used to fail, but we've since compacted top n so it actually succeeds now.
      */
-    @AwaitsFix(bugUrl = "temporarily muted to pass #106516 PR")
     public void testSortByManyLongsSuccess() throws IOException {
         initManyLongs();
         Response response = sortByManyLongs(2000);

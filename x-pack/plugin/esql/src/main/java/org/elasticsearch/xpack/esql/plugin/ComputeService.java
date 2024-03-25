@@ -289,10 +289,12 @@ public class ComputeService {
         ActionListener<Void> parentListener,
         Supplier<ActionListener<ComputeResponse>> dataNodeListenerSupplier
     ) {
-        var planWithReducer = dataNodePlan.transformUp(FragmentExec.class, f -> {
-            PhysicalPlan reductionNode = PlannerUtils.dataNodeReductionPlan(f.fragment(), dataNodePlan);
-            return reductionNode == null ? f : f.withReducer(reductionNode);
-        });
+        var planWithReducer = configuration.pragmas().nodeLevelReduction() == false
+            ? dataNodePlan
+            : dataNodePlan.transformUp(FragmentExec.class, f -> {
+                PhysicalPlan reductionNode = PlannerUtils.dataNodeReductionPlan(f.fragment(), dataNodePlan);
+                return reductionNode == null ? f : f.withReducer(reductionNode);
+            });
 
         // The lambda is to say if a TEXT field has an identical exact subfield
         // We cannot use SearchContext because we don't have it yet.

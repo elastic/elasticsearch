@@ -39,7 +39,7 @@ public final class TransformHealthChecker {
         TRANSFORM_TASK_FAILED("Transform task state is [failed]"),
         TRANSFORM_INDEXER_FAILED("Transform indexer failed"),
         TRANSFORM_INTERNAL_STATE_UPDATE_FAILED("Task encountered failures updating internal state"),
-        TRANSFORM_STARTING("Transform task is automatically retrying its startup process");
+        TRANSFORM_STARTUP_FAILED("Transform task is automatically retrying its startup process");
 
         private final String issue;
 
@@ -155,7 +155,7 @@ public final class TransformHealthChecker {
                 ? elasticsearchException.getDetailedMessage()
                 : lastFailure.getMessage();
             issues.add(
-                IssueType.TRANSFORM_STARTING.newIssue(
+                IssueType.TRANSFORM_STARTUP_FAILED.newIssue(
                     lastFailureMessage,
                     transformContext.getStartUpFailureCount(),
                     transformContext.getStartUpFailureTime()

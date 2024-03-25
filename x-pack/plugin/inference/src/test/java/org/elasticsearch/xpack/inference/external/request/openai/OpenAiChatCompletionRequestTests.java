@@ -12,8 +12,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 
@@ -90,7 +88,7 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get("n"), is(1));
     }
 
-    public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
+    public void testTruncate_DoesNotReduceInputTextSize() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "secret", "abcd", "model", null);
         var truncatedRequest = request.truncate();
         assertThat(request.getURI().toString(), is(OpenAiChatCompletionRequest.buildDefaultUri().toString()));
@@ -101,17 +99,16 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(3));
-        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "ab"))));
+
+        // We do not truncate for OpenAi chat completions
+        assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abcd"))));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("n"), is(1));
     }
 
-    public void testIsTruncated_ReturnsTrue() {
+    public void testTruncationInfo_ReturnsNull() {
         var request = createRequest(null, null, "secret", "abcd", "model", null);
-        assertFalse(request.getTruncationInfo()[0]);
-
-        var truncatedRequest = request.truncate();
-        assertTrue(truncatedRequest.getTruncationInfo()[0]);
+        assertNull(request.getTruncationInfo());
     }
 
     public static OpenAiChatCompletionRequest createRequest(
@@ -129,12 +126,7 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
             org,
             chatCompletionModel.getSecretSettings().apiKey()
         );
-        return new OpenAiChatCompletionRequest(
-            TruncatorTests.createTruncator(),
-            account,
-            new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
-            chatCompletionModel
-        );
+        return new OpenAiChatCompletionRequest(account, List.of(input), chatCompletionModel);
     }
 
 }

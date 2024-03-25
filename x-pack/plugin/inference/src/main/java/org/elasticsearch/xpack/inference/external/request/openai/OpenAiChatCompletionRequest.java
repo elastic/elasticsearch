@@ -13,7 +13,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
@@ -30,21 +30,14 @@ import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUt
 
 public class OpenAiChatCompletionRequest implements OpenAiRequest {
 
-    private final Truncator truncator;
     private final OpenAiAccount account;
-    private final Truncator.TruncationResult truncationResult;
+    private final List<String> input;
     private final URI uri;
     private final OpenAiChatCompletionModel model;
 
-    public OpenAiChatCompletionRequest(
-        Truncator truncator,
-        OpenAiAccount account,
-        Truncator.TruncationResult input,
-        OpenAiChatCompletionModel model
-    ) {
-        this.truncator = Objects.requireNonNull(truncator);
+    public OpenAiChatCompletionRequest(OpenAiAccount account, List<String> input, OpenAiChatCompletionModel model) {
         this.account = Objects.requireNonNull(account);
-        this.truncationResult = Objects.requireNonNull(input);
+        this.input = Objects.requireNonNull(input);
         this.uri = buildUri(this.account.url(), "OpenAI", OpenAiChatCompletionRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
     }
@@ -55,11 +48,7 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new OpenAiChatCompletionRequestEntity(
-                    truncationResult.input(),
-                    model.getServiceSettings().modelId(),
-                    model.getTaskSettings().user()
-                )
+                new OpenAiChatCompletionRequestEntity(input, model.getServiceSettings().modelId(), model.getTaskSettings().user())
             ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
@@ -82,14 +71,14 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
 
     @Override
     public Request truncate() {
-        var truncatedInput = truncator.truncate(truncationResult.input());
-
-        return new OpenAiChatCompletionRequest(truncator, account, truncatedInput, model);
+        // No truncation for OpenAI chat completions
+        return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        return truncationResult.truncated().clone();
+        // No truncation for OpenAI chat completions
+        return null;
     }
 
     @Override

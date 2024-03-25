@@ -36,7 +36,7 @@ public class OpenAiChatCompletionAction implements ExecutableAction {
         Objects.requireNonNull(serviceComponents);
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
-        this.requestCreator = new OpenAiCompletionExecutableRequestCreator(model, serviceComponents.truncator());
+        this.requestCreator = new OpenAiCompletionExecutableRequestCreator(model);
         this.errorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "OpenAI chat completions");
     }
 

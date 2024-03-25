@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
@@ -25,15 +24,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
-
 public class OpenAiCompletionExecutableRequestCreator implements ExecutableRequestCreator {
 
     private static final Logger logger = LogManager.getLogger(OpenAiCompletionExecutableRequestCreator.class);
 
     private static final ResponseHandler HANDLER = createCompletionHandler();
-
-    private final Truncator truncator;
 
     private final OpenAiChatCompletionModel model;
 
@@ -43,14 +38,13 @@ public class OpenAiCompletionExecutableRequestCreator implements ExecutableReque
         return new OpenAiResponseHandler("openai completion", OpenAiChatCompletionResponseEntity::fromResponse);
     }
 
-    public OpenAiCompletionExecutableRequestCreator(OpenAiChatCompletionModel model, Truncator truncator) {
+    public OpenAiCompletionExecutableRequestCreator(OpenAiChatCompletionModel model) {
         this.model = Objects.requireNonNull(model);
         this.account = new OpenAiAccount(
             this.model.getServiceSettings().uri(),
             this.model.getServiceSettings().organizationId(),
             this.model.getSecretSettings().apiKey()
         );
-        this.truncator = Objects.requireNonNull(truncator);
     }
 
     @Override
@@ -61,8 +55,7 @@ public class OpenAiCompletionExecutableRequestCreator implements ExecutableReque
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var truncatedInput = truncate(input, model.getServiceSettings().maxInputTokens());
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(truncator, account, truncatedInput, model);
+        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(account, input, model);
 
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }

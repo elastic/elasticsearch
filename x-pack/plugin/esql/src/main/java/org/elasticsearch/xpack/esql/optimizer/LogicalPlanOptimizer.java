@@ -250,16 +250,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     plan = new Aggregate(source, aggregate.child(), aggregate.groupings(), newAggs);
                 } else {
                     // All aggs actually have been surrogates for (foldable) expressions, e.g.
-                    //
-                    // ...
-                    // | STATS a = AVG([1,2]), m = min([1,2,3])
-                    //
-                    // The output needs to be 1 row containing the results of the folding.
-                    // To achieve this, we replace the aggregation with a single row and let the subsequent Eval produce the values, so
-                    // the plan becomes essentially
-                    //
-                    // ROW placeholder = null
-                    // | EVAL a = MV_AVG([1,2]), m = MV_MIN([1,2,3])
+                    // \_Aggregate[[],[AVG([1, 2][INTEGER]) AS s]]
+                    // Replace by a local relation with one row, followed by an eval, e.g.
+                    // \_Eval[[MVAVG([1, 2][INTEGER]) AS s]]
+                    //   \_LocalRelation[[{e}#21],[ConstantNullBlock[positions=1]]]
                     plan = emptyRow(source);
                 }
                 // 5. force the initial projection in place

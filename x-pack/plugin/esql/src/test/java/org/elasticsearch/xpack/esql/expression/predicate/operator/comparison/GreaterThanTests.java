@@ -44,6 +44,7 @@ public class GreaterThanTests extends AbstractFunctionTestCase {
             );
         })));
     }
+
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new GreaterThan(source, args.get(0), args.get(1));

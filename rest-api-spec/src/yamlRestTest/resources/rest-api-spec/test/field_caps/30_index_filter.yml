@@ -59,8 +59,8 @@ setup:
 
 ---
 "Field caps with index filter":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: [ "field_caps_index_filter" ]
       reason: Index filter support was added in 7.9
 
   - do:

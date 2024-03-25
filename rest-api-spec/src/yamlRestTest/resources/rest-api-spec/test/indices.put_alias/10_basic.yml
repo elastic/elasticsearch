@@ -79,8 +79,8 @@
 
 ---
 "Can create filtered alias with a date_nanos range query":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: [ "indices_put_alias_date_nanos_filter" ]
       reason: "skipping older version until backport"
 
   - do:

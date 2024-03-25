@@ -39,8 +39,8 @@
 
 ---
 "null value in array":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: [ "index_fix_array_null" ]
       reason: fixed in 8.3.0
 
   - do:

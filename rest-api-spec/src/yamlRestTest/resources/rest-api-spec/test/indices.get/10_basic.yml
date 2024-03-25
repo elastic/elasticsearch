@@ -172,8 +172,8 @@ setup:
 
 ---
 "Should return only selected features":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: [ "indices_get_features" ]
       reason: "features option added in 8.1.0"
 
   - do:

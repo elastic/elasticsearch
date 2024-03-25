@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: [ "templates_v2" ]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       allowed_warnings:
@@ -22,8 +22,8 @@ setup:
 
 ---
 "Get index template":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: [ "templates_v2" ]
       reason: "index template v2 API has not been backported"
 
   - do:
@@ -37,10 +37,10 @@ setup:
 
 ---
 "Get all index templates":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: [ "templates_v2" ]
+      test_runner_features: ["allowed_warnings"]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -61,10 +61,10 @@ setup:
 
 ---
 "Pattern matching in index templates":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: [ "templates_v2" ]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -93,8 +93,8 @@ setup:
 
 ---
 "Get index template with local flag":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: [ "templates_v2" ]
       reason: "index template v2 API unavailable before 7.8"
 
   - do:
@@ -106,10 +106,10 @@ setup:
 
 ---
 "Add data stream lifecycle":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: [ "datastream_lifecycle" ]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
-      features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -141,10 +141,10 @@ setup:
 
 ---
 "Get data stream lifecycle with default rollover":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: [ "datastream_lifecycle" ]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
-      features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -170,8 +170,9 @@ setup:
 
 ---
 "Reject data stream lifecycle without data stream configuration":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: [ "datastream_lifecycle" ]
+      test_runner_features: [ "allowed_warnings" ]
       reason: "Data stream lifecycle in index templates was updated after 8.10"
   - do:
       catch:  bad_request

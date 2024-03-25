@@ -54,9 +54,9 @@ setup:
 ---
 "Get field mapping with local parameter should fail":
 
-  - skip:
-      features: ["warnings"]
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: [ "indices_get_mapping_reject_local" ]
+      test_runner_features: ["warnings"]
       reason: "local parameter for get field mapping API was allowed before v8"
 
   - do:

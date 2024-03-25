@@ -1,7 +1,7 @@
 ---
 ip:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: [ "get_ignore_malformed" ]
       reason: introduced in 8.5.0
 
   - do:

@@ -1,8 +1,8 @@
 ---
 "Remove alias with must_exist":
 
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: [ "indices_alias_must_exist" ]
       reason: "must_exist does not work until 7.11"
 
   - do:

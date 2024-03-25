@@ -169,8 +169,8 @@
 
 ---
 "Aliases with date math":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: [ "indices_alias_date_math" ]
       reason: "date math support for aliases was added in 7.13"
   - do:
       indices.create:

@@ -1,7 +1,7 @@
 ---
 "Diagnosis":
-  - skip:
-      version: "- 8.6.99"
+  - requires:
+      cluster_features: [ "health_report" ]
       reason: "the API path changed in 8.7"
 
   - do:

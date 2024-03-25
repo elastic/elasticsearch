@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AnyOperatorTestCase;
@@ -56,8 +55,8 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
@@ -81,7 +80,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         DocVector docVector = (DocVector) page.getBlock(0).asVector();
         assertThat(docVector.getPositionCount(), equalTo(numTimeSeries * numSamplesPerTS));
 
-        IntVector tsidVector = (IntVector) page.getBlock(1).asVector();
+        BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
         assertThat(tsidVector.getPositionCount(), equalTo(numTimeSeries * numSamplesPerTS));
 
         LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
@@ -103,7 +102,10 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 assertThat(docVector.shards().getInt(offset), equalTo(0));
                 assertThat(voltageVector.getLong(offset), equalTo(expectedVoltage));
                 assertThat(hostnameVector.getBytesRef(offset, new BytesRef()).utf8ToString(), equalTo(expectedHostname));
-                assertThat(tsidVector.getInt(offset), equalTo(expectedTsidOrd));
+                assertThat(
+                    tsidVector.getBytesRef(offset, new BytesRef()).utf8ToString(),
+                    equalTo("\u0001\bhostnames\u0007" + expectedHostname)
+                );
                 assertThat(timestampVector.getLong(offset), equalTo(expectedTimestamp));
                 offset++;
             }
@@ -124,7 +126,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             DocVector docVector = (DocVector) page.getBlock(0).asVector();
             assertThat(docVector.getPositionCount(), equalTo(numSamplesPerTS));
 
-            IntVector tsidVector = (IntVector) page.getBlock(1).asVector();
+            BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
             assertThat(tsidVector.getPositionCount(), equalTo(numSamplesPerTS));
 
             LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
@@ -146,7 +148,10 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 assertThat(docVector.shards().getInt(offset), equalTo(0));
                 assertThat(voltageVector.getLong(offset), equalTo(expectedVoltage));
                 assertThat(hostnameVector.getBytesRef(offset, new BytesRef()).utf8ToString(), equalTo(expectedHostname));
-                assertThat(tsidVector.getInt(offset), equalTo(expectedTsidOrd));
+                assertThat(
+                    tsidVector.getBytesRef(offset, new BytesRef()).utf8ToString(),
+                    equalTo("\u0001\bhostnames\u0007" + expectedHostname)
+                );
                 assertThat(timestampVector.getLong(offset), equalTo(expectedTimestamp));
                 offset++;
             }
@@ -166,7 +171,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         DocVector docVector = (DocVector) page.getBlock(0).asVector();
         assertThat(docVector.getPositionCount(), equalTo(limit));
 
-        IntVector tsidVector = (IntVector) page.getBlock(1).asVector();
+        BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
         assertThat(tsidVector.getPositionCount(), equalTo(limit));
 
         LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
@@ -181,7 +186,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(docVector.shards().getInt(0), equalTo(0));
         assertThat(voltageVector.getLong(0), equalTo(5L));
         assertThat(hostnameVector.getBytesRef(0, new BytesRef()).utf8ToString(), equalTo("host-00"));
-        assertThat(tsidVector.getInt(0), equalTo(0));
+        assertThat(tsidVector.getBytesRef(0, new BytesRef()).utf8ToString(), equalTo("\u0001\bhostnames\u0007host-00")); // legacy tsid
         assertThat(timestampVector.getLong(0), equalTo(timestampStart + ((numSamplesPerTS - 1) * 10_000L)));
     }
 
@@ -223,7 +228,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         DocVector docVector = (DocVector) page.getBlock(0).asVector();
         assertThat(docVector.getPositionCount(), equalTo(numDocs));
 
-        IntVector tsidVector = (IntVector) page.getBlock(1).asVector();
+        BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
         assertThat(tsidVector.getPositionCount(), equalTo(numDocs));
 
         LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
@@ -231,10 +236,10 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
         LongVector voltageVector = (LongVector) page.getBlock(3).asVector();
         assertThat(voltageVector.getPositionCount(), equalTo(numDocs));
-        for (int i = 0; i < page.getBlockCount(); i++) {
+        for (int i = 0; i < page.getPositionCount(); i++) {
             assertThat(docVector.shards().getInt(0), equalTo(0));
             assertThat(voltageVector.getLong(i), either(greaterThanOrEqualTo(0L)).or(lessThanOrEqualTo(4L)));
-            assertThat(tsidVector.getInt(i), either(greaterThanOrEqualTo(0)).or(lessThan(20)));
+            assertThat(tsidVector.getBytesRef(i, new BytesRef()).utf8ToString(), startsWith("\u0001\bhostnames\u0007host-"));
             assertThat(timestampVector.getLong(i), greaterThanOrEqualTo(timestampStart));
         }
     }

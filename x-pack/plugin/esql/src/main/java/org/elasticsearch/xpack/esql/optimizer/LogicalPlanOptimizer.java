@@ -1019,7 +1019,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                                     p = emptyRow(aggregate.source());
                                 } else {
                                     // Aggs cannot produce pages with 0 columns, so retain one grouping.
-                                    remaining = List.of((NamedExpression) aggregate.groupings().get(0));
+                                    remaining = List.of(Expressions.attribute(aggregate.groupings().get(0)));
                                     p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
                                 }
                             } else {

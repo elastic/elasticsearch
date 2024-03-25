@@ -18,7 +18,7 @@ class JdkCloseableByteBuffer implements CloseableByteBuffer {
     private final ByteBuffer bufferView;
 
     JdkCloseableByteBuffer(int len) {
-        this.arena = Arena.ofShared();
+        this.arena = Arena.ofConfined();
         this.bufferView = this.arena.allocate(len).asByteBuffer();
     }
 

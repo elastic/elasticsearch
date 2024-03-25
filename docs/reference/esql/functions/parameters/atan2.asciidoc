@@ -1,7 +1,7 @@
 *Parameters*
 
-`y`::
-y coordinate
+`y_coordinate`::
+y coordinate. If `null`, the function returns `null`.
 
-`x`::
-x coordinate
+`x_coordinate`::
+x coordinate. If `null`, the function returns `null`.

@@ -14,7 +14,9 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,6 +37,7 @@ import java.util.Map;
 
 import static org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction.Response;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -66,7 +69,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
         ExplainIndexDataStreamLifecycle explainIndex = createRandomIndexDataStreamLifecycleExplanation(now, lifecycle);
         explainIndex.setNowSupplier(() -> now);
         {
-            Response response = new Response(List.of(explainIndex), null);
+            Response response = new Response(List.of(explainIndex), null, null);
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -103,7 +106,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 } else {
                     assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }
-                assertThat(explainIndexMap.get("lifecycle"), is(Map.of("enabled", true))); // empty lifecycle
+                assertThat(explainIndexMap.get("lifecycle"), is(Map.of("enabled", true)));
                 if (explainIndex.getError() != null) {
                     Map<String, Object> errorObject = (Map<String, Object>) explainIndexMap.get("error");
                     assertThat(errorObject.get(ErrorEntry.MESSAGE_FIELD.getPreferredName()), is(explainIndex.getError().error()));
@@ -132,7 +135,11 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     new MinPrimaryShardDocsCondition(4L)
                 )
             );
-            Response response = new Response(List.of(explainIndex), new RolloverConfiguration(rolloverConditions));
+            Response response = new Response(
+                List.of(explainIndex),
+                new RolloverConfiguration(rolloverConditions),
+                DataStreamTestHelper.randomGlobalRetention()
+            );
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -186,9 +193,27 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     assertThat(explainIndexMap.get("error"), is(nullValue()));
                 }
 
-                Map<String, Object> lifecycleRollover = (Map<String, Object>) ((Map<String, Object>) explainIndexMap.get("lifecycle")).get(
-                    "rollover"
-                );
+                Map<String, Object> lifecycleMap = (Map<String, Object>) explainIndexMap.get("lifecycle");
+                assertThat(lifecycleMap.get("data_retention"), nullValue());
+
+                if (response.getGlobalRetention() == null) {
+                    assertThat(lifecycleMap.get("effective_retention"), nullValue());
+                    assertThat(lifecycleMap.get("retention_determined_by"), nullValue());
+                } else if (response.getGlobalRetention().getDefaultRetention() != null) {
+                    assertThat(
+                        lifecycleMap.get("effective_retention"),
+                        equalTo(response.getGlobalRetention().getDefaultRetention().getStringRep())
+                    );
+                    assertThat(lifecycleMap.get("retention_determined_by"), equalTo("default_global_retention"));
+                } else {
+                    assertThat(
+                        lifecycleMap.get("effective_retention"),
+                        equalTo(response.getGlobalRetention().getMaxRetention().getStringRep())
+                    );
+                    assertThat(lifecycleMap.get("retention_determined_by"), equalTo("max_global_retention"));
+                }
+
+                Map<String, Object> lifecycleRollover = (Map<String, Object>) lifecycleMap.get("rollover");
                 assertThat(lifecycleRollover.get("min_primary_shard_docs"), is(4));
                 assertThat(lifecycleRollover.get("max_primary_shard_docs"), is(9));
             }
@@ -212,7 +237,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     )
                     : null
             );
-            Response response = new Response(List.of(explainIndexWithNullGenerationDate), null);
+            Response response = new Response(List.of(explainIndexWithNullGenerationDate), null, null);
 
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             response.toXContentChunked(EMPTY_PARAMS).forEachRemaining(xcontent -> {
@@ -241,6 +266,7 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 createRandomIndexDataStreamLifecycleExplanation(now, lifecycle),
                 createRandomIndexDataStreamLifecycleExplanation(now, lifecycle)
             ),
+            null,
             null
         );
 
@@ -295,6 +321,12 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     new RolloverConditions(
                         Map.of(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(randomLongBetween(1000, 199_999_000)))
                     )
+                )
+                : null,
+            randomBoolean()
+                ? new DataStreamGlobalRetention(
+                    TimeValue.timeValueDays(randomIntBetween(1, 10)),
+                    TimeValue.timeValueDays(randomIntBetween(10, 20))
                 )
                 : null
         );

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.codec.tsdb;
+package org.elasticsearch.index.codec;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
@@ -20,20 +20,9 @@ import java.io.IOException;
 // else we pack 2 ints per long
 public final class ForUtil {
 
-    static final int DEFAULT_BLOCK_SIZE = 128;
-    private final int blockSize;
-    private final int blockSizeLog2;
-    private final long[] tmp;
-
-    public ForUtil() {
-        this(DEFAULT_BLOCK_SIZE);
-    }
-
-    private ForUtil(int blockSize) {
-        this.blockSize = blockSize;
-        this.blockSizeLog2 = (int) (Math.log(blockSize) / Math.log(2));
-        this.tmp = new long[blockSize / 2];
-    }
+    public static final int BLOCK_SIZE = 128;
+    private static final int BLOCK_SIZE_LOG2 = 7;
+    private final long[] tmp = new long[BLOCK_SIZE / 2];
 
     private static long expandMask32(long mask32) {
         return mask32 | (mask32 << 32);
@@ -129,20 +118,20 @@ public final class ForUtil {
     }
 
     /** Encode 128 integers from {@code longs} into {@code out}. */
-    void encode(long[] longs, int bitsPerValue, DataOutput out) throws IOException {
+    public void encode(long[] longs, int bitsPerValue, DataOutput out) throws IOException {
         final int nextPrimitive;
         final int numLongs;
         if (bitsPerValue <= 8) {
             nextPrimitive = 8;
-            numLongs = blockSize / 8;
+            numLongs = BLOCK_SIZE / 8;
             collapse8(longs);
         } else if (bitsPerValue <= 16) {
             nextPrimitive = 16;
-            numLongs = blockSize / 4;
+            numLongs = BLOCK_SIZE / 4;
             collapse16(longs);
         } else {
             nextPrimitive = 32;
-            numLongs = blockSize / 2;
+            numLongs = BLOCK_SIZE / 2;
             collapse32(longs);
         }
 
@@ -202,11 +191,11 @@ public final class ForUtil {
     }
 
     /** Number of bytes required to encode 128 integers of {@code bitsPerValue} bits per value. */
-    int numBytes(int bitsPerValue) {
-        return bitsPerValue << (blockSizeLog2 - 3);
+    public int numBytes(int bitsPerValue) {
+        return bitsPerValue << (BLOCK_SIZE_LOG2 - 3);
     }
 
-    private static void decodeSlow(int blockSize, int bitsPerValue, DataInput in, long[] tmp, long[] longs) throws IOException {
+    private static void decodeSlow(int bitsPerValue, DataInput in, long[] tmp, long[] longs) throws IOException {
         final int numLongs = bitsPerValue << 1;
         in.readLongs(tmp, 0, numLongs);
         final long mask = MASKS32[bitsPerValue];
@@ -220,7 +209,7 @@ public final class ForUtil {
         final long mask32RemainingBitsPerLong = MASKS32[remainingBitsPerLong];
         int tmpIdx = 0;
         int remainingBits = remainingBitsPerLong;
-        for (; longsIdx < blockSize / 2; ++longsIdx) {
+        for (; longsIdx < BLOCK_SIZE / 2; ++longsIdx) {
             int b = bitsPerValue - remainingBits;
             long l = (tmp[tmpIdx++] & MASKS32[remainingBits]) << b;
             while (b >= remainingBitsPerLong) {
@@ -310,7 +299,7 @@ public final class ForUtil {
     private static final long MASK32_24 = MASKS32[24];
 
     /** Decode 128 integers into {@code longs}. */
-    void decode(int bitsPerValue, DataInput in, long[] longs) throws IOException {
+    public void decode(int bitsPerValue, DataInput in, long[] longs) throws IOException {
         switch (bitsPerValue) {
             case 1:
                 decode1(in, tmp, longs);
@@ -409,7 +398,7 @@ public final class ForUtil {
                 expand32(longs);
                 break;
             default:
-                decodeSlow(blockSize, bitsPerValue, in, tmp, longs);
+                decodeSlow(bitsPerValue, in, tmp, longs);
                 expand32(longs);
                 break;
         }
@@ -421,7 +410,7 @@ public final class ForUtil {
      * [0..63], and values [64..127] are encoded in the low-order bits of {@code longs} [0..63]. This
      * representation may allow subsequent operations to be performed on two values at a time.
      */
-    void decodeTo32(int bitsPerValue, DataInput in, long[] longs) throws IOException {
+    public void decodeTo32(int bitsPerValue, DataInput in, long[] longs) throws IOException {
         switch (bitsPerValue) {
             case 1:
                 decode1(in, tmp, longs);
@@ -512,7 +501,7 @@ public final class ForUtil {
                 decode24(in, tmp, longs);
                 break;
             default:
-                decodeSlow(blockSize, bitsPerValue, in, tmp, longs);
+                decodeSlow(bitsPerValue, in, tmp, longs);
                 break;
         }
     }

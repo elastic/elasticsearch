@@ -30,17 +30,21 @@
               "index": false,
               "doc_values": false
             },
-            "path_match": "event.original"
+            "path_match": [
+              "event.original"
+            ]
           }
         },
         {
-          "ecs_x509_public_key_exponent_non_indexed_keyword": {
+          "ecs_x509_public_key_exponent_non_indexed_long": {
             "mapping": {
-              "type": "keyword",
+              "type": "long",
               "index": false,
               "doc_values": false
             },
-            "path_match": "*.x509.public_key_exponent"
+            "path_match": [
+              "*.x509.public_key_exponent"
+            ]
           }
         },
         {

@@ -253,8 +253,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     // \_Aggregate[[],[AVG([1, 2][INTEGER]) AS s]]
                     // Replace by a local relation with one row, followed by an eval, e.g.
                     // \_Eval[[MVAVG([1, 2][INTEGER]) AS s]]
-                    //   \_LocalRelation[[{e}#21],[ConstantNullBlock[positions=1]]]
-                    plan = emptyRow(source);
+                    // \_LocalRelation[[{e}#21],[ConstantNullBlock[positions=1]]]
+                    return new LocalRelation(
+                        source,
+                        List.of(new EmptyAttribute(source)),
+                        LocalSupplier.of(new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) })
+                    );
                 }
                 // 5. force the initial projection in place
                 if (transientEval.isEmpty() == false) {
@@ -267,17 +271,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
 
             return plan;
-        }
-
-        private static Block SINGLE_NULL_VALUE = BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1);
-
-        /**
-         * Create an (essentially) empty row; the row still has 1 placeholder attribute since plans with empty schemas are pruned.
-         */
-        private static LocalRelation emptyRow(Source source) {
-            Block block = SINGLE_NULL_VALUE;
-            block.incRef();
-            return new LocalRelation(source, List.of(new EmptyAttribute(Source.EMPTY)), LocalSupplier.of(new Block[] { block }));
         }
 
         static String temporaryName(Expression inner, Expression outer, int suffix) {

@@ -25,4 +25,9 @@ public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleReq
         request.name(name);
         return this;
     }
+
+    public DeleteRoleRequestBuilder restrictRequest(boolean restrictRequest) {
+        request.restrictRequest(restrictRequest);
+        return this;
+    }
 }

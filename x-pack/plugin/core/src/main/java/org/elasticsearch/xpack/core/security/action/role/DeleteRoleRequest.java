@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -24,11 +24,7 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
-    public DeleteRoleRequest(StreamInput in) throws IOException {
-        super(in);
-        name = in.readString();
-        refreshPolicy = RefreshPolicy.readFrom(in);
-    }
+    private boolean restrictRequest;
 
     public DeleteRoleRequest() {}
 
@@ -60,10 +56,16 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
         return name;
     }
 
+    public void restrictRequest(boolean restrictRequest) {
+        this.restrictRequest = restrictRequest;
+    }
+
+    public boolean restrictRequest() {
+        return restrictRequest;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(name);
-        refreshPolicy.writeTo(out);
+        TransportAction.localOnly();
     }
 }

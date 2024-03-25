@@ -50,10 +50,6 @@ public class FetchContext {
         this.fetchSourceContext = buildFetchSourceContext(searchContext);
     }
 
-    public boolean hasStoredFields() {
-        return searchContext.hasStoredFields();
-    }
-
     private static FetchSourceContext buildFetchSourceContext(SearchContext in) {
         FetchSourceContext fsc = in.fetchSourceContext();
         StoredFieldsContext sfc = in.storedFieldsContext();

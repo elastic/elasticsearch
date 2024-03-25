@@ -52,15 +52,13 @@ public class FieldFetcher {
      * @param fieldAndFormats field names to fetch and their display format.
      * @param fetchStoredFields whether stored fields should be fetched or not.
      * @param includeSizeMetadataField if the _size metadata field should be included or not whe fetching fields
-     * @param hasStoredFields
      * @return an instance of {@link FieldFetcher} which we can use to fetch fields calling {@link FieldFetcher#fetch(Source, int)}.
      */
     public static FieldFetcher create(
         SearchExecutionContext context,
         Collection<FieldAndFormat> fieldAndFormats,
         boolean fetchStoredFields,
-        boolean includeSizeMetadataField,
-        boolean hasStoredFields
+        boolean includeSizeMetadataField
     ) {
 
         List<String> unmappedFetchPattern = new ArrayList<>();
@@ -89,9 +87,6 @@ public class FieldFetcher {
                     continue;
                 }
                 if (ft.isStored() && fetchStoredFields == false) {
-                    continue;
-                }
-                if (ft.isStored() && hasStoredFields == false) {
                     continue;
                 }
                 resolvedFields.add(

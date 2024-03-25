@@ -55,8 +55,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             fetchContext.getSearchExecutionContext(),
             Stream.concat(fetchFields.stream(), METADATA_FIELDS.stream()).toList(),
             fetchStoredFields,
-            includeSizeMetadataField(fetchFields),
-            fetchContext.hasStoredFields()
+            includeSizeMetadataField(fetchFields)
         );
 
         return new FetchSubPhaseProcessor() {

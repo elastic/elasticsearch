@@ -36,7 +36,6 @@ public class ZstdTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> zstd.compressBound(Integer.MIN_VALUE));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106347")
     public void testCompressValidation() {
         try (var src = nativeAccess.newBuffer(1000); var dst = nativeAccess.newBuffer(500)) {
             var srcBuf = src.buffer();
@@ -56,7 +55,6 @@ public class ZstdTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106347")
     public void testDecompressValidation() {
         try (
             var original = nativeAccess.newBuffer(1000);

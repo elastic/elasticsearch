@@ -31,7 +31,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
         description = "The value that is greater than half of all values and less than half of all values.",
         isAggregation = true
     )
-    public Median(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
+    public Median(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 

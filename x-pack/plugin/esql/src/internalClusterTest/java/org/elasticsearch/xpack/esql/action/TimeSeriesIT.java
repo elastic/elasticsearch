@@ -16,7 +16,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
-        assertTrue("timseries requires pragmas", canUseQueryPragmas());
+        assumeTrue("timseries requires pragmas", canUseQueryPragmas());
         var settings = Settings.builder().put(request.pragmas().getSettings()).put(QueryPragmas.TIME_SERIES_MODE.getKey(), "true").build();
         request.pragmas(new QueryPragmas(settings));
         return super.run(request);

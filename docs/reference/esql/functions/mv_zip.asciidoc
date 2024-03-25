@@ -22,8 +22,6 @@ Delimiter. Optional; if omitted, `,` is used as a default delimiter.
 
 Combines the values from two multivalued fields with a delimiter that joins them together.
 
-*Supported types*
-
 include::types/mv_zip.asciidoc[]
 
 *Example*

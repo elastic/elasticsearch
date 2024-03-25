@@ -23,8 +23,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResultsTests;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -330,6 +332,7 @@ public class ElserInternalServiceTests extends ESTestCase {
         var mlTrainedModelResults = new ArrayList<InferenceResults>();
         mlTrainedModelResults.add(ChunkedTextExpansionResultsTests.createRandomResults());
         mlTrainedModelResults.add(ChunkedTextExpansionResultsTests.createRandomResults());
+        mlTrainedModelResults.add(new ErrorInferenceResults(new RuntimeException("boom")));
         var response = new InferTrainedModelDeploymentAction.Response(mlTrainedModelResults);
 
         ThreadPool threadpool = new TestThreadPool("test");
@@ -357,7 +360,7 @@ public class ElserInternalServiceTests extends ESTestCase {
 
         var gotResults = new AtomicBoolean();
         var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
-            assertThat(chunkedResponse, hasSize(2));
+            assertThat(chunkedResponse, hasSize(3));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedSparseEmbeddingResults.class));
             var result1 = (ChunkedSparseEmbeddingResults) chunkedResponse.get(0);
             assertEquals(
@@ -370,6 +373,9 @@ public class ElserInternalServiceTests extends ESTestCase {
                 ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults) mlTrainedModelResults.get(1)).getChunks(),
                 result2.getChunkedResults()
             );
+            var result3 = (ErrorChunkedInferenceResults) chunkedResponse.get(2);
+            assertThat(result3.getException(), instanceOf(RuntimeException.class));
+            assertThat(result3.getException().getMessage(), containsString("boom"));
             gotResults.set(true);
         }, ESTestCase::fail);
 

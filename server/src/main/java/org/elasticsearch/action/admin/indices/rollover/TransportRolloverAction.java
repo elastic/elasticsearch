@@ -17,6 +17,9 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
+import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +30,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
@@ -54,6 +58,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -70,6 +75,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     private final Client client;
     private final MasterServiceTaskQueue<RolloverTask> rolloverTaskQueue;
     private final MetadataDataStreamsService metadataDataStreamsService;
+    private final DataStreamAutoShardingService dataStreamAutoShardingService;
 
     @Inject
     public TransportRolloverAction(
@@ -81,7 +87,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         MetadataRolloverService rolloverService,
         Client client,
         AllocationService allocationService,
-        MetadataDataStreamsService metadataDataStreamsService
+        MetadataDataStreamsService metadataDataStreamsService,
+        DataStreamAutoShardingService dataStreamAutoShardingService
     ) {
         this(
             RolloverAction.INSTANCE,
@@ -93,7 +100,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             rolloverService,
             client,
             allocationService,
-            metadataDataStreamsService
+            metadataDataStreamsService,
+            dataStreamAutoShardingService
         );
     }
 
@@ -107,7 +115,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         MetadataRolloverService rolloverService,
         Client client,
         AllocationService allocationService,
-        MetadataDataStreamsService metadataDataStreamsService
+        MetadataDataStreamsService metadataDataStreamsService,
+        DataStreamAutoShardingService dataStreamAutoShardingService
     ) {
         super(
             actionType.name(),
@@ -127,6 +136,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             new RolloverExecutor(clusterService, allocationService, rolloverService, threadPool)
         );
         this.metadataDataStreamsService = metadataDataStreamsService;
+        this.dataStreamAutoShardingService = dataStreamAutoShardingService;
     }
 
     @Override
@@ -221,6 +231,40 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
             listener.delegateFailureAndWrap((delegate, statsResponse) -> {
 
+                AutoShardingResult rolloverAutoSharding = null;
+                final IndexAbstraction indexAbstraction = clusterState.metadata()
+                    .getIndicesLookup()
+                    .get(rolloverRequest.getRolloverTarget());
+                if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
+                    DataStream dataStream = (DataStream) indexAbstraction;
+                    final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
+                        .map(stats -> stats.getIndex(dataStream.getWriteIndex().getName()));
+
+                    Double writeLoad = indexStats.map(stats -> stats.getTotal().getIndexing())
+                        .map(indexing -> indexing.getTotal().getWriteLoad())
+                        .orElse(null);
+
+                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(clusterState, dataStream, writeLoad);
+                    logger.debug("auto sharding result for data stream [{}] is [{}]", dataStream.getName(), rolloverAutoSharding);
+
+                    // if auto sharding recommends increasing the number of shards we want to trigger a rollover even if there are no
+                    // other "regular" conditions matching (we want to aggressively increse the number of shards) so we're adding the
+                    // automatic {@link OptimalShardCountCondition} to the rollover request conditions so it gets evaluated and triggers
+                    // the rollover operation (having this condition met will also provide a useful paper trail as it'll get stored in
+                    // the {@link org.elasticsearch.action.admin.indices.rollover.RolloverInfo#metConditions} )
+
+                    // NOTE that the {@link AutoShardingType#DECREASE_SHARDS} recommendation is treated differently (i.e. added to the
+                    // conditions later only if other "regular" rollover conditions match: see {@link RolloverTask#executeTask}) because we
+                    // do NOT want to trigger a rollover **just** to reduce the number of shards, but we will reduce the number of shards
+                    // when the rollover will naturally occur.
+                    if (rolloverAutoSharding.type().equals(AutoShardingType.INCREASE_SHARDS)) {
+                        RolloverConditions conditionsIncludingImplicit = RolloverConditions.newBuilder(rolloverRequest.getConditions())
+                            .addOptimalShardCountCondition(rolloverAutoSharding)
+                            .build();
+                        rolloverRequest.setConditions(conditionsIncludingImplicit);
+                    }
+                }
+
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> trialConditionResults = evaluateConditions(
                     rolloverRequest.getConditionValues(),
@@ -247,7 +291,13 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // Pre-check the conditions to see whether we should submit a new cluster state task
                 if (rolloverRequest.areConditionsMet(trialConditionResults)) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
-                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, delegate);
+                    RolloverTask rolloverTask = new RolloverTask(
+                        rolloverRequest,
+                        statsResponse,
+                        trialRolloverResponse,
+                        rolloverAutoSharding,
+                        delegate
+                    );
                     submitRolloverTask(rolloverRequest, source, rolloverTask);
                 } else {
                     // conditions not met
@@ -317,8 +367,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         RolloverRequest rolloverRequest,
         IndicesStatsResponse statsResponse,
         RolloverResponse trialRolloverResponse,
+        @Nullable AutoShardingResult autoShardingResult,
         ActionListener<RolloverResponse> listener
     ) implements ClusterStateTaskListener {
+
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
@@ -388,9 +440,24 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             );
 
             if (rolloverRequest.getConditions().areConditionsMet(postConditionResults)) {
+                Map<String, Boolean> resultsIncludingDecreaseShards = new HashMap<>(postConditionResults);
+                if (rolloverTask.autoShardingResult != null
+                    && rolloverTask.autoShardingResult.type().equals(AutoShardingType.DECREASE_SHARDS)) {
+                    // if we're executing a rollover ("regular" conditions are met) and we're also decreasing the number of shards we'll
+                    // include the decrease_shards optimal shard count condition in the response and {@link RolloverInfo#metConditions}
+                    RolloverConditions conditionsIncludingDecreaseShards = RolloverConditions.newBuilder(rolloverRequest.getConditions())
+                        .addOptimalShardCountCondition(rolloverTask.autoShardingResult)
+                        .build();
+                    rolloverRequest.setConditions(conditionsIncludingDecreaseShards);
+                    resultsIncludingDecreaseShards.put(
+                        new OptimalShardCountCondition(rolloverTask.autoShardingResult.targetNumberOfShards()).toString(),
+                        true
+                    );
+                }
+
                 final List<Condition<?>> metConditions = rolloverRequest.getConditionValues()
                     .stream()
-                    .filter(condition -> postConditionResults.get(condition.toString()))
+                    .filter(condition -> resultsIncludingDecreaseShards.get(condition.toString()))
                     .toList();
 
                 final IndexAbstraction rolloverTargetAbstraction = currentState.metadata()
@@ -411,7 +478,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     Instant.now(),
                     false,
                     false,
-                    sourceIndexStats
+                    sourceIndexStats,
+                    rolloverTask.autoShardingResult()
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);
@@ -435,7 +503,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     // things like date resolution
                                     sourceIndexName,
                                     rolloverIndexName,
-                                    postConditionResults,
+                                    resultsIncludingDecreaseShards,
                                     false,
                                     true,
                                     true,

@@ -10,6 +10,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -17,11 +19,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
 public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTestCase<SnapshotsStatusResponse> {
+
+    private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshots_status_response",
+        true,
+        (Object[] parsedObjects) -> {
+            @SuppressWarnings("unchecked")
+            List<SnapshotStatus> snapshots = (List<SnapshotStatus>) parsedObjects[0];
+            return new SnapshotsStatusResponse(snapshots);
+        }
+    );
+    static {
+        PARSER.declareObjectArray(constructorArg(), SnapshotStatus.PARSER, new ParseField("snapshots"));
+    }
 
     @Override
     protected SnapshotsStatusResponse doParseInstance(XContentParser parser) throws IOException {
-        return SnapshotsStatusResponse.fromXContent(parser);
+        return PARSER.parse(parser, null);
     }
 
     @Override

@@ -30,6 +30,7 @@ import java.time.temporal.TemporalQueries;
 import java.time.temporal.TemporalQuery;
 import java.time.temporal.WeekFields;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.time.temporal.ChronoField.DAY_OF_MONTH;
@@ -132,70 +133,14 @@ public class DateFormatters {
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
 
-    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER = new DateTimeFormatterBuilder().append(
-        STRICT_YEAR_MONTH_DAY_FORMATTER
-    )
-        .optionalStart()
-        .appendLiteral('T')
-        .optionalStart()
-        .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-        .optionalStart()
-        .appendLiteral(':')
-        .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-        .optionalStart()
-        .appendLiteral(':')
-        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-        .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 1, 9, true)
-        .optionalEnd()
-        .optionalStart()
-        .appendLiteral(',')
-        .appendFraction(NANO_OF_SECOND, 1, 9, false)
-        .optionalEnd()
-        .optionalEnd()
-        .optionalEnd()
-        .optionalStart()
-        .appendZoneOrOffsetId()
-        .optionalEnd()
-        .optionalStart()
-        .append(TIME_ZONE_FORMATTER_NO_COLON)
-        .optionalEnd()
-        .optionalEnd()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT)
-        .withResolverStyle(ResolverStyle.STRICT);
-
     /**
      * Returns a generic ISO datetime parser where the date is mandatory and the time is optional.
      */
-    private static final DateFormatter STRICT_DATE_OPTIONAL_TIME = newDateFormatter(
+    private static final DateFormatter STRICT_DATE_OPTIONAL_TIME = new JavaDateFormatter(
         "strict_date_optional_time",
-        STRICT_DATE_OPTIONAL_TIME_PRINTER,
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER
+        new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
+        new Iso8601DateTimeParser(Set.of(), false).withLocale(Locale.ROOT)
     );
-
-    private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS = new DateTimeFormatterBuilder().append(
-        STRICT_YEAR_MONTH_DAY_FORMATTER
-    )
-        .optionalStart()
-        .appendLiteral('T')
-        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
-        .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 1, 9, true)
-        .optionalEnd()
-        .optionalStart()
-        .appendLiteral(',')
-        .appendFraction(NANO_OF_SECOND, 1, 9, false)
-        .optionalEnd()
-        .optionalStart()
-        .appendZoneOrOffsetId()
-        .optionalEnd()
-        .optionalStart()
-        .append(TIME_ZONE_FORMATTER_NO_COLON)
-        .optionalEnd()
-        .optionalEnd()
-        .toFormatter(Locale.ROOT)
-        .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder().append(
         STRICT_YEAR_MONTH_DAY_PRINTER
@@ -224,10 +169,10 @@ public class DateFormatters {
     /**
      * Returns a generic ISO datetime parser where the date is mandatory and the time is optional with nanosecond resolution.
      */
-    private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = newDateFormatter(
+    private static final DateFormatter STRICT_DATE_OPTIONAL_TIME_NANOS = new JavaDateFormatter(
         "strict_date_optional_time_nanos",
-        STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS,
-        STRICT_DATE_OPTIONAL_TIME_FORMATTER_WITH_NANOS
+        new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS),
+        new Iso8601DateTimeParser(Set.of(HOUR_OF_DAY, MINUTE_OF_HOUR, SECOND_OF_MINUTE), true).withLocale(Locale.ROOT)
     );
 
     /**
@@ -235,39 +180,10 @@ public class DateFormatters {
      * This is not fully compatible to the existing spec, which would require far more edge cases, but merely compatible with the
      * existing legacy joda time ISO date formatter
      */
-    private static final DateFormatter ISO_8601 = newDateFormatter(
+    private static final DateFormatter ISO_8601 = new JavaDateFormatter(
         "iso8601",
-        STRICT_DATE_OPTIONAL_TIME_PRINTER,
-        new DateTimeFormatterBuilder().append(STRICT_YEAR_MONTH_DAY_FORMATTER)
-            .optionalStart()
-            .appendLiteral('T')
-            .optionalStart()
-            .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .optionalStart()
-            .appendFraction(NANO_OF_SECOND, 1, 9, true)
-            .optionalEnd()
-            .optionalStart()
-            .appendLiteral(",")
-            .appendFraction(NANO_OF_SECOND, 1, 9, false)
-            .optionalEnd()
-            .optionalEnd()
-            .optionalEnd()
-            .optionalEnd()
-            .optionalStart()
-            .appendZoneOrOffsetId()
-            .optionalEnd()
-            .optionalStart()
-            .append(TIME_ZONE_FORMATTER_NO_COLON)
-            .optionalEnd()
-            .optionalEnd()
-            .toFormatter(Locale.ROOT)
-            .withResolverStyle(ResolverStyle.STRICT)
+        new JavaTimeDateTimePrinter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
+        new Iso8601DateTimeParser(Set.of(), false).withLocale(Locale.ROOT)
     );
 
     /////////////////////////////////////////

@@ -59,7 +59,7 @@ public class OpenAiChatCompletionResponseHandlerTests extends ESTestCase {
         assertThat(
             retryException.getCause().getMessage(),
             is(
-                "Received a content too large status code for request from inference entity id [id] status [429]. "
+                "Received a rate limit status code for request from inference entity id [id] status [429]. "
                     + "Error message: [The input or output tokens must be reduced in order to run successfully]"
             )
         );

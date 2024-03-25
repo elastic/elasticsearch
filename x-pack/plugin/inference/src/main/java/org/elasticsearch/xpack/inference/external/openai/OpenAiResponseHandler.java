@@ -36,7 +36,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
 
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
 
-    static final String INPUT_OR_OUTPUT_TOKENS_MUST_BE_REDUCED = "The input or output tokens must be reduced in order to run successfully";
     static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction) {

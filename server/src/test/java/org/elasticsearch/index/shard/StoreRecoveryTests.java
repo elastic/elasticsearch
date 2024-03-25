@@ -47,6 +47,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -248,6 +250,32 @@ public class StoreRecoveryTests extends ESTestCase {
         assertEquals(dir.fileLength("foo.bar"), indexStats.getFileDetails("bar.foo").recovered());
         assertFalse(indexStats.getFileDetails("bar.foo").reused());
         IOUtils.close(dir, target);
+    }
+
+    public void testConcurrentlyAddSnapshotBytesToFile() throws Exception {
+        var index = new RecoveryState.Index();
+        int numIndices = randomIntBetween(4, 32);
+        for (int i = 0; i < numIndices; i++) {
+            index.addFileDetail("foo_" + i, randomIntBetween(1, 100), false);
+        }
+
+        var executor = Executors.newFixedThreadPool(randomIntBetween(2, 8));
+        try {
+            int count = randomIntBetween(1000, 10_000);
+            var latch = new CountDownLatch(count);
+            for (int i = 0; i < count; i++) {
+                String indexName = "foo_" + (i % numIndices);
+                executor.submit(() -> {
+                    index.addRecoveredFromSnapshotBytesToFile(indexName, 1);
+                    latch.countDown();
+                });
+            }
+            safeAwait(latch);
+            assertEquals(count, index.recoveredFromSnapshotBytes());
+        } finally {
+            executor.shutdownNow();
+        }
+
     }
 
     public boolean hardLinksSupported(Path path) throws IOException {

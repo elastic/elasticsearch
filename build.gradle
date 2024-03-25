@@ -272,14 +272,14 @@ allprojects {
     } else {
       checkPart1.configure { dependsOn 'check' }
     }
+
+    tasks.register('functionalTests') { dependsOn 'check'}
   }
 
   project.ext.disableTasks = { String... tasknames ->
     for (String taskname : tasknames) {
       project.tasks.named(taskname).configure { enabled = false }
     }
-
-    tasks.register('functionalTests') { dependsOn 'check'}
   }
 
   /*

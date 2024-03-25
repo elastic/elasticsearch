@@ -322,6 +322,7 @@ class Iso8601Parser {
         if (decSeparator != '.' && decSeparator != ',') return Result.error(19);
 
         // NANOS + timezone
+        // nanos are always optional
         // the last number could be millis or nanos, or any combination in the middle
         // so we keep parsing numbers until we get to not a number
         int nanos = 0;
@@ -425,6 +426,9 @@ class Iso8601Parser {
 
     private ZoneOffset ofHoursMinutesSeconds(int hours, int minutes, int seconds, boolean positive) {
         int totalSeconds = hours * 3600 + minutes * 60 + seconds;
+        if (positive == false) {
+            totalSeconds = -totalSeconds;
+        }
 
         // check the lastOffset value
         ZoneOffset lastOffset = this.lastOffset.get();
@@ -433,7 +437,7 @@ class Iso8601Parser {
         }
 
         try {
-            ZoneOffset offset = ZoneOffset.ofTotalSeconds(positive ? totalSeconds : -totalSeconds);
+            ZoneOffset offset = ZoneOffset.ofTotalSeconds(totalSeconds);
             this.lastOffset.set(lastOffset);
             return offset;
         } catch (DateTimeException e) {

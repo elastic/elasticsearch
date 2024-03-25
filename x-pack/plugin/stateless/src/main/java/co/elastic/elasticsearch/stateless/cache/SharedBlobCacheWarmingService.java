@@ -267,15 +267,17 @@ public class SharedBlobCacheWarmingService {
                             var blobContainer = unwrapDirectory(indexShard.store().directory()).getBlobContainer(blobFile.primaryTerm());
                             try (var in = blobContainer.readBlob(OperationPurpose.INDICES, blobFile.blobName(), position, length)) {
                                 assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
-                                SharedBytes.copyToCacheFileAligned(
+                                var bytesCopied = SharedBytes.copyToCacheFileAligned(
                                     channel,
                                     in,
                                     channelPos,
-                                    relativePos,
-                                    length,
                                     progressUpdater,
                                     writeBuffer.get().clear()
                                 );
+                                if (bytesCopied < length) {
+                                    // TODO we should remove this and allow gap completion in SparseFileTracker even if progress < range end
+                                    progressUpdater.accept(length);
+                                }
                             }
                         },
                         ActionListener.releaseAfter(listener.map(warmed -> {

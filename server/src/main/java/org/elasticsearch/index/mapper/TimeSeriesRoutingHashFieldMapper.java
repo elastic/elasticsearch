@@ -26,6 +26,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 
@@ -111,7 +112,13 @@ public class TimeSeriesRoutingHashFieldMapper extends MetadataFieldMapper {
         if (context.indexSettings().getMode() == IndexMode.TIME_SERIES
             && context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
             String routingHash = context.sourceToParse().routing();
-            var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash != null ? routingHash : encode(0)));
+            if (routingHash == null) {
+                assert context.sourceToParse().id() != null;
+                routingHash = Base64.getUrlEncoder()
+                    .withoutPadding()
+                    .encodeToString(Arrays.copyOf(Base64.getUrlDecoder().decode(context.sourceToParse().id()), 4));
+            }
+            var field = new SortedDocValuesField(NAME, Uid.encodeId(routingHash));
             context.rootDoc().add(field);
         }
     }

@@ -72,13 +72,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            var errorEntity = OpenAiErrorResponseEntity.fromResponse(result);
-
-            if (errorEntity != null && errorEntity.getErrorMessage().contains(INPUT_OR_OUTPUT_TOKENS_MUST_BE_REDUCED)) {
-                throw new RetryException(false, buildError(CONTENT_TOO_LARGE, request, result));
-            }
-
-            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+            throw buildExceptionHandling429(request, result);
         } else if (isContentTooLarge(result)) {
             throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
         } else if (statusCode == 401) {
@@ -88,6 +82,10 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         } else {
             throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
         }
+    }
+
+    RetryException buildExceptionHandling429(Request request, HttpResult result) {
+        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
     }
 
     private static boolean isContentTooLarge(HttpResult result) {

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeExce
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
 
-import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.Matchers.containsString;
@@ -143,45 +142,6 @@ public class OpenAiResponseHandlerTests extends ESTestCase {
             containsString("Received an unsuccessful status code for request from inference entity id [id] status [402]")
         );
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.PAYMENT_REQUIRED));
-    }
-
-    public void testHandle429InputAndOutputTokensTooLarge_ThrowWithoutRetrying() {
-        String responseBody = """
-            {
-                "error": {
-                    "message": "The input or output tokens must be reduced in order to run successfully",
-                    "type": "content_too_large",
-                    "param": null,
-                    "code": null
-                }
-            }
-            """;
-        ByteArrayInputStream responseBodyStream = new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8));
-
-        var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
-
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(429);
-
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-
-        var mockRequest = RequestTests.mockRequest("id");
-        var httpResult = new HttpResult(httpResponse, responseBodyStream.readAllBytes());
-        var handler = new OpenAiResponseHandler("", (request, result) -> null);
-
-        var retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
-
-        assertFalse(retryException.shouldRetry());
-        assertThat(
-            retryException.getCause().getMessage(),
-            is(
-                "Received a content too large status code for request from inference entity id [id] status [429]. "
-                    + "Error message: [The input or output tokens must be reduced in order to run successfully]"
-            )
-        );
     }
 
     public void testBuildRateLimitErrorMessage() {

@@ -15,7 +15,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiResponseHandler;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
@@ -33,10 +33,6 @@ public class OpenAiCompletionExecutableRequestCreator implements ExecutableReque
     private final OpenAiChatCompletionModel model;
 
     private final OpenAiAccount account;
-
-    private static ResponseHandler createCompletionHandler() {
-        return new OpenAiResponseHandler("openai completion", OpenAiChatCompletionResponseEntity::fromResponse);
-    }
 
     public OpenAiCompletionExecutableRequestCreator(OpenAiChatCompletionModel model) {
         this.model = Objects.requireNonNull(model);
@@ -58,5 +54,9 @@ public class OpenAiCompletionExecutableRequestCreator implements ExecutableReque
         OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(account, input, model);
 
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
+    }
+
+    private static ResponseHandler createCompletionHandler() {
+        return new OpenAiChatCompletionResponseHandler("openai completion", OpenAiChatCompletionResponseEntity::fromResponse);
     }
 }

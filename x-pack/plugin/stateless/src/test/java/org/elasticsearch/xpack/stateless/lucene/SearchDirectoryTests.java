@@ -28,6 +28,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -85,6 +87,18 @@ public class SearchDirectoryTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
                     .build();
+            }
+
+            @Override
+            protected SearchDirectory createSearchDirectory(StatelessSharedBlobCacheService sharedCacheService, ShardId shardId) {
+                return new SearchDirectory(sharedCacheService, shardId) {
+                    @Override
+                    protected ByteRange getCacheRange(BlobLocation blobLocation, long position, int length) {
+                        var start = BlobCacheUtils.toPageAlignedSize(Math.max(position - SharedBytes.PAGE_SIZE + 1L, 0L));
+                        var end = BlobCacheUtils.toPageAlignedSize(position + length);
+                        return ByteRange.of(start, end);
+                    }
+                };
             }
 
             @Override
@@ -169,7 +183,6 @@ public class SearchDirectoryTests extends ESTestCase {
                 assertThat(stream.bytesRead, equalTo(blobLength));
 
                 logger.debug("--> update commit with file [{}]", fileName);
-                long finalBlobLength = blobLength;
                 // bypass index directory so that files remain on disk and can be read again by ChecksumedFilesInputStream
                 searchDirectory.updateCommit(
                     new StatelessCompoundCommit(
@@ -181,8 +194,13 @@ public class SearchDirectoryTests extends ESTestCase {
                             .collect(
                                 Collectors.toUnmodifiableMap(
                                     ChecksummedFile::fileName,
-                                    // file length and offset remain unchanged, but the blob is expanded
-                                    f -> new BlobLocation(primaryTerm, blobName, finalBlobLength, f.fileOffset, f.fileLength)
+                                    f -> new BlobLocation(
+                                        primaryTerm,
+                                        blobName,
+                                        Long.MIN_VALUE /* TODO: remove blobLength */,
+                                        f.fileOffset,
+                                        f.fileLength
+                                    )
                                 )
                             ),
                         blobLength
@@ -191,7 +209,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 generation += 1L;
 
                 if (previousCacheFile != null && randomBoolean()) {
-                    assertCacheFile(previousCacheFile, previousFile, blobName, previousBlobLength);
+                    assertBusyCacheFile(previousCacheFile, previousFile, blobName, previousBlobLength);
                 }
 
                 logger.debug("--> open file [{}] from cache", fileName);
@@ -204,23 +222,21 @@ public class SearchDirectoryTests extends ESTestCase {
 
                 logger.debug("--> verify cache file");
                 var cacheFile = SearchDirectoryTestUtils.getCacheFile((SearchIndexInput) input);
-                assertCacheFile(cacheFile, file, blobName, blobLength);
-
-                ByteBuffer buffer = ByteBuffer.allocate(1);
-                assertFalse("No data available beyond cache file's length", cacheFile.tryRead(buffer, cacheFile.getLength()));
-                buffer.clear();
+                assertBusyCacheFile(cacheFile, file, blobName, blobLength);
 
                 if (previousFile != null) {
                     try {
+                        ByteBuffer buffer = ByteBuffer.allocate(1);
                         logger.debug("--> verify previous file [{}] checksum again from cache", previousFile.fileName());
                         CodecUtil.checksumEntireFile(previousInput);
                         assertThat(CodecUtil.retrieveChecksum(previousInput), equalTo(previousFile.fileChecksum()));
 
                         logger.debug("--> verify previous cache file");
-                        assertCacheFile(previousCacheFile, previousFile, blobName, blobLength);
+                        assertBusyCacheFile(previousCacheFile, previousFile, blobName, blobLength);
 
-                        assertThat(previousCacheFile.getLength(), equalTo(file.fileOffset()));
-                        assertThat(previousCacheFile.getLength(), lessThan(blobLength));
+                        var length = BlobCacheUtils.toPageAlignedSize(previousFile.fileOffset() + previousFile.fileLength());
+                        assertThat(length, equalTo(file.fileOffset()));
+                        assertThat(length, lessThan(blobLength));
 
                         logger.debug("--> verify that previous cache file ending region has been expanded");
                         assertTrue(
@@ -242,31 +258,35 @@ public class SearchDirectoryTests extends ESTestCase {
         }
     }
 
-    private static void assertCacheFile(
+    private static void assertBusyCacheFile(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         ChecksummedFile file,
         String blobName,
         long blobLength
     ) throws Exception {
-        assertThat("Cache key refers to the single blob", cacheFile.getCacheKey().fileName(), equalTo(blobName));
-        assertThat("Cache file region uses the length it knows about", cacheFile.getLength(), equalTo(file.blobLength()));
+        // There is a race between cacheFile.tryRead() and the thread that completes the writing of the last region in cache, potentially
+        // making tryRead() not work the first time, so we use assertBusy to retry.
+        //
+        // The race is between the completion of the gap to fill, which updates the SparseFileTracker's {@code complete} volatile field when
+        // the last range is completed, and the tryRead() method that uses SparseFileTracker's {@code checkAvailable} method that also reads
+        // the {@code complete} volatile field.
+        assertBusy(() -> {
+            assertThat("Cache key refers to the single blob", cacheFile.getCacheKey().fileName(), equalTo(blobName));
 
-        ByteBuffer buffer = ByteBuffer.allocate(1);
-        long position = file.fileOffset();
-        assertThat("File's offset is page aligned", position % SharedBytes.PAGE_SIZE, equalTo(0L));
-        assertTrue("File's first byte is available in cache", cacheFile.tryRead(buffer, position));
-        buffer.clear();
+            ByteBuffer buffer = ByteBuffer.allocate(1);
+            long position = file.fileOffset();
+            assertThat("File's offset is page aligned", position % SharedBytes.PAGE_SIZE, equalTo(0L));
+            assertTrue("File's first byte is available in cache", cacheFile.tryRead(buffer, position));
+            buffer.clear();
 
-        position = file.fileOffset() + file.fileLength() - 1L;
-        assertTrue("File's last byte is available in cache", cacheFile.tryRead(buffer, position));
-        buffer.clear();
+            position = file.fileOffset() + file.fileLength() - 1L;
+            assertTrue("File's last byte is available in cache", cacheFile.tryRead(buffer, position));
+            buffer.clear();
 
-        position = file.blobLength() - 1L;
-        assertTrue("Blob's last region byte (including padding) is available cache", cacheFile.tryRead(buffer, position));
-        buffer.clear();
-
-        assertFalse("No data available in cache after current blob's last region", cacheFile.tryRead(buffer, blobLength));
-        buffer.clear();
+            position = blobLength - 1L;
+            assertTrue("Blob's last region byte (including padding) is available cache", cacheFile.tryRead(buffer, position));
+            buffer.clear();
+        });
     }
 
     private record ChecksummedFile(String fileName, long fileLength, long fileOffset, long fileChecksum, long blobLength) {}

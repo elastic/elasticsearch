@@ -40,7 +40,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public record BlobLocation(BlobFile blobFile, long offset, long fileLength) implements Writeable, ToXContentObject {
 
     public BlobLocation {
-        assert offset + fileLength <= blobFile.blobLength() : "(offset + file) length is greater than blobLength " + this;
+        assert blobFile.blobLength() == Long.MIN_VALUE || offset + fileLength <= blobFile.blobLength()
+            : "(offset + file) length is greater than blobLength " + this;
     }
 
     public BlobLocation(long primaryTerm, String blobName, long blobLength, long offset, long fileLength) {

@@ -31,9 +31,9 @@ import org.elasticsearch.core.Releasables;
 @GroupingAggregator(
     includeTimestamps = true,
     value = {
-        @IntermediateState(name = "timestamp", type = "LONG_BLOCK"),
-        @IntermediateState(name = "value", type = "INT_BLOCK"),
-        @IntermediateState(name = "compensation", type = "DOUBLE") }
+        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
+        @IntermediateState(name = "values", type = "INT_BLOCK"),
+        @IntermediateState(name = "resets", type = "DOUBLE") }
 )
 public class RateIntAggregator {
     public static IntRateGroupingState initGrouping(BigArrays bigArrays, long unitInMillis) {
@@ -50,10 +50,10 @@ public class RateIntAggregator {
         int groupId,
         LongBlock timestamps,
         IntBlock values,
-        double compensation,
+        double reset,
         int otherPosition
     ) {
-        current.combine(groupId, timestamps, values, compensation, otherPosition);
+        current.combine(groupId, timestamps, values, reset, otherPosition);
     }
 
     public static void combineStates(
@@ -73,7 +73,7 @@ public class RateIntAggregator {
         static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(IntRateState.class);
         final long[] timestamps; // descending order
         final int[] values;
-        double compensation = 0;
+        double reset = 0;
 
         IntRateState(int initialSize) {
             this.timestamps = new long[initialSize];
@@ -92,7 +92,7 @@ public class RateIntAggregator {
         void append(long t, int v) {
             assert timestamps.length == 2 : "expected two timestamps; got " + timestamps.length;
             assert t < timestamps[1] : "@timestamp goes backward: " + t + " >= " + timestamps[1];
-            compensation += dv(v, values[1]) + dv(values[1], values[0]) - dv(v, values[0]);
+            reset += dv(v, values[1]) + dv(values[1], values[0]) - dv(v, values[0]);
             timestamps[1] = t;
             values[1] = v;
         }
@@ -138,7 +138,7 @@ public class RateIntAggregator {
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, IntBlock values, double compensation, int otherPosition) {
+        void combine(int groupId, LongBlock timestamps, IntBlock values, double reset, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
@@ -159,7 +159,7 @@ public class RateIntAggregator {
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
             }
-            state.compensation += compensation;
+            state.reset += reset;
         }
 
         void merge(IntRateState curr, IntRateState dst, int firstIndex, int rightCount, LongBlock timestamps, IntBlock values) {
@@ -209,7 +209,7 @@ public class RateIntAggregator {
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
                 IntBlock.Builder values = blockFactory.newIntBlockBuilder(positionCount * 2);
-                DoubleVector.Builder compensation = blockFactory.newDoubleVectorFixedBuilder(positionCount)
+                DoubleVector.Builder resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
             ) {
                 for (int i = 0; i < positionCount; i++) {
                     final var groupId = selected.getInt(i);
@@ -227,16 +227,16 @@ public class RateIntAggregator {
                         }
                         values.endPositionEntry();
 
-                        compensation.appendDouble(state.compensation);
+                        resets.appendDouble(state.reset);
                     } else {
                         timestamps.appendNull();
                         values.appendNull();
-                        compensation.appendDouble(0);
+                        resets.appendDouble(0);
                     }
                 }
                 blocks[offset] = timestamps.build();
                 blocks[offset + 1] = values.build();
-                blocks[offset + 2] = compensation.build().asBlock();
+                blocks[offset + 2] = resets.build().asBlock();
             }
         }
 
@@ -256,13 +256,13 @@ public class RateIntAggregator {
                         // TODO: maybe issue warning when we don't have enough sample?
                         rates.appendNull();
                     } else {
-                        double compensation = state.compensation;
+                        double reset = state.reset;
                         for (int i = 1; i < len; i++) {
                             if (state.values[i - 1] < state.values[i]) {
-                                compensation += state.values[i];
+                                reset += state.values[i];
                             }
                         }
-                        double dv = state.values[0] - state.values[len - 1] + compensation;
+                        double dv = state.values[0] - state.values[len - 1] + reset;
                         rates.appendDouble(dv * unitInMillis / dt);
                     }
                 }

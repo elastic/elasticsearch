@@ -26,9 +26,9 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class RateDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("timestamp", ElementType.LONG),
-      new IntermediateStateDesc("value", ElementType.DOUBLE),
-      new IntermediateStateDesc("compensation", ElementType.DOUBLE)  );
+      new IntermediateStateDesc("timestamps", ElementType.LONG),
+      new IntermediateStateDesc("values", ElementType.DOUBLE),
+      new IntermediateStateDesc("resets", ElementType.DOUBLE)  );
 
   private final RateDoubleAggregator.DoubleRateGroupingState state;
 
@@ -166,25 +166,25 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block timestampUncast = page.getBlock(channels.get(0));
-    if (timestampUncast.areAllValuesNull()) {
+    Block timestampsUncast = page.getBlock(channels.get(0));
+    if (timestampsUncast.areAllValuesNull()) {
       return;
     }
-    LongBlock timestamp = (LongBlock) timestampUncast;
-    Block valueUncast = page.getBlock(channels.get(1));
-    if (valueUncast.areAllValuesNull()) {
+    LongBlock timestamps = (LongBlock) timestampsUncast;
+    Block valuesUncast = page.getBlock(channels.get(1));
+    if (valuesUncast.areAllValuesNull()) {
       return;
     }
-    DoubleBlock value = (DoubleBlock) valueUncast;
-    Block compensationUncast = page.getBlock(channels.get(2));
-    if (compensationUncast.areAllValuesNull()) {
+    DoubleBlock values = (DoubleBlock) valuesUncast;
+    Block resetsUncast = page.getBlock(channels.get(2));
+    if (resetsUncast.areAllValuesNull()) {
       return;
     }
-    DoubleVector compensation = ((DoubleBlock) compensationUncast).asVector();
-    assert timestamp.getPositionCount() == value.getPositionCount() && timestamp.getPositionCount() == compensation.getPositionCount();
+    DoubleVector resets = ((DoubleBlock) resetsUncast).asVector();
+    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == resets.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = Math.toIntExact(groups.getInt(groupPosition));
-      RateDoubleAggregator.combineIntermediate(state, groupId, timestamp, value, compensation.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
+      RateDoubleAggregator.combineIntermediate(state, groupId, timestamps, values, resets.getDouble(groupPosition + positionOffset), groupPosition + positionOffset);
     }
   }
 

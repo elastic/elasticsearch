@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1102,8 +1103,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
             renderTypes(description.argNames());
             renderParametersList(description.argNames(), description.argDescriptions());
-            renderDescription(description.description());
-            boolean hasExamples = renderExamples(EsqlFunctionRegistry.functionInfo(definition));
+            FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
+            renderDescription(description.description(), info.note());
+            boolean hasExamples = renderExamples(info);
             renderFullLayout(name, hasExamples);
             return;
         }
@@ -1155,11 +1157,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("parameters", rendered, "asciidoc");
     }
 
-    private static void renderDescription(String description) throws IOException {
+    private static void renderDescription(String description, String note) throws IOException {
         String rendered = DOCS_WARNING + """
             *Description*
 
             """ + description + "\n";
+        if (Strings.isNullOrEmpty(note) == false) {
+            rendered += "\nNOTE: " + note + "\n";
+        }
         LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("description", rendered, "asciidoc");
     }

@@ -263,10 +263,18 @@ public final class CsvAssert {
     private static void dataFailure(List<DataFailure> dataFailures) {
         fail("Data mismatch:\n" + dataFailures.stream().map(f -> {
             Description description = new StringDescription();
-            ListMatcher expected = f.expected instanceof List
-                ? ListMatcher.matchesList().item(f.expected)
-                : ListMatcher.matchesList((List<?>) f.expected);
-            List<?> actualList = f.actual instanceof List ? List.of(f.actual) : (List<?>) f.actual;
+            ListMatcher expected;
+            if (f.expected instanceof List<?> e) {
+                expected = ListMatcher.matchesList(e);
+            } else {
+                expected = ListMatcher.matchesList().item(f.expected);
+            }
+            List<?> actualList;
+            if (f.actual instanceof List<?> a) {
+                actualList = a;
+            } else {
+                actualList = List.of(f.actual);
+            }
             expected.describeMismatch(actualList, description);
             String prefix = "row " + f.row + " column " + f.column + ":";
             return prefix + description.toString().replace("\n", "\n" + prefix);

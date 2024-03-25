@@ -561,12 +561,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             listener.onResponse(false);
             return;
         }
-        long regionLength = regionSize;
         try {
-            if (region == getEndingRegion(blobLength)) {
-                regionLength = blobLength - getRegionStart(region);
-            }
-            ByteRange regionRange = ByteRange.of(0, regionLength);
+            ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, region));
             if (regionRange.isEmpty()) {
                 listener.onResponse(false);
                 return;

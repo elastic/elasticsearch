@@ -228,15 +228,10 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             void consume() throws IOException {
                 if (queue != null) {
                     currentTsid = BytesRef.deepCopyOf(queue.top().timeSeriesHash);
-                    boolean breakOnNextTsidChange = false;
                     while (queue.size() > 0) {
-                        if (remainingDocs <= 0) {
+                        if (remainingDocs <= 0 || currentPagePos >= maxPageSize) {
                             break;
                         }
-                        if (currentPagePos > maxPageSize) {
-                            breakOnNextTsidChange = true;
-                        }
-
                         currentPagePos++;
                         remainingDocs--;
                         Leaf leaf = queue.top();
@@ -244,23 +239,21 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                         docsBuilder.appendInt(leaf.iterator.docID());
                         timestampIntervalBuilder.appendLong(leaf.timestamp);
                         tsOrdBuilder.appendInt(globalTsidOrd);
+                        final Leaf newTop;
                         if (leaf.nextDoc()) {
                             // TODO: updating the top is one of the most expensive parts of this operation.
                             // Ideally we would do this a less as possible. Maybe the top can be updated every N docs?
-                            Leaf newTop = queue.updateTop();
-                            if (newTop.timeSeriesHash.equals(currentTsid) == false) {
-                                globalTsidOrd++;
-                                currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
-                                if (breakOnNextTsidChange) {
-                                    break;
-                                }
-                            }
+                            newTop = queue.updateTop();
                         } else {
                             queue.pop();
+                            newTop = queue.size() > 0 ? queue.top() : null;
+                        }
+                        if (newTop != null && newTop.timeSeriesHash.equals(currentTsid) == false) {
+                            globalTsidOrd++;
+                            currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
                         }
                     }
                 } else {
-                    int previousTsidOrd = leaf.timeSeriesHashOrd;
                     // Only one segment, so no need to use priority queue and use segment ordinals as tsid ord.
                     while (leaf.nextDoc()) {
                         tsOrdBuilder.appendInt(leaf.timeSeriesHashOrd);
@@ -269,9 +262,6 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                         docsBuilder.appendInt(leaf.iterator.docID());
                         currentPagePos++;
                         remainingDocs--;
-                        if (previousTsidOrd != leaf.timeSeriesHashOrd) {
-                            break;
-                        }
                         if (remainingDocs <= 0 || currentPagePos >= maxPageSize) {
                             break;
                         }

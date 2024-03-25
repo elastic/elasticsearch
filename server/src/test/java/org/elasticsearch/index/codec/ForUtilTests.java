@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2022 Elasticsearch B.V.
  */
-package org.elasticsearch.index.codec.postings;
+package org.elasticsearch.index.codec;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 

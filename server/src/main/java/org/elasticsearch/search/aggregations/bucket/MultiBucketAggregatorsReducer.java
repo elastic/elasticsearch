@@ -21,7 +21,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 public final class MultiBucketAggregatorsReducer implements Releasable {
 
     private final AggregatorsReducer aggregatorsReducer;
-    long count = 0;
+    private long count = 0;
 
     public MultiBucketAggregatorsReducer(AggregationReduceContext context, int size) {
         this.aggregatorsReducer = new AggregatorsReducer(context, size);

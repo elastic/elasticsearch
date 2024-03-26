@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -595,7 +593,6 @@ public class RecoveryTargetTests extends ESTestCase {
         }
     }
 
-    @Repeat(iterations = 100)
     public void testConcurrentlyAddRecoveredFromSnapshotBytes() {
         var index = new RecoveryState.Index();
         int numIndices = randomIntBetween(1, 4);

@@ -262,7 +262,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         assertThat(dateFieldType, notNullValue());
         final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
         assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
-        // assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true)); /// MP TODO: this sometimes fails - why?
+        assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true)); /// MP TODO: this sometimes fails - why?
         if (indexDataWithTimestamp) {
             assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
             assertThat(

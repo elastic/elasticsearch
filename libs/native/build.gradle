@@ -28,7 +28,3 @@ dependencies {
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }
-
-tasks.named('forbiddenApisMain21').configure {
-  ignoreMissingClasses = true
-}

@@ -1,0 +1,4 @@
+*Parameters*
+
+`number`::
+An angle, in radians

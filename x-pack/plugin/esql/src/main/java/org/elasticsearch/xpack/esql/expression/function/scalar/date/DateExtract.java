@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -24,13 +23,13 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
@@ -43,14 +42,14 @@ public class DateExtract extends EsqlConfigurationFunction {
         Source source,
         // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
         // used in the CSVTests and fixing it is not trivial
-        @Param(name = "date_part", type = { "keyword" }, description = """
+        @Param(name = "datePart", type = { "keyword" }, description = """
             Part of the date to extract.
             Can be: aligned_day_of_week_in_month; aligned_day_of_week_in_year; aligned_week_of_month;
             aligned_week_of_year; ampm_of_day; clock_hour_of_ampm; clock_hour_of_day; day_of_month; day_of_week;
             day_of_year; epoch_day; era; hour_of_ampm; hour_of_day; instant_seconds; micro_of_day; micro_of_second;
             milli_of_day; milli_of_second; minute_of_day; minute_of_hour; month_of_year; nano_of_day; nano_of_second;
             offset_seconds; proleptic_month; second_of_day; second_of_minute; year; or year_of_era.""") Expression chronoFieldExp,
-        @Param(name = "field", type = "date", description = "Date expression") Expression field,
+        @Param(name = "date", type = "date", description = "Date expression") Expression field,
         Configuration configuration
     ) {
         super(source, List.of(chronoFieldExp, field), configuration);
@@ -76,13 +75,12 @@ public class DateExtract extends EsqlConfigurationFunction {
         // TODO: move the slimmed down code here to toEvaluator?
         if (chronoField == null) {
             Expression field = children().get(0);
-            if (field.foldable() && field.dataType() == DataTypes.KEYWORD) {
-                try {
-                    BytesRef br = BytesRefs.toBytesRef(field.fold());
-                    chronoField = ChronoField.valueOf(br.utf8ToString().toUpperCase(Locale.ROOT));
-                } catch (Exception e) {
-                    return null;
+            try {
+                if (field.foldable() && field.dataType() == DataTypes.KEYWORD) {
+                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold());
                 }
+            } catch (Exception e) {
+                return null;
             }
         }
         return chronoField;
@@ -90,13 +88,12 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static long process(long value, BytesRef chronoField, @Fixed ZoneId zone) {
-        ChronoField chrono = ChronoField.valueOf(chronoField.utf8ToString().toUpperCase(Locale.ROOT));
-        return Instant.ofEpochMilli(value).atZone(zone).getLong(chrono);
+        return chronoToLong(value, chronoField, zone);
     }
 
     @Evaluator(extraName = "Constant")
     static long process(long value, @Fixed ChronoField chronoField, @Fixed ZoneId zone) {
-        return Instant.ofEpochMilli(value).atZone(zone).getLong(chronoField);
+        return chronoToLong(value, chronoField, zone);
     }
 
     @Override

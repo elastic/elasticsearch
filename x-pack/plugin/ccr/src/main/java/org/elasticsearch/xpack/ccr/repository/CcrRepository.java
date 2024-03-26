@@ -82,6 +82,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
@@ -180,7 +181,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     private RemoteClusterClient getRemoteClusterClient() {
-        return client.getRemoteClusterClient(remoteClusterAlias, remoteClientResponseExecutor);
+        return client.getRemoteClusterClient(
+            remoteClusterAlias,
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
     }
 
     @Override
@@ -592,7 +597,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ActionListener<PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse> responseListener = listener.map(
             response -> new RestoreSession(
                 repositoryName,
-                client.getRemoteClusterClient(remoteClusterAlias, chunkResponseExecutor),
+                client.getRemoteClusterClient(
+                    remoteClusterAlias,
+                    chunkResponseExecutor,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                ),
                 sessionUUID,
                 response.getNode(),
                 indexShardId,

@@ -106,7 +106,9 @@ tasks.register("yamlRestTestHdfs2", RestIntegTestTask) {
 }
 
 tasks.named("test").configure {
+  onlyIf("Not running on windows") {
     OS.current().equals(OS.WINDOWS) == false
+  }
 }
 
 tasks.named("check").configure {

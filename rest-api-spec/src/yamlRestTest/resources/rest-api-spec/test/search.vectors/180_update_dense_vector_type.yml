@@ -1,5 +1,8 @@
 ---
 "Test Create and update dense vector mapping":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
   - do:
       indices.create:
         index: test_index

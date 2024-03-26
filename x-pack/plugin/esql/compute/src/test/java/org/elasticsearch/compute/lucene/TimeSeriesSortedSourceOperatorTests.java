@@ -144,7 +144,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
     public void testRandom() {
         record Doc(int host, long timestamp, long metric) {}
-        int numDocs = between(1, 1000);
+        int numDocs = between(1, 5000);
         List<Doc> docs = new ArrayList<>();
         Map<Integer, Long> timestamps = new HashMap<>();
         long t0 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");

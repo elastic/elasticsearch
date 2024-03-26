@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bu
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.createOrgHeader;
 
-public class OpenAiEmbeddingsRequest implements Request {
+public class OpenAiEmbeddingsRequest implements OpenAiRequest {
 
     private final Truncator truncator;
     private final OpenAiAccount account;

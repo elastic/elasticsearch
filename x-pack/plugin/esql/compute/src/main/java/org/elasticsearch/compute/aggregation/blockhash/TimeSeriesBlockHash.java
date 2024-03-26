@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -18,9 +19,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Objects;
 
@@ -30,6 +31,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
     private final int timestampChannel;
     private final Rounding.Prepared preparedRounding;
     private final DriverContext driverContext;
+    private final BytesRefHash tsidHashes;
 
     long tsidOrdinal = -1;
     BytesRef previousTsidHash;
@@ -45,24 +47,25 @@ public final class TimeSeriesBlockHash extends BlockHash {
             this.preparedRounding = null;
         }
         this.driverContext = driverContext;
+        this.tsidHashes = new BytesRefHash(1, blockFactory.bigArrays());
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        Releasables.close(tsidHashes);
+    }
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         BytesRefBlock tsHashBlock = page.getBlock(tsHashChannel);
         BytesRefVector tsHashVector = Objects.requireNonNull(tsHashBlock.asVector());
-        LongBlock timestampIntervalBlock = page.getBlock(timestampChannel);
-        LongVector timestampIntervalVector = Objects.requireNonNull(timestampIntervalBlock.asVector());
-
         try (var ordsBuilder = driverContext.blockFactory().newIntVectorBuilder(tsHashVector.getPositionCount())) {
+            LongBlock timestampIntervalBlock = page.getBlock(timestampChannel);
             BytesRef spare = new BytesRef();
             if (preparedRounding != null) {
                 for (int i = 0; i < tsHashVector.getPositionCount(); i++) {
                     BytesRef tsHash = tsHashVector.getBytesRef(i, spare);
-                    long timestampInterval = preparedRounding.round(timestampIntervalVector.getLong(i));
+                    long timestampInterval = preparedRounding.round(timestampIntervalBlock.getLong(i));
                     if (tsHash.equals(previousTsidHash) == false || timestampInterval != previousTimestamp) {
                         tsidOrdinal++;
                         previousTsidHash = BytesRef.deepCopyOf(tsHash);
@@ -76,6 +79,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
                     if (tsHash.equals(previousTsidHash) == false) {
                         tsidOrdinal++;
                         previousTsidHash = BytesRef.deepCopyOf(tsHash);
+                        tsidHashes.add(previousTsidHash);
                     }
                     ordsBuilder.appendInt(Math.toIntExact(tsidOrdinal));
                 }
@@ -88,8 +92,16 @@ public final class TimeSeriesBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys() {
-        // No keys for now... the tsid hash doesn't make for a good key, plus the planner doesn't know about this
-        return new Block[0];
+        int positions = (int) tsidHashes.size();
+        BytesRefVector k1;
+        try (BytesRefVector.Builder keys1 = blockFactory.newBytesRefVectorBuilder(positions);) {
+            BytesRef scratch = new BytesRef();
+            for (long i = 0; i < positions; i++) {
+                keys1.appendBytesRef(tsidHashes.get(i, scratch));
+            }
+            k1 = keys1.build();
+        }
+        return new Block[] { k1.asBlock() };
     }
 
     @Override

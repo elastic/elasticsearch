@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
@@ -39,10 +38,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AnyOperatorTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.operator.TimeSeriesAggregationOperatorFactory;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -217,7 +216,19 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         List<Pod> pods = List.of(new Pod("p1", t1, v1), new Pod("p2", t2, v2), new Pod("p3", t3, v3));
         long unit = between(1, 5);
         Map<String, Double> actualRates = runRateTest(pods, TimeValue.timeValueMillis(unit));
-        assertThat(actualRates, equalTo(Map.of("p1", 35.0 * unit / 111.0, "p2", 42.0 * unit / 13.0, "p3", 10.0 * unit / 20.0)));
+        assertThat(
+            actualRates,
+            equalTo(
+                Map.of(
+                    "\u0001\u0003pods\u0002p1",
+                    35.0 * unit / 111.0,
+                    "\u0001\u0003pods\u0002p2",
+                    42.0 * unit / 13.0,
+                    "\u0001\u0003pods\u0002p3",
+                    10.0 * unit / 20.0
+                )
+            )
+        );
     }
 
     public void testRandomRate() {
@@ -238,9 +249,9 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             Pod pod = new Pod("p" + p, times, values);
             pods.add(pod);
             if (numValues == 1) {
-                expectedRates.put(pod.name, null);
+                expectedRates.put("\u0001\u0003pods\u0002" + pod.name, null);
             } else {
-                expectedRates.put(pod.name, pod.expectedRate(unit));
+                expectedRates.put("\u0001\u0003pods\u0002" + pod.name, pod.expectedRate(unit));
             }
         }
         Map<String, Double> actualRates = runRateTest(pods, unit);
@@ -284,40 +295,37 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             return docs.size();
         });
         var ctx = driverContext();
-        HashAggregationOperator initialHash = new HashAggregationOperator(
-            List.of(new RateLongAggregatorFunctionSupplier(List.of(4, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)),
-            () -> BlockHash.build(
-                List.of(new HashAggregationOperator.GroupSpec(3, ElementType.BYTES_REF)),
-                ctx.blockFactory(),
-                randomIntBetween(1, 1000),
-                randomBoolean()
-            ),
-            ctx
-        );
 
-        HashAggregationOperator finalHash = new HashAggregationOperator(
-            List.of(new RateLongAggregatorFunctionSupplier(List.of(1, 2, 3), unitInMillis).groupingAggregatorFactory(AggregatorMode.FINAL)),
-            () -> BlockHash.build(
-                List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
-                ctx.blockFactory(),
-                randomIntBetween(1, 1000),
-                randomBoolean()
-            ),
-            ctx
+        var aggregators = List.of(
+            new RateLongAggregatorFunctionSupplier(List.of(3, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
         );
+        Operator initialHash = new TimeSeriesAggregationOperatorFactory(
+            AggregatorMode.INITIAL,
+            1,
+            2,
+            TimeValue.ZERO,
+            aggregators,
+            randomIntBetween(1, 1000)
+        ).get(ctx);
+
+        aggregators = List.of(
+            new RateLongAggregatorFunctionSupplier(List.of(1, 2, 3), unitInMillis).groupingAggregatorFactory(AggregatorMode.FINAL)
+        );
+        Operator finalHash = new TimeSeriesAggregationOperatorFactory(
+            AggregatorMode.FINAL,
+            0,
+            1,
+            TimeValue.ZERO,
+            aggregators,
+            randomIntBetween(1, 1000)
+        ).get(ctx);
         List<Page> results = new ArrayList<>();
         var requestsField = new NumberFieldMapper.NumberFieldType("requests", NumberFieldMapper.NumberType.LONG);
-        var podField = new KeywordFieldMapper.KeywordFieldType("pod");
         OperatorTestCase.runDriver(
             new Driver(
                 ctx,
                 sourceOperatorFactory.get(ctx),
-                List.of(
-                    ValuesSourceReaderOperatorTests.factory(reader, podField, ElementType.BYTES_REF).get(ctx),
-                    ValuesSourceReaderOperatorTests.factory(reader, requestsField, ElementType.LONG).get(ctx),
-                    initialHash,
-                    finalHash
-                ),
+                List.of(ValuesSourceReaderOperatorTests.factory(reader, requestsField, ElementType.LONG).get(ctx), initialHash, finalHash),
                 new TestResultPageSinkOperator(results::add),
                 () -> {}
             )

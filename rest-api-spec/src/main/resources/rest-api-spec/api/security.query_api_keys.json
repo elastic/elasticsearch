@@ -26,12 +26,12 @@
         "type":"boolean",
         "default":false,
         "description": "flag to show the limited-by role descriptors of API Keys"
+      },
+      "with_profile_uid":{
+        "type":"boolean",
+        "default":false,
+        "description": "flag to also retrieve the API Key's owner profile uid, if it exists"
       }
-    },
-    "with_profile_uid":{
-      "type":"boolean",
-      "default":false,
-      "description": "flag to also retrieve the API Key's owner profile uid, if it exists"
     },
     "body":{
       "description":"From, size, query, sort and search_after",

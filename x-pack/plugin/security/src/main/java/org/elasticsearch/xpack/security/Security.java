@@ -856,6 +856,8 @@ public class Security extends Plugin
         if (reservedRoleNameCheckerFactory.get() == null) {
             reservedRoleNameCheckerFactory.set(new ReservedRoleNameChecker.Factory.Default());
         }
+        final ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get().create(fileRolesStore.get()::exists);
+        components.add(new PluginComponentBinding<>(ReservedRoleNameChecker.class, reservedRoleNameChecker));
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
         for (SecurityExtension extension : securityExtensions) {
@@ -1095,13 +1097,6 @@ public class Security extends Plugin
                 .filter(ReloadableSecurityComponent.class::isInstance)
                 .map(ReloadableSecurityComponent.class::cast)
                 .collect(Collectors.toUnmodifiableList())
-        );
-
-        components.add(
-            new PluginComponentBinding<>(
-                ReservedRoleNameChecker.class,
-                reservedRoleNameCheckerFactory.get().create(fileRolesStore.get()::exists)
-            )
         );
 
         return components;

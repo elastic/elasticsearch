@@ -21,11 +21,11 @@ public class EsqlBaseParser extends Parser {
     KEEP=9, LIMIT=10, META=11, MV_EXPAND=12, RENAME=13, ROW=14, SHOW=15, SORT=16, 
     STATS=17, WHERE=18, UNKNOWN_CMD=19, LINE_COMMENT=20, MULTILINE_COMMENT=21, 
     WS=22, EXPLAIN_WS=23, EXPLAIN_LINE_COMMENT=24, EXPLAIN_MULTILINE_COMMENT=25, 
-    PIPE=26, STRING=27, INTEGER_LITERAL=28, DECIMAL_LITERAL=29, BY=30, AND=31, 
-    ASC=32, ASSIGN=33, COMMA=34, DESC=35, DOT=36, FALSE=37, FIRST=38, LAST=39, 
-    LP=40, IN=41, IS=42, LIKE=43, NOT=44, NULL=45, NULLS=46, OR=47, PARAM=48, 
-    RLIKE=49, RP=50, TRUE=51, EQ=52, CIEQ=53, NEQ=54, LT=55, LTE=56, GT=57, 
-    GTE=58, PLUS=59, MINUS=60, ASTERISK=61, SLASH=62, PERCENT=63, OPENING_BRACKET=64, 
+    PIPE=26, QUOTED_STRING=27, INTEGER_LITERAL=28, DECIMAL_LITERAL=29, BY=30, 
+    AND=31, ASC=32, ASSIGN=33, COMMA=34, DESC=35, DOT=36, FALSE=37, FIRST=38, 
+    LAST=39, LP=40, IN=41, IS=42, LIKE=43, NOT=44, NULL=45, NULLS=46, OR=47, 
+    PARAM=48, RLIKE=49, RP=50, TRUE=51, EQ=52, CIEQ=53, NEQ=54, LT=55, LTE=56, 
+    GT=57, GTE=58, PLUS=59, MINUS=60, ASTERISK=61, SLASH=62, PERCENT=63, OPENING_BRACKET=64, 
     CLOSING_BRACKET=65, UNQUOTED_IDENTIFIER=66, QUOTED_IDENTIFIER=67, EXPR_LINE_COMMENT=68, 
     EXPR_MULTILINE_COMMENT=69, EXPR_WS=70, OPTIONS=71, METADATA=72, FROM_UNQUOTED_IDENTIFIER=73, 
     FROM_LINE_COMMENT=74, FROM_MULTILINE_COMMENT=75, FROM_WS=76, ID_PATTERN=77, 
@@ -97,11 +97,11 @@ public class EsqlBaseParser extends Parser {
       "INLINESTATS", "KEEP", "LIMIT", "META", "MV_EXPAND", "RENAME", "ROW", 
       "SHOW", "SORT", "STATS", "WHERE", "UNKNOWN_CMD", "LINE_COMMENT", "MULTILINE_COMMENT", 
       "WS", "EXPLAIN_WS", "EXPLAIN_LINE_COMMENT", "EXPLAIN_MULTILINE_COMMENT", 
-      "PIPE", "STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL", "BY", "AND", 
-      "ASC", "ASSIGN", "COMMA", "DESC", "DOT", "FALSE", "FIRST", "LAST", "LP", 
-      "IN", "IS", "LIKE", "NOT", "NULL", "NULLS", "OR", "PARAM", "RLIKE", "RP", 
-      "TRUE", "EQ", "CIEQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", "MINUS", 
-      "ASTERISK", "SLASH", "PERCENT", "OPENING_BRACKET", "CLOSING_BRACKET", 
+      "PIPE", "QUOTED_STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL", "BY", 
+      "AND", "ASC", "ASSIGN", "COMMA", "DESC", "DOT", "FALSE", "FIRST", "LAST", 
+      "LP", "IN", "IS", "LIKE", "NOT", "NULL", "NULLS", "OR", "PARAM", "RLIKE", 
+      "RP", "TRUE", "EQ", "CIEQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", 
+      "MINUS", "ASTERISK", "SLASH", "PERCENT", "OPENING_BRACKET", "CLOSING_BRACKET", 
       "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT", 
       "EXPR_WS", "OPTIONS", "METADATA", "FROM_UNQUOTED_IDENTIFIER", "FROM_LINE_COMMENT", 
       "FROM_MULTILINE_COMMENT", "FROM_WS", "ID_PATTERN", "PROJECT_LINE_COMMENT", 
@@ -1627,7 +1627,7 @@ public class EsqlBaseParser extends Parser {
         match(ASTERISK);
         }
         break;
-      case STRING:
+      case QUOTED_STRING:
       case INTEGER_LITERAL:
       case DECIMAL_LITERAL:
       case FALSE:
@@ -4232,7 +4232,7 @@ public class EsqlBaseParser extends Parser {
 
   @SuppressWarnings("CheckReturnValue")
   public static class StringContext extends ParserRuleContext {
-    public TerminalNode STRING() { return getToken(EsqlBaseParser.STRING, 0); }
+    public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
     @SuppressWarnings("this-escape")
     public StringContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -4260,7 +4260,7 @@ public class EsqlBaseParser extends Parser {
       enterOuterAlt(_localctx, 1);
       {
       setState(488);
-      match(STRING);
+      match(QUOTED_STRING);
       }
     }
     catch (RecognitionException re) {

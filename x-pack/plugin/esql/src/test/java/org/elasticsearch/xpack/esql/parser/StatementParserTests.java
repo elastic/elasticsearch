@@ -631,16 +631,45 @@ public class StatementParserTests extends ESTestCase {
         );
     }
 
+    public void testFromOptionsEmptyIndicesOptionName() {
+        expectError(
+            FROM + " options \"\"=\"true\"",
+            "line 1:20: invalid options provided: unknown option named []"
+        );
+    }
+
+    public void testFromOptionsEmptyIndicesOptionValue() {
+        expectError(
+            FROM + " options \"allow_no_indices\"=\"\"",
+            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean"
+        );
+        expectError(
+            FROM + " options \"ignore_unavailable\"=\"\"",
+            "line 1:20: invalid options provided: Could not convert [ignore_unavailable] to boolean"
+        );
+        expectError(
+            FROM + " options \"preference\"=\"\"",
+            "line 1:20: invalid options provided: no Preference for []"
+        );
+    }
+
+    public void testFromOptionsSuggestedOptionName() {
+        expectError(
+            FROM + " options \"allow_indices\"=\"true\"",
+            "line 1:20: invalid options provided: unknown option named [allow_indices], did you mean [allow_no_indices]"
+        );
+    }
+
     public void testFromOptionsInvalidPreferValue() {
         expectError(FROM + " options \"preference\"=\"_foo\"", "line 1:20: invalid options provided: no Preference for [_foo]");
     }
 
     public void testFromOptionsUnquotedName() {
-        expectError(FROM + " options allow_no_indices=\"oof\"", "line 1:19: mismatched input 'allow_no_indices' expecting STRING");
+        expectError(FROM + " options allow_no_indices=\"oof\"", "line 1:19: mismatched input 'allow_no_indices' expecting QUOTED_STRING");
     }
 
     public void testFromOptionsUnquotedValue() {
-        expectError(FROM + " options \"allow_no_indices\"=oof", "line 1:38: mismatched input 'oof' expecting STRING");
+        expectError(FROM + " options \"allow_no_indices\"=oof", "line 1:38: mismatched input 'oof' expecting QUOTED_STRING");
     }
 
     public void testFromOptionsDuplicates() {

@@ -217,15 +217,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("Unknown index [doesNotExist]"));
     }
 
-    public void useKnownWithUnknownIndex() throws IOException {
-        useKnownWithOther("noSuchIndex", "\"ignore_unavailable\"=\"true\"");
+    public void useKnownIndexWithUnknownIndex() throws IOException {
+        useKnownIndexWithOther("noSuchIndex", "\"ignore_unavailable\"=\"true\"");
     }
 
-    public void useKnownWithUnknownPattern() throws IOException {
-        useKnownWithOther("noSuchPattern*", "\"allow_no_indices\"=\"true\"");
+    public void useKnownIndexWithUnknownPattern() throws IOException {
+        useKnownIndexWithOther("noSuchPattern*", "\"allow_no_indices\"=\"true\"");
     }
 
-    private void useKnownWithOther(String other, String options) throws IOException {
+    private void useKnownIndexWithOther(String other, String options) throws IOException {
         final int count = randomIntBetween(1, 10);
         bulkLoadTestData(count);
 

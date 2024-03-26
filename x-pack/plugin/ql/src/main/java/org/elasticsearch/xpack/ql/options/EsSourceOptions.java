@@ -12,9 +12,14 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE;
+import static org.elasticsearch.action.support.IndicesOptions.WildcardOptions.ALLOW_NO_INDICES;
 
 /*
  * This provides a repository for index resolution and/or search-time configuration options.
@@ -25,6 +30,8 @@ import java.util.Objects;
  * onto a base (an API-specific default).
  */
 public class EsSourceOptions {
+
+    private static final String OPTION_PREFERENCE = "preference";
 
     @Nullable
     private String allowNoIndices;
@@ -61,26 +68,35 @@ public class EsSourceOptions {
 
     public void addOption(String name, String value) {
         switch (name) {
-            case "allow_no_indices" -> {
+            case ALLOW_NO_INDICES -> {
                 requireUnset(name, allowNoIndices);
                 IndicesOptions.WildcardOptions.parseParameters(null, value, null);
                 allowNoIndices = value;
             }
-            case "ignore_unavailable" -> {
+            case IGNORE_UNAVAILABLE -> {
                 requireUnset(name, ignoreUnavailable);
                 IndicesOptions.ConcreteTargetOptions.fromParameter(value, null);
                 ignoreUnavailable = value;
             }
-            case "preference" -> {
+            case OPTION_PREFERENCE -> {
                 requireUnset(name, preference);
-                // The validation applies only for the predefined settings (i.e. prefixed by '_').
-                if (value.charAt(0) == '_') {
+                // The validation applies only for the predefined settings (i.e. prefixed by '_') or empty one (i.e. delegate handling
+                // of this case).
+                if (value.isEmpty() || value.charAt(0) == '_') {
                     // Note: _search will neither fail, nor warn about something like `preference=_shards:0,1|_doesnotexist`
                     Preference.parse(value);
                 }
                 preference = value;
             }
-            default -> throw new IllegalArgumentException("unknown option named [" + name + "]");
+            default -> {
+                String message = "unknown option named [" + name + "]";
+                List<String> matches = StringUtils.findSimilar(name, List.of(ALLOW_NO_INDICES, IGNORE_UNAVAILABLE, OPTION_PREFERENCE));
+                if (matches.isEmpty() == false) {
+                    String suggestions = matches.size() == 1 ? "[" + matches.get(0) + "]" : "any of " + matches;
+                    message += ", did you mean " + suggestions;
+                }
+                throw new IllegalArgumentException(message);
+            }
         }
     }
 

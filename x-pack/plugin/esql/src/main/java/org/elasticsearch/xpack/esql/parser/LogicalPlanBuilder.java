@@ -220,7 +220,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 try {
                     esSourceOptions.addOption(name, value);
                 } catch (IllegalArgumentException iae) {
-                    throw new ParsingException(source(nameContext), "invalid options provided: " + iae.getMessage());
+                    throw new ParsingException(iae, source(nameContext), "invalid options provided: " + iae.getMessage());
                 }
             }
         }

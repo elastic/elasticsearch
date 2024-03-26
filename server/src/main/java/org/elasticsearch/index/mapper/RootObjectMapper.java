@@ -128,19 +128,22 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         Map<String, Mapper> getAliasMappers(Map<String, Mapper> mappers, MapperBuilderContext context) {
-            Map<String, Mapper> aliasMappers = new HashMap<>();
+            Map<String, Mapper> newMappers = new HashMap<>();
             Map<String, ObjectMapper.Builder> objectIntermediates = new HashMap<>(1);
-            getAliasMappers(mappers, aliasMappers, objectIntermediates, context, 0);
+            Map<String, ObjectMapper.Builder> objectIntermediatesFullName = new HashMap<>(1);
+            getAliasMappers(mappers, mappers, newMappers, objectIntermediates, objectIntermediatesFullName, context, 0);
             for (var entry : objectIntermediates.entrySet()) {
-                aliasMappers.put(entry.getKey(), entry.getValue().build(context));
+                newMappers.put(entry.getKey(), entry.getValue().build(context));
             }
-            return aliasMappers;
+            return newMappers;
         }
 
         void getAliasMappers(
             Map<String, Mapper> mappers,
+            Map<String, Mapper> topLevelMappers,
             Map<String, Mapper> aliasMappers,
             Map<String, ObjectMapper.Builder> objectIntermediates,
+            Map<String, ObjectMapper.Builder> objectIntermediatesFullName,
             MapperBuilderContext context,
             int level
         ) {
@@ -165,6 +168,10 @@ public class RootObjectMapper extends ObjectMapper {
                                             + fieldMapper.name()
                                             + " conflicts with existing field or alias, skipping alias creation."
                                     );
+                                } else {
+                                    // Aliases have been already added, return.
+                                    aliasMappers.clear();
+                                    return;
                                 }
                             } else {
                                 // Check if the field name contains dots, as aliases require nesting within objects in this case.
@@ -179,30 +186,81 @@ public class RootObjectMapper extends ObjectMapper {
                                     ).build(context);
                                     aliasMappers.put(aliasMapper.simpleName(), aliasMapper);
                                 } else {
+                                    conflict = topLevelMappers.get(fieldNameParts[0]);
+                                    if (conflict != null) {
+                                        if (isConflictingObject(conflict, fieldNameParts)) {
+                                            throw new IllegalArgumentException(
+                                                "Conflicting objects created during alias generation for pass-through field: ["
+                                                    + conflict.name()
+                                                    + "]"
+                                            );
+                                        }
+                                        // The same object has been processed before and return early.
+                                        aliasMappers.clear();
+                                        return;
+                                    }
+
                                     // Nest the alias within object(s).
                                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                                     Mapper.Builder fieldBuilder = new FieldAliasMapper.Builder(realFieldName).path(
                                         fieldMapper.mappedFieldType.name()
                                     );
+                                    ObjectMapper.Builder intermediate = null;
                                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                                         String intermediateObjectName = fieldNameParts[i];
-                                        ObjectMapper.Builder intermediate = objectIntermediates.computeIfAbsent(
-                                            intermediateObjectName,
+                                        String fullName = passthroughMapper.name() + concatStrings(fieldNameParts, i);
+                                        intermediate = objectIntermediatesFullName.computeIfAbsent(
+                                            fullName,
                                             s -> new ObjectMapper.Builder(intermediateObjectName, ObjectMapper.Defaults.SUBOBJECTS)
                                         );
                                         intermediate.add(fieldBuilder);
                                         fieldBuilder = intermediate;
                                     }
+                                    objectIntermediates.putIfAbsent(fieldNameParts[0], intermediate);
                                 }
                             }
                         }
                     }
                 } else if (mapper instanceof ObjectMapper objectMapper) {
                     // Call recursively to check child fields. The level guards against long recursive call sequences.
-                    getAliasMappers(objectMapper.mappers, aliasMappers, objectIntermediates, context, level + 1);
+                    getAliasMappers(
+                        objectMapper.mappers,
+                        topLevelMappers,
+                        aliasMappers,
+                        objectIntermediates,
+                        objectIntermediatesFullName,
+                        context,
+                        level + 1
+                    );
                 }
             }
         }
+    }
+
+    private static String concatStrings(String[] parts, int last) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i <= last; i++) {
+            builder.append('.');
+            builder.append(parts[i]);
+        }
+        return builder.toString();
+    }
+
+    private static boolean isConflictingObject(Mapper mapper, String[] parts) {
+        for (int i = 0; i < parts.length - 1; i++) {
+            // The mapper name needs to match.
+            if (mapper == null || mapper.simpleName().equals(parts[i]) == false) {
+                return true;
+            }
+            // The child needs to be an object.
+            if (mapper instanceof ObjectMapper objectMapper) {
+                mapper = objectMapper.getMapper(parts[i + 1]);
+            } else {
+                return true;
+            }
+        }
+        // The leaf field needs to match too.
+        return mapper == null;
     }
 
     private final Explicit<DateFormatter[]> dynamicDateTimeFormatters;

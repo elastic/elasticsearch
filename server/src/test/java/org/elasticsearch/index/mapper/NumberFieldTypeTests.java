@@ -369,6 +369,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ft.rangeQuery(10, max_half_float, true, true, null, null, null, MOCK_CONTEXT),
             ft.rangeQuery(10, Float.POSITIVE_INFINITY, true, true, null, null, null, MOCK_CONTEXT)
         );
+
+        assertEquals(
+            ft.rangeQuery(10, 1e+300, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, Float.POSITIVE_INFINITY, false, false, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(-1e+300, 10, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(Float.NEGATIVE_INFINITY, 10, false, false, null, null, null, MOCK_CONTEXT)
+        );
     }
 
     public void testFloatRangeQueryWithOverflowingBounds() {
@@ -392,6 +402,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(
             ft.rangeQuery(10, Float.MAX_VALUE, true, true, null, null, null, MOCK_CONTEXT),
             ft.rangeQuery(10, Float.POSITIVE_INFINITY, true, true, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(10, 1e+300, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(10, Float.POSITIVE_INFINITY, false, false, null, null, null, MOCK_CONTEXT)
+        );
+
+        assertEquals(
+            ft.rangeQuery(-1e+300, 10, false, false, null, null, null, MOCK_CONTEXT),
+            ft.rangeQuery(Float.NEGATIVE_INFINITY, 10, false, false, null, null, null, MOCK_CONTEXT)
         );
     }
 

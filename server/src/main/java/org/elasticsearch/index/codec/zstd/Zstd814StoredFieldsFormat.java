@@ -103,6 +103,7 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
 
     private static final class ZstdDecompressor extends Decompressor {
 
+        // Buffer for copying between the DataInput and native memory
         final byte[] copyBuffer = new byte[4096];
 
         ZstdDecompressor() {}
@@ -153,6 +154,7 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
     private static class ZstdCompressor extends Compressor {
 
         final int level;
+        // Buffer for copying between the DataInput and native memory
         final byte[] copyBuffer = new byte[4096];
 
         ZstdCompressor(int level) {
@@ -171,6 +173,12 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
 
             final int compressBound = zstd.compressBound(srcLen);
 
+            // NOTE: We are allocating/deallocating native buffers on each call. We could save allocations by reusing these buffers, though
+            // this would come at the expense of higher permanent memory usage. Benchmarks suggested that there is some performance to save
+            // there, but it wouldn't be a game changer either.
+            // Also note that calls to #compress implicitly allocate memory under the hood for e.g. hash tables and chain tables that help
+            // identify duplicate strings. So if we wanted to avoid allocating memory on every compress call, we should also look into
+            // reusing compression contexts, which are not small and would increase permanent memory usage as well.
             try (
                 CloseableByteBuffer src = nativeAccess.newBuffer(srcLen);
                 CloseableByteBuffer dest = nativeAccess.newBuffer(compressBound)

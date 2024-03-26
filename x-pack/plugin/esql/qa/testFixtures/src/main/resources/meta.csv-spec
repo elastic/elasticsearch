@@ -59,6 +59,7 @@ replace                  |"keyword replace(string:keyword|text, regex:keyword|te
 right                    |"keyword right(string:keyword|text, length:integer)"     |[string, length]         |["keyword|text", "integer"]            |["", ""]                                            |keyword                    | "Return the substring that extracts length chars from the string starting from the right."                      | [false, false]       | false | false
 round                    |"double round(number:double, ?decimals:integer)"                                 |[number, decimals]             |["double", "integer"]            |["The numeric value to round", "The number of decimal places to round to. Defaults to 0."]                                            |double                    | "Rounds a number to the closest number with the specified number of digits."                      | [false, true]       | false | false
 rtrim                    |"keyword|text rtrim(string:keyword|text)"                  |string                      |"keyword|text"    | ""                                                 |"keyword|text"       |Removes trailing whitespaces from a string.| false | false | false
+signum                   |"double signum(number:double|integer|long|unsigned_long)"|number|"double|integer|long|unsigned_long"|Numeric expression. If `null`, the function returns `null`.|double| "Returns the sign of the given number. It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers."|false|false|false
 sin                      |"double sin(number:double|integer|long|unsigned_long)" |number                       |"double|integer|long|unsigned_long"           |"An angle, in radians"                                |double               |Returns the trigonometric sine of an angle  | false      | false | false
 sinh                     |"double sinh(number:double|integer|long|unsigned_long)"|number                       |"double|integer|long|unsigned_long"           |"The number to return the hyperbolic sine of"      |double                    | "Returns the hyperbolic sine of a number"                      | false                | false | false
 split                    |"keyword split(string:keyword|text, delim:keyword|text)"                                 |[string, delim]             |["keyword|text", "keyword|text"]            |["", ""]                                            |keyword                    | "Split a single valued string into multiple strings."                      | [false, false]       | false | false
@@ -163,6 +164,7 @@ double pi()
 "keyword right(string:keyword|text, length:integer)"
 "double round(number:double, ?decimals:integer)"
 "keyword|text rtrim(string:keyword|text)"
+"double signum(number:double|integer|long|unsigned_long)"
 "double sin(number:double|integer|long|unsigned_long)"
 "double sinh(number:double|integer|long|unsigned_long)"
 "keyword split(string:keyword|text, delim:keyword|text)"
@@ -223,5 +225,5 @@ countFunctions#[skip:-8.13.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-97     | 97     | 97
+98     | 98     | 98
 ;

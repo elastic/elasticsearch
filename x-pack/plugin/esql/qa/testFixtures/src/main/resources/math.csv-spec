@@ -1249,6 +1249,96 @@ i:ul                | c:ul                | f:ul
 1000000000000000000 | 1000000000000000000 | 1000000000000000000
 ;
 
+signum
+// tag::signum[]
+ROW d = 100.0
+| EVAL s = SIGNUM(d)
+// end::signum[]
+;
+
+// tag::signum-result[]
+d: double | s:double
+100   | 1.0
+// end::signum-result[]
+;
+
+signumOfPositiveInteger
+row i = 100 | eval s = signum(i);
+
+i:integer | s:double
+100       | 1.0
+;
+
+signumOfNegativeInteger
+row i = -100 | eval s = signum(i);
+
+i:integer | s:double
+-100       | -1.0
+;
+
+signumOfZeroInteger
+row i = 0 | eval s = signum(i);
+
+i:integer | s:double
+0         | 0.0
+;
+
+signumOfPositiveLong
+row l = to_long(100) | eval s = signum(l);
+
+l:long | s:double
+100       | 1.0
+;
+
+signumOfNegativeLong
+row l = to_long(-100) | eval s = signum(l);
+
+l:long | s:double
+-100       | -1.0
+;
+
+signumOfZeroLong
+row l = to_long(0) | eval s = signum(l);
+
+l:long | s:double
+0         | 0.0
+;
+
+signumOfPositiveDouble
+row d = to_double(100) | eval s = signum(d);
+
+d:double | s:double
+100       | 1.0
+;
+
+signumOfNegativeDouble
+row d = to_double(-100) | eval s = signum(d);
+
+d:double | s:double
+-100       | -1.0
+;
+
+signumOfZeroDouble
+row d = to_double(0) | eval s = signum(d);
+
+d:double | s:double
+0         | 0.0
+;
+
+signumOfPositiveUnsignedLong
+row l = to_ul(100) | eval s = signum(l);
+
+l:ul | s:double
+100       | 1.0
+;
+
+signumOfZeroUnsignedLong
+row l = to_ul(0) | eval s = signum(l);
+
+l:ul | s:double
+0       | 0.0
+;
+
 sqrt
 // tag::sqrt[]
 ROW d = 100.0

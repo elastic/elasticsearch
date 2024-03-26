@@ -59,9 +59,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.CHUNKS;
 import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_RESULTS;
 import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_TEXT;
-import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.RESULTS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -131,9 +131,9 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
                 assertEquals(doc.rootDoc(), luceneDocs.get(i).getParent());
             }
             // nested docs are in reversed order
-            assertSparseFeatures(luceneDocs.get(0), fieldName1 + ".results.inference", 2);
-            assertSparseFeatures(luceneDocs.get(1), fieldName1 + ".results.inference", 1);
-            assertSparseFeatures(luceneDocs.get(2), fieldName2 + ".results.inference", 3);
+            assertSparseFeatures(luceneDocs.get(0), fieldName1 + ".chunks.inference", 2);
+            assertSparseFeatures(luceneDocs.get(1), fieldName1 + ".chunks.inference", 1);
+            assertSparseFeatures(luceneDocs.get(2), fieldName2 + ".chunks.inference", 3);
             assertEquals(doc.rootDoc(), luceneDocs.get(3));
             assertNull(luceneDocs.get(3).getParent());
 
@@ -147,9 +147,9 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
 
                 Set<SearchHit.NestedIdentity> visitedNestedIdentities = new HashSet<>();
                 Set<SearchHit.NestedIdentity> expectedVisitedNestedIdentities = Set.of(
-                    new SearchHit.NestedIdentity(fieldName1 + "." + RESULTS, 0, null),
-                    new SearchHit.NestedIdentity(fieldName1 + "." + RESULTS, 1, null),
-                    new SearchHit.NestedIdentity(fieldName2 + "." + RESULTS, 0, null)
+                    new SearchHit.NestedIdentity(fieldName1 + "." + CHUNKS, 0, null),
+                    new SearchHit.NestedIdentity(fieldName1 + "." + CHUNKS, 1, null),
+                    new SearchHit.NestedIdentity(fieldName2 + "." + CHUNKS, 0, null)
                 );
 
                 assertChildLeafNestedDocument(leaf, 0, 3, visitedNestedIdentities);
@@ -167,7 +167,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
                     TopDocs topDocs = searcher.search(
                         generateNestedTermSparseVectorQuery(
                             mapperService.mappingLookup().nestedLookup(),
-                            fieldName1 + "." + RESULTS,
+                            fieldName1 + "." + CHUNKS,
                             List.of("a")
                         ),
                         10
@@ -179,7 +179,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
                     TopDocs topDocs = searcher.search(
                         generateNestedTermSparseVectorQuery(
                             mapperService.mappingLookup().nestedLookup(),
-                            fieldName1 + "." + RESULTS,
+                            fieldName1 + "." + CHUNKS,
                             List.of("a", "b")
                         ),
                         10
@@ -191,7 +191,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
                     TopDocs topDocs = searcher.search(
                         generateNestedTermSparseVectorQuery(
                             mapperService.mappingLookup().nestedLookup(),
-                            fieldName2 + "." + RESULTS,
+                            fieldName2 + "." + CHUNKS,
                             List.of("d")
                         ),
                         10
@@ -203,7 +203,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
                     TopDocs topDocs = searcher.search(
                         generateNestedTermSparseVectorQuery(
                             mapperService.mappingLookup().nestedLookup(),
-                            fieldName2 + "." + RESULTS,
+                            fieldName2 + "." + CHUNKS,
                             List.of("z")
                         ),
                         10
@@ -294,7 +294,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
 
         Consumer<ParsedDocument> checkParsedDocument = d -> {
             Set<VisitedChildDocInfo> visitedChildDocs = new HashSet<>();
-            Set<VisitedChildDocInfo> expectedVisitedChildDocs = Set.of(new VisitedChildDocInfo(fieldName + "." + RESULTS));
+            Set<VisitedChildDocInfo> expectedVisitedChildDocs = Set.of(new VisitedChildDocInfo(fieldName + "." + CHUNKS));
 
             List<LuceneDocument> luceneDocs = d.docs();
             assertEquals(2, luceneDocs.size());
@@ -539,7 +539,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
                 semanticTextInferenceResult.results
             );
             Map<String, Object> optionsMap = (Map<String, Object>) inferenceResultsMap.get(semanticTextInferenceResult.fieldName);
-            List<Map<String, Object>> fieldResultList = (List<Map<String, Object>>) optionsMap.get(RESULTS);
+            List<Map<String, Object>> fieldResultList = (List<Map<String, Object>>) optionsMap.get(CHUNKS);
             for (var entry : fieldResultList) {
                 if (includeTextSubfield == false) {
                     entry.remove(INFERENCE_CHUNKS_TEXT);

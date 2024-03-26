@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -156,6 +158,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         var substitutions = new Batch<>(
             "Substitutions",
             Limiter.ONCE,
+            new RemoveAggregateOverrides(),
             // first extract nested aggs top-level - this simplifies the rest of the rules
             new ReplaceStatsAggExpressionWithEval(),
             // second extract nested aggs inside of them
@@ -1497,6 +1500,62 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
 
             return plan;
+        }
+    }
+
+    /**
+     * Rule that removes Aggregate overrides in grouping, aggregates and across them inside.
+     * The overrides appear when the same alias is used multiple times in aggregations and/or groupings:
+     * STATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10
+     * becomes
+     * STATS BY x = c + 10
+     * That is the last declaration for a given alias, overrides all the other declarations, with
+     * groups having priority vs aggregates.
+     */
+    private static class RemoveAggregateOverrides extends AnalyzerRules.AnalyzerRule<Aggregate> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(Aggregate agg) {
+            return agg.resolved() ? removeAggDuplicates(agg) : agg;
+        }
+
+        private static Aggregate removeAggDuplicates(Aggregate agg) {
+            var groupings = agg.groupings();
+            var newGroupings = new LinkedHashSet<>(groupings);
+            // reuse existing objects
+            groupings = newGroupings.size() == groupings.size() ? groupings : new ArrayList<>(newGroupings);
+
+            var aggregates = agg.aggregates();
+            var newAggregates = new ArrayList<>(aggregates);
+            var nameSet = Sets.newHashSetWithExpectedSize(newAggregates.size());
+            var groupNameSet = new LinkedHashSet<>(Expressions.names(groupings));
+
+            // remove duplicates in reverse to preserve the last one appearing
+            // skip groups though
+            for (int i = newAggregates.size() - groupings.size() - 1; i >= 0; i--) {
+                var aggregate = newAggregates.get(i);
+                var aggName = aggregate.name();
+                // if the agg name clashes with the group, remove it
+                if (groupNameSet.contains(aggName)) {
+                    newAggregates.remove(i);
+                }
+                // otherwise if it
+                else if (nameSet.add(aggName) == false) {
+                    newAggregates.remove(i);
+                }
+            }
+            // reuse existing objects
+            aggregates = newAggregates.size() == aggregates.size() ? aggregates : newAggregates;
+            // replace aggregate if needed
+            agg = (groupings == agg.groupings() && newAggregates == agg.aggregates())
+                ? agg
+                : new Aggregate(agg.source(), agg.child(), groupings, aggregates);
+            return agg;
         }
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternCo
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -47,7 +48,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.parser.ParserUtils;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -233,7 +233,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 if (e.resolved() == false && e instanceof UnresolvedFunction == false) {
                     String name = e.sourceText();
                     if (groupNames.contains(name)) {
-                        fail(e, "Remove grouping key [{}] as is already included in the STATS output", name);
+                        fail(e, "grouping key [{}] already specified in the STATS BY clause", name);
                     } else if (groupRefNames.contains(name)) {
                         fail(e, "Cannot specify grouping expression [{}] as an aggregate", name);
                     }
@@ -245,7 +245,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             aggregates.add(Expressions.attribute(group));
         }
 
-        return input -> new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates);
+        return input -> new EsqlAggregate(source(ctx), input, new ArrayList<>(groupings), aggregates);
     }
 
     private void fail(Expression exp, String message, Object... args) {

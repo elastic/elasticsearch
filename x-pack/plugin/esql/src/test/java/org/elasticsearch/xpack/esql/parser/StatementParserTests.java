@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLi
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -241,7 +241,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithGroups() {
         assertEquals(
-            new Aggregate(
+            new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 List.of(attribute("c"), attribute("d.e")),
@@ -257,7 +257,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithoutGroups() {
         assertEquals(
-            new Aggregate(
+            new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 List.of(),
@@ -272,7 +272,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithoutAggs() throws Exception {
         assertEquals(
-            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
+            new EsqlAggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
             processingCommand("stats by a")
         );
     }

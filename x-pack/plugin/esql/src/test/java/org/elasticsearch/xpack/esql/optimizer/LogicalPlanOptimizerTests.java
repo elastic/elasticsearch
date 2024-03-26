@@ -278,6 +278,50 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Expects
+     * TopN[[Order[x{r}#10,ASC,LAST]],1000[INTEGER]]
+     * \_Aggregate[[languages{f}#16],[MAX(emp_no{f}#13) AS x, languages{f}#16]]
+     *   \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     */
+    public void testRemoveOverridesInAggregate() throws Exception {
+        var plan = plan("""
+            from test
+            | stats x = count(emp_no), x = min(emp_no), x = max(emp_no) by languages
+            | sort x
+            """);
+
+        var topN = as(plan, TopN.class);
+        var agg = as(topN.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(2));
+        assertThat(Expressions.names(aggregates), contains("x", "languages"));
+        var alias = as(aggregates.get(0), Alias.class);
+        var max = as(alias.child(), Max.class);
+    }
+
+    // expected stats b by b (grouping overrides the rest of the aggs)
+
+    /**
+     * Expects
+     * TopN[[Order[b{r}#10,ASC,LAST]],1000[INTEGER]]
+     * \_Aggregate[[b{r}#10],[languages{f}#16 AS b]]
+     *   \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     */
+    public void testAggsWithOverridingInputAndGrouping() throws Exception {
+        var plan = plan("""
+            from test
+            | stats b = count(emp_no), b = max(emp_no) by b = languages
+            | sort b
+            """);
+
+        var topN = as(plan, TopN.class);
+        var agg = as(topN.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(1));
+        assertThat(Expressions.names(aggregates), contains("b"));
+    }
+
+    /**
      * Project[[s{r}#4 AS d, s{r}#4, last_name{f}#21, first_name{f}#18]]
      * \_Limit[1000[INTEGER]]
      *   \_Aggregate[[last_name{f}#21, first_name{f}#18],[SUM(salary{f}#22) AS s, last_name{f}#21, first_name{f}#18]]

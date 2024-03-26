@@ -158,7 +158,6 @@ public class Verifier {
     private static void checkAggregate(LogicalPlan p, Set<Failure> failures, AttributeMap<Expression> aliases) {
         if (p instanceof Aggregate agg) {
             List<Expression> groupings = agg.groupings();
-            List<Expression> groups = new ArrayList<>(groupings.size());
             AttributeSet groupRefs = new AttributeSet();
             // check grouping
             // The grouping can not be an aggregate function
@@ -168,7 +167,6 @@ public class Verifier {
                         failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
                     }
                 });
-                groups.add(e);
                 // keep the grouping attributes (common case)
                 Attribute attr = Expressions.attribute(e);
                 if (attr != null) {
@@ -186,7 +184,7 @@ public class Verifier {
                     failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
                 }
                 // traverse the tree to find invalid matches
-                checkInvalidNamedExpressionUsage(exp, groups, groupRefs, failures, 0);
+                checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
             });
         }
     }
@@ -209,12 +207,29 @@ public class Verifier {
             // don't do anything
         } else if (groups.contains(e) || groupRefs.contains(e)) {
             if (level == 0) {
-                failures.add(fail(e, "remove grouping key [{}] as is already included in the STATS output", e.sourceText()));
+                failures.add(fail(e, "grouping key [{}] already specified in the STATS BY clause", e.sourceText()));
             }
         }
         // if a reference is found, mark it as an error
         else if (e instanceof NamedExpression ne) {
-            failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
+            boolean foundInGrouping = false;
+            for (Expression g : groups) {
+                if (g.anyMatch(se -> se.semanticEquals(ne))) {
+                    foundInGrouping = true;
+                    failures.add(
+                        fail(
+                            e,
+                            "column [{}] cannot be used as an aggregate, once declared in the STATS BY grouping key [{}]",
+                            ne.name(),
+                            g.sourceText()
+                        )
+                    );
+                    break;
+                }
+            }
+            if (foundInGrouping == false) {
+                failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
+            }
         }
         // other keep on going
         else {

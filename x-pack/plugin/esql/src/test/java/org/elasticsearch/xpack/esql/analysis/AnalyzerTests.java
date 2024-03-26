@@ -21,7 +21,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
@@ -1177,9 +1179,14 @@ public class AnalyzerTests extends ESTestCase {
         var order = as(limit.child(), OrderBy.class);
         var agg = as(order.child(), Aggregate.class);
         var aggregates = agg.aggregates();
-        assertThat(aggregates, hasSize(2));
-        assertThat(Expressions.names(aggregates), contains("x", "b"));
+        var output = agg.output();
+        assertThat(output, hasSize(2));
+        assertThat(Expressions.names(output), contains("x", "b"));
         var alias = as(aggregates.get(0), Alias.class);
+        var count = as(alias.child(), Count.class);
+        alias = as(aggregates.get(1), Alias.class);
+        var min = as(alias.child(), Min.class);
+        alias = as(aggregates.get(2), Alias.class);
         var max = as(alias.child(), Max.class);
     }
 
@@ -1193,9 +1200,9 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var order = as(limit.child(), OrderBy.class);
         var agg = as(order.child(), Aggregate.class);
-        var aggregates = agg.aggregates();
-        assertThat(aggregates, hasSize(1));
-        assertThat(Expressions.names(aggregates), contains("b"));
+        var output = agg.output();
+        assertThat(output, hasSize(1));
+        assertThat(Expressions.names(output), contains("b"));
     }
 
     public void testAggsWithoutAgg() throws Exception {

@@ -117,8 +117,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
     }
 
-    // temporarily re-enable to gather more data on test failures likely caused by diverging thread pool stats
-    // at the time stats are collected vs when measurements are taken.
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104652")
     public void testThreadPoolMetrics() throws Exception {
         internalCluster().startNode();
 

@@ -116,6 +116,11 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
             ActionListener<Map<String, long[]>> groupedListener = listener;
 
+            if (resolvedIndexes.numClusters() == 0) {
+                var indices = String.join(",", transformConfig.getSource().getIndex());
+                listener.onFailure(new CheckpointException("No clusters exist for [{}]", indices));
+            }
+
             if (resolvedIndexes.numClusters() > 1) {
                 ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
                     listener.onResponse(
@@ -234,10 +239,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         );
         ActionListener<GetCheckpointAction.Response> checkpointListener;
         if (RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY.equals(cluster)) {
-            checkpointListener = ActionListener.wrap(
-                checkpointResponse -> listener.onResponse(checkpointResponse.getCheckpoints()),
-                listener::onFailure
-            );
+            checkpointListener = listener.delegateFailure((l, r) -> l.onResponse(r.getCheckpoints()));
         } else {
             checkpointListener = ActionListener.wrap(
                 checkpointResponse -> listener.onResponse(
@@ -401,12 +403,12 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
         long timestamp = clock.millis();
 
-        getIndexCheckpoints(timeout, ActionListener.wrap(checkpointsByIndex -> {
-            TransformCheckpoint sourceCheckpoint = new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, checkpointsByIndex, 0L);
+        getIndexCheckpoints(timeout, listener.delegateFailure((l, r) -> {
+            TransformCheckpoint sourceCheckpoint = new TransformCheckpoint(transformConfig.getId(), timestamp, -1L, r, 0L);
             checkpointingInfoBuilder.setSourceCheckpoint(sourceCheckpoint);
             checkpointingInfoBuilder.setOperationsBehind(TransformCheckpoint.getBehind(lastCheckpoint, sourceCheckpoint));
-            listener.onResponse(checkpointingInfoBuilder);
-        }, listener::onFailure));
+            l.onResponse(checkpointingInfoBuilder);
+        }));
     }
 
     @Override

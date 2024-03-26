@@ -7,7 +7,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -44,7 +43,7 @@ public class LicenseUtilsTests extends ESTestCase {
     }
 
     public void testVersionsUpToDate() {
-        assertThat(LicenseUtils.compatibleLicenseVersion(ClusterState.EMPTY_STATE), equalTo(License.VERSION_CURRENT));
+        assertThat(LicenseUtils.getMaxCompatibleLicenseVersion(), equalTo(License.VERSION_CURRENT));
     }
 
     public void testGetXPackLicenseStatus() {

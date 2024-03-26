@@ -245,8 +245,8 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                    int maxCompatibleLicenseVersion = LicenseUtils.getMaxLicenseVersion();
-                    if (newLicense.version() <= maxCompatibleLicenseVersion == false) {
+                    int maxCompatibleLicenseVersion = LicenseUtils.getMaxCompatibleLicenseVersion();
+                    if (maxCompatibleLicenseVersion >= newLicense.version() == false) {
                         throw new IllegalStateException(
                             LoggerMessageFormat.format(
                                 "The provided license is of version [{}] but this node is only compatible with version [{}] "
@@ -471,9 +471,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         // auto-generate license if no licenses ever existed or if the current license is basic and
         // needs extended or if the license signature needs to be updated. this will trigger a subsequent cluster changed event
         if (currentClusterState.getNodes().isLocalNodeElectedMaster()
-            && (noLicense
-                || LicenseUtils.licenseNeedsExtended(currentLicense)
-                || LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState))) {
+            && (noLicense || LicenseUtils.licenseNeedsExtended(currentLicense) || LicenseUtils.signatureNeedsUpdate(currentLicense))) {
             registerOrUpdateSelfGeneratedLicense();
         }
     }

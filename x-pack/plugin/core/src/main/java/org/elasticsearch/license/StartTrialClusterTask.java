@@ -99,7 +99,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
             } else {
                 specBuilder.maxNodes(LicenseSettings.SELF_GENERATED_LICENSE_MAX_NODES);
             }
-            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, state);
+            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
             LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, TrialLicenseVersion.CURRENT);
             taskContext.success(() -> listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL)));
             return newLicensesMetadata;

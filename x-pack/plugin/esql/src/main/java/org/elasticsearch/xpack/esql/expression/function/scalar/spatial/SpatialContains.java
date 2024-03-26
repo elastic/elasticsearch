@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -95,7 +96,13 @@ public class SpatialContains extends SpatialRelatesFunction {
         }
     }
 
-    @FunctionInfo(returnType = { "boolean" }, description = "Returns whether the first geometry contains the second geometry.")
+    @FunctionInfo(
+        returnType = { "boolean" },
+        description = "Returns whether the first geometry contains the second geometry.",
+        note = "The second parameter must also have the same coordinate system as the first. "
+            + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
+        examples = @Example(file = "spatial", tag = "st_contains-airport_city_boundaries")
+    )
     public SpatialContains(
         Source source,
         @Param(

@@ -19,6 +19,7 @@ import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -63,7 +64,13 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         new CartesianShapeIndexer("ST_Within")
     );
 
-    @FunctionInfo(returnType = { "boolean" }, description = "Returns whether the first geometry is within the second geometry.")
+    @FunctionInfo(
+        returnType = { "boolean" },
+        description = "Returns whether the first geometry is within the second geometry.",
+        note = "The second parameter must also have the same coordinate system as the first. "
+            + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
+        examples = @Example(file = "spatial", tag = "st_within-airport_city_boundaries")
+    )
     public SpatialWithin(
         Source source,
         @Param(

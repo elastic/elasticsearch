@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -62,7 +63,13 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         new CartesianShapeIndexer("ST_Intersects")
     );
 
-    @FunctionInfo(returnType = { "boolean" }, description = "Returns whether the two geometries or geometry columns intersect.")
+    @FunctionInfo(
+        returnType = { "boolean" },
+        description = "Returns whether the two geometries or geometry columns intersect.",
+        note = "The second parameter must also have the same coordinate system as the first. "
+            + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
+        examples = @Example(file = "spatial", tag = "st_intersects-airports")
+    )
     public SpatialIntersects(
         Source source,
         @Param(

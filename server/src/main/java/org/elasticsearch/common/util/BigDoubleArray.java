@@ -10,6 +10,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.BigLongArray.readPages;
 import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.DOUBLE_PAGE_SIZE;
 
@@ -115,6 +117,11 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
             VH_PLATFORM_NATIVE_DOUBLE.set(page, from << 3, value);
             fillBySelfCopy(page, from << 3, to << 3, Double.BYTES);
         }
+    }
+
+    @Override
+    public void fillWith(StreamInput in) throws IOException {
+        readPages(in, pages);
     }
 
     /** Estimates the number of bytes that would be consumed by an array of the given size. */

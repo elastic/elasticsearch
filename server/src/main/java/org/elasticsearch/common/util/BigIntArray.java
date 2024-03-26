@@ -10,6 +10,7 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import static org.elasticsearch.common.util.BigLongArray.readPages;
 import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
 
@@ -90,6 +92,11 @@ final class BigIntArray extends AbstractBigArray implements IntArray {
             }
             fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
         }
+    }
+
+    @Override
+    public void fillWith(StreamInput in) throws IOException {
+        readPages(in, pages);
     }
 
     public static void fill(byte[] page, int from, int to, int value) {

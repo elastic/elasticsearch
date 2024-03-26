@@ -1622,7 +1622,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1501")
     public void testCompressCursor() throws IOException {
         String doc = IntStream.range(0, 1000)
             .mapToObj(i -> String.format(Locale.ROOT, "\"field%d\": %d", i, i))

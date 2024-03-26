@@ -98,6 +98,158 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    private static final String TOP_LEVEL_KNN_TEMPLATE = """
+        {
+          "knn": {
+              "field": "%s",
+              "k": 5,
+              "num_candidates": 10,
+              "query_vector_builder": {
+                "text_embedding": {
+                  "model_id": "%s",
+                  "model_text": "%s"
+                }
+              }
+          }
+        }""";
+    private static final String TOP_LEVEL_KNN_FILTER_TEMPLATE = """
+        {
+          "knn": {
+              "field": "%s",
+              "k": 5,
+              "num_candidates": 10,
+              "filter": %s,
+              "query_vector_builder": {
+                "text_embedding": {
+                  "model_id": "%s",
+                  "model_text": "%s"
+                }
+              }
+          }
+        }""";
+    private static final String TOP_LEVEL_KNN_HYBRID_ALL = """
+        {
+          "knn": {
+              "field": "embedding",
+              "k": 3,
+              "num_candidates": 10,
+              "boost": 10.0,
+              "query_vector_builder": {
+                "text_embedding": {
+                  "model_id": "%s",
+                  "model_text": "my words"
+                }
+              }
+          },
+          "query": {"match_all": {}},
+          "size": 7
+        }""";
+    private static final String TOP_LEVEL_KNN_HYBRID_MATCH = """
+        {
+          "knn": {
+              "field": "embedding",
+              "k": 3,
+              "num_candidates": 10,
+              "boost": 10.0,
+              "query_vector_builder": {
+                "text_embedding": {
+                  "model_id": "%s",
+                  "model_text": "my words"
+                }
+              }
+          },
+          "query": {"match": {"source_text": {"query": "apricot unrelated"}}}
+        }""";
+
+    private static final String QUERY_DSL_KNN_TEMPLATE = """
+        {
+          "query": {
+              "knn" : {
+                  "field": "%s",
+                  "num_candidates": 10,
+                  "query_vector_builder": {
+                    "text_embedding": {
+                      "model_id": "%s",
+                      "model_text": "%s"
+                    }
+                  }
+              }
+          }
+        }""";
+    private static final String QUERY_DSL_KNN_FILTER_TEMPLATE = """
+        {
+          "query": {
+              "knn" : {
+                  "field": "%s",
+                  "num_candidates": 10,
+                  "filter": %s,
+                  "query_vector_builder": {
+                    "text_embedding": {
+                      "model_id": "%s",
+                      "model_text": "%s"
+                    }
+                  }
+              }
+          }
+        }""";
+    private static final String QUERY_DSL_KNN_HYBRID_ALL = """
+        {
+             "query": {
+                 "bool": {
+                     "should": [
+                         {
+                             "match_all": {}
+                         },
+                         {
+                             "knn": {
+                                 "field": "embedding",
+                                 "query_vector_builder": {
+                                     "text_embedding": {
+                                         "model_id": "%s",
+                                         "model_text": "my words"
+                                     }
+                                 },
+                                 "num_candidates": 10,
+                                 "boost": 10
+                             }
+                         }
+                     ]
+                 }
+             },
+             "size": 7
+         }""";
+    private static final String QUERY_DSL_KNN_HYBRID_MATCH = """
+        {
+             "query": {
+                 "bool": {
+                     "should": [
+                         {
+                             "match": {
+                                 "source_text": {
+                                     "query": "apricot unrelated",
+                                     "boost": 1
+                                 }
+                             }
+                         },
+                         {
+                             "knn": {
+                                 "field": "embedding",
+                                 "query_vector_builder": {
+                                     "text_embedding": {
+                                         "model_id": "%s",
+                                         "model_text": "my words"
+                                     }
+                                 },
+                                 "num_candidates": 10,
+                                 "boost": 10
+                             }
+                         }
+                     ]
+                 }
+             },
+             "size": 7
+         }""";
+
     @SuppressWarnings("unchecked")
     public void testTextEmbeddingQuery() throws IOException {
         String modelId = "text-embedding-test";
@@ -141,39 +293,59 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         // Test text embedding search against the indexed vectors
         for (int i = 0; i < 5; i++) {
             int randomInput = randomIntBetween(0, inputs.size() - 1);
-            var textEmbeddingSearchResponse = textEmbeddingSearch(indexName, inputs.get(randomInput), modelId, "embedding");
-            assertOkWithErrorMessage(textEmbeddingSearchResponse);
+            for (String template : new String[] { TOP_LEVEL_KNN_TEMPLATE, QUERY_DSL_KNN_TEMPLATE }) {
+                var textEmbeddingSearchResponse = textEmbeddingSearch(indexName, inputs.get(randomInput), modelId, "embedding", template);
+                assertOkWithErrorMessage(textEmbeddingSearchResponse);
 
-            Map<String, Object> responseMap = responseAsMap(textEmbeddingSearchResponse);
-            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
-            Map<String, Object> topHit = hits.get(0);
-            String sourceText = (String) MapHelper.dig("_source.source_text", topHit);
-            assertEquals(inputs.get(randomInput), sourceText);
+                Map<String, Object> responseMap = responseAsMap(textEmbeddingSearchResponse);
+                List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+                Map<String, Object> topHit = hits.get(0);
+                String sourceText = (String) MapHelper.dig("_source.source_text", topHit);
+                assertEquals(inputs.get(randomInput), sourceText);
+            }
         }
 
         // Test text embedding search with filters
         {
-            var textEmbeddingSearchResponse = textEmbeddingSearchWithTermsFilter(indexName, inputs.get(0), "foo", modelId, "embedding");
-            assertOkWithErrorMessage(textEmbeddingSearchResponse);
+            for (String template : new String[] { TOP_LEVEL_KNN_FILTER_TEMPLATE, QUERY_DSL_KNN_FILTER_TEMPLATE }) {
+                var textEmbeddingSearchResponse = textEmbeddingSearchWithTermsFilter(
+                    indexName,
+                    inputs.get(0),
+                    "foo",
+                    modelId,
+                    "embedding",
+                    template
+                );
+                assertOkWithErrorMessage(textEmbeddingSearchResponse);
 
-            Map<String, Object> responseMap = responseAsMap(textEmbeddingSearchResponse);
-            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
-            assertThat(hits, hasSize(3));
-            for (var hit : hits) {
-                String filter = (String) MapHelper.dig("_source.filter_field", hit);
-                assertEquals("foo", filter);
+                Map<String, Object> responseMap = responseAsMap(textEmbeddingSearchResponse);
+                List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+                assertThat(hits, hasSize(3));
+                for (var hit : hits) {
+                    String filter = (String) MapHelper.dig("_source.filter_field", hit);
+                    assertEquals("foo", filter);
+                }
             }
         }
         {
-            var textEmbeddingSearchResponse = textEmbeddingSearchWithTermsFilter(indexName, inputs.get(2), "baz", modelId, "embedding");
-            assertOkWithErrorMessage(textEmbeddingSearchResponse);
+            for (String template : new String[] { TOP_LEVEL_KNN_FILTER_TEMPLATE, QUERY_DSL_KNN_FILTER_TEMPLATE }) {
+                var textEmbeddingSearchResponse = textEmbeddingSearchWithTermsFilter(
+                    indexName,
+                    inputs.get(2),
+                    "baz",
+                    modelId,
+                    "embedding",
+                    template
+                );
+                assertOkWithErrorMessage(textEmbeddingSearchResponse);
 
-            Map<String, Object> responseMap = responseAsMap(textEmbeddingSearchResponse);
-            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
-            assertThat(hits, hasSize(2));
-            for (var hit : hits) {
-                String filter = (String) MapHelper.dig("_source.filter_field", hit);
-                assertEquals("baz", filter);
+                Map<String, Object> responseMap = responseAsMap(textEmbeddingSearchResponse);
+                List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+                assertThat(hits, hasSize(2));
+                for (var hit : hits) {
+                    String filter = (String) MapHelper.dig("_source.filter_field", hit);
+                    assertEquals("baz", filter);
+                }
             }
         }
     }
@@ -219,76 +391,53 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         forceMergeIndex(indexName);
 
         {
-            // combined query should return size documents where size > k
-            Request request = new Request("GET", indexName + "/_search");
-            request.setJsonEntity(Strings.format("""
-                {
-                  "knn": {
-                      "field": "embedding",
-                      "k": 3,
-                      "num_candidates": 10,
-                      "boost": 10.0,
-                      "query_vector_builder": {
-                        "text_embedding": {
-                          "model_id": "%s",
-                          "model_text": "my words"
-                        }
-                      }
-                  },
-                  "query": {"match_all": {}},
-                  "size": 7
-                }""", modelId));
-            var semanticSearchResponse = client().performRequest(request);
-            assertOkWithErrorMessage(semanticSearchResponse);
+            for (String template : new String[] { TOP_LEVEL_KNN_HYBRID_ALL, QUERY_DSL_KNN_HYBRID_ALL }) {
+                // combined query should return size documents where size > k
+                Request request = new Request("GET", indexName + "/_search");
+                request.setJsonEntity(Strings.format(template, modelId));
+                var semanticSearchResponse = client().performRequest(request);
+                assertOkWithErrorMessage(semanticSearchResponse);
 
-            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
-            int hitCount = (Integer) MapHelper.dig("hits.total.value", responseMap);
-            assertEquals(7, hitCount);
+                Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+                int hitCount = (Integer) MapHelper.dig("hits.total.value", responseMap);
+                assertEquals(7, hitCount);
+            }
         }
         {
-            // boost the knn score, as the query is an exact match the unboosted
-            // score should be close to 1.0. Use an unrelated query so scores are
-            // not combined
-            Request request = new Request("GET", indexName + "/_search");
-            request.setJsonEntity(Strings.format("""
-                {
-                  "knn": {
-                      "field": "embedding",
-                      "k": 3,
-                      "num_candidates": 10,
-                      "boost": 10.0,
-                      "query_vector_builder": {
-                        "text_embedding": {
-                          "model_id": "%s",
-                          "model_text": "my words"
-                        }
-                      }
-                  },
-                  "query": {"match": {"source_text": {"query": "apricot unrelated"}}}
-                }""", modelId));
-            var semanticSearchResponse = client().performRequest(request);
-            assertOkWithErrorMessage(semanticSearchResponse);
+            for (String template : new String[] { TOP_LEVEL_KNN_HYBRID_MATCH, QUERY_DSL_KNN_HYBRID_MATCH }) {
+                // boost the knn score, as the query is an exact match the unboosted
+                // score should be close to 1.0. Use an unrelated query so scores are
+                // not combined
+                Request request = new Request("GET", indexName + "/_search");
+                request.setJsonEntity(Strings.format(template, modelId));
+                var semanticSearchResponse = client().performRequest(request);
+                assertOkWithErrorMessage(semanticSearchResponse);
 
-            Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
-            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
-            boolean found = false;
-            for (var hit : hits) {
-                String source = (String) MapHelper.dig("_source.source_text", hit);
-                if (source.equals("my words")) {
-                    assertThat((Double) MapHelper.dig("_score", hit), closeTo(10.0, 0.01));
-                    found = true;
+                Map<String, Object> responseMap = responseAsMap(semanticSearchResponse);
+                List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+                boolean found = false;
+                for (var hit : hits) {
+                    String source = (String) MapHelper.dig("_source.source_text", hit);
+                    if (source.equals("my words")) {
+                        assertThat((Double) MapHelper.dig("_score", hit), closeTo(10.0, 0.01));
+                        found = true;
+                    }
                 }
+                assertTrue("should have found hit for string 'my words'", found);
             }
-            assertTrue("should have found hit for string 'my words'", found);
         }
     }
 
     public void testSearchWithMissingModel() {
         String modelId = "missing-model";
         String indexName = modelId + "-index";
-
-        var e = expectThrows(ResponseException.class, () -> textEmbeddingSearch(indexName, "the machine is leaking", modelId, "embedding"));
-        assertThat(e.getMessage(), containsString("[missing-model] is not an inference service model or a deployed ml model"));
+        for (String template : new String[] { TOP_LEVEL_KNN_TEMPLATE, QUERY_DSL_KNN_TEMPLATE }) {
+            var e = expectThrows(
+                ResponseException.class,
+                () -> textEmbeddingSearch(indexName, "the machine is leaking", modelId, "embedding", template)
+            );
+            assertThat(e.getMessage(), containsString("[missing-model] is not an inference service model or a deployed ml model"));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -391,37 +540,32 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         bulkIndexDocs(inputs, filters, embeddings, indexName);
         forceMergeIndex(indexName);
 
-        // the input "my words" should be prefixed with searchPrefix
-        var textEmbeddingSearchResponse = textEmbeddingSearch(indexName, "my words", modelId, "embedding");
-        assertOkWithErrorMessage(textEmbeddingSearchResponse);
+        for (String template : new String[] { TOP_LEVEL_KNN_TEMPLATE, QUERY_DSL_KNN_TEMPLATE }) {
+            // the input "my words" should be prefixed with searchPrefix
+            var textEmbeddingSearchResponse = textEmbeddingSearch(indexName, "my words", modelId, "embedding", template);
+            assertOkWithErrorMessage(textEmbeddingSearchResponse);
 
-        Map<String, Object> responseMap = responseAsMap(textEmbeddingSearchResponse);
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
-        Map<String, Object> topHit = hits.get(0);
-        String sourceText = (String) MapHelper.dig("_source.source_text", topHit);
-        // The top hit should have the search prefix
-        assertEquals(searchPrefix + "my words", sourceText);
-        List<Double> foundEmbedding = (List<Double>) MapHelper.dig("_source.embedding", topHit);
-        assertEquals(embeddings.get(0), foundEmbedding);
+            Map<String, Object> responseMap = responseAsMap(textEmbeddingSearchResponse);
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) MapHelper.dig("hits.hits", responseMap);
+            Map<String, Object> topHit = hits.get(0);
+            String sourceText = (String) MapHelper.dig("_source.source_text", topHit);
+            // The top hit should have the search prefix
+            assertEquals(searchPrefix + "my words", sourceText);
+            List<Double> foundEmbedding = (List<Double>) MapHelper.dig("_source.embedding", topHit);
+            assertEquals(embeddings.get(0), foundEmbedding);
+        }
     }
 
-    protected Response textEmbeddingSearch(String index, String modelText, String modelId, String denseVectorFieldName) throws IOException {
+    protected Response textEmbeddingSearch(
+        String index,
+        String modelText,
+        String modelId,
+        String denseVectorFieldName,
+        String queryTemplate
+    ) throws IOException {
         Request request = new Request("GET", index + "/_search?error_trace=true");
 
-        request.setJsonEntity(Strings.format("""
-            {
-              "knn": {
-                  "field": "%s",
-                  "k": 5,
-                  "num_candidates": 10,
-                  "query_vector_builder": {
-                    "text_embedding": {
-                      "model_id": "%s",
-                      "model_text": "%s"
-                    }
-                  }
-              }
-            }""", denseVectorFieldName, modelId, modelText));
+        request.setJsonEntity(Strings.format(queryTemplate, denseVectorFieldName, modelId, modelText));
         return client().performRequest(request);
     }
 
@@ -430,7 +574,8 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
         String modelText,
         String filter,
         String modelId,
-        String denseVectorFieldName
+        String denseVectorFieldName,
+        String queryTemplate
     ) throws IOException {
         Request request = new Request("GET", index + "/_search?error_trace=true");
 
@@ -438,21 +583,7 @@ public class TextEmbeddingQueryIT extends PyTorchModelRestTestCase {
             {"term": {"filter_field": "%s"}}
             """, filter);
 
-        request.setJsonEntity(Strings.format("""
-            {
-              "knn": {
-                  "field": "%s",
-                  "k": 5,
-                  "num_candidates": 10,
-                  "filter": %s,
-                  "query_vector_builder": {
-                    "text_embedding": {
-                      "model_id": "%s",
-                      "model_text": "%s"
-                    }
-                  }
-              }
-            }""", denseVectorFieldName, termsFilter, modelId, modelText));
+        request.setJsonEntity(Strings.format(queryTemplate, denseVectorFieldName, termsFilter, modelId, modelText));
         return client().performRequest(request);
     }
 

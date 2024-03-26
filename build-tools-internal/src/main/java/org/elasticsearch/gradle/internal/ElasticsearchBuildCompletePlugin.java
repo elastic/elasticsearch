@@ -28,7 +28,12 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -210,12 +215,15 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                         throw new IOException("Support only file!");
                     }
 
+                    long entrySize = Files.size(path);
                     TarArchiveEntry tarEntry = new TarArchiveEntry(path.toFile(), calculateArchivePath(path, projectPath));
-                    tarEntry.setSize(Files.size(path));
+                    tarEntry.setSize(entrySize);
                     tOut.putArchiveEntry(tarEntry);
 
                     // copy file to TarArchiveOutputStream
-                    Files.copy(path, tOut);
+                    try (BufferedInputStream bin = new BufferedInputStream(Files.newInputStream(path))) {
+                        IOUtils.copyLarge(bin, tOut, 0, entrySize);
+                    }
                     tOut.closeArchiveEntry();
 
                 }

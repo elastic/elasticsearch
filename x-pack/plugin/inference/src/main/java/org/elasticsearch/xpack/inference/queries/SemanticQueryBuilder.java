@@ -203,7 +203,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         String inferenceId = null;
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
-                .getFieldInferenceOptions().get(fieldName);
+                .getFieldInferenceOptions()
+                .get(fieldName);
 
             String indexInferenceId = fieldInferenceOptions != null ? fieldInferenceOptions.inferenceId() : null;
             if (indexInferenceId != null) {

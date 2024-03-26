@@ -67,47 +67,47 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 10;
 
     private static final String SPARSE_EMBEDDING_INFERENCE_RESULTS = Strings.format("""
-                {
+            {
+                "%s": {
                     "%s": {
-                        "%s": {
-                            "inference_id": "test_service",
-                            "model_settings": {
-                                "task_type": "SPARSE_EMBEDDING"
-                            },
-                            "results": [
-                                {
-                                    "inference": {
-                                        "feature_0": 1.0
-                                    },
-                                    "text": "feature_0"
-                                }
-                            ]
-                        }
+                        "inference_id": "test_service",
+                        "model_settings": {
+                            "task_type": "SPARSE_EMBEDDING"
+                        },
+                        "results": [
+                            {
+                                "inference": {
+                                    "feature_0": 1.0
+                                },
+                                "text": "feature_0"
+                            }
+                        ]
                     }
                 }
-            """, InferenceMetadataFieldMapper.NAME, SEMANTIC_TEXT_FIELD);
+            }
+        """, InferenceMetadataFieldMapper.NAME, SEMANTIC_TEXT_FIELD);
 
     // TODO: Dynamically generate proper inference results
     private static final String TEXT_EMBEDDING_INFERENCE_RESULTS = Strings.format("""
-                {
+            {
+                "%s": {
                     "%s": {
-                        "%s": {
-                            "inference_id": "test_service",
-                            "model_settings": {
-                                "task_type": "TEXT_EMBEDDING",
-                                "dimensions": %d,
-                                "similarity": "cosine"
-                            },
-                            "results": [
-                                {
-                                    "inference": [ 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ],
-                                    "text": "feature_0"
-                                }
-                            ]
-                        }
+                        "inference_id": "test_service",
+                        "model_settings": {
+                            "task_type": "TEXT_EMBEDDING",
+                            "dimensions": %d,
+                            "similarity": "cosine"
+                        },
+                        "results": [
+                            {
+                                "inference": [ 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ],
+                                "text": "feature_0"
+                            }
+                        ]
                     }
                 }
-            """, InferenceMetadataFieldMapper.NAME, SEMANTIC_TEXT_FIELD, TEXT_EMBEDDING_DIMENSION_COUNT);
+            }
+        """, InferenceMetadataFieldMapper.NAME, SEMANTIC_TEXT_FIELD, TEXT_EMBEDDING_DIMENSION_COUNT);
 
     private static InferenceResultType inferenceResultType;
 
@@ -120,7 +120,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private Integer queryTokenCount;
 
     @BeforeClass
-    public static void setInferenceResultType()  {
+    public static void setInferenceResultType() {
         // The inference result type is a class variable because it is used when initializing additional mappings,
         // which happens once per test suite run in AbstractBuilderTestCase#beforeTest as part of service holder creation.
         inferenceResultType = randomFrom(InferenceResultType.values());
@@ -149,9 +149,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(
-                    PutMappingRequest.simpleMapping(SEMANTIC_TEXT_FIELD, "type=semantic_text,inference_id=test_service")
-                )
+                Strings.toString(PutMappingRequest.simpleMapping(SEMANTIC_TEXT_FIELD, "type=semantic_text,inference_id=test_service"))
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
@@ -272,9 +270,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         String query = input.get(0);
 
         InferenceAction.Response response = switch (inferenceResultType) {
-            case NONE -> randomBoolean() ?
-                generateSparseEmbeddingInferenceResponse(query) :
-                generateTextEmbeddingInferenceResponse();
+            case NONE -> randomBoolean() ? generateSparseEmbeddingInferenceResponse(query) : generateTextEmbeddingInferenceResponse();
             case SPARSE_EMBEDDING -> generateSparseEmbeddingInferenceResponse(query);
             case TEXT_EMBEDDING -> generateTextEmbeddingInferenceResponse();
         };

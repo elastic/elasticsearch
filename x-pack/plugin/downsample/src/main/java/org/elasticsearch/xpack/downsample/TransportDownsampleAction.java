@@ -91,6 +91,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
@@ -115,6 +116,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadContext threadContext;
     private final PersistentTasksService persistentTasksService;
+    private final DownsampleMetrics downsampleMetrics;
+    private final long startTime;
 
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
@@ -153,7 +156,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
-        PersistentTasksService persistentTasksService
+        PersistentTasksService persistentTasksService,
+        DownsampleMetrics downsampleMetrics
     ) {
         super(
             DownsampleAction.NAME,
@@ -173,6 +177,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         this.threadContext = threadPool.getThreadContext();
         this.taskQueue = clusterService.createTaskQueue("downsample", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR);
         this.persistentTasksService = persistentTasksService;
+        this.downsampleMetrics = downsampleMetrics;
+        this.startTime = client.threadPool().relativeTimeInMillis();
+    }
+
+    private long getDurationInMillis() {
+        return TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime).getMillis();
     }
 
     @Override
@@ -414,6 +424,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // NOTE: before we set the number of replicas to 0, as a result here we are
         // only dealing with primary shards.
         final AtomicInteger countDown = new AtomicInteger(numberOfShards);
+        final AtomicBoolean errorReported = new AtomicBoolean(false);
         for (int shardNum = 0; shardNum < numberOfShards; shardNum++) {
             final ShardId shardId = new ShardId(sourceIndex, shardNum);
             final String persistentTaskId = createPersistentTaskId(
@@ -465,6 +476,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 @Override
                 public void onFailure(Exception e) {
                     logger.error("error while waiting for downsampling persistent task", e);
+                    if (errorReported.getAndSet(true) == false) {
+                        downsampleMetrics.recordLatencyMaster(getDurationInMillis(), DownsampleMetrics.ShardActionStatus.FAILED);
+                    }
                     listener.onFailure(e);
                 }
             };
@@ -529,6 +543,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 updateSettingsReq,
                 new UpdateDownsampleIndexSettingsActionListener(listener, parentTask, downsampleIndexName, request.getWaitTimeout())
             );
+
+        // Record latency for downsampling operation.
+        downsampleMetrics.recordLatencyMaster(getDurationInMillis(), DownsampleMetrics.ShardActionStatus.SUCCESS);
     }
 
     private static DownsampleShardTaskParams createPersistentTaskParams(

@@ -227,10 +227,10 @@ FROM airport_city_boundaries
 | LIMIT 1
 ;
 
-// tag::st_contains-airport_city_boundaries-results[]
+// tag::st_contains-airport_city_boundaries-result[]
 abbrev:keyword | airport:text         | region:text | city:keyword | city_location:geo_point
 SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(109.5036 18.2533)
-// end::st_contains-airport_city_boundaries-results[]
+// end::st_contains-airport_city_boundaries-result[]
 ;
 
 polygonWithinLiteralPolygon
@@ -244,10 +244,10 @@ FROM airport_city_boundaries
 | LIMIT 1
 ;
 
-// tag::st_within-airport_city_boundaries-results[]
+// tag::st_within-airport_city_boundaries-result[]
 abbrev:keyword | airport:text         | region:text | city:keyword | city_location:geo_point
 SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(109.5036 18.2533)
-// end::st_within-airport_city_boundaries-results[]
+// end::st_within-airport_city_boundaries-result[]
 ;
 
 ###############################################

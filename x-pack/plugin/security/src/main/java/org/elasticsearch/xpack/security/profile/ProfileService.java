@@ -896,8 +896,28 @@ public class ProfileService {
     }
 
     private Subject getApiKeyCreatorSubject(ApiKey apiKeyInfo) {
-        Authentication.RealmRef realmRef = realmRefLookup.apply(apiKeyInfo.getRealmIdentifier());
+        if (apiKeyInfo.getUsername() == null) {
+            logger.debug("encountered api key with id [{}] of the \"null\" username", apiKeyInfo.getId());
+            return null;
+        }
+        RealmConfig.RealmIdentifier realmIdentifier = apiKeyInfo.getRealmIdentifier();
+        if (realmIdentifier == null) {
+            logger.debug(
+                "encountered api key with id [{}] of the username [{}] that has a \"null\" realm type or realm name",
+                apiKeyInfo.getId(),
+                apiKeyInfo.getUsername()
+            );
+            return null;
+        }
+        Authentication.RealmRef realmRef = realmRefLookup.apply(realmIdentifier);
         if (realmRef == null) {
+            logger.debug(
+                "encountered api key with id [{}] of the username [{}] from realm [{}], "
+                    + "where that realm is not currently configured on the local node",
+                apiKeyInfo.getId(),
+                apiKeyInfo.getUsername(),
+                realmIdentifier
+            );
             return null;
         }
         return new Subject(new User(apiKeyInfo.getUsername(), Strings.EMPTY_ARRAY), realmRef);

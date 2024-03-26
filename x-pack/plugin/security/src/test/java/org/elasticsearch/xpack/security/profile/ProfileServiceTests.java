@@ -1194,6 +1194,40 @@ public class ProfileServiceTests extends ESTestCase {
         }
     }
 
+    public void testUnclearApiKeyOwnersAreIgnoredWhenRetrievingProfiles() throws Exception {
+        String realmName = "realmName_" + randomAlphaOfLength(8);
+        String realmType = "realmType_" + randomAlphaOfLength(8);
+        String username = "username_" + randomAlphaOfLength(8);
+        List<ApiKey> apiKeys = List.of(
+            // null username
+            createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), null, randomAlphaOfLength(4), randomAlphaOfLength(4)),
+            // null realm name
+            createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), randomAlphaOfLength(4), null, randomAlphaOfLength(4)),
+            // null realm type
+            createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), randomAlphaOfLength(4), randomAlphaOfLength(4), null),
+            // the realm does not exist
+            createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), username, realmName, realmType)
+        );
+        realmRefLookup = realmIdentifier -> {
+            assertThat(realmIdentifier.getName(), is(realmName));
+            assertThat(realmIdentifier.getType(), is(realmType));
+            return null;
+        };
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+            listener.onFailure(new Exception("test failed, code should not be reachable"));
+            return null;
+        }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+
+        PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+        profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
+        Collection<String> profileUids = listener.get();
+        assertThat(profileUids, iterableWithSize(4));
+        assertThat(profileUids, contains(nullValue(), nullValue(), nullValue(), nullValue()));
+    }
+
     public void testProfilesIndexMissingOrUnavailableWhenRetrievingProfilesOfApiKeyOwners() throws Exception {
         // profiles index missing
         when(this.profileIndex.indexExists()).thenReturn(false);

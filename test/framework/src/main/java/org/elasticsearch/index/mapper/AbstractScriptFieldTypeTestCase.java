@@ -65,6 +65,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     protected abstract String typeName();
 
+    /**
+     * Add the provided document to the provided writer, and randomly flush.
+     * This is useful for situations where there are not enough documents indexed to trigger random flush and commit performed
+     * by {@link RandomIndexWriter}. Flushing is important to obtain multiple slices and inter-segment concurrency.
+     */
     protected static <T extends IndexableField> void addDocument(RandomIndexWriter iw, Iterable<T> indexableFields) throws IOException {
         iw.addDocument(indexableFields);
         if (randomBoolean()) {

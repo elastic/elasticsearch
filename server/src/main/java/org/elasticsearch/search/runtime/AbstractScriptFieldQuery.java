@@ -85,6 +85,10 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
         };
     }
 
+    /**
+     * Creates the {@link TwoPhaseIterator} for the current leaf reader. Override to inject custom behaviour or provide
+     * additional context to the matches method when needed.
+     */
     protected TwoPhaseIterator createTwoPhaseIterator(S scriptContext, DocIdSetIterator approximation) {
         return new TwoPhaseIterator(approximation) {
             @Override

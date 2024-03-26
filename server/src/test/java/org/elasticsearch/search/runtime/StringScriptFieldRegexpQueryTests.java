@@ -103,9 +103,8 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             RegExp.ASCII_CASE_INSENSITIVE,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
-        assertTrue(ciQuery.matches(List.of("astuffB")));
-        assertTrue(ciQuery.matches(List.of("Astuffb", "fffff")));
-
+        assertTrue(ciQuery.matches(List.of("astuffB"), scratch));
+        assertTrue(ciQuery.matches(List.of("Astuffb", "fffff"), scratch));
     }
 
     @Override

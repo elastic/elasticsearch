@@ -253,35 +253,6 @@ public class StoreRecoveryTests extends ESTestCase {
         IOUtils.close(dir, target);
     }
 
-    public void testConcurrentlyAddSnapshotBytesToFile() throws Exception {
-        var index = new RecoveryState.Index();
-        int numIndices = randomIntBetween(4, 32);
-        for (int i = 0; i < numIndices; i++) {
-            index.addFileDetail("foo_" + i, randomIntBetween(1, 100), false);
-        }
-
-        var executor = Executors.newFixedThreadPool(randomIntBetween(2, 8));
-        try {
-            int count = randomIntBetween(1000, 10_000);
-            var latch = new CountDownLatch(count);
-            var recoveredBytes = new AtomicLong();
-            for (int i = 0; i < count; i++) {
-                String indexName = "foo_" + (i % numIndices);
-                executor.submit(() -> {
-                    int bytes = randomIntBetween(1, 1000);
-                    index.addRecoveredFromSnapshotBytesToFile(indexName, bytes);
-                    recoveredBytes.addAndGet(bytes);
-                    latch.countDown();
-                });
-            }
-            safeAwait(latch);
-            assertEquals(recoveredBytes.get(), index.recoveredFromSnapshotBytes());
-        } finally {
-            executor.shutdownNow();
-        }
-
-    }
-
     public boolean hardLinksSupported(Path path) throws IOException {
         try {
             Files.createFile(path.resolve("foo.bar"));

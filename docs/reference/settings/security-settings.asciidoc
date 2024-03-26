@@ -202,11 +202,6 @@ You can set the following API key service settings in
 (<<static-cluster-setting,Static>>)
 Set to `false` to disable the built-in API key service. Defaults to `true`.
 
-`xpack.security.authc.api_key.hashing.algorithm`::
-(<<static-cluster-setting,Static>>)
-Specifies the hashing algorithm that is used for securing API key credentials.
-See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
-
 `xpack.security.authc.api_key.cache.ttl`::
 (<<static-cluster-setting,Static>>)
 The time-to-live for cached API key entries. A API key id and a hash of its
@@ -223,6 +218,39 @@ cache at any given time. Defaults to 10,000.
 The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
+
+[[api-key-service-settings-delete-retention-period]]
+`xpack.security.authc.api_key.delete.retention_period`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Invalidated or expired API keys older than the retention period are eligible for deletion.
+Defaults to `7d`.
+
+--
+NOTE:  Large real-time clock inconsistency across cluster nodes can cause problems
+with evaluating the API key retention period. That is, if the clock on the node 
+invalidating the API key is significantly different than the one performing the deletion,
+the key may be retained for longer or shorter than the configured retention period.
+
+--
+
+`xpack.security.authc.api_key.delete.interval`::
+(<<dynamic-cluster-setting,Dynamic>>, Expert)
+Cluster nodes schedule the automatic deletion of invalidated or expired API keys
+that are older than the retention period.
+This setting controls the minimum time interval between two such deletion jobs.
+Defaults to `24h`.
++
+NOTE: This is a low-level setting that currently controls the interval between
+deletion jobs triggered per-node, not across the cluster.
+
+`xpack.security.authc.api_key.delete.timeout`::
+(<<static-cluster-setting,Static>>, Expert)
+Sets the timeout of the internal search and delete call.
+
+`xpack.security.authc.api_key.hashing.algorithm`::
+(<<static-cluster-setting,Static>>)
+Specifies the hashing algorithm that is used for securing API key credentials.
+See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
 
 [discrete]
 [[security-domain-settings]]
@@ -404,7 +432,7 @@ Defaults to Empty. Due to its potential security impact, `bind_password` is not
 exposed via the <<cluster-nodes-info,nodes info API>>.
 
 `secure_bind_password`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)
 The password for the user that is used to bind to the LDAP directory.
 Defaults to Empty.
 
@@ -749,7 +777,7 @@ potential security impact, `bind_password` is not exposed via the
 <<cluster-nodes-info,nodes info API>>.
 
 `secure_bind_password`::
-(<<secure-settings,Secure>>)
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)
 The password for the user that is used to bind to Active Directory.
 Defaults to Empty.
 

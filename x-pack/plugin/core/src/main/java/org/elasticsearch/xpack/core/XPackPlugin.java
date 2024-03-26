@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -124,6 +126,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -381,12 +384,14 @@ public class XPackPlugin extends XPackClientPlugin
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction());

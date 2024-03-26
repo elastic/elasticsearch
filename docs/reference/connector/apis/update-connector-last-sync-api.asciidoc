@@ -1,11 +1,10 @@
 [[update-connector-last-sync-api]]
 === Update connector last sync stats API
-
-preview::[]
-
 ++++
 <titleabbrev>Update connector last sync stats</titleabbrev>
 ++++
+
+preview::[]
 
 Updates the fields related to the last sync of a connector.
 

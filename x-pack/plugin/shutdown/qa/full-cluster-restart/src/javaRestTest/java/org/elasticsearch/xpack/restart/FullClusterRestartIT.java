@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.restart;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -21,11 +20,12 @@ import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -88,11 +88,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             .build();
     }
 
-    @BeforeClass
-    public static void checkClusterVersion() {
+    @Before
+    public void checkClusterVersion() {
         @UpdateForV9 // always true
-        var originalClusterSupportsShutdown = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_15_0))
-            .orElse(true);
+        var originalClusterSupportsShutdown = oldClusterHasFeature(RestTestLegacyFeatures.SHUTDOWN_SUPPORTED);
         assumeTrue("no shutdown in versions before 7.15", originalClusterSupportsShutdown);
     }
 

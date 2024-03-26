@@ -16,6 +16,6 @@ public class SqlAsyncGetStatusAction extends ActionType<QlStatusResponse> {
     public static final String NAME = SQL_ASYNC_GET_STATUS_ACTION_NAME;
 
     private SqlAsyncGetStatusAction() {
-        super(NAME, QlStatusResponse::new);
+        super(NAME);
     }
 }

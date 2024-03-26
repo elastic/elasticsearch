@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
@@ -37,6 +38,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -50,6 +52,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
             transportService,
             clusterService,
             ingestService,
+            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
@@ -69,7 +72,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         BulkRequest bulkRequest,
         String executorName,
         ActionListener<BulkResponse> listener,
-        Set<String> autoCreateIndices,
+        Map<String, Boolean> indicesToAutoCreate,
         Set<String> dataStreamsToRollover,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime

@@ -94,8 +94,8 @@ public abstract class AbstractBinaryComparisonTestCase extends AbstractBinaryOpe
                 equalTo(
                     String.format(
                         Locale.ROOT,
-                        "first argument of [%s %s] must be [numeric, keyword, text, ip, datetime, version, geo_point or "
-                            + "cartesian_point], found value [] type [%s]",
+                        "first argument of [%s %s] must be [numeric, keyword, text, ip, datetime, version, geo_point, "
+                            + "geo_shape, cartesian_point or cartesian_shape], found value [] type [%s]",
                         lhsType.typeName(),
                         rhsType.typeName(),
                         lhsType.typeName()

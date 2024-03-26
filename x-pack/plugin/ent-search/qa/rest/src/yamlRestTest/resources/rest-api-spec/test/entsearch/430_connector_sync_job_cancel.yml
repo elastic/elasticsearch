@@ -13,7 +13,7 @@ setup:
           service_type: super-connector
 
 ---
-"Cancel a Connector Sync Job":
+"Cancel a pending Connector Sync Job - transition to canceled directly":
   - do:
       connector_sync_job.post:
         body:
@@ -33,8 +33,31 @@ setup:
       connector_sync_job.get:
         connector_sync_job_id: $sync-job-id-to-cancel
 
-  - match: { status: "canceling"}
+  - set: { cancelation_requested_at: cancelation_requested_at }
 
+  - match: { status: "canceled"}
+  - match: { completed_at: $cancelation_requested_at }
+  - match: { canceled_at: $cancelation_requested_at }
+
+---
+"Cancel a canceled Connector Sync Job - invalid state transition from canceled to canceling":
+  - do:
+      connector_sync_job.post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id-to-cancel }
+
+  - do:
+      connector_sync_job.cancel:
+        connector_sync_job_id: $sync-job-id-to-cancel
+
+  - do:
+      catch: bad_request
+      connector_sync_job.cancel:
+        connector_sync_job_id: $sync-job-id-to-cancel
 
 ---
 "Cancel a Connector Sync Job - Connector Sync Job does not exist":

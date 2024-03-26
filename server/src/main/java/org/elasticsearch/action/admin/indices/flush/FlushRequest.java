@@ -23,7 +23,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * memory heuristics in order to automatically trigger flush operations as required in order to clear memory.
  *
  * @see org.elasticsearch.client.internal.IndicesAdminClient#flush(FlushRequest)
- * @see FlushResponse
  */
 public class FlushRequest extends BroadcastRequest<FlushRequest> {
 

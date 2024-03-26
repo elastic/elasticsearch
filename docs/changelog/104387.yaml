@@ -1,0 +1,6 @@
+pr: 104387
+summary: "ESQL: Nested expressions inside stats command"
+area: ES|QL
+type: enhancement
+issues:
+ - 99828

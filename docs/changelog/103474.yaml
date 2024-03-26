@@ -1,6 +1,0 @@
-pr: 103474
-summary: Fix now in millis for ESQL search contexts
-area: ES|QL
-type: bug
-issues:
- - 103455

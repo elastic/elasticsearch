@@ -4,6 +4,8 @@
 <titleabbrev>Check in connector sync job</titleabbrev>
 ++++
 
+preview::[]
+
 Checks in a connector sync job (updates `last_seen` to the current time).
 
 [[check-in-connector-sync-job-api-request]]

@@ -1,0 +1,5 @@
+pr: 104483
+summary: Make `task_type` optional in `_inference` APIs
+area: Machine Learning
+type: enhancement
+issues: []

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -28,6 +27,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class GetCheckpointActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
+
+    public static final String[] EXPAND_WILDCARDS_VALUES = { "open", "closed", "hidden" };
 
     @Override
     protected Request createTestInstance() {
@@ -53,7 +54,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
                 break;
             case 1:
                 indicesOptions = IndicesOptions.fromParameters(
-                    randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                    randomFrom(EXPAND_WILDCARDS_VALUES),
                     Boolean.toString(instance.indicesOptions().ignoreUnavailable() == false),
                     Boolean.toString(instance.indicesOptions().allowNoIndices() == false),
                     Boolean.toString(instance.indicesOptions().ignoreThrottled() == false),
@@ -92,7 +93,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTran
         return new Request(
             numIndices != null ? Stream.generate(() -> randomAlphaOfLength(10)).limit(numIndices).toArray(String[]::new) : null,
             IndicesOptions.fromParameters(
-                randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                randomFrom(EXPAND_WILDCARDS_VALUES),
                 Boolean.toString(randomBoolean()),
                 Boolean.toString(randomBoolean()),
                 Boolean.toString(randomBoolean()),

@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
@@ -93,14 +92,14 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     }
 
     @Override
-    public InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context) {
-        Optional<MlAggsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(
+    public InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context) {
+        Optional<MlAggsHelper.DoubleBucketValues> maybeBucketValues = extractDoubleBucketedValues(
             bucketsPaths()[0],
             aggregations,
             BucketHelpers.GapPolicy.SKIP,
             true
         );
-        if (maybeBucketsValue.isEmpty()) {
+        if (maybeBucketValues.isEmpty()) {
             return new InternalChangePointAggregation(
                 name(),
                 metadata(),
@@ -108,7 +107,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 new ChangeType.Indeterminable("unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "]")
             );
         }
-        MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketsValue.get();
+        MlAggsHelper.DoubleBucketValues bucketValues = maybeBucketValues.get();
         if (bucketValues.getValues().length < (2 * MINIMUM_BUCKETS) + 2) {
             return new InternalChangePointAggregation(
                 name(),
@@ -137,7 +136,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
         ChangePointBucket changePointBucket = null;
         if (change.changePoint() >= 0) {
             changePointBucket = extractBucket(bucketsPaths()[0], aggregations, change.changePoint()).map(
-                b -> new ChangePointBucket(b.getKey(), b.getDocCount(), (InternalAggregations) b.getAggregations())
+                b -> new ChangePointBucket(b.getKey(), b.getDocCount(), b.getAggregations())
             ).orElse(null);
         }
 
@@ -147,7 +146,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
     static ChangeType testForSpikeOrDip(MlAggsHelper.DoubleBucketValues bucketValues, double pValueThreshold) {
         try {
             SpikeAndDipDetector detect = new SpikeAndDipDetector(bucketValues.getValues());
-            ChangeType result = detect.at(pValueThreshold);
+            ChangeType result = detect.at(pValueThreshold, bucketValues);
             logger.trace("spike or dip p-value: [{}]", result.pValue());
             return result;
         } catch (NotStrictlyPositiveException nspe) {
@@ -553,7 +552,7 @@ public class ChangePointAggregator extends SiblingPipelineAggregator {
                 case TREND_CHANGE:
                     return new ChangeType.TrendChange(pValueVsStationary(), rSquared(), bucketValues.getBucketIndex(changePoint));
                 case DISTRIBUTION_CHANGE:
-                    return new ChangeType.DistributionChange(pValue, changePoint);
+                    return new ChangeType.DistributionChange(pValue, bucketValues.getBucketIndex(changePoint));
             }
             throw new RuntimeException("Unknown change type [" + type + "].");
         }

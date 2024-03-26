@@ -25,7 +25,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -82,7 +81,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -240,8 +238,8 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
-                name,
-                new WildcardFieldType(context.buildFullName(name), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
+                name(),
+                new WildcardFieldType(context.buildFullName(name()), nullValue.get(), ignoreAbove.get(), indexVersionCreated, meta.get()),
                 ignoreAbove.get(),
                 context.isSourceSynthetic(),
                 multiFieldsBuilder.build(this, context),
@@ -841,15 +839,6 @@ public class WildcardFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             return wildcardQuery(escapeWildcardSyntax(value) + "*", method, caseInsensitive, context);
-        }
-
-        @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            BooleanQuery.Builder bq = new BooleanQuery.Builder();
-            for (Object value : values) {
-                bq.add(termQuery(value, context), Occur.SHOULD);
-            }
-            return new ConstantScoreQuery(bq.build());
         }
 
         @Override

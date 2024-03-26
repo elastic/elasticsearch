@@ -13,12 +13,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -27,26 +29,34 @@ import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TY
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
-    public static final ActionType<SearchResponse> TYPE = new ActionType<>("indices:data/read/scroll", SearchResponse::new);
+    public static final ActionType<SearchResponse> TYPE = new ActionType<>("indices:data/read/scroll");
+    public static final RemoteClusterActionType<SearchResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        TYPE.name(),
+        SearchResponse::new
+    );
     private static final Logger logger = LogManager.getLogger(TransportSearchScrollAction.class);
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
+    private final SearchResponseMetrics searchResponseMetrics;
 
     @Inject
     public TransportSearchScrollAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        SearchTransportService searchTransportService
+        SearchTransportService searchTransportService,
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchScrollRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
+        this.searchResponseMetrics = searchResponseMetrics;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        ActionListener<SearchResponse> loggingListener = listener.delegateFailureAndWrap((l, searchResponse) -> {
+        ActionListener<SearchResponse> loggingAndMetrics = listener.delegateFailureAndWrap((l, searchResponse) -> {
+            searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
             if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
                 ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
                 for (ShardOperationFailedException f : groupedFailures) {
@@ -69,7 +79,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     request,
                     (SearchTask) task,
                     scrollId,
-                    loggingListener
+                    loggingAndMetrics
                 );
                 case QUERY_AND_FETCH_TYPE -> // TODO can we get rid of this?
                     new SearchScrollQueryAndFetchAsyncAction(
@@ -79,7 +89,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        loggingListener
+                        loggingAndMetrics
                     );
                 default -> throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             };

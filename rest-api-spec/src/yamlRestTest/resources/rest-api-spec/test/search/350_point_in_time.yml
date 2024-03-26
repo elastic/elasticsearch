@@ -23,6 +23,10 @@ setup:
   - do:
       indices.create:
         index:  test2
+        body:
+          settings:
+            index:
+              number_of_shards: 2
 
   - do:
       index:

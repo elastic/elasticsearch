@@ -12,12 +12,11 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -35,7 +34,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 /**
  * {code left(foo, len)} is an alias to {code substring(foo, 0, len)}
  */
-public class Left extends ScalarFunction implements EvaluatorMapper {
+public class Left extends EsqlScalarFunction {
 
     private final Source source;
 
@@ -45,12 +44,13 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Return the substring that extracts length chars from the string starting from the left."
+        description = "Returns the substring that extracts 'length' chars from 'string' starting from the left.",
+        examples = { @Example(file = "string", tag = "left") }
     )
     public Left(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }) Expression str,
-        @Param(name = "length", type = { "integer" }) Expression length
+        @Param(name = "string", type = { "keyword", "text" }, description = "The string from which to return a substring.") Expression str,
+        @Param(name = "length", type = { "integer" }, description = "The number of characters to return.") Expression length
     ) {
         super(source, Arrays.asList(str, length));
         this.source = source;
@@ -124,15 +124,5 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
     @Override
     public boolean foldable() {
         return str.foldable() && length.foldable();
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException();
     }
 }

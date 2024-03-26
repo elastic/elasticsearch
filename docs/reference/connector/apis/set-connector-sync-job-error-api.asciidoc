@@ -4,6 +4,8 @@
 <titleabbrev>Set connector sync job error</titleabbrev>
 ++++
 
+preview::[]
+
 Sets a connector sync job error.
 
 [[set-connector-sync-job-error-api-request]]

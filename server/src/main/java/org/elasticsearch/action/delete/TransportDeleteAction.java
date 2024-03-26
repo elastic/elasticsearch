@@ -24,7 +24,7 @@ import org.elasticsearch.transport.TransportService;
 public class TransportDeleteAction extends TransportSingleItemBulkWriteAction<DeleteRequest, DeleteResponse> {
 
     public static final String NAME = "indices:data/write/delete";
-    public static final ActionType<DeleteResponse> TYPE = new ActionType<>(NAME, DeleteResponse::new);
+    public static final ActionType<DeleteResponse> TYPE = new ActionType<>(NAME);
 
     @Inject
     public TransportDeleteAction(TransportService transportService, ActionFilters actionFilters, TransportBulkAction bulkAction) {

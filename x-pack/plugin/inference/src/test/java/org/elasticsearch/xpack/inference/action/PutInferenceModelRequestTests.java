@@ -22,7 +22,7 @@ public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCa
     @Override
     protected PutInferenceModelAction.Request createTestInstance() {
         return new PutInferenceModelAction.Request(
-            randomFrom(TaskType.values()).toString(),
+            randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
             randomBytesReference(50),
             randomFrom(XContentType.values())
@@ -33,26 +33,26 @@ public class PutInferenceModelRequestTests extends AbstractWireSerializingTestCa
     protected PutInferenceModelAction.Request mutateInstance(PutInferenceModelAction.Request instance) {
         return switch (randomIntBetween(0, 3)) {
             case 0 -> new PutInferenceModelAction.Request(
-                TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length].toString(),
-                instance.getModelId(),
+                TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length],
+                instance.getInferenceEntityId(),
                 instance.getContent(),
                 instance.getContentType()
             );
             case 1 -> new PutInferenceModelAction.Request(
-                instance.getTaskType().toString(),
-                instance.getModelId() + "foo",
+                instance.getTaskType(),
+                instance.getInferenceEntityId() + "foo",
                 instance.getContent(),
                 instance.getContentType()
             );
             case 2 -> new PutInferenceModelAction.Request(
-                instance.getTaskType().toString(),
-                instance.getModelId(),
+                instance.getTaskType(),
+                instance.getInferenceEntityId(),
                 randomBytesReference(instance.getContent().length() + 1),
                 instance.getContentType()
             );
             case 3 -> new PutInferenceModelAction.Request(
-                instance.getTaskType().toString(),
-                instance.getModelId(),
+                instance.getTaskType(),
+                instance.getInferenceEntityId(),
                 instance.getContent(),
                 XContentType.values()[(instance.getContentType().ordinal() + 1) % XContentType.values().length]
             );

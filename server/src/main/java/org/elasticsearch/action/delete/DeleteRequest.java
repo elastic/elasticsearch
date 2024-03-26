@@ -232,6 +232,11 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
+    public boolean isRequireDataStream() {
+        return false;
+    }
+
+    @Override
     public void process(IndexRouting indexRouting) {
         // Nothing to do
     }

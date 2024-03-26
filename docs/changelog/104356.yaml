@@ -1,0 +1,5 @@
+pr: 104356
+summary: "[Profiling] Extract properties faster from source"
+area: Application
+type: enhancement
+issues: []

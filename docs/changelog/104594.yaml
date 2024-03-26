@@ -1,0 +1,5 @@
+pr: 104594
+summary: Support of `match` for the Query API Key API
+area: Authentication
+type: enhancement
+issues: []

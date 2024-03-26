@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
@@ -63,6 +62,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
@@ -304,7 +304,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 }
                 String nodeId = randomFrom(availableNodeIds);
                 availableNodeIds.remove(nodeId);
-                indexShard.addShard(TestShardRouting.newShardRouting(index, i, nodeId, null, j == 0, newState, unassignedInfo));
+                indexShard.addShard(shardRoutingBuilder(index, i, nodeId, j == 0, newState).withUnassignedInfo(unassignedInfo).build());
             }
             builder.addIndexShard(indexShard);
         }

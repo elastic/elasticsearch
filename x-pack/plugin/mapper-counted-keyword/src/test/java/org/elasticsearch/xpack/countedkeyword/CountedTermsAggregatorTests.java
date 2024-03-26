@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.xcontent.XContentParser;

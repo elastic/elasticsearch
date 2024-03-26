@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -34,7 +35,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        .plugin("org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin")
+        .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();
 
@@ -49,23 +50,89 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    static String mockServiceModelConfig() {
-        return """
+    static String mockSparseServiceModelConfig() {
+        return mockSparseServiceModelConfig(null);
+    }
+
+    static String mockSparseServiceModelConfig(@Nullable TaskType taskTypeInBody) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
             {
+              %s
               "service": "test_service",
               "service_settings": {
                 "model": "my_model",
+                "hidden_field": "my_hidden_value",
                 "api_key": "abc64"
               },
               "task_settings": {
                 "temperature": 3
               }
             }
+            """, taskType);
+    }
+
+    static String mockSparseServiceModelConfig(@Nullable TaskType taskTypeInBody, boolean shouldReturnHiddenField) {
+        var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
+        return Strings.format("""
+            {
+              %s
+              "service": "test_service",
+              "service_settings": {
+                "model": "my_model",
+                "hidden_field": "my_hidden_value",
+                "should_return_hidden_field": %s,
+                "api_key": "abc64"
+              },
+              "task_settings": {
+                "temperature": 3
+              }
+            }
+            """, taskType, shouldReturnHiddenField);
+    }
+
+    static String mockDenseServiceModelConfig() {
+        return """
+            {
+              "task_type": "text_embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64",
+                "dimensions": 246
+              },
+              "task_settings": {
+              }
+            }
             """;
+    }
+
+    protected void deleteModel(String modelId) throws IOException {
+        var request = new Request("DELETE", "_inference/" + modelId);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+    }
+
+    protected void deleteModel(String modelId, TaskType taskType) throws IOException {
+        var request = new Request("DELETE", Strings.format("_inference/%s/%s", taskType, modelId));
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
     }
 
     protected Map<String, Object> putModel(String modelId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        return putModelInternal(endpoint, modelConfig);
+    }
+
+    /**
+     * Task type should be in modelConfig
+     */
+    protected Map<String, Object> putModel(String modelId, String modelConfig) throws IOException {
+        String endpoint = Strings.format("_inference/%s", modelId);
+        return putModelInternal(endpoint, modelConfig);
+    }
+
+    private Map<String, Object> putModelInternal(String endpoint, String modelConfig) throws IOException {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
         var response = client().performRequest(request);
@@ -73,24 +140,64 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
-    protected Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
-        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
-        var request = new Request("GET", endpoint);
+    protected Map<String, Object> putE5TrainedModels() throws IOException {
+        var request = new Request("PUT", "_ml/trained_models/.multilingual-e5-small?wait_for_completion=true");
+
+        String body = """
+                {
+                    "input": {
+                    "field_names": ["text_field"]
+                    }
+                }
+            """;
+
+        request.setJsonEntity(body);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);
+    }
+
+    protected Map<String, Object> deployE5TrainedModels() throws IOException {
+        var request = new Request("POST", "_ml/trained_models/.multilingual-e5-small/deployment/_start?wait_for=fully_allocated");
+
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
+    }
+
+    protected Map<String, Object> getModel(String modelId) throws IOException {
+        var endpoint = Strings.format("_inference/%s", modelId);
+        return getAllModelInternal(endpoint);
+    }
+
+    protected Map<String, Object> getModels(String modelId, TaskType taskType) throws IOException {
+        var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        return getAllModelInternal(endpoint);
     }
 
     protected Map<String, Object> getAllModels() throws IOException {
         var endpoint = Strings.format("_inference/_all");
+        return getAllModelInternal("_inference/_all");
+    }
+
+    private Map<String, Object> getAllModelInternal(String endpoint) throws IOException {
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);
     }
 
+    protected Map<String, Object> inferOnMockService(String modelId, List<String> input) throws IOException {
+        var endpoint = Strings.format("_inference/%s", modelId);
+        return inferOnMockServiceInternal(endpoint, input);
+    }
+
     protected Map<String, Object> inferOnMockService(String modelId, TaskType taskType, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, modelId);
+        return inferOnMockServiceInternal(endpoint, input);
+    }
+
+    private Map<String, Object> inferOnMockServiceInternal(String endpoint, List<String> input) throws IOException {
         var request = new Request("POST", endpoint);
 
         var bodyBuilder = new StringBuilder("{\"input\": [");
@@ -109,11 +216,16 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
-        if (taskType == TaskType.SPARSE_EMBEDDING) {
-            var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
-            assertThat(results, hasSize(expectedNumberOfResults));
-        } else {
-            fail("test with task type [" + taskType + "] are not supported yet");
+        switch (taskType) {
+            case SPARSE_EMBEDDING -> {
+                var results = (List<Map<String, Object>>) resultMap.get(TaskType.SPARSE_EMBEDDING.toString());
+                assertThat(results, hasSize(expectedNumberOfResults));
+            }
+            case TEXT_EMBEDDING -> {
+                var results = (List<Map<String, Object>>) resultMap.get(TaskType.TEXT_EMBEDDING.toString());
+                assertThat(results, hasSize(expectedNumberOfResults));
+            }
+            default -> fail("test with task type [" + taskType + "] are not supported yet");
         }
     }
 
@@ -127,5 +239,13 @@ public class InferenceBaseRestTest extends ESRestTestCase {
 
         String responseStr = EntityUtils.toString(response.getEntity());
         assertThat(responseStr, response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    protected Map<String, Object> getTrainedModel(String inferenceEntityId) throws IOException {
+        var endpoint = Strings.format("_ml/trained_models/%s/_stats", inferenceEntityId);
+        var request = new Request("GET", endpoint);
+        var response = client().performRequest(request);
+        assertOkOrCreated(response);
+        return entityAsMap(response);
     }
 }

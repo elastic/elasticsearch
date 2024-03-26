@@ -1,5 +1,0 @@
-pr: 99445
-summary: Make cosine similarity faster by storing magnitude and normalizing vectors
-area: Vector Search
-type: enhancement
-issues: []

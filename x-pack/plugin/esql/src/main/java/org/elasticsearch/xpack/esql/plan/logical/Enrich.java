@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
@@ -29,8 +29,9 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 public class Enrich extends UnaryPlan {
     private final Expression policyName;
     private final NamedExpression matchField;
-    private final EnrichPolicyResolution policy;
-    private List<NamedExpression> enrichFields;
+    private final EnrichPolicy policy;
+    private final Map<String, String> concreteIndices; // cluster -> enrich indices
+    private final List<NamedExpression> enrichFields;
     private List<Attribute> output;
 
     private final Mode mode;
@@ -61,7 +62,8 @@ public class Enrich extends UnaryPlan {
         Mode mode,
         Expression policyName,
         NamedExpression matchField,
-        EnrichPolicyResolution policy,
+        EnrichPolicy policy,
+        Map<String, String> concreteIndices,
         List<NamedExpression> enrichFields
     ) {
         super(source, child);
@@ -69,6 +71,7 @@ public class Enrich extends UnaryPlan {
         this.policyName = policyName;
         this.matchField = matchField;
         this.policy = policy;
+        this.concreteIndices = concreteIndices;
         this.enrichFields = enrichFields;
     }
 
@@ -80,8 +83,12 @@ public class Enrich extends UnaryPlan {
         return enrichFields;
     }
 
-    public EnrichPolicyResolution policy() {
+    public EnrichPolicy policy() {
         return policy;
+    }
+
+    public Map<String, String> concreteIndices() {
+        return concreteIndices;
     }
 
     public Expression policyName() {
@@ -102,12 +109,12 @@ public class Enrich extends UnaryPlan {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Enrich(source(), newChild, mode, policyName, matchField, policy, enrichFields);
+        return new Enrich(source(), newChild, mode, policyName, matchField, policy, concreteIndices, enrichFields);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Enrich::new, child(), mode, policyName, matchField, policy, enrichFields);
+        return NodeInfo.create(this, Enrich::new, child(), mode, policyName, matchField, policy, concreteIndices, enrichFields);
     }
 
     @Override
@@ -131,11 +138,12 @@ public class Enrich extends UnaryPlan {
             && Objects.equals(policyName, enrich.policyName)
             && Objects.equals(matchField, enrich.matchField)
             && Objects.equals(policy, enrich.policy)
+            && Objects.equals(concreteIndices, enrich.concreteIndices)
             && Objects.equals(enrichFields, enrich.enrichFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), mode, policyName, matchField, policy, enrichFields);
+        return Objects.hash(super.hashCode(), mode, policyName, matchField, policy, concreteIndices, enrichFields);
     }
 }

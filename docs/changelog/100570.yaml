@@ -1,5 +1,0 @@
-pr: 100570
-summary: Added metric for cache eviction of entries with non zero frequency
-area: Search
-type: enhancement
-issues: []

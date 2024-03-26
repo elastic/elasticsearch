@@ -1,0 +1,5 @@
+pr: 105458
+summary: The OpenAI model parameter should be in service settings not task settings. Move the configuration field to service settings
+area: Machine Learning
+type: bug
+issues: []

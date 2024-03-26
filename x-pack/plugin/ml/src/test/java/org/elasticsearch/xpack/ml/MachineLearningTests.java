@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESTestCase;
@@ -223,19 +222,19 @@ public class MachineLearningTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false, false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
-            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null);
+            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, hasItem(instanceOf(RestGetJobsAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetTrainedModelsAction.class))));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetDataFrameAnalyticsAction.class))));
             assertThat(restHandlers, not(hasItem(instanceOf(RestStartTrainedModelDeploymentAction.class))));
-            List<?> actions = machineLearning.getActions().stream().map(ActionPlugin.ActionHandler::getAction).toList();
-            assertThat(actions, hasItem(instanceOf(XPackUsageFeatureAction.class)));
-            assertThat(actions, hasItem(instanceOf(MlInfoAction.class)));
-            assertThat(actions, hasItem(instanceOf(GetJobsAction.class)));
-            assertThat(actions, not(hasItem(instanceOf(GetTrainedModelsAction.class))));
-            assertThat(actions, not(hasItem(instanceOf(GetDataFrameAnalyticsAction.class))));
-            assertThat(actions, not(hasItem(instanceOf(StartTrainedModelDeploymentAction.class))));
+            List<Object> actions = machineLearning.getActions().stream().map(h -> (Object) h.getAction()).toList();
+            assertThat(actions, hasItem(XPackUsageFeatureAction.MACHINE_LEARNING));
+            assertThat(actions, hasItem(MlInfoAction.INSTANCE));
+            assertThat(actions, hasItem(GetJobsAction.INSTANCE));
+            assertThat(actions, not(hasItem(GetTrainedModelsAction.INSTANCE)));
+            assertThat(actions, not(hasItem(GetDataFrameAnalyticsAction.INSTANCE)));
+            assertThat(actions, not(hasItem(StartTrainedModelDeploymentAction.INSTANCE)));
         }
     }
 
@@ -243,19 +242,19 @@ public class MachineLearningTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false, false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
-            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null);
+            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
             assertThat(restHandlers, hasItem(instanceOf(RestGetTrainedModelsAction.class)));
             assertThat(restHandlers, hasItem(instanceOf(RestGetDataFrameAnalyticsAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestStartTrainedModelDeploymentAction.class))));
-            List<?> actions = machineLearning.getActions().stream().map(ActionPlugin.ActionHandler::getAction).toList();
-            assertThat(actions, hasItem(instanceOf(XPackUsageFeatureAction.class)));
-            assertThat(actions, hasItem(instanceOf(MlInfoAction.class)));
-            assertThat(actions, not(hasItem(instanceOf(GetJobsAction.class))));
-            assertThat(actions, hasItem(instanceOf(GetTrainedModelsAction.class)));
-            assertThat(actions, hasItem(instanceOf(GetDataFrameAnalyticsAction.class)));
-            assertThat(actions, not(hasItem(instanceOf(StartTrainedModelDeploymentAction.class))));
+            List<Object> actions = machineLearning.getActions().stream().map(h -> (Object) h.getAction()).toList();
+            assertThat(actions, hasItem(XPackUsageFeatureAction.MACHINE_LEARNING));
+            assertThat(actions, hasItem(MlInfoAction.INSTANCE));
+            assertThat(actions, not(hasItem(GetJobsAction.INSTANCE)));
+            assertThat(actions, hasItem(GetTrainedModelsAction.INSTANCE));
+            assertThat(actions, hasItem(GetDataFrameAnalyticsAction.INSTANCE));
+            assertThat(actions, not(hasItem(StartTrainedModelDeploymentAction.INSTANCE)));
         }
     }
 
@@ -263,19 +262,19 @@ public class MachineLearningTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true, false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
-            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null);
+            List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetJobsAction.class))));
             assertThat(restHandlers, hasItem(instanceOf(RestGetTrainedModelsAction.class)));
             assertThat(restHandlers, not(hasItem(instanceOf(RestGetDataFrameAnalyticsAction.class))));
             assertThat(restHandlers, hasItem(instanceOf(RestStartTrainedModelDeploymentAction.class)));
-            List<?> actions = machineLearning.getActions().stream().map(ActionPlugin.ActionHandler::getAction).toList();
-            assertThat(actions, hasItem(instanceOf(XPackUsageFeatureAction.class)));
-            assertThat(actions, hasItem(instanceOf(MlInfoAction.class)));
-            assertThat(actions, not(hasItem(instanceOf(GetJobsAction.class))));
-            assertThat(actions, hasItem(instanceOf(GetTrainedModelsAction.class)));
-            assertThat(actions, not(hasItem(instanceOf(GetDataFrameAnalyticsAction.class))));
-            assertThat(actions, hasItem(instanceOf(StartTrainedModelDeploymentAction.class)));
+            List<Object> actions = machineLearning.getActions().stream().map(h -> (Object) h.getAction()).toList();
+            assertThat(actions, hasItem(XPackUsageFeatureAction.MACHINE_LEARNING));
+            assertThat(actions, hasItem(MlInfoAction.INSTANCE));
+            assertThat(actions, not(hasItem(GetJobsAction.INSTANCE)));
+            assertThat(actions, hasItem(GetTrainedModelsAction.INSTANCE));
+            assertThat(actions, not(hasItem(GetDataFrameAnalyticsAction.INSTANCE)));
+            assertThat(actions, hasItem(StartTrainedModelDeploymentAction.INSTANCE));
         }
     }
 

@@ -58,7 +58,7 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        // If this test is running in a test frameowrk that handles its own authorization, we don't want to overwrite it.
+        // If this test is running in a test framework that handles its own authorization, we don't want to overwrite it.
         if (super.restClientSettings().keySet().contains(ThreadContext.PREFIX + ".Authorization")) {
             return super.restClientSettings();
         } else {

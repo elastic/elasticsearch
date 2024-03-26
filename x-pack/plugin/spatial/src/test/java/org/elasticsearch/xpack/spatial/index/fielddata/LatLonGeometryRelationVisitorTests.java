@@ -26,6 +26,9 @@ import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.lucene.spatial.Component2DVisitor;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 

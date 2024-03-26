@@ -20,7 +20,7 @@ public class SqlTestCluster {
             .setting("xpack.watcher.enabled", "false")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            .plugin(":x-pack:qa:freeze-plugin")
+            .plugin("freeze-plugin")
             .build();
     }
 }

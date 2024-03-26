@@ -1,5 +1,0 @@
-pr: 102727
-summary: "ESQL: Load stored fields sequentially"
-area: ES|QL
-type: enhancement
-issues: []

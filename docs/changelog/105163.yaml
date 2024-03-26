@@ -1,0 +1,5 @@
+pr: 105163
+summary: Add stable `ThreadPool` constructor to `LogstashInternalBridge`
+area: Ingest Node
+type: bug
+issues: []

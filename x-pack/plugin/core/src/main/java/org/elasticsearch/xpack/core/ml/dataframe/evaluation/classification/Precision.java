@@ -16,8 +16,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
@@ -140,7 +140,7 @@ public class Precision implements EvaluationMetric {
     }
 
     @Override
-    public void process(Aggregations aggs) {
+    public void process(InternalAggregations aggs) {
         final Aggregation classNamesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
         if (topActualClassNames.get() == null && classNamesAgg instanceof Terms topActualClassesAgg) {
             if (topActualClassesAgg.getSumOfOtherDocCounts() > 0) {

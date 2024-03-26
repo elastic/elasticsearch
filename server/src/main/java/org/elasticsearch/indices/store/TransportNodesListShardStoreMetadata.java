@@ -64,7 +64,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     private static final Logger logger = LogManager.getLogger(TransportNodesListShardStoreMetadata.class);
 
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
-    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, Writeable.Reader.localOnly());
+    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Settings settings;
     private final IndicesService indicesService;

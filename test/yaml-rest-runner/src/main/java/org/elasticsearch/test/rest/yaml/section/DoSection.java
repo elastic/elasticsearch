@@ -10,6 +10,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
 import org.elasticsearch.client.Node;
@@ -50,7 +51,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.elasticsearch.test.rest.yaml.section.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -86,6 +87,16 @@ import static org.junit.Assert.fail;
  */
 public class DoSection implements ExecutableSection {
     public static DoSection parse(XContentParser parser) throws IOException {
+        return parse(parser, false);
+    }
+
+    @UpdateForV9
+    @Deprecated
+    public static DoSection parseWithLegacyNodeSelectorSupport(XContentParser parser) throws IOException {
+        return parse(parser, true);
+    }
+
+    private static DoSection parse(XContentParser parser, boolean enableLegacyNodeSelectorSupport) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
 
@@ -175,7 +186,7 @@ public class DoSection implements ExecutableSection {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             selectorName = parser.currentName();
                         } else {
-                            NodeSelector newSelector = buildNodeSelector(selectorName, parser);
+                            NodeSelector newSelector = buildNodeSelector(selectorName, parser, enableLegacyNodeSelectorSupport);
                             nodeSelector = nodeSelector == NodeSelector.ANY
                                 ? newSelector
                                 : new ComposeNodeSelector(nodeSelector, newSelector);
@@ -343,7 +354,6 @@ public class DoSection implements ExecutableSection {
 
     @Override
     public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
-
         if ("param".equals(catchParam)) {
             // client should throw validation error before sending request
             // lets just return without doing anything as we don't have any client to test here
@@ -359,17 +369,7 @@ public class DoSection implements ExecutableSection {
                 apiCallSection.getHeaders(),
                 apiCallSection.getNodeSelector()
             );
-            if (Strings.hasLength(catchParam)) {
-                String catchStatusCode;
-                if (CATCHES.containsKey(catchParam)) {
-                    catchStatusCode = CATCHES.get(catchParam).v1();
-                } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
-                    catchStatusCode = "4xx|5xx";
-                } else {
-                    throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
-                }
-                fail(formatStatusCodeMessage(response, catchStatusCode));
-            }
+            failIfHasCatch(response);
             final String testPath = executionContext.getClientYamlTestCandidate() != null
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
@@ -393,27 +393,23 @@ public class DoSection implements ExecutableSection {
             }
             checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch (ClientYamlTestResponseException e) {
-            ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
-            if (Strings.hasLength(catchParam) == false) {
-                fail(formatStatusCodeMessage(restTestResponse, "2xx"));
-            } else if (CATCHES.containsKey(catchParam)) {
-                assertStatusCode(restTestResponse);
-            } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
-                // the text of the error message matches regular expression
-                assertThat(
-                    formatStatusCodeMessage(restTestResponse, "4xx|5xx"),
-                    e.getResponseException().getResponse().getStatusLine().getStatusCode(),
-                    greaterThanOrEqualTo(400)
-                );
-                Object error = executionContext.response("error");
-                assertThat("error was expected in the response", error, notNullValue());
-                // remove delimiters from regex
-                String regex = catchParam.substring(1, catchParam.length() - 1);
-                assertThat("the error message was expected to match the provided regex but didn't", error.toString(), matches(regex));
-            } else {
-                throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
-            }
+            checkResponseException(e, executionContext);
         }
+    }
+
+    public void failIfHasCatch(ClientYamlTestResponse response) {
+        if (Strings.hasLength(catchParam) == false) {
+            return;
+        }
+        String catchStatusCode;
+        if (CATCHES.containsKey(catchParam)) {
+            catchStatusCode = CATCHES.get(catchParam).v1();
+        } else if (catchParam.startsWith("/") && catchParam.endsWith("/")) {
+            catchStatusCode = "4xx|5xx";
+        } else {
+            throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
+        }
+        fail(formatStatusCodeMessage(response, catchStatusCode));
     }
 
     void checkElasticProductHeader(final List<String> productHeaders) {
@@ -448,7 +444,7 @@ public class DoSection implements ExecutableSection {
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
+    public void checkWarningHeaders(final List<String> warningHeaders, String testPath) {
         final List<String> unexpected = new ArrayList<>();
         final List<String> unmatched = new ArrayList<>();
         final List<String> missing = new ArrayList<>();
@@ -536,6 +532,31 @@ public class DoSection implements ExecutableSection {
         }
     }
 
+    public void checkResponseException(ClientYamlTestResponseException e, ClientYamlTestExecutionContext executionContext)
+        throws IOException {
+
+        ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
+        if (Strings.hasLength(catchParam) == false) {
+            fail(formatStatusCodeMessage(restTestResponse, "2xx"));
+        } else if (CATCHES.containsKey(catchParam)) {
+            assertStatusCode(restTestResponse);
+        } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
+            // the text of the error message matches regular expression
+            assertThat(
+                formatStatusCodeMessage(restTestResponse, "4xx|5xx"),
+                e.getResponseException().getResponse().getStatusLine().getStatusCode(),
+                greaterThanOrEqualTo(400)
+            );
+            Object error = executionContext.response("error");
+            assertThat("error was expected in the response", error, notNullValue());
+            // remove delimiters from regex
+            String regex = catchParam.substring(1, catchParam.length() - 1);
+            assertThat("the error message was expected to match the provided regex but didn't", error.toString(), matches(regex));
+        } else {
+            throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
+        }
+    }
+
     private static void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {
         if (headers.isEmpty() == false) {
             sb.append(message).append(" [\n");
@@ -600,10 +621,11 @@ public class DoSection implements ExecutableSection {
         )
     );
 
-    private static NodeSelector buildNodeSelector(String name, XContentParser parser) throws IOException {
+    private static NodeSelector buildNodeSelector(String name, XContentParser parser, boolean enableLegacyVersionSupport)
+        throws IOException {
         return switch (name) {
             case "attribute" -> parseAttributeValuesSelector(parser);
-            case "version" -> parseVersionSelector(parser);
+            case "version" -> parseVersionSelector(parser, enableLegacyVersionSupport);
             default -> throw new XContentParseException(parser.getTokenLocation(), "unknown node_selector [" + name + "]");
         };
     }
@@ -668,14 +690,31 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private static NodeSelector parseVersionSelector(XContentParser parser) throws IOException {
+    private static NodeSelector parseVersionSelector(XContentParser parser, boolean enableLegacyVersionSupport) throws IOException {
         if (false == parser.currentToken().isValue()) {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
 
-        var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
-        final Predicate<String> nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
-        final String versionSelectorString = "version ranges " + acceptedVersionRange;
+        final Predicate<String> nodeMatcher;
+        final String versionSelectorString;
+        if (parser.text().equals("current")) {
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
+            versionSelectorString = "version is " + Build.current().version() + " (current)";
+        } else if (parser.text().equals("original")) {
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion) == false;
+            versionSelectorString = "version is not current (original)";
+        } else {
+            if (enableLegacyVersionSupport) {
+                var acceptedVersionRange = VersionRange.parseVersionRanges(parser.text());
+                nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());
+                versionSelectorString = "version ranges " + acceptedVersionRange;
+            } else {
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "unknown version selector [" + parser.text() + "]. Only [current] and [original] are allowed."
+                );
+            }
+        }
 
         return new NodeSelector() {
             @Override

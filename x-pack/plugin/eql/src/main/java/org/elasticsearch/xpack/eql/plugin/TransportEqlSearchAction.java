@@ -210,7 +210,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                         r -> listener.onResponse(qualifyHits(r, clusterAlias)),
                         e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
                     ),
-                    EqlSearchAction.INSTANCE.getResponseReader(),
+                    EqlSearchResponse::new,
                     TransportResponseHandler.TRANSPORT_WORKER
                 )
             );

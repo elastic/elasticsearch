@@ -195,7 +195,8 @@ public class NodeService implements Closeable {
             adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressure.stats() : null,
-            repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null
+            repositoriesStats ? this.repositoriesService.getRepositoriesThrottlingStats() : null,
+            null
         );
     }
 

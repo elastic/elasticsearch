@@ -293,9 +293,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         TimeValue timeout,
         TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
+        boolean chunkResponse,
         ActionListener<InferenceResults> listener
     ) {
-        deploymentManager.infer(task, config, input, skipQueue, timeout, prefixType, parentActionTask, listener);
+        deploymentManager.infer(task, config, input, skipQueue, timeout, prefixType, parentActionTask, chunkResponse, listener);
     }
 
     public Optional<ModelStats> modelStats(TrainedModelDeploymentTask task) {

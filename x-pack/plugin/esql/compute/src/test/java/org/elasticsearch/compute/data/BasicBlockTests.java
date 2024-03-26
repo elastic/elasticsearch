@@ -899,6 +899,12 @@ public class BasicBlockTests extends ESTestCase {
             boolean bytesRefFromPoints = randomBoolean();
             Supplier<Point> pointSupplier = randomBoolean() ? GeometryTestUtils::randomPoint : ShapeTestUtils::randomPoint;
             for (int p = 0; p < positionCount; p++) {
+                if (elementType == ElementType.NULL) {
+                    assert nullAllowed;
+                    values.add(null);
+                    builder.appendNull();
+                    continue;
+                }
                 int valueCount = between(minValuesPerPosition, maxValuesPerPosition);
                 if (valueCount == 0 || nullAllowed && randomBoolean()) {
                     values.add(null);

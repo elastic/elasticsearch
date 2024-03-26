@@ -167,28 +167,23 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             }
         );
 
-        ActionListener<PutJobAction.Response> markAsDeletingListener = finalListener.delegateFailureAndWrap((delegate, response) -> {
-            if (request.isForce()) {
-                forceDeleteJob(parentTaskClient, request, state, delegate);
-            } else {
-                normalDeleteJob(parentTaskClient, request, state, delegate);
+        ActionListener<AcknowledgedResponse> datafeedDeleteListener = finalListener.<PutJobAction.Response>delegateFailureAndWrap(
+            (delegate, response) -> {
+                if (request.isForce()) {
+                    forceDeleteJob(parentTaskClient, request, state, delegate);
+                } else {
+                    normalDeleteJob(parentTaskClient, request, state, delegate);
+                }
             }
-        });
-
-        ActionListener<AcknowledgedResponse> datafeedDeleteListener = ActionListener.wrap(response -> {
+        ).delegateFailureAndWrap((delegate, response) -> {
             auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
             cancelResetTaskIfExists(
                 request.getJobId(),
-                ActionListener.wrap(
-                    r -> jobConfigProvider.updateJobBlockReason(
-                        request.getJobId(),
-                        new Blocked(Blocked.Reason.DELETE, taskId),
-                        markAsDeletingListener
-                    ),
-                    finalListener::onFailure
+                delegate.delegateFailureAndWrap(
+                    (l, r) -> jobConfigProvider.updateJobBlockReason(request.getJobId(), new Blocked(Blocked.Reason.DELETE, taskId), l)
                 )
             );
-        }, finalListener::onFailure);
+        });
 
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             response -> deleteDatafeedIfNecessary(request, datafeedDeleteListener),
@@ -296,7 +291,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
-            persistentTasksService.sendRemoveRequest(jobTask.getId(), listener.safeMap(task -> true));
+            persistentTasksService.sendRemoveRequest(jobTask.getId(), null, listener.safeMap(task -> true));
         }
     }
 

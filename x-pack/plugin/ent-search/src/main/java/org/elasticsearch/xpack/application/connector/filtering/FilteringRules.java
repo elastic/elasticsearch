@@ -57,6 +57,18 @@ public class FilteringRules implements Writeable, ToXContentObject {
         this.filteringValidationInfo = new FilteringValidationInfo(in);
     }
 
+    public FilteringAdvancedSnippet getAdvancedSnippet() {
+        return advancedSnippet;
+    }
+
+    public List<FilteringRule> getRules() {
+        return rules;
+    }
+
+    public FilteringValidationInfo getFilteringValidationInfo() {
+        return filteringValidationInfo;
+    }
+
     private static final ParseField ADVANCED_SNIPPET_FIELD = new ParseField("advanced_snippet");
     private static final ParseField RULES_FIELD = new ParseField("rules");
     private static final ParseField VALIDATION_FIELD = new ParseField("validation");

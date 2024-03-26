@@ -124,7 +124,7 @@ public class IndexingStateProcessorTests extends ESTestCase {
 
     public void testStateRead_StateDocumentUpdated() throws IOException {
         testStateRead(
-            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
+            SearchHits.unpooled(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
             ".ml-state-dummy"
         );
     }

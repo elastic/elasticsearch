@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.UUIDs;
@@ -35,6 +34,7 @@ import java.util.function.IntFunction;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -498,14 +498,9 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             indexRoutingTableBuilder.addShard(
-                TestShardRouting.newShardRouting(
-                    new ShardId(indexId, shardId),
-                    assignmentFunction.apply(shardId),
-                    null,
-                    true,
-                    ShardRoutingState.STARTED,
-                    AllocationId.newInitializing(inSyncIds.get(shardId))
-                )
+                shardRoutingBuilder(new ShardId(indexId, shardId), assignmentFunction.apply(shardId), true, ShardRoutingState.STARTED)
+                    .withAllocationId(AllocationId.newInitializing(inSyncIds.get(shardId)))
+                    .build()
             );
         }
 

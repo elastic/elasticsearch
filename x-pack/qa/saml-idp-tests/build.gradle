@@ -5,8 +5,8 @@ dependencies {
   javaRestTestImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
   javaRestTestImplementation "com.google.guava:guava:${versions.jimfs_guava}"
   javaRestTestImplementation project(":x-pack:test:idp-fixture")
+  javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }
-
 
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()

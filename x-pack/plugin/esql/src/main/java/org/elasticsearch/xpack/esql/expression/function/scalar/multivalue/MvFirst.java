@@ -37,9 +37,11 @@ public class MvFirst extends AbstractMultivalueFunction {
         returnType = {
             "boolean",
             "cartesian_point",
+            "cartesian_shape",
             "date",
             "double",
             "geo_point",
+            "geo_shape",
             "integer",
             "ip",
             "keyword",
@@ -52,13 +54,15 @@ public class MvFirst extends AbstractMultivalueFunction {
     public MvFirst(
         Source source,
         @Param(
-            name = "v",
+            name = "field",
             type = {
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
                 "double",
                 "geo_point",
+                "geo_shape",
                 "integer",
                 "ip",
                 "keyword",

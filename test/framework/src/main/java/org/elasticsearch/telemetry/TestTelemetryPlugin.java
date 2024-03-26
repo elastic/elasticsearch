@@ -15,6 +15,7 @@ import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -41,6 +42,10 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
         return meter.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name);
     }
 
+    public List<Measurement> getLongAsyncCounterMeasurement(String name) {
+        return meter.getRecorder().getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, name);
+    }
+
     public List<Measurement> getDoubleUpDownCounterMeasurement(String name) {
         return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
     }
@@ -65,8 +70,16 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
         return meter.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, name);
     }
 
+    public void collect() {
+        meter.getRecorder().collect();
+    }
+
     public void resetMeter() {
         meter.getRecorder().resetCalls();
+    }
+
+    public ArrayList<String> getRegisteredMetrics(InstrumentType instrumentType) {
+        return meter.getRecorder().getRegisteredMetrics(instrumentType);
     }
 
     @Override

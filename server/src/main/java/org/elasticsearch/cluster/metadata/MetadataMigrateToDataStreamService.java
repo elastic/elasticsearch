@@ -113,7 +113,7 @@ public class MetadataMigrateToDataStreamService {
                         } catch (IOException e) {
                             throw new IllegalStateException(e);
                         }
-                    }, request, metadataCreateIndexService, delegate.reroute());
+                    }, request, metadataCreateIndexService, clusterService.getSettings(), delegate.reroute());
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
@@ -132,6 +132,7 @@ public class MetadataMigrateToDataStreamService {
         Function<IndexMetadata, MapperService> mapperSupplier,
         MigrateToDataStreamClusterStateUpdateRequest request,
         MetadataCreateIndexService metadataCreateIndexService,
+        Settings settings,
         ActionListener<Void> listener
     ) throws Exception {
         validateRequest(currentState, request);
@@ -158,6 +159,7 @@ public class MetadataMigrateToDataStreamService {
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);
         return createDataStream(
             metadataCreateIndexService,
+            settings,
             currentState,
             isDslOnlyMode,
             req,

@@ -44,7 +44,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.datastreams.action.DataStreamsActionUtil.getDataStreamNames;
+import static org.elasticsearch.action.datastreams.DataStreamsActionUtil.getDataStreamNames;
 
 public class DeleteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataStreamAction.Request> {
 
@@ -155,6 +155,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             DataStream dataStream = currentState.metadata().dataStreams().get(dataStreamName);
             assert dataStream != null;
             backingIndicesToRemove.addAll(dataStream.getIndices());
+            backingIndicesToRemove.addAll(dataStream.getFailureIndices());
         }
 
         // first delete the data streams and then the indices:

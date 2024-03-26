@@ -13,4 +13,27 @@ import org.elasticsearch.xcontent.ToXContentObject;
 
 public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteable {
 
+    /**
+     * Returns a {@link ToXContentObject} that only writes the exposed fields. Any hidden fields are not written.
+     */
+    ToXContentObject getFilteredXContentObject();
+
+    /**
+     * Similarity used in the service. Will be null if not applicable.
+     *
+     * @return similarity
+     */
+    default SimilarityMeasure similarity() {
+        return null;
+    }
+
+    /**
+     * Number of dimensions the service works with. Will be null if not applicable.
+     *
+     * @return number of dimensions
+     */
+    default Integer dimensions() {
+        return null;
+    }
+
 }

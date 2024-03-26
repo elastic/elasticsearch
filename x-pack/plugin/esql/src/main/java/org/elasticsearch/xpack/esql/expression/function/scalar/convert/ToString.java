@@ -22,8 +22,11 @@ import org.elasticsearch.xpack.versionfield.Version;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -34,7 +37,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
@@ -53,20 +55,24 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
         Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
         Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
-        Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new)
+        Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new),
+        Map.entry(CARTESIAN_SHAPE, ToStringFromCartesianShapeEvaluator.Factory::new),
+        Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new)
     );
 
     @FunctionInfo(returnType = "keyword", description = "Converts a field into a string.")
     public ToString(
         Source source,
         @Param(
-            name = "v",
+            name = "field",
             type = {
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
                 "double",
                 "geo_point",
+                "geo_shape",
                 "integer",
                 "ip",
                 "keyword",
@@ -111,7 +117,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromDatetime")
     static BytesRef fromDatetime(long datetime) {
-        return new BytesRef(UTC_DATE_TIME_FORMATTER.formatMillis(datetime));
+        return new BytesRef(dateTimeToString(datetime));
     }
 
     @ConvertEvaluator(extraName = "FromDouble")
@@ -146,6 +152,16 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @ConvertEvaluator(extraName = "FromCartesianPoint")
     static BytesRef fromCartesianPoint(BytesRef wkb) {
+        return new BytesRef(CARTESIAN.wkbToWkt(wkb));
+    }
+
+    @ConvertEvaluator(extraName = "FromCartesianShape")
+    static BytesRef fromCartesianShape(BytesRef wkb) {
+        return new BytesRef(GEO.wkbToWkt(wkb));
+    }
+
+    @ConvertEvaluator(extraName = "FromGeoShape")
+    static BytesRef fromGeoShape(BytesRef wkb) {
         return new BytesRef(CARTESIAN.wkbToWkt(wkb));
     }
 }

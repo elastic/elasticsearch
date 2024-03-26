@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -28,7 +27,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
     public static final String NAME = "cluster:admin/transform/upgrade";
 
     private UpgradeTransformsAction() {
-        super(NAME, UpgradeTransformsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -43,11 +42,6 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         public Request(boolean dryRun, TimeValue timeout) {
             super(timeout);
             this.dryRun = dryRun;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         public boolean isDryRun() {

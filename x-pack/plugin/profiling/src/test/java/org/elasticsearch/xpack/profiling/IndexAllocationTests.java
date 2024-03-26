@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.UUID;
 
 public class IndexAllocationTests extends ESTestCase {
+    private final Index content = idx("content");
     private final Index hot = idx("hot");
     private final Index warm = idx("warm");
     private final Index cold = idx("cold");
@@ -47,6 +48,10 @@ public class IndexAllocationTests extends ESTestCase {
 
     public void testOtherIndicesNotOnWarmColdTier() {
         assertFalse(IndexAllocation.isAnyOnWarmOrColdTier(clusterState(), List.of(hot, frozen)));
+    }
+
+    public void testIndicesOnContentNodeNotOnWarmColdTier() {
+        assertFalse(IndexAllocation.isAnyOnWarmOrColdTier(clusterState(), List.of(content)));
     }
 
     public void testIndicesOnWarmColdTier() {
@@ -73,6 +78,20 @@ public class IndexAllocationTests extends ESTestCase {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node);
 
+        nodesBuilder.add(
+            DiscoveryNodeUtils.builder("n-" + content.getName())
+                .roles(
+                    Set.of(
+                        // content nodes have all roles
+                        DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+                        DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+                        DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
+                        DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
+                        DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE
+                    )
+                )
+                .build()
+        );
         nodesBuilder.add(DiscoveryNodeUtils.builder("n-" + hot.getName()).roles(Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)).build());
         nodesBuilder.add(DiscoveryNodeUtils.builder("n-" + warm.getName()).roles(Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)).build());
         nodesBuilder.add(DiscoveryNodeUtils.builder("n-" + cold.getName()).roles(Set.of(DiscoveryNodeRole.DATA_COLD_NODE_ROLE)).build());
@@ -82,7 +101,7 @@ public class IndexAllocationTests extends ESTestCase {
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         Map<String, IndexMetadata> indices = new HashMap<>();
-        for (Index index : List.of(hot, warm, cold, frozen)) {
+        for (Index index : List.of(content, hot, warm, cold, frozen)) {
             indices.put(index.getName(), metadata(index));
             ShardRouting shardRouting = ShardRouting.newUnassigned(
                 new ShardId(index, 0),

@@ -51,6 +51,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIF
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -505,15 +506,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * The unassigned meta is kept when a shard goes to INITIALIZING, but cleared when it moves to STARTED.
      */
     public void testStateTransitionMetaHandling() {
-        ShardRouting shard = TestShardRouting.newShardRouting(
-            "test",
-            1,
-            null,
-            null,
-            true,
-            ShardRoutingState.UNASSIGNED,
+        ShardRouting shard = shardRoutingBuilder("test", 1, null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
-        );
+        ).build();
         assertThat(shard.unassignedInfo(), notNullValue());
         shard = shard.initialize("test_node", null, -1);
         assertThat(shard.state(), equalTo(ShardRoutingState.INITIALIZING));

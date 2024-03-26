@@ -211,7 +211,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         return builder;
     }
 
-    void innerToXContent(XContentBuilder builder) throws IOException {
+    public void innerToXContent(XContentBuilder builder) throws IOException {
         builder.array(SEARCH_AFTER.getPreferredName(), sortValues);
     }
 
@@ -277,7 +277,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         if ((other instanceof SearchAfterBuilder) == false) {
             return false;
         }
-        return Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);
+        boolean value = Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);
+        return value;
     }
 
     @Override

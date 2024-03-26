@@ -80,7 +80,7 @@ public class ReplaceTests extends AbstractFunctionTestCase {
             )
         );
 
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.KEYWORD, DataTypes.KEYWORD, DataTypes.KEYWORD), () -> {
+        suppliers.add(new TestCaseSupplier("syntax error", List.of(DataTypes.KEYWORD, DataTypes.KEYWORD, DataTypes.KEYWORD), () -> {
             String text = randomAlphaOfLength(10);
             String invalidRegex = "[";
             String newStr = randomAlphaOfLength(5);
@@ -94,8 +94,16 @@ public class ReplaceTests extends AbstractFunctionTestCase {
                 DataTypes.KEYWORD,
                 equalTo(null)
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.util.regex.PatternSyntaxException: Unclosed character class near index 0\n[\n^")
-                .withFoldingException(PatternSyntaxException.class, "Unclosed character class near index 0\n[\n^");
+                .withWarning(
+                    "Line -1:-1: java.util.regex.PatternSyntaxException: Unclosed character class near index 0\n[\n^".replaceAll(
+                        "\n",
+                        System.lineSeparator()
+                    )
+                )
+                .withFoldingException(
+                    PatternSyntaxException.class,
+                    "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
+                );
         }));
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }

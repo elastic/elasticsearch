@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -51,13 +51,13 @@ public class ForceMergeIT extends ESIntegTestCase {
         assertThat(getForceMergeUUID(primary), nullValue());
         assertThat(getForceMergeUUID(replica), nullValue());
 
-        final ForceMergeResponse forceMergeResponse = indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
+        final BroadcastResponse forceMergeResponse = indicesAdmin().prepareForceMerge(index).setMaxNumSegments(1).get();
 
         assertThat(forceMergeResponse.getFailedShards(), is(0));
         assertThat(forceMergeResponse.getSuccessfulShards(), is(2));
 
         // Force flush to force a new commit that contains the force flush UUID
-        final FlushResponse flushResponse = indicesAdmin().prepareFlush(index).setForce(true).get();
+        final BroadcastResponse flushResponse = indicesAdmin().prepareFlush(index).setForce(true).get();
         assertThat(flushResponse.getFailedShards(), is(0));
         assertThat(flushResponse.getSuccessfulShards(), is(2));
 

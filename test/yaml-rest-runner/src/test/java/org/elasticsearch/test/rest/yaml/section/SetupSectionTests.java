@@ -37,7 +37,7 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         SetupSection setupSection = SetupSection.parse(parser);
 
         assertThat(setupSection, notNullValue());
-        assertThat(setupSection.getSkipSection().isEmpty(), equalTo(true));
+        assertThat(setupSection.getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(setupSection.getExecutableSections().size(), equalTo(2));
         assertThat(setupSection.getExecutableSections().get(0), instanceOf(DoSection.class));
         assertThat(((DoSection) setupSection.getExecutableSections().get(0)).getApiCallSection().getApi(), equalTo("index1"));
@@ -60,7 +60,7 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         final SetupSection setupSection = SetupSection.parse(parser);
 
         assertNotNull(setupSection);
-        assertTrue(setupSection.getSkipSection().isEmpty());
+        assertTrue(setupSection.getPrerequisiteSection().isEmpty());
         assertThat(setupSection.getExecutableSections().size(), equalTo(5));
         assertThat(setupSection.getExecutableSections().get(0), instanceOf(DoSection.class));
         assertThat(((DoSection) setupSection.getExecutableSections().get(0)).getApiCallSection().getApi(), equalTo("cluster.state"));
@@ -105,9 +105,9 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         SetupSection setupSection = SetupSection.parse(parser);
 
         assertThat(setupSection, notNullValue());
-        assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));
-        assertThat(setupSection.getSkipSection(), notNullValue());
-        assertThat(setupSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
+        assertThat(setupSection.getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(setupSection.getPrerequisiteSection(), notNullValue());
+        assertThat(setupSection.getPrerequisiteSection().skipReason, equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(setupSection.getExecutableSections().size(), equalTo(2));
         assertThat(setupSection.getExecutableSections().get(0), instanceOf(DoSection.class));
         assertThat(((DoSection) setupSection.getExecutableSections().get(0)).getApiCallSection().getApi(), equalTo("index1"));

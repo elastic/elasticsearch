@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -24,7 +23,7 @@ public class DeleteForecastAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast/delete";
 
     private DeleteForecastAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -59,11 +58,6 @@ public class DeleteForecastAction extends ActionType<AcknowledgedResponse> {
 
         public void setAllowNoForecasts(boolean allowNoForecasts) {
             this.allowNoForecasts = allowNoForecasts;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

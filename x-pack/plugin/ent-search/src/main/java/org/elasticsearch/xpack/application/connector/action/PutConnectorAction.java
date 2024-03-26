@@ -8,19 +8,17 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -36,21 +34,20 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class PutConnectorAction extends ActionType<PutConnectorAction.Response> {
+public class PutConnectorAction {
 
-    public static final PutConnectorAction INSTANCE = new PutConnectorAction();
-    public static final String NAME = "cluster:admin/xpack/connector/put";
+    public static final String NAME = "indices:data/write/xpack/connector/put";
+    public static final ActionType<PutConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public PutConnectorAction() {
-        super(NAME, PutConnectorAction.Response::new);
-    }
+    private PutConnectorAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements IndicesRequest, ToXContentObject {
 
         private final String connectorId;
 
         @Nullable
         private final String description;
+        @Nullable
         private final String indexName;
         @Nullable
         private final Boolean isNative;
@@ -83,7 +80,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
             super(in);
             this.connectorId = in.readString();
             this.description = in.readOptionalString();
-            this.indexName = in.readString();
+            this.indexName = in.readOptionalString();
             this.isNative = in.readOptionalBoolean();
             this.language = in.readOptionalString();
             this.name = in.readOptionalString();
@@ -106,7 +103,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
 
         static {
             PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-            PARSER.declareString(optionalConstructorArg(), new ParseField("index_name"));
+            PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("index_name"));
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("is_native"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("language"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
@@ -132,7 +129,9 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
                 if (description != null) {
                     builder.field("description", description);
                 }
-                builder.field("index_name", indexName);
+                if (indexName != null) {
+                    builder.field("index_name", indexName);
+                }
                 if (isNative != null) {
                     builder.field("is_native", isNative);
                 }
@@ -158,14 +157,8 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
             if (Strings.isNullOrEmpty(getConnectorId())) {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"]", validationException);
             }
-            if (Strings.isNullOrEmpty(getIndexName())) {
-                validationException = addValidationError("[index_name] cannot be [null] or [\"\"]", validationException);
-            }
-            try {
-                MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);
-            } catch (InvalidIndexNameException e) {
-                validationException = addValidationError(e.toString(), validationException);
-            }
+
+            validationException = validateIndexName(indexName, validationException);
 
             return validationException;
         }
@@ -175,7 +168,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
             super.writeTo(out);
             out.writeString(connectorId);
             out.writeOptionalString(description);
-            out.writeString(indexName);
+            out.writeOptionalString(indexName);
             out.writeOptionalBoolean(isNative);
             out.writeOptionalString(language);
             out.writeOptionalString(name);

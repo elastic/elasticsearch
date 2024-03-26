@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.profiling;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -177,7 +178,17 @@ public class TransportGetStatusAction extends TransportMasterNodeAction<GetStatu
                     listener.onResponse(
                         new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, hasData)
                     );
-                }, listener::onFailure));
+                }, (e) -> {
+                    // no data yet
+                    if (e instanceof SearchPhaseExecutionException) {
+                        log.trace("Has data check has failed.", e);
+                        listener.onResponse(
+                            new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, resourcesCreated, anyPre891Data, false)
+                        );
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }));
             } else {
                 listener.onResponse(new GetStatusAction.Response(pluginEnabled, resourceManagementEnabled, false, anyPre891Data, false));
             }

@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsActi
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
@@ -129,7 +128,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -144,11 +142,9 @@ import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
@@ -179,7 +175,6 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -199,7 +194,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
@@ -275,6 +269,7 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -806,12 +801,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<CancelTasksResponse> cancelTasks(CancelTasksRequest request) {
+        public ActionFuture<ListTasksResponse> cancelTasks(CancelTasksRequest request) {
             return execute(CancelTasksAction.INSTANCE, request);
         }
 
         @Override
-        public void cancelTasks(CancelTasksRequest request, ActionListener<CancelTasksResponse> listener) {
+        public void cancelTasks(CancelTasksRequest request, ActionListener<ListTasksResponse> listener) {
             execute(CancelTasksAction.INSTANCE, request, listener);
         }
 
@@ -1118,7 +1113,7 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<ClearIndicesCacheResponse> clearCache(final ClearIndicesCacheRequest request) {
+        public ActionFuture<BroadcastResponse> clearCache(final ClearIndicesCacheRequest request) {
             return execute(ClearIndicesCacheAction.INSTANCE, request);
         }
 
@@ -1138,7 +1133,7 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void clearCache(final ClearIndicesCacheRequest request, final ActionListener<ClearIndicesCacheResponse> listener) {
+        public void clearCache(final ClearIndicesCacheRequest request, final ActionListener<BroadcastResponse> listener) {
             execute(ClearIndicesCacheAction.INSTANCE, request, listener);
         }
 
@@ -1218,12 +1213,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<FlushResponse> flush(final FlushRequest request) {
+        public ActionFuture<BroadcastResponse> flush(final FlushRequest request) {
             return execute(FlushAction.INSTANCE, request);
         }
 
         @Override
-        public void flush(final FlushRequest request, final ActionListener<FlushResponse> listener) {
+        public void flush(final FlushRequest request, final ActionListener<BroadcastResponse> listener) {
             execute(FlushAction.INSTANCE, request, listener);
         }
 
@@ -1278,12 +1273,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<ForceMergeResponse> forceMerge(final ForceMergeRequest request) {
+        public ActionFuture<BroadcastResponse> forceMerge(final ForceMergeRequest request) {
             return execute(ForceMergeAction.INSTANCE, request);
         }
 
         @Override
-        public void forceMerge(final ForceMergeRequest request, final ActionListener<ForceMergeResponse> listener) {
+        public void forceMerge(final ForceMergeRequest request, final ActionListener<BroadcastResponse> listener) {
             execute(ForceMergeAction.INSTANCE, request, listener);
         }
 
@@ -1293,12 +1288,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<RefreshResponse> refresh(final RefreshRequest request) {
+        public ActionFuture<BroadcastResponse> refresh(final RefreshRequest request) {
             return execute(RefreshAction.INSTANCE, request);
         }
 
         @Override
-        public void refresh(final RefreshRequest request, final ActionListener<RefreshResponse> listener) {
+        public void refresh(final RefreshRequest request, final ActionListener<BroadcastResponse> listener) {
             execute(RefreshAction.INSTANCE, request, listener);
         }
 
@@ -1453,7 +1448,7 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener) {
+        public void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener) {
             execute(ResizeAction.INSTANCE, request, listener);
         }
 

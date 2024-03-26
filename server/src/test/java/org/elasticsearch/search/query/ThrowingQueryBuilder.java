@@ -67,7 +67,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         this.randomUID = in.readLong();
         this.failure = in.readException();
         this.shardId = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             this.index = in.readOptionalString();
         } else {
             this.index = null;
@@ -79,7 +79,7 @@ public class ThrowingQueryBuilder extends AbstractQueryBuilder<ThrowingQueryBuil
         out.writeLong(randomUID);
         out.writeException(failure);
         out.writeVInt(shardId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeOptionalString(index);
         }
     }

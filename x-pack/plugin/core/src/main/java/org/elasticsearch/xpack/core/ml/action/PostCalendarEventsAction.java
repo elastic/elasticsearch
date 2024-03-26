@@ -35,7 +35,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
     public static final ParseField EVENTS = new ParseField("events");
 
     private PostCalendarEventsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

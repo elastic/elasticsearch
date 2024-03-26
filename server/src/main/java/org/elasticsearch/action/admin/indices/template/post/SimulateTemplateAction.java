@@ -31,7 +31,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
     public static final String NAME = "indices:admin/index_template/simulate";
 
     private SimulateTemplateAction() {
-        super(NAME, SimulateIndexTemplateResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -63,7 +63,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super(in);
             templateName = in.readOptionalString();
             indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 includeDefaults = in.readBoolean();
             }
         }
@@ -73,7 +73,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super.writeTo(out);
             out.writeOptionalString(templateName);
             out.writeOptionalWriteable(indexTemplateRequest);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
         }

@@ -13,6 +13,6 @@ public class EqlSearchAction extends ActionType<EqlSearchResponse> {
     public static final String NAME = "indices:data/read/eql";
 
     private EqlSearchAction() {
-        super(NAME, EqlSearchResponse::new);
+        super(NAME);
     }
 }

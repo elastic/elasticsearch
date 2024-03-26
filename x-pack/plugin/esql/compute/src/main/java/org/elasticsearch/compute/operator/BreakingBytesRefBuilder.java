@@ -31,6 +31,16 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
      * @param label the label reported by the breaker when it breaks
      */
     public BreakingBytesRefBuilder(CircuitBreaker breaker, String label) {
+        this(breaker, label, 0);
+    }
+
+    /**
+     * Build.
+     * @param breaker the {@link CircuitBreaker} to check on resize
+     * @param label the label reported by the breaker when it breaks
+     * @param initialCapacity the number of bytes initially allocated
+     */
+    public BreakingBytesRefBuilder(CircuitBreaker breaker, String label, int initialCapacity) {
         /*
          * We initialize BytesRef to a shared empty bytes array as is tradition.
          * It's a good tradition. We don't know how big the thing will ultimately
@@ -41,8 +51,12 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
          * last long so it isn't worth making the accounting more complex to get it
          * perfect. And overcounting in general isn't too bad compared to undercounting.
          */
-        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE + RamUsageEstimator.sizeOf(BytesRef.EMPTY_BYTES), label);
-        this.bytes = new BytesRef();
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE + bytesArrayRamBytesUsed(initialCapacity), label);
+        if (initialCapacity == 0) {
+            this.bytes = new BytesRef();
+        } else {
+            this.bytes = new BytesRef(initialCapacity);
+        }
         this.breaker = breaker;
         this.label = label;
     }
@@ -52,17 +66,15 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
      * {@code capacity}.
      */
     public void grow(int capacity) {
-        int oldLength = bytes.bytes.length;
-        if (oldLength > capacity) {
+        int oldCapacity = bytes.bytes.length;
+        if (oldCapacity > capacity) {
             return;
         }
-        int newLength = ArrayUtil.oversize(capacity, Byte.BYTES);
-        breaker.addEstimateBytesAndMaybeBreak(
-            RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + newLength),
-            label
-        );
-        bytes.bytes = ArrayUtil.growExact(bytes.bytes, newLength);
-        breaker.addWithoutBreaking(-RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + oldLength));
+        int oversizedCapacity = ArrayUtil.oversize(capacity, Byte.BYTES);
+        breaker.addEstimateBytesAndMaybeBreak(bytesArrayRamBytesUsed(oversizedCapacity), label);
+
+        bytes.bytes = ArrayUtil.growExact(bytes.bytes, oversizedCapacity);
+        breaker.addWithoutBreaking(-bytesArrayRamBytesUsed(oldCapacity));
     }
 
     /**
@@ -80,7 +92,7 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     }
 
     /**
-     * The number of bytes in to this buffer. It is <strong>not></strong>
+     * The number of bytes in this buffer. It is <strong>not></strong>
      * the capacity of the buffer.
      */
     public int length() {
@@ -139,7 +151,11 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(bytes.bytes);
+        return SHALLOW_SIZE + bytesArrayRamBytesUsed(bytes.bytes.length);
+    }
+
+    private static long bytesArrayRamBytesUsed(long capacity) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + capacity);
     }
 
     @Override

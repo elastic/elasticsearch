@@ -10,8 +10,8 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -30,7 +30,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private ProfileResult profileResult;
 
-    private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> hits = null));
+    private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public FetchSearchResult() {}
 
@@ -42,12 +42,13 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public FetchSearchResult(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);
-        hits = new SearchHits(in);
+        hits = SearchHits.readFrom(in, true);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert hasReferences();
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
@@ -61,6 +62,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void shardResult(SearchHits hits, ProfileResult profileResult) {
         assert assertNoSearchTarget(hits);
         this.hits = hits;
+        hits.incRef();
         assert this.profileResult == null;
         this.profileResult = profileResult;
     }
@@ -73,6 +75,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public SearchHits hits() {
+        assert hasReferences();
         return hits;
     }
 
@@ -101,7 +104,18 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        if (refCounted.decRef()) {
+            deallocate();
+            return true;
+        }
+        return false;
+    }
+
+    private void deallocate() {
+        if (hits != null) {
+            hits.decRef();
+            hits = null;
+        }
     }
 
     @Override

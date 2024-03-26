@@ -13,10 +13,10 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -88,37 +88,44 @@ public class InternalGeoBounds extends InternalBounds<GeoPoint> implements GeoBo
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        double top = Double.NEGATIVE_INFINITY;
-        double bottom = Double.POSITIVE_INFINITY;
-        double posLeft = Double.POSITIVE_INFINITY;
-        double posRight = Double.NEGATIVE_INFINITY;
-        double negLeft = Double.POSITIVE_INFINITY;
-        double negRight = Double.NEGATIVE_INFINITY;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
 
-        for (InternalAggregation aggregation : aggregations) {
-            InternalGeoBounds bounds = (InternalGeoBounds) aggregation;
+            double top = Double.NEGATIVE_INFINITY;
+            double bottom = Double.POSITIVE_INFINITY;
+            double posLeft = Double.POSITIVE_INFINITY;
+            double posRight = Double.NEGATIVE_INFINITY;
+            double negLeft = Double.POSITIVE_INFINITY;
+            double negRight = Double.NEGATIVE_INFINITY;
 
-            if (bounds.top > top) {
-                top = bounds.top;
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalGeoBounds bounds = (InternalGeoBounds) aggregation;
+                if (bounds.top > top) {
+                    top = bounds.top;
+                }
+                if (bounds.bottom < bottom) {
+                    bottom = bounds.bottom;
+                }
+                if (bounds.posLeft < posLeft) {
+                    posLeft = bounds.posLeft;
+                }
+                if (bounds.posRight > posRight) {
+                    posRight = bounds.posRight;
+                }
+                if (bounds.negLeft < negLeft) {
+                    negLeft = bounds.negLeft;
+                }
+                if (bounds.negRight > negRight) {
+                    negRight = bounds.negRight;
+                }
             }
-            if (bounds.bottom < bottom) {
-                bottom = bounds.bottom;
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, getMetadata());
             }
-            if (bounds.posLeft < posLeft) {
-                posLeft = bounds.posLeft;
-            }
-            if (bounds.posRight > posRight) {
-                posRight = bounds.posRight;
-            }
-            if (bounds.negLeft < negLeft) {
-                negLeft = bounds.negLeft;
-            }
-            if (bounds.negRight > negRight) {
-                negRight = bounds.negRight;
-            }
-        }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, getMetadata());
+        };
     }
 
     @Override

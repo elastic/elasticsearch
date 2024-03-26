@@ -200,6 +200,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
         assertThat(TemplateScript.execute(), equalTo("{\"match_all\":{}}"));
     }
 
+    @SuppressWarnings("deprecation") // GeneralScriptException
     public void testDetectMissingParam() {
         Map<String, String> scriptOptions = Map.ofEntries(Map.entry(MustacheScriptEngine.DETECT_MISSING_PARAMS_OPTION, "true"));
 
@@ -291,7 +292,6 @@ public class MustacheScriptEngineTests extends ESTestCase {
      *
      * If we change this, we should *know* that we're changing it.
      */
-    @SuppressWarnings({ "deprecation", "removal" })
     public void testReflection() {
         Map<String, Object> vars = Map.of("obj", new TestReflection());
 

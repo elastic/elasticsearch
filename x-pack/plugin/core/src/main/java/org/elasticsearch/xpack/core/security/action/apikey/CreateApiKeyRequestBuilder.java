@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -29,30 +30,34 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Request builder for populating a {@link CreateApiKeyRequest}
  */
-public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKeyRequest, CreateApiKeyResponse> {
+public class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKeyRequest, CreateApiKeyResponse> {
+    private static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = createParser(
+        (n, p) -> RoleDescriptor.parse(n, p, false)
+    );
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "api_key_request",
-        false,
-        (args, v) -> {
-            return new CreateApiKeyRequest(
+    protected static ConstructingObjectParser<CreateApiKeyRequest, Void> createParser(
+        CheckedBiFunction<String, XContentParser, RoleDescriptor, IOException> roleDescriptorParser
+    ) {
+        ConstructingObjectParser<CreateApiKeyRequest, Void> parser = new ConstructingObjectParser<>(
+            "api_key_request",
+            false,
+            (args, v) -> new CreateApiKeyRequest(
                 (String) args[0],
                 (List<RoleDescriptor>) args[1],
                 TimeValue.parseTimeValue((String) args[2], null, "expiration"),
                 (Map<String, Object>) args[3]
-            );
-        }
-    );
+            )
+        );
 
-    static {
-        PARSER.declareString(constructorArg(), new ParseField("name"));
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
+        parser.declareString(constructorArg(), new ParseField("name"));
+        parser.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
             p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
+            return roleDescriptorParser.apply(n, p);
         }, new ParseField("role_descriptors"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        parser.declareString(optionalConstructorArg(), new ParseField("expiration"));
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        return parser;
     }
 
     public CreateApiKeyRequestBuilder(ElasticsearchClient client) {
@@ -85,6 +90,15 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
     }
 
     public CreateApiKeyRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
+        CreateApiKeyRequest createApiKeyRequest = parse(source, xContentType);
+        setName(createApiKeyRequest.getName());
+        setRoleDescriptors(createApiKeyRequest.getRoleDescriptors());
+        setExpiration(createApiKeyRequest.getExpiration());
+        setMetadata(createApiKeyRequest.getMetadata());
+        return this;
+    }
+
+    protected CreateApiKeyRequest parse(BytesReference source, XContentType xContentType) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
                 LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
@@ -92,14 +106,8 @@ public final class CreateApiKeyRequestBuilder extends ActionRequestBuilder<Creat
                 xContentType
             )
         ) {
-            CreateApiKeyRequest createApiKeyRequest = parse(parser);
-            setName(createApiKeyRequest.getName());
-            setRoleDescriptors(createApiKeyRequest.getRoleDescriptors());
-            setExpiration(createApiKeyRequest.getExpiration());
-            setMetadata(createApiKeyRequest.getMetadata());
-
+            return parse(parser);
         }
-        return this;
     }
 
     public static CreateApiKeyRequest parse(XContentParser parser) throws IOException {

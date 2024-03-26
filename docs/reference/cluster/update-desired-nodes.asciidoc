@@ -26,8 +26,7 @@ PUT /_internal/desired_nodes/<history_id>/<version>
             },
             "processors" : 8.0,
             "memory" : "58gb",
-            "storage" : "2tb",
-            "node_version" : "{version}"
+            "storage" : "2tb"
         }
     ]
 }
@@ -86,8 +85,7 @@ PUT /_internal/desired_nodes/Ywkh3INLQcuPT49f6kcppA/100
             },
             "processors" : 8.0,
             "memory" : "58gb",
-            "storage" : "2tb",
-            "node_version" : "{version}"
+            "storage" : "2tb"
         }
     ]
 }
@@ -125,8 +123,7 @@ PUT /_internal/desired_nodes/Ywkh3INLQcuPT49f6kcppA/101
             },
             "processors_range" : {"min": 8.0, "max": 10.0},
             "memory" : "58gb",
-            "storage" : "2tb",
-            "node_version" : "{version}"
+            "storage" : "2tb"
         }
     ]
 }

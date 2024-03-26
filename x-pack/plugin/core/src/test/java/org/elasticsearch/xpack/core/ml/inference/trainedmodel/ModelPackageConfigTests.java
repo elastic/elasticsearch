@@ -125,10 +125,10 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
     @Override
     protected ModelPackageConfig mutateInstanceForVersion(ModelPackageConfig instance, TransportVersion version) {
         var builder = new ModelPackageConfig.Builder(instance);
-        if (version.before(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
+        if (version.before(TransportVersions.V_8_11_X)) {
             builder.setPlatformArchitecture(null);
         }
-        if (version.before(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (version.before(TransportVersions.V_8_12_0)) {
             builder.setPrefixStrings(null);
         }
         return builder.build();

@@ -273,7 +273,7 @@ public enum XContentType implements MediaType {
         return null;
     }
 
-    private int index;
+    private final int index;
 
     XContentType(int index) {
         this.index = index;
@@ -314,5 +314,11 @@ public enum XContentType implements MediaType {
      */
     public XContentType canonical() {
         return this;
+    }
+
+    private static final XContentType[] values = values();
+
+    public static XContentType ofOrdinal(int ordinal) {
+        return values[ordinal];
     }
 }

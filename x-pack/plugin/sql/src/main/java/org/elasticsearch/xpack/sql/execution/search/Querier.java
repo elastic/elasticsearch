@@ -29,8 +29,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -214,7 +214,7 @@ public class Querier {
     }
 
     protected static void logSearchResponse(SearchResponse response, Logger logger) {
-        List<Aggregation> aggs = Collections.emptyList();
+        List<InternalAggregation> aggs = Collections.emptyList();
         if (response.getAggregations() != null) {
             aggs = response.getAggregations().asList();
         }
@@ -382,7 +382,7 @@ public class Querier {
             }
 
             @Override
-            public Aggregations getAggregations() {
+            public InternalAggregations getAggregations() {
                 throw new SqlIllegalArgumentException("No group-by/aggs defined");
             }
         });
@@ -404,9 +404,9 @@ public class Querier {
                 logSearchResponse(response, log);
             }
 
-            Aggregations aggs = response.getAggregations();
+            InternalAggregations aggs = response.getAggregations();
             if (aggs != null) {
-                Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
+                InternalAggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
                 if (agg instanceof Filters filters) {
                     handleBuckets(filters.getBuckets(), response);
                 } else {

@@ -52,10 +52,11 @@ public class GetStatusActionIT extends ProfilingTestCase {
         assertFalse(response.hasData());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104035")
     public void testWaitsUntilResourcesAreCreated() throws Exception {
         updateProfilingTemplatesEnabled(true);
         GetStatusAction.Request request = new GetStatusAction.Request();
+        // higher timeout since we have more shards than usual
+        request.timeout(TimeValue.timeValueSeconds(120));
         request.waitForResourcesCreated(true);
 
         GetStatusAction.Response response = client().execute(GetStatusAction.INSTANCE, request).get();

@@ -16,14 +16,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IndexFieldTypeTests extends ESTestCase {
+public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
 
     public void testPrefixQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;
@@ -49,6 +48,11 @@ public class IndexFieldTypeTests extends ESTestCase {
             () -> assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 0, 10, null, createContext()))
         );
         assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
+    }
+
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return IndexFieldMapper.IndexFieldType.INSTANCE;
     }
 
     private SearchExecutionContext createContext() {

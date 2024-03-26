@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,7 +45,11 @@ import java.util.Set;
 public class TransportSearchShardsAction extends HandledTransportAction<SearchShardsRequest, SearchShardsResponse> {
 
     public static final String NAME = "indices:admin/search/search_shards";
-    public static final ActionType<SearchShardsResponse> TYPE = new ActionType<>(NAME, SearchShardsResponse::new);
+    public static final ActionType<SearchShardsResponse> TYPE = new ActionType<>(NAME);
+    public static final RemoteClusterActionType<SearchShardsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        SearchShardsResponse::new
+    );
     private final TransportService transportService;
     private final TransportSearchAction transportSearchAction;
     private final SearchService searchService;

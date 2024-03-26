@@ -122,14 +122,14 @@ public class ClusterInfoSimulator {
         if (diskUsage == null) {
             return;
         }
-        var path = diskUsage.getPath();
+        var path = diskUsage.path();
         updateDiskUsage(leastAvailableSpaceUsage, nodeId, path, freeDelta);
         updateDiskUsage(mostAvailableSpaceUsage, nodeId, path, freeDelta);
     }
 
     private void updateDiskUsage(Map<String, DiskUsage> availableSpaceUsage, String nodeId, String path, long freeDelta) {
         var usage = availableSpaceUsage.get(nodeId);
-        if (usage != null && Objects.equals(usage.getPath(), path)) {
+        if (usage != null && Objects.equals(usage.path(), path)) {
             // ensure new value is within bounds
             availableSpaceUsage.put(nodeId, updateWithFreeBytes(usage, freeDelta));
         }
@@ -139,7 +139,7 @@ public class ClusterInfoSimulator {
         // free bytes might go out of range in case when multiple data path are used
         // we might not know exact disk used to allocate a shard and conservatively update
         // most used disk on a target node and least used disk on a source node
-        var freeBytes = withinRange(0, usage.getTotalBytes(), usage.freeBytes() + delta);
+        var freeBytes = withinRange(0, usage.totalBytes(), usage.freeBytes() + delta);
         return usage.copyWithFreeBytes(freeBytes);
     }
 

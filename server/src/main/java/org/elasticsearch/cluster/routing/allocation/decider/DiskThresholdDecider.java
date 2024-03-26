@@ -472,9 +472,9 @@ public class DiskThresholdDecider extends AllocationDecider {
             logger.debug(
                 "unable to determine disk usage for {}, defaulting to average across nodes [{} total] [{} free] [{}% free]",
                 node.nodeId(),
-                usage.getTotalBytes(),
-                usage.getFreeBytes(),
-                usage.getFreeDiskAsPercentage()
+                usage.totalBytes(),
+                usage.freeBytes(),
+                usage.freeDiskAsPercentage()
             );
         }
 
@@ -483,7 +483,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             sizeOfUnaccountedShards(
                 node,
                 subtractLeavingShards,
-                usage.getPath(),
+                usage.path(),
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
@@ -509,8 +509,8 @@ public class DiskThresholdDecider extends AllocationDecider {
         long totalBytes = 0;
         long freeBytes = 0;
         for (DiskUsage du : usages.values()) {
-            totalBytes += du.getTotalBytes();
-            freeBytes += du.getFreeBytes();
+            totalBytes += du.totalBytes();
+            freeBytes += du.freeBytes();
         }
         return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", totalBytes / usages.size(), freeBytes / usages.size());
     }
@@ -548,18 +548,18 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         long getFreeBytes() {
             try {
-                return Math.subtractExact(diskUsage.getFreeBytes(), relocatingShardSize);
+                return Math.subtractExact(diskUsage.freeBytes(), relocatingShardSize);
             } catch (ArithmeticException e) {
                 return Long.MAX_VALUE;
             }
         }
 
         String getPath() {
-            return diskUsage.getPath();
+            return diskUsage.path();
         }
 
         long getTotalBytes() {
-            return diskUsage.getTotalBytes();
+            return diskUsage.totalBytes();
         }
     }
 

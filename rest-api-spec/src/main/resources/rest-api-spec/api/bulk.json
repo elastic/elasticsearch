@@ -80,6 +80,10 @@
         "type": "boolean",
         "description": "Sets require_alias for all incoming documents. Defaults to unset (false)"
       },
+      "require_data_stream": {
+        "type": "boolean",
+        "description": "When true, requires the destination to be a data stream (existing or to-be-created). Default is false"
+      },
       "list_executed_pipelines": {
         "type": "boolean",
         "description": "Sets list_executed_pipelines for all incoming documents. Defaults to unset (false)"

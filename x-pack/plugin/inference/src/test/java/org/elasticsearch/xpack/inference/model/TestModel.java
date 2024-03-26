@@ -18,6 +18,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -41,14 +42,17 @@ public class TestModel extends Model {
     }
 
     public TestModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         TestServiceSettings serviceSettings,
         TestTaskSettings taskSettings,
         TestSecretSettings secretSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secretSettings)
+        );
     }
 
     @Override
@@ -111,6 +115,11 @@ public class TestModel extends Model {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(model);
+        }
+
+        @Override
+        public ToXContentObject getFilteredXContentObject() {
+            return this;
         }
     }
 

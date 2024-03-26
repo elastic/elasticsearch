@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -521,7 +520,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         request.setNodes(testNodes[0].getNodeId());
         request.setReason("Testing Cancellation");
         request.setActions(actionName);
-        CancelTasksResponse response = ActionTestUtils.executeBlocking(
+        ListTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
             request
         );

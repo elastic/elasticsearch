@@ -239,6 +239,10 @@ the status of a previously submitted async search request given its `id`. If the
 {es} {security-features} are enabled, the access to the get async search status
 API is restricted to the <<built-in-roles, monitoring_user role>>.
 
+You can also specify how long the async search needs to be available through the
+`keep_alive` parameter, which defaults to `5d` (five days). Ongoing async
+searches and any saved search results are deleted after this period.
+
 [source,console,id=get-async-search-status-example]
 --------------------------------------------------
 GET /_async_search/status/FmRldE8zREVEUzA2ZVpUeGs2ejJFUFEaMkZ5QTVrSTZSaVN3WlNFVmtlWHJsdzoxMDc=

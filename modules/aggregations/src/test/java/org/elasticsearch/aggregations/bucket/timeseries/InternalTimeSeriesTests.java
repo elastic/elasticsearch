@@ -16,11 +16,10 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,17 +29,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTestCase<InternalTimeSeries> {
-
-    @Override
-    protected Map.Entry<String, ContextParser<Object, Aggregation>> getParser() {
-        return Map.entry(TimeSeriesAggregationBuilder.NAME, (p, c) -> ParsedTimeSeries.fromXContent(p, (String) c));
-    }
 
     private List<InternalBucket> randomBuckets(boolean keyed, InternalAggregations aggregations) {
         int numberOfBuckets = randomNumberOfBuckets();
@@ -53,7 +46,7 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
                 builder.addString(entry.getKey(), (String) entry.getValue());
             }
             try {
-                var key = builder.build().toBytesRef();
+                var key = builder.buildLegacyTsid().toBytesRef();
                 bucketList.add(new InternalBucket(key, docCount, aggregations, keyed));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -108,16 +101,6 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
         );
     }
 
-    @Override
-    protected Class<ParsedTimeSeries> implementationClass() {
-        return ParsedTimeSeries.class;
-    }
-
-    @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return s -> s.endsWith(".key");
-    }
-
     public void testReduceSimple() {
         // a simple test, to easily spot easy mistakes in the merge logic in InternalTimeSeries#reduce(...) method.
         InternalTimeSeries first = new InternalTimeSeries(
@@ -159,7 +142,7 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
             PipelineAggregator.PipelineTree.EMPTY
         );
 
-        InternalTimeSeries result = (InternalTimeSeries) first.reduce(List.of(first, second, third), context);
+        InternalTimeSeries result = (InternalTimeSeries) InternalAggregationTestCase.reduce(List.of(first, second, third), context);
         assertThat(result.getBuckets().get(0).key.utf8ToString(), equalTo("1"));
         assertThat(result.getBuckets().get(0).getDocCount(), equalTo(5L));
         assertThat(result.getBuckets().get(1).key.utf8ToString(), equalTo("10"));

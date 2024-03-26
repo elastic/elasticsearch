@@ -1,0 +1,6 @@
+pr: 104155
+summary: "Updated `missingTrainedModel` message to include: you may need to create\
+  \ it"
+area: Machine Learning
+type: enhancement
+issues: []

@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -19,12 +18,21 @@ import java.util.Objects;
 /**
  * Block implementation representing a constant null value.
  */
-final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, IntBlock, LongBlock, DoubleBlock, BytesRefBlock {
+final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
+    implements
+        BooleanBlock,
+        IntBlock,
+        LongBlock,
+        DoubleBlock,
+        BytesRefBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
+    private final int positionCount;
+    private BlockFactory blockFactory;
 
     ConstantNullBlock(int positionCount, BlockFactory blockFactory) {
-        super(positionCount, blockFactory);
+        this.positionCount = positionCount;
+        this.blockFactory = blockFactory;
     }
 
     @Override
@@ -70,17 +78,12 @@ final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, Int
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Block.class,
         "ConstantNullBlock",
-        ConstantNullBlock::of
+        in -> ((BlockStreamInput) in).readConstantNullBlock()
     );
 
     @Override
     public String getWriteableName() {
         return "ConstantNullBlock";
-    }
-
-    static Block of(StreamInput in) throws IOException {
-        BlockFactory blockFactory = ((BlockStreamInput) in).blockFactory();
-        return blockFactory.newConstantNullBlock(in.readVInt());
     }
 
     @Override
@@ -227,5 +230,35 @@ final class ConstantNullBlock extends AbstractBlock implements BooleanBlock, Int
     public long getLong(int valueIndex) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public int getTotalValueCount() {
+        return 0;
+    }
+
+    @Override
+    public int getPositionCount() {
+        return positionCount;
+    }
+
+    @Override
+    public int getFirstValueIndex(int position) {
+        return 0;
+    }
+
+    @Override
+    public int getValueCount(int position) {
+        return 0;
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return blockFactory;
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        blockFactory = blockFactory.parent();
     }
 }

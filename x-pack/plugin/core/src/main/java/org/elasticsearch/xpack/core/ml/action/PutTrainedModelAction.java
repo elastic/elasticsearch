@@ -30,9 +30,11 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
     public static final String DEFER_DEFINITION_DECOMPRESSION = "defer_definition_decompression";
     public static final PutTrainedModelAction INSTANCE = new PutTrainedModelAction();
     public static final String NAME = "cluster:admin/xpack/ml/inference/put";
+    public static final String MODEL_ALREADY_EXISTS_ERROR_MESSAGE_FRAGMENT =
+        "the model id is the same as the deployment id of a current model deployment";
 
     private PutTrainedModelAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

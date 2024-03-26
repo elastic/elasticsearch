@@ -9,21 +9,24 @@
 package org.elasticsearch.search.aggregations.bucket.prefix;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -220,65 +223,53 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        List<InternalIpPrefix.Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final ObjectObjectPagedHashMap<BytesRef, BucketReducer<Bucket>> buckets = new ObjectObjectPagedHashMap<>(
+                getBuckets().size(),
+                reduceContext.bigArrays()
+            );
 
-        return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
-    }
-
-    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
-            protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
-                return a.current().key.compareTo(b.current().key) < 0;
+            public void accept(InternalAggregation aggregation) {
+                final InternalIpPrefix ipPrefix = (InternalIpPrefix) aggregation;
+                for (Bucket bucket : ipPrefix.getBuckets()) {
+                    BucketReducer<Bucket> bucketReducer = buckets.get(bucket.key);
+                    if (bucketReducer == null) {
+                        bucketReducer = new BucketReducer<>(bucket, reduceContext, size);
+                        boolean success = false;
+                        try {
+                            buckets.put(bucket.key, bucketReducer);
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                Releasables.close(bucketReducer);
+                            }
+                        }
+                    }
+                    bucketReducer.accept(bucket);
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                final List<Bucket> reducedBuckets = new ArrayList<>(Math.toIntExact(buckets.size()));
+                buckets.forEach(entry -> {
+                    if (false == reduceContext.isFinalReduce() || entry.value.getDocCount() >= minDocCount) {
+                        reducedBuckets.add(createBucket(entry.value.getProto(), entry.value.getAggregations(), entry.value.getDocCount()));
+                    }
+                });
+                reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+                reducedBuckets.sort(Comparator.comparing(a -> a.key));
+                return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
+            }
+
+            @Override
+            public void close() {
+                buckets.forEach(entry -> Releasables.close(entry.value));
+                Releasables.close(buckets);
             }
         };
-        for (InternalAggregation aggregation : aggregations) {
-            InternalIpPrefix ipPrefix = (InternalIpPrefix) aggregation;
-            if (ipPrefix.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent<>(ipPrefix.buckets.iterator()));
-            }
-        }
-
-        List<Bucket> reducedBuckets = new ArrayList<>();
-        if (pq.size() > 0) {
-            // list of buckets coming from different shards that have the same value
-            List<Bucket> currentBuckets = new ArrayList<>();
-            BytesRef value = pq.top().current().key;
-
-            do {
-                final IteratorAndCurrent<Bucket> top = pq.top();
-                if (top.current().key.equals(value) == false) {
-                    final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                    if (false == reduceContext.isFinalReduce() || reduced.getDocCount() >= minDocCount) {
-                        reducedBuckets.add(reduced);
-                    }
-                    currentBuckets.clear();
-                    value = top.current().key;
-                }
-
-                currentBuckets.add(top.current());
-
-                if (top.hasNext()) {
-                    top.next();
-                    assert top.current().key.compareTo(value) > 0
-                        : "shards must return data sorted by value [" + top.current().key + "] and [" + value + "]";
-                    pq.updateTop();
-                } else {
-                    pq.pop();
-                }
-            } while (pq.size() > 0);
-
-            if (currentBuckets.isEmpty() == false) {
-                final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
-                if (false == reduceContext.isFinalReduce() || reduced.getDocCount() >= minDocCount) {
-                    reducedBuckets.add(reduced);
-                }
-            }
-        }
-
-        return reducedBuckets;
     }
 
     @Override
@@ -329,19 +320,6 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
             docCount,
             aggregations
         );
-    }
-
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
-        long docCount = 0;
-        for (InternalIpPrefix.Bucket bucket : buckets) {
-            docCount += bucket.docCount;
-            aggregations.add(bucket.getAggregations());
-        }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return createBucket(buckets.get(0), aggs, docCount);
     }
 
     @Override

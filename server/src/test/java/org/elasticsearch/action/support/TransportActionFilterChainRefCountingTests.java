@@ -41,7 +41,7 @@ public class TransportActionFilterChainRefCountingTests extends ESSingleNodeTest
         return List.of(TestPlugin.class);
     }
 
-    static final ActionType<Response> TYPE = ActionType.localOnly("test:action");
+    static final ActionType<Response> TYPE = new ActionType<>("test:action");
 
     public void testAsyncActionFilterRefCounting() {
         final var countDownLatch = new CountDownLatch(2);

@@ -714,18 +714,9 @@ teardown:
 - do:
     ingest.simulate:
       verbose: true
+      id: "outer"
       body: >
         {
-          "pipeline": {
-            "processors" : [
-            {
-              "pipeline" : {
-                "name": "outer"
-              }
-            }
-            ]
-          }
-          ,
           "docs": [
           {
             "_index": "index",

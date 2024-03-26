@@ -98,6 +98,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
                 searchContextId
             )
         );
+        Releasables.close(releasables);
+        releasables.clear();
         if (existing != null) {
             existing.decRef();
         }
@@ -147,12 +149,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public void execute(Runnable command) {
-        try {
-            command.run();
-        } finally {
-            Releasables.close(releasables);
-            releasables.clear();
-        }
+        command.run();
     }
 
     @Override

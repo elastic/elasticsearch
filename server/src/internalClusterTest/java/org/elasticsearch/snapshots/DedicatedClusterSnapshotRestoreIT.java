@@ -267,7 +267,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setIndices("test-idx-all", "test-idx-none", "test-idx-some", "test-idx-closed")
                 .setWaitForCompletion(true)
         );
-        assertThat(sne.getMessage(), containsString("Indices don't have primary shards"));
+        assertThat(sne.getMessage(), containsString("the following indices have unassigned primary shards"));
 
         if (randomBoolean()) {
             logger.info("checking snapshot completion using status");

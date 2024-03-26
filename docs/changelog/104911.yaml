@@ -1,0 +1,7 @@
+pr: 104911
+summary: "ES|QL: Improve type validation in aggs for UNSIGNED_LONG better support\
+  \ for VERSION"
+area: ES|QL
+type: bug
+issues:
+ - 102961

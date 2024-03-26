@@ -12,7 +12,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -27,11 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class RegisteredDomainProcessorTests extends ESTestCase {
     private Map<String, Object> buildEvent(String domain) {
-        return new HashMap<>() {
-            {
-                put("domain", domain);
-            }
-        };
+        return Map.of("domain", domain);
     }
 
     public void testBasic() throws Exception {

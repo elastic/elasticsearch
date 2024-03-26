@@ -720,7 +720,7 @@ public class BlockBenchmark {
     }
 
     private static long computeDoubleCheckSum(DoubleBlock block, int[] traversalOrder) {
-        double sum = 0;
+        long sum = 0;
 
         for (int position : traversalOrder) {
             if (block.isNull(position)) {
@@ -729,11 +729,12 @@ public class BlockBenchmark {
             int start = block.getFirstValueIndex(position);
             int end = start + block.getValueCount(position);
             for (int i = start; i < end; i++) {
-                sum += block.getDouble(i);
+                // Use an operation that is not affected by rounding errors. Otherwise, the result may depend on the traversalOrder.
+                sum += (long) block.getDouble(i);
             }
         }
 
-        return (long) sum;
+        return sum;
     }
 
     private static long computeIntCheckSum(IntBlock block, int[] traversalOrder) {

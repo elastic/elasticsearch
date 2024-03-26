@@ -1,0 +1,6 @@
+pr: 104407
+summary: Set read timeout for fetching IMDSv2 token
+area: Discovery-Plugins
+type: enhancement
+issues:
+ - 104244

@@ -26,7 +26,7 @@ public class MlInfoAction extends ActionType<MlInfoAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/ml/info/get";
 
     private MlInfoAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

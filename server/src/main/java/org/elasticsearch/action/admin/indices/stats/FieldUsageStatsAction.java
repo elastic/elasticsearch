@@ -16,6 +16,6 @@ public class FieldUsageStatsAction extends ActionType<FieldUsageStatsResponse> {
     public static final String NAME = "indices:monitor/field_usage_stats";
 
     private FieldUsageStatsAction() {
-        super(NAME, FieldUsageStatsResponse::new);
+        super(NAME);
     }
 }

@@ -16,7 +16,7 @@ public class CreateIndexAction extends ActionType<CreateIndexResponse> {
     public static final String NAME = "indices:admin/create";
 
     private CreateIndexAction() {
-        super(NAME, CreateIndexResponse::new);
+        super(NAME);
     }
 
 }

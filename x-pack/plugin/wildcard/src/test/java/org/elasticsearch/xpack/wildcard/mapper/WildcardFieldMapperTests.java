@@ -60,7 +60,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -1218,7 +1217,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+    protected Function<Object, Object> loadBlockExpected() {
         return v -> ((BytesRef) v).utf8ToString();
     }
 

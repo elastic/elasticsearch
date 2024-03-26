@@ -11,7 +11,7 @@ package org.elasticsearch.search.ccs;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -268,7 +268,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
 
         final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTask.taskId());
         cancelRequest.setWaitForCompletion(randomBoolean());
-        final ActionFuture<CancelTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
+        final ActionFuture<ListTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
         assertBusy(() -> {
             final Iterable<TransportService> transportServices = cluster("cluster_a").getInstances(TransportService.class);
             for (TransportService transportService : transportServices) {

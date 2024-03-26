@@ -1,6 +1,0 @@
-pr: 103591
-summary: Wait for the model results on graceful shutdown
-area: Machine Learning
-type: bug
-issues:
- - 103414

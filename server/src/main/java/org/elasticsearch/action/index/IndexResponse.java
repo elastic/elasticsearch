@@ -17,12 +17,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of an index operation,
@@ -41,7 +38,7 @@ public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
         } else {
             executedPipelines = null;
@@ -50,7 +47,7 @@ public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
         } else {
             executedPipelines = null;
@@ -89,7 +86,7 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
     }
@@ -97,7 +94,7 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public void writeThin(StreamOutput out) throws IOException {
         super.writeThin(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
     }
@@ -132,23 +129,6 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",primaryTerm=").append(getPrimaryTerm());
         builder.append(",shards=").append(Strings.toString(getShardInfo()));
         return builder.append("]").toString();
-    }
-
-    public static IndexResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-
-        Builder context = new Builder();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            parseXContentFields(parser, context);
-        }
-        return context.build();
-    }
-
-    /**
-     * Parse the current token and update the parsing context appropriately.
-     */
-    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
-        DocWriteResponse.parseInnerToXContent(parser, context);
     }
 
     /**

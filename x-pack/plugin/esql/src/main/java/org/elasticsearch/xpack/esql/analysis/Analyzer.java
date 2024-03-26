@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -55,6 +54,7 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.Comparator;
@@ -74,19 +75,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
-    static final List<Attribute> NO_FIELDS = List.of(
-        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, false)
+    // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
+    // ie from test | stats c = count(*)
+    public static final List<Attribute> NO_FIELDS = List.of(
+        new ReferenceAttribute(Source.EMPTY, "<no-fields>", DataTypes.NULL, null, Nullability.TRUE, null, true)
     );
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
@@ -209,52 +223,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            String policyName = (String) plan.policyName().fold();
-            EnrichPolicyResolution policyRes = context.enrichResolution()
-                .resolvedPolicies()
-                .stream()
-                .filter(x -> x.policyName().equals(policyName))
-                .findFirst()
-                .orElse(new EnrichPolicyResolution(policyName, null, null));
-
-            IndexResolution idx = policyRes.index();
-            EnrichPolicy policy = policyRes.policy();
-
-            var policyNameExp = policy == null || idx == null
-                ? new UnresolvedAttribute(
-                    plan.policyName().source(),
-                    policyName,
-                    null,
-                    unresolvedPolicyError(policyName, context.enrichResolution())
-                )
-                : plan.policyName();
-
-            var matchField = policy != null && (plan.matchField() == null || plan.matchField() instanceof EmptyAttribute)
-                ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
-                : plan.matchField();
-
-            List<NamedExpression> enrichFields = policy == null || idx == null
-                ? (plan.enrichFields() == null ? List.of() : plan.enrichFields())
-                : calculateEnrichFields(
+            final String policyName = (String) plan.policyName().fold();
+            final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
+            if (resolved != null) {
+                var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
+                var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
+                    ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
+                    : plan.matchField();
+                List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), idx.get().mapping()),
+                    mappingAsAttributes(plan.source(), resolved.mapping()),
                     plan.enrichFields(),
                     policy
                 );
-
-            return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, matchField, policyRes, enrichFields);
-        }
-
-        private String unresolvedPolicyError(String policyName, EnrichResolution enrichResolution) {
-            List<String> potentialMatches = StringUtils.findSimilar(policyName, enrichResolution.existingPolicies());
-            String msg = "unresolved enrich policy [" + policyName + "]";
-            if (CollectionUtils.isEmpty(potentialMatches) == false) {
-                msg += ", did you mean "
-                    + (potentialMatches.size() == 1 ? "[" + potentialMatches.get(0) + "]" : "any of " + potentialMatches)
-                    + "?";
+                return new Enrich(
+                    plan.source(),
+                    plan.child(),
+                    plan.mode(),
+                    plan.policyName(),
+                    matchField,
+                    policy,
+                    resolved.concreteIndices(),
+                    enrichFields
+                );
+            } else {
+                String error = context.enrichResolution().getError(policyName, plan.mode());
+                var policyNameExp = new UnresolvedAttribute(plan.policyName().source(), policyName, null, error);
+                return new Enrich(plan.source(), plan.child(), plan.mode(), policyNameExp, plan.matchField(), null, Map.of(), List.of());
             }
-            return msg;
         }
 
         public static List<NamedExpression> calculateEnrichFields(
@@ -445,11 +442,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * row foo = 1, bar = 2 | keep *, foo   ->  bar, foo
          * row foo = 1, bar = 2 | keep foo, *   ->  foo, bar
          * row foo = 1, bar = 2 | keep bar*, foo, *   ->  bar, foo
-         *
-         *
-         * @param p
-         * @param childOutput
-         * @return
          */
         private LogicalPlan resolveKeep(Project p, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections = new ArrayList<>();
@@ -463,26 +455,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // otherwise resolve them
             else {
                 Map<NamedExpression, Integer> priorities = new LinkedHashMap<>();
-                for (Attribute attribute : childOutput) {
-                    for (var proj : projections) {
-                        List<Attribute> resolved;
-                        int priority;
-                        if (proj instanceof UnresolvedStar) {
-                            resolved = childOutput;
-                            priority = 2;
-                        } else if (proj instanceof UnresolvedAttribute ua) {
-                            resolved = resolveAgainstList(ua, childOutput);
-                            priority = Regex.isSimpleMatchPattern(ua.name()) ? 1 : 0;
-                        } else {
-                            resolved = List.of(attribute);
-                            priority = 0;
-                        }
-                        for (Attribute attr : resolved) {
-                            Integer previousPrio = priorities.get(attr);
-                            if (previousPrio == null || previousPrio >= priority) {
-                                priorities.remove(attr);
-                                priorities.put(attr, priority);
-                            }
+                for (var proj : projections) {
+                    final List<Attribute> resolved;
+                    final int priority;
+                    if (proj instanceof UnresolvedStar) {
+                        resolved = childOutput;
+                        priority = 2;
+                    } else if (proj instanceof UnresolvedNamePattern up) {
+                        resolved = resolveAgainstList(up, childOutput);
+                        priority = 1;
+                    } else if (proj instanceof UnresolvedAttribute ua) {
+                        resolved = resolveAgainstList(ua, childOutput);
+                        priority = 0;
+                    } else {
+                        throw new EsqlIllegalArgumentException("unexpected projection: " + proj);
+                    }
+                    for (Attribute attr : resolved) {
+                        Integer previousPrio = priorities.get(attr);
+                        if (previousPrio == null || previousPrio >= priority) {
+                            priorities.remove(attr);
+                            priorities.put(attr, priority);
                         }
                     }
                 }
@@ -496,7 +488,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
             for (var ne : drop.removals()) {
-                var resolved = ne instanceof UnresolvedAttribute ua ? resolveAgainstList(ua, childOutput) : singletonList(ne);
+                List<? extends NamedExpression> resolved;
+
+                if (ne instanceof UnresolvedNamePattern np) {
+                    resolved = resolveAgainstList(np, childOutput);
+                } else if (ne instanceof UnresolvedAttribute ua) {
+                    resolved = resolveAgainstList(ua, childOutput);
+                } else {
+                    resolved = singletonList(ne);
+                }
+
                 // the return list might contain either resolved elements or unresolved ones.
                 // if things are resolved, remove them - if not add them to the list to trip the Verifier;
                 // thus make sure to remove the intersection but add the unresolved difference (if any).
@@ -541,7 +542,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                                 if (li.next() instanceof Alias a && a.name().equals(resolved.name())) {
                                     reverseAliasing.put(resolved.name(), alias.name());
                                     // update aliased projection in place
-                                    li.set((NamedExpression) alias.replaceChildren(a.children()));
+                                    li.set(alias.replaceChildren(a.children()));
                                     updated = true;
                                     break;
                                 }
@@ -579,10 +580,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
-                if (resolved.resolved() && resolved.dataType() != KEYWORD) {
-                    resolved = ua.withUnresolvedMessage(
-                        "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; only KEYWORD allowed"
-                    );
+                if (resolved.resolved() && enrich.policy() != null) {
+                    final DataType dataType = resolved.dataType();
+                    String matchType = enrich.policy().getType();
+                    DataType[] allowed = allowedEnrichTypes(matchType);
+                    if (Arrays.asList(allowed).contains(dataType) == false) {
+                        String suffix = "only " + Arrays.toString(allowed) + " allowed for type [" + matchType + "]";
+                        resolved = ua.withUnresolvedMessage(
+                            "Unsupported type [" + resolved.dataType() + "] for enrich matching field [" + ua.name() + "]; " + suffix
+                        );
+                    }
                 }
                 return new Enrich(
                     enrich.source(),
@@ -591,35 +598,52 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     enrich.policyName(),
                     resolved,
                     enrich.policy(),
+                    enrich.concreteIndices(),
                     enrich.enrichFields()
                 );
             }
             return enrich;
         }
+
+        private static final DataType[] GEO_TYPES = new DataType[] { GEO_POINT, GEO_SHAPE };
+        private static final DataType[] NON_GEO_TYPES = new DataType[] { KEYWORD, TEXT, IP, LONG, INTEGER, FLOAT, DOUBLE, DATETIME };
+
+        private DataType[] allowedEnrichTypes(String matchType) {
+            return matchType.equals(GEO_MATCH_TYPE) ? GEO_TYPES : NON_GEO_TYPES;
+        }
     }
 
-    private static List<Attribute> resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList) {
-        var matches = AnalyzerRules.maybeResolveAgainstList(u, attrList, false, true, Analyzer::handleSpecialFields);
+    private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
+        UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.pattern(), null);
+        Predicate<Attribute> matcher = a -> up.match(a.name()) || up.match(a.qualifiedName());
+        var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
+    }
 
+    private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
+        var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
+        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.name(), list));
+    }
+
+    private static List<Attribute> potentialCandidatesIfNoMatchesFound(
+        UnresolvedAttribute ua,
+        List<Attribute> matches,
+        Collection<Attribute> attrList,
+        java.util.function.Function<List<String>, String> messageProducer
+    ) {
         // none found - add error message
         if (matches.isEmpty()) {
-            UnresolvedAttribute unresolved;
-            var name = u.name();
-            if (Regex.isSimpleMatchPattern(name)) {
-                unresolved = u.withUnresolvedMessage(format(null, "No match found for [{}]", name));
-            } else {
-                Set<String> names = new HashSet<>(attrList.size());
-                for (var a : attrList) {
-                    String nameCandidate = a.name();
-                    if (EsqlDataTypes.isPrimitive(a.dataType())) {
-                        names.add(nameCandidate);
-                    }
+            Set<String> names = new HashSet<>(attrList.size());
+            for (var a : attrList) {
+                String nameCandidate = a.name();
+                if (EsqlDataTypes.isPrimitive(a.dataType())) {
+                    names.add(nameCandidate);
                 }
-                unresolved = u.withUnresolvedMessage(UnresolvedAttribute.errorMessage(name, StringUtils.findSimilar(name, names)));
             }
-            return singletonList(unresolved);
+            var name = ua.name();
+            UnresolvedAttribute unresolved = ua.withUnresolvedMessage(messageProducer.apply(StringUtils.findSimilar(name, names)));
+            matches = singletonList(unresolved);
         }
-
         return matches;
     }
 
@@ -632,7 +656,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        return named;
+        return named.withLocation(u.source());
     }
 
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
@@ -709,7 +733,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             } else {
                 limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
             }
-            return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
+            var source = logicalPlan.source();
+            return new Limit(source, new Literal(source, limit, DataTypes.INTEGER), logicalPlan);
         }
     }
 
@@ -749,7 +774,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Long millis = null;
             // TODO: better control over this string format - do we want this to be flexible or always redirect folks to use date parsing
             try {
-                millis = str == null ? null : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(str);
+                millis = str == null ? null : dateTimeToLong(str);
             } catch (Exception ex) { // in case of exception, millis will be null which will trigger an error
             }
 

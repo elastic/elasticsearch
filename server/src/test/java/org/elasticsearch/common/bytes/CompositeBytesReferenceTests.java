@@ -38,6 +38,18 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
         return ref;
     }
 
+    @Override
+    protected BytesReference newBytesReference(byte[] content) {
+        if (content.length > 1) {
+            int splitOffset = randomIntBetween(1, content.length - 1);
+            return CompositeBytesReference.of(
+                new BytesArray(content, 0, splitOffset),
+                new BytesArray(content, splitOffset, content.length - splitOffset)
+            );
+        }
+        return CompositeBytesReference.of(new BytesArray(content));
+    }
+
     private List<BytesReference> newRefList(int length) {
         int emptySlices = between(0, 10);
         List<BytesReference> referenceList = new ArrayList<>();

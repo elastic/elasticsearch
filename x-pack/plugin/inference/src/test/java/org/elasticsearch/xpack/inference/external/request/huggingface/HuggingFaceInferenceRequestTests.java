@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
+import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelTests;
 
 import java.io.IOException;
 import java.net.URI;
@@ -30,10 +31,10 @@ public class HuggingFaceInferenceRequestTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testCreateRequest() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abc");
-        var httpRequest = huggingFaceRequest.createRequest();
+        var httpRequest = huggingFaceRequest.createHttpRequest();
 
-        assertThat(httpRequest, instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest;
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         assertThat(httpPost.getURI().toString(), is("www.google.com"));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
@@ -51,10 +52,10 @@ public class HuggingFaceInferenceRequestTests extends ESTestCase {
         var truncatedRequest = huggingFaceRequest.truncate();
         assertThat(truncatedRequest.getURI().toString(), is(new URI("www.google.com").toString()));
 
-        var httpRequest = truncatedRequest.createRequest();
-        assertThat(httpRequest, instanceOf(HttpPost.class));
+        var httpRequest = truncatedRequest.createHttpRequest();
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest;
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap.get("inputs"), instanceOf(List.class));
         assertThat(requestMap.get("inputs"), is(List.of("ab")));
@@ -74,7 +75,8 @@ public class HuggingFaceInferenceRequestTests extends ESTestCase {
         return new HuggingFaceInferenceRequest(
             TruncatorTests.createTruncator(),
             account,
-            new Truncator.TruncationResult(List.of(input), new boolean[] { false })
+            new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            HuggingFaceEmbeddingsModelTests.createModel(url, apiKey)
         );
     }
 }

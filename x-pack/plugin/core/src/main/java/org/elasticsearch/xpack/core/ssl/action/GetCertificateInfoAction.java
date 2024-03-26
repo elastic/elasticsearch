@@ -32,7 +32,7 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
     public static final String NAME = "cluster:monitor/xpack/ssl/certificates/get";
 
     private GetCertificateInfoAction() {
-        super(NAME, GetCertificateInfoAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

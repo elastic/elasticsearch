@@ -32,7 +32,7 @@ import java.util.Set;
 
 public class GeoIpDownloaderStatsAction {
 
-    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/ingest/geoip/stats", Response::new);
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/ingest/geoip/stats");
 
     private GeoIpDownloaderStatsAction() {/* no instances */}
 

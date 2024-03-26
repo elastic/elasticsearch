@@ -42,7 +42,7 @@ public class BaseBroadcastResponse extends ActionResponse {
     private final DefaultShardOperationFailedException[] shardFailures;
 
     @SuppressWarnings("unchecked")
-    protected static <T extends BaseBroadcastResponse> void declareBroadcastFields(ConstructingObjectParser<T, Void> PARSER) {
+    public static <T extends BaseBroadcastResponse> void declareBroadcastFields(ConstructingObjectParser<T, Void> PARSER) {
         ConstructingObjectParser<BaseBroadcastResponse, Void> shardsParser = new ConstructingObjectParser<>(
             "_shards",
             true,

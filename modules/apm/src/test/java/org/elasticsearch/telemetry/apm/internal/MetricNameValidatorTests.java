@@ -78,6 +78,13 @@ public class MetricNameValidatorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> MetricNameValidator.validate("es.somemodule.somemetric.some_other_suffix"));
     }
 
+    public void testSkipValidationDueToBWC() {
+        for (String partOfMetricName : MetricNameValidator.SKIP_VALIDATION_METRIC_NAMES_DUE_TO_BWC) {
+            MetricNameValidator.validate("es.threadpool." + partOfMetricName + ".total");// fake metric name, but with the part that skips
+                                                                                         // validation
+        }
+    }
+
     public static String metricNameWithLength(int length) {
         int prefixAndSuffix = "es.".length() + ".utilization".length();
         assert length > prefixAndSuffix : "length too short";
@@ -99,4 +106,5 @@ public class MetricNameValidatorTests extends ESTestCase {
         metricName.append("utilization");
         return metricName.toString();
     }
+
 }

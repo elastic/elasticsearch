@@ -11,6 +11,10 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
+/**
+ * Extracts non-sort-key values for top-n from their {@link BooleanBlock}s.
+ * This class is generated. Edit {@code X-KeyExtractor.java.st} instead.
+ */
 abstract class ValueExtractorForBoolean implements ValueExtractor {
     static ValueExtractorForBoolean extractorFor(TopNEncoder encoder, boolean inKey, BooleanBlock block) {
         BooleanVector vector = block.asVector();

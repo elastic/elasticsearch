@@ -32,8 +32,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -59,6 +60,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureSpecification;
@@ -71,6 +73,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -84,6 +87,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -119,7 +123,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
@@ -127,7 +130,6 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -228,7 +230,22 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private static EnumSet<ProductFeature> availableFeatures;
     private static Set<String> nodesVersions;
-    private static TestFeatureService testFeatureService = ALL_FEATURES;
+
+    private static final TestFeatureService ALL_FEATURES = new TestFeatureService() {
+        @Override
+        public boolean clusterHasFeature(String featureId) {
+            return true;
+        }
+
+        @Override
+        public Set<String> getAllSupportedFeatures() {
+            throw new UnsupportedOperationException(
+                "Only available to properly initialized TestFeatureService. See ESRestTestCase#createTestFeatureService"
+            );
+        }
+    };
+
+    protected static TestFeatureService testFeatureService = ALL_FEATURES;
 
     protected static Set<String> getCachedNodesVersions() {
         assert nodesVersions != null;
@@ -256,6 +273,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         return testFeatureService.clusterHasFeature(feature.id());
     }
 
+    protected static boolean testFeatureServiceInitialized() {
+        return testFeatureService != ALL_FEATURES;
+    }
+
     @Before
     public void initClient() throws IOException {
         if (client == null) {
@@ -263,7 +284,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert availableFeatures == null;
             assert nodesVersions == null;
-            assert testFeatureService == ALL_FEATURES;
+            assert testFeatureServiceInitialized() == false;
             clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
@@ -325,7 +346,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
         }
 
-        assert testFeatureService != ALL_FEATURES;
+        assert testFeatureServiceInitialized();
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
@@ -333,32 +354,37 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
+    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+        return List.of();
+    }
+
     protected TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
+        final List<FeatureSpecification> featureSpecifications = new ArrayList<>(createAdditionalFeatureSpecifications());
+        featureSpecifications.add(new RestTestLegacyFeatures());
+
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
         if (hasHistoricalFeaturesInformation) {
-            return new ESRestTestFeatureService(
-                ESRestTestCaseHistoricalFeatures.loadFeatureNames(System.getProperty("tests.features.metadata.path")),
-                List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures()),
-                semanticNodeVersions,
-                ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
-            );
+            featureSpecifications.add(new ESRestTestCaseHistoricalFeatures());
         } else {
             logger.warn(
                 "This test is running on the legacy test framework; historical features from production code will not be available. "
                     + "You need to port the test to the new test plugins in order to use historical features from production code. "
-                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}",
+                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
                 RestTestLegacyFeatures.class.getCanonicalName()
             );
-            return new LegacyESRestTestFeatureService(
-                List.of(new RestTestLegacyFeatures()),
-                semanticNodeVersions,
-                ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
-            );
         }
+
+        return new ESRestTestFeatureService(
+            hasHistoricalFeaturesInformation,
+            ESRestTestCaseHistoricalFeatures.loadFeatureNames(System.getProperty("tests.features.metadata.path")),
+            featureSpecifications,
+            semanticNodeVersions,
+            ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
+        );
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -792,6 +818,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
+        logger.info("Waiting for all cluster updates up to this moment to be processed");
+        assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
@@ -1080,8 +1108,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
         boolean includeHidden = clusterHasFeature(RestTestLegacyFeatures.HIDDEN_INDICES_SUPPORTED);
         try {
-            // remove all indices except ilm and slm history which can pop up after deleting all data streams but shouldn't interfere
-            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*"));
+            // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
+            final List<String> indexPatterns = new ArrayList<>(
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*")
+            );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
             }
@@ -1264,15 +1294,33 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(refreshRequest);
     }
 
-    protected static RefreshResponse refresh(String index) throws IOException {
+    protected static BroadcastResponse refresh(String index) throws IOException {
         return refresh(client(), index);
     }
 
-    protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
+    private static final ConstructingObjectParser<BroadcastResponse, Void> BROADCAST_RESPONSE_PARSER = new ConstructingObjectParser<>(
+        "broadcast_response",
+        true,
+        arg -> {
+            BaseBroadcastResponse response = (BaseBroadcastResponse) arg[0];
+            return new BroadcastResponse(
+                response.getTotalShards(),
+                response.getSuccessfulShards(),
+                response.getFailedShards(),
+                Arrays.asList(response.getShardFailures())
+            );
+        }
+    );
+
+    static {
+        BaseBroadcastResponse.declareBroadcastFields(BROADCAST_RESPONSE_PARSER);
+    }
+
+    protected static BroadcastResponse refresh(RestClient client, String index) throws IOException {
         Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
         Response response = client.performRequest(refreshRequest);
         try (var parser = responseAsParser(response)) {
-            return RefreshResponse.fromXContent(parser);
+            return BROADCAST_RESPONSE_PARSER.apply(parser, null);
         }
     }
 
@@ -1860,20 +1908,36 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
-        return getAsMap(client(), endpoint);
+        return getAsMap(client(), endpoint, false);
+    }
+
+    protected static Map<String, Object> getAsOrderedMap(final String endpoint) throws IOException {
+        return getAsMap(client(), endpoint, true);
     }
 
     protected static Map<String, Object> getAsMap(RestClient client, final String endpoint) throws IOException {
+        return getAsMap(client, endpoint, false);
+    }
+
+    private static Map<String, Object> getAsMap(RestClient client, final String endpoint, final boolean ordered) throws IOException {
         Response response = client.performRequest(new Request("GET", endpoint));
-        return responseAsMap(response);
+        return responseAsMap(response, ordered);
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {
+        return responseAsMap(response, false);
+    }
+
+    protected static Map<String, Object> responseAsOrderedMap(Response response) throws IOException {
+        return responseAsMap(response, true);
+    }
+
+    private static Map<String, Object> responseAsMap(Response response, boolean ordered) throws IOException {
         XContentType entityContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(
             entityContentType.xContent(),
             response.getEntity().getContent(),
-            false
+            ordered
         );
         assertNotNull(responseEntity);
         return responseEntity;
@@ -2363,13 +2427,13 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
                 historicalFeatures = Collections.unmodifiableMap(loadHistoricalFeatures(metadataPath));
             }
-
             return historicalFeatures;
         }
 
+        @SuppressForbidden(reason = "File#pathSeparator has not equivalent in java.nio.file")
         static Map<NodeFeature, Version> loadHistoricalFeatures(String metadataPath) {
             Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
-            String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+            String[] metadataFiles = metadataPath.split(File.pathSeparator);
             for (String metadataFile : metadataFiles) {
                 try (
                     InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
@@ -2391,9 +2455,10 @@ public abstract class ESRestTestCase extends ESTestCase {
             return historicalFeaturesMap;
         }
 
+        @SuppressForbidden(reason = "File#pathSeparator has not equivalent in java.nio.file")
         static Set<String> loadFeatureNames(String metadataPath) {
             Set<String> featureNames = new HashSet<>();
-            String[] metadataFiles = metadataPath.split(System.getProperty("path.separator"));
+            String[] metadataFiles = metadataPath.split(File.pathSeparator);
             for (String metadataFile : metadataFiles) {
                 try (
                     InputStream in = Files.newInputStream(PathUtils.get(metadataFile));

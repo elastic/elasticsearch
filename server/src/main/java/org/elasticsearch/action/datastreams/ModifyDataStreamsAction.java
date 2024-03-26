@@ -36,7 +36,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/data_stream/modify";
 
     private ModifyDataStreamsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {

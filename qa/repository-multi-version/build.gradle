@@ -15,10 +15,6 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 
 apply plugin: 'elasticsearch.bwc-test'
 
-dependencies {
-  testImplementation project(':client:rest-high-level')
-}
-
 BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   String oldClusterName = "${baseName}-old"
   String newClusterName = "${baseName}-new"

@@ -1,0 +1,5 @@
+pr: 104355
+summary: Prepare enrich plan to support multi clusters
+area: ES|QL
+type: enhancement
+issues: []

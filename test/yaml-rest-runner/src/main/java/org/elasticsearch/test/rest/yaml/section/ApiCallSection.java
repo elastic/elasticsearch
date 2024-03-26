@@ -32,6 +32,10 @@ public class ApiCallSection {
         this.api = api;
     }
 
+    public String getApi() {
+        return api;
+    }
+
     public ApiCallSection copyWithNewApi(String api) {
         ApiCallSection copy = new ApiCallSection(api);
         for (var e : params.entrySet()) {
@@ -43,10 +47,6 @@ public class ApiCallSection {
         }
         copy.nodeSelector = nodeSelector;
         return copy;
-    }
-
-    public String getApi() {
-        return api;
     }
 
     public Map<String, String> getParams() {

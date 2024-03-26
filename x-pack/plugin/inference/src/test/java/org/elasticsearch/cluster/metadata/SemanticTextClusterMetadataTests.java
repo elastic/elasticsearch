@@ -79,7 +79,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
                     "fields": {
                       "semantic": {
                         "type": "semantic_text",
-                        "model_id": "test_model"
+                        "inference_id": "test_model"
                       }
                     }
                 }
@@ -111,7 +111,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
               "properties": {
                 "semantic": {
                   "type": "semantic_text",
-                  "model_id": "test_model"
+                  "inference_id": "test_model"
                 },
                 "copy_origin_1": {
                   "type": "text",
@@ -152,7 +152,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
                   "fields": {
                     "semantic": {
                       "type": "semantic_text",
-                      "model_id": "test_model"
+                      "inference_id": "test_model"
                     }
                   }
                 },

@@ -345,6 +345,8 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
             }
             parser.nextToken();
             fieldMapper.parse(context);
+            // Reset leaf object after parsing the field
+            context.path().setWithinLeafObject(true);
         }
         if (visited.containsAll(REQUIRED_SUBFIELDS) == false) {
             Set<String> missingSubfields = REQUIRED_SUBFIELDS.stream()
@@ -380,6 +382,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 
+    @SuppressWarnings("unchecked")
     public static void applyFieldInference(
         Map<String, Object> inferenceMap,
         String field,
@@ -404,11 +407,12 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
                 results.getWriteableName()
             );
         }
-        Map<String, Object> fieldMap = new LinkedHashMap<>();
-        fieldMap.put(INFERENCE_ID, model.getInferenceEntityId());
+
+        Map<String, Object> fieldMap = (Map<String, Object>) inferenceMap.computeIfAbsent(field, s -> new LinkedHashMap<>());
         fieldMap.putAll(new SemanticTextModelSettings(model).asMap());
-        fieldMap.put(CHUNKS, chunks);
-        inferenceMap.put(field, fieldMap);
+        List<Map<String, Object>> fieldChunks = (List<Map<String, Object>>) fieldMap.computeIfAbsent(CHUNKS, k -> new ArrayList<>());
+        fieldChunks.addAll(chunks);
+        fieldMap.put(INFERENCE_ID, model.getInferenceEntityId());
     }
 
     record SemanticTextMapperContext(MapperBuilderContext context, SemanticTextFieldMapper mapper) {}

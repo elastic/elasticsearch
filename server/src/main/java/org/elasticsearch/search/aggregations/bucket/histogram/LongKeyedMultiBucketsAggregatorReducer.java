@@ -13,7 +13,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ abstract class LongKeyedMultiBucketsAggregatorReducer<B extends MultiBucketsAggr
     private final AggregationReduceContext reduceContext;
     private final int size;
     private final long minDocCount;
-    private final LongObjectPagedHashMap<MultiBucketAggregatorsReducer> bucketsReducer;
+    private final LongObjectPagedHashMap<BucketReducer<B>> bucketsReducer;
     int consumeBucketCount = 0;
 
     LongKeyedMultiBucketsAggregatorReducer(AggregationReduceContext reduceContext, int size, long minDocCount) {
@@ -42,16 +42,16 @@ abstract class LongKeyedMultiBucketsAggregatorReducer<B extends MultiBucketsAggr
      * The bucket to reduce with its corresponding long key.
      */
     public final void accept(long key, B bucket) {
-        MultiBucketAggregatorsReducer reducer = bucketsReducer.get(key);
+        BucketReducer<B> reducer = bucketsReducer.get(key);
         if (reducer == null) {
-            reducer = new MultiBucketAggregatorsReducer(reduceContext, size);
+            reducer = new BucketReducer<>(bucket, reduceContext, size);
             bucketsReducer.put(key, reducer);
         }
         consumeBucketsAndMaybeBreak(reducer, bucket);
         reducer.accept(bucket);
     }
 
-    private void consumeBucketsAndMaybeBreak(MultiBucketAggregatorsReducer reducer, B bucket) {
+    private void consumeBucketsAndMaybeBreak(BucketReducer<B> reducer, B bucket) {
         if (reduceContext.isFinalReduce() == false || minDocCount == 0) {
             if (reducer.getDocCount() == 0 && bucket.getDocCount() > 0) {
                 consumeBucketsAndMaybeBreak();
@@ -76,9 +76,9 @@ abstract class LongKeyedMultiBucketsAggregatorReducer<B extends MultiBucketsAggr
     public final List<B> get() {
         reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
         final List<B> reducedBuckets = new ArrayList<>((int) bucketsReducer.size());
-        bucketsReducer.iterator().forEachRemaining(entry -> {
+        bucketsReducer.forEach(entry -> {
             if (reduceContext.isFinalReduce() == false || entry.value.getDocCount() >= minDocCount) {
-                reducedBuckets.add(createBucket(entry.key, entry.value.getDocCount(), entry.value.get()));
+                reducedBuckets.add(createBucket(entry.key, entry.value.getDocCount(), entry.value.getAggregations()));
             }
         });
         return reducedBuckets;
@@ -91,7 +91,7 @@ abstract class LongKeyedMultiBucketsAggregatorReducer<B extends MultiBucketsAggr
 
     @Override
     public final void close() {
-        bucketsReducer.iterator().forEachRemaining(r -> Releasables.close(r.value));
+        bucketsReducer.forEach(r -> Releasables.close(r.value));
         Releasables.close(bucketsReducer);
     }
 }

@@ -1,0 +1,90 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+configurations {
+//  all {
+//    transitive = true
+//  }
+  hdfs2
+  hdfs3
+  consumable("shadowedHdfs2")
+}
+
+dependencies {
+  compileOnly("org.apache.hadoop:hadoop-minicluster:2.8.5")
+  api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
+    transitive false
+  }
+  compileOnly "junit:junit:${versions.junit}"
+  hdfs2 "org.apache.hadoop:hadoop-minicluster:2.8.5"
+  hdfs3 "org.apache.hadoop:hadoop-minicluster:3.3.1"
+
+}
+
+tasks.named("shadowJar").configure {
+  archiveClassifier.set("hdfs3")
+  // fix issues with signed jars
+
+  relocate("org.apache.hadoop", "fixture.hdfs3.org.apache.hadoop") {
+    exclude "org.apache.hadoop.hdfs.protocol.ClientProtocol"
+    exclude "org.apache.hadoop.ipc.StandbyException"
+  }
+  configurations << project.configurations.hdfs3
+}
+
+def hdfs2Jar = tasks.register("hdfs2jar", ShadowJar) {
+  relocate("org.apache.hadoop", "fixture.hdfs2.org.apache.hadoop") {
+    exclude "org.apache.hadoop.hdfs.protocol.ClientProtocol"
+    exclude "org.apache.hadoop.ipc.StandbyException"
+  }
+  archiveClassifier.set("hdfs2")
+  from sourceSets.main.output
+  configurations << project.configurations.hdfs2
+}
+
+tasks.withType(ShadowJar) {
+  dependencies {
+//    exclude(dependency('commons-io:commons-io:2.8.0'))
+    exclude(dependency("com.carrotsearch.randomizedtesting:randomizedtesting-runner:.*"))
+    exclude(dependency("junit:junit:.*"))
+    exclude(dependency("org.slf4j:slf4j-api:.*"))
+    exclude(dependency("com.google.guava:guava:.*"))
+    exclude(dependency("org.apache.commons:commons-compress:.*"))
+    exclude(dependency("commons-logging:commons-logging:.*"))
+    exclude(dependency("commons-codec:commons-codec:.*"))
+    exclude(dependency("org.apache.httpcomponents:httpclient:.*"))
+    exclude(dependency("org.apache.httpcomponents:httpcore:.*"))
+    exclude(dependency("org.apache.logging.log4j:log4j-1.2-api:.*"))
+    exclude(dependency("log4j:log4j:.*"))
+    exclude(dependency("io.netty:.*:.*"))
+    exclude(dependency("com.nimbusds:nimbus-jose-jwt:.*"))
+    exclude(dependency("commons-cli:commons-cli:1.2"))
+    exclude(dependency("net.java.dev.jna:jna:.*"))
+    exclude(dependency("org.objenesis:objenesis:.*"))
+    exclude(dependency('com.fasterxml.jackson.core:.*:.*'))
+  }
+
+  transform(org.elasticsearch.gradle.internal.shadow.XmlClassRelocationTransformer.class) {
+    resource = "core-default.xml"
+    enabled = true
+  }
+
+  transform(org.elasticsearch.gradle.internal.shadow.XmlClassRelocationTransformer.class) {
+    resource = "hdfs-default.xml"
+    enabled = true
+  }
+}
+
+artifacts {
+  shadowedHdfs2(hdfs2Jar)
+}

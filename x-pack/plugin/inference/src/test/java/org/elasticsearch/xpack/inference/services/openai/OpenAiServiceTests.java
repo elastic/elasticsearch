@@ -16,6 +16,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -28,6 +30,8 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -1005,6 +1009,69 @@ public class OpenAiServiceTests extends ESTestCase {
         OpenAiService.moveModelFromTaskToServiceSettings(taskSettings, serviceSettings);
         assertThat(taskSettings.keySet(), empty());
         assertEquals("model", serviceSettings.get(ServiceFields.MODEL_ID));
+    }
+
+    public void testChunkedInfer_CallsInfer_ConvertsFloatResponse() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+
+            String responseJson = """
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.123,
+                              -0.123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, new ChunkingOptions(null, null), listener);
+
+            var result = listener.actionGet(TIMEOUT).get(0);
+
+            assertThat(
+                result.asMap(),
+                Matchers.is(
+                    Map.of(
+                        ChunkedTextEmbeddingResults.FIELD_NAME,
+                        List.of(
+                            Map.of(
+                                ChunkedNlpInferenceResults.TEXT,
+                                "abc",
+                                ChunkedNlpInferenceResults.INFERENCE,
+                                List.of((double) 0.123f, (double) -0.123f)
+                            )
+                        )
+                    )
+                )
+            );
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), Matchers.is(3));
+            assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
+            assertThat(requestMap.get("model"), Matchers.is("model"));
+            assertThat(requestMap.get("user"), Matchers.is("user"));
+        }
     }
 
     private OpenAiService createOpenAiService() {

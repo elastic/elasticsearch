@@ -51,6 +51,13 @@ public class ChunkedTextEmbeddingResults extends ChunkedNlpInferenceResults {
             return map;
         }
 
+        public Map<String, Object> asMapWithListsInsteadOfArrays() {
+            var map = new HashMap<String, Object>();
+            map.put(TEXT, matchedText);
+            map.put(INFERENCE, Arrays.stream(embedding).boxed().collect(Collectors.toList()));
+            return map;
+        }
+
         /**
          * It appears the default equals function for a record
          * does not call Arrays.equals() for the embedding array.

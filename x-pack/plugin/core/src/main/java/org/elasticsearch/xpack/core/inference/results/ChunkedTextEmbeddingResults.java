@@ -14,18 +14,49 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 
 public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResults {
 
     public static final String NAME = "chunked_text_embedding_service_results";
 
+    public static final String FIELD_NAME = "text_embedding_chunk";
+
     public static ChunkedTextEmbeddingResults ofMlResult(
         org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlInferenceResults
     ) {
         return new ChunkedTextEmbeddingResults(mlInferenceResults.getChunks());
+    }
+
+    public static List<ChunkedInferenceServiceResults> of(List<String> inputs, TextEmbeddingResults textEmbeddings) {
+        validateInputSizeAgainstEmbeddings(inputs, textEmbeddings.embeddings().size());
+
+        var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());
+        for (int i = 0; i < inputs.size(); i++) {
+            results.add(ChunkedTextEmbeddingResults.of(inputs.get(i), textEmbeddings.embeddings().get(i).values()));
+        }
+
+        return results;
+    }
+
+    public static ChunkedTextEmbeddingResults of(String input, List<Float> floatEmbeddings) {
+        double[] doubleEmbeddings = floatEmbeddings.stream().mapToDouble(ChunkedTextEmbeddingResults::floatToDouble).toArray();
+
+        return new ChunkedTextEmbeddingResults(
+            List.of(
+                new org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk(input, doubleEmbeddings)
+            )
+        );
+    }
+
+    private static double floatToDouble(Float aFloat) {
+        return aFloat != null ? aFloat : 0;
     }
 
     private final List<org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk> chunks;
@@ -48,7 +79,8 @@ public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResul
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("text_embedding_chunk");
+        // TODO add isTruncated flag
+        builder.startArray(FIELD_NAME);
         for (var embedding : chunks) {
             embedding.toXContent(builder, params);
         }
@@ -68,7 +100,7 @@ public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResul
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        throw new UnsupportedOperationException("Chunked results are not returned in the coordindated action");
+        throw new UnsupportedOperationException("Chunked results are not returned in the coordinated action");
     }
 
     @Override
@@ -76,9 +108,17 @@ public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResul
         throw new UnsupportedOperationException("Chunked results are not returned in the legacy format");
     }
 
+    @SuppressWarnings("checkstyle:LineLength")
     @Override
     public Map<String, Object> asMap() {
-        throw new UnsupportedOperationException("Chunked results are not returned in the a map format");
+        return Map.of(
+            FIELD_NAME,
+            chunks.stream()
+                .map(
+                    org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk::asMapWithListsInsteadOfArrays
+                )
+                .collect(Collectors.toList())
+        );
     }
 
     @Override

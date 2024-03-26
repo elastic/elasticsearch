@@ -61,6 +61,7 @@ sourceSets.main.java {
 tasks.named("test").configure {
   if (BuildParams.isCi() == false) {
     systemProperty 'generateDocs', true
+    systemProperty 'examples.dir', "${projectDir}/qa/testFixtures/src/main/resources/"
     doFirst {
       project.delete(
         files("${projectDir}/build/testrun/test/temp/esql/functions")
@@ -77,16 +78,16 @@ tasks.named("test").configure {
         project.sync {
           from "${projectDir}/build/testrun/test/temp/esql/functions"
           into "${rootDir}/docs/reference/esql/functions"
-          include '**/*.asciidoc', '**/*.svg'
+          include '**/*.asciidoc', '**/*.svg', '**/*.md'
           preserve {
-            include '/*.asciidoc', '**/*.asciidoc', '**/*.svg'
+            include '/*.asciidoc', '**/*.asciidoc', '**/*.svg', 'README.md'
           }
         }
       } else {
         project.sync {
           from "${projectDir}/build/testrun/test/temp/esql/functions"
           into "${rootDir}/docs/reference/esql/functions"
-          include '**/*.asciidoc', '**/*.svg'
+          include '**/*.asciidoc', '**/*.svg', '**/*.md'
           preserve {
             include '/*.asciidoc', 'README.md'
           }

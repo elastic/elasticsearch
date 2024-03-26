@@ -24,6 +24,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
+
 /**
  * A rate grouping aggregation definition for double.
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
@@ -59,10 +61,10 @@ public class RateDoubleAggregator {
     public static void combineStates(
         DoubleRateGroupingState current,
         int currentGroupId, // make the stylecheck happy
-        DoubleRateGroupingState state,
-        int statePosition
+        DoubleRateGroupingState otherState,
+        int otherGroupId
     ) {
-        throw new UnsupportedOperationException("ordinals grouping is not supported yet");
+        current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
     public static Block evaluateFinal(DoubleRateGroupingState state, IntVector selected, DriverContext driverContext) {
@@ -163,6 +165,7 @@ public class RateDoubleAggregator {
             if (state == null) {
                 adjustBreaker(DoubleRateState.bytesUsed(valueCount));
                 state = new DoubleRateState(valueCount);
+                state.reset = reset;
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
                 for (int i = 0; i < valueCount; i++) {
@@ -172,11 +175,11 @@ public class RateDoubleAggregator {
             } else {
                 adjustBreaker(DoubleRateState.bytesUsed(state.entries() + valueCount));
                 var newState = new DoubleRateState(state.entries() + valueCount);
+                newState.reset = state.reset + reset;
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
                 adjustBreaker(-DoubleRateState.bytesUsed(state.entries())); // old state
             }
-            state.reset += reset;
         }
 
         void merge(DoubleRateState curr, DoubleRateState dst, int firstIndex, int rightCount, LongBlock timestamps, DoubleBlock values) {
@@ -206,6 +209,49 @@ public class RateDoubleAggregator {
                 ++k;
                 ++j;
             }
+        }
+
+        void combineState(int groupId, DoubleRateGroupingState otherState, int otherGroupId) {
+            var other = otherGroupId < otherState.states.size() ? otherState.states.get(otherGroupId) : null;
+            if (other == null) {
+                return;
+            }
+            ensureCapacity(groupId);
+            var curr = states.get(groupId);
+            if (curr == null) {
+                var len = other.entries();
+                adjustBreaker(DoubleRateState.bytesUsed(len));
+                curr = new DoubleRateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
+                curr.reset = other.reset;
+                states.set(groupId, curr);
+            } else {
+                states.set(groupId, mergeState(curr, other));
+            }
+        }
+
+        DoubleRateState mergeState(DoubleRateState s1, DoubleRateState s2) {
+            var newLen = s1.entries() + s2.entries();
+            adjustBreaker(DoubleRateState.bytesUsed(newLen));
+            var dst = new DoubleRateState(newLen);
+            dst.reset = s1.reset + s2.reset;
+            int i = 0, j = 0, k = 0;
+            while (i < s1.entries() && j < s2.entries()) {
+                if (s1.timestamps[i] > s2.timestamps[j]) {
+                    dst.timestamps[k] = s1.timestamps[i];
+                    dst.values[k] = s1.values[i];
+                    ++i;
+                } else {
+                    dst.timestamps[k] = s2.timestamps[j];
+                    dst.values[k] = s2.values[j];
+                    ++j;
+                }
+                ++k;
+            }
+            System.arraycopy(s1.timestamps, i, dst.timestamps, k, s1.entries() - i);
+            System.arraycopy(s1.values, i, dst.values, k, s1.entries() - i);
+            System.arraycopy(s2.timestamps, j, dst.timestamps, k, s2.entries() - j);
+            System.arraycopy(s2.values, j, dst.values, k, s2.entries() - j);
+            return dst;
         }
 
         @Override

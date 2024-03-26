@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.Collection;

@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
+
 public class Log10Tests extends AbstractFunctionTestCase {
     public Log10Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -54,7 +56,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
             suppliers,
             "Log10UnsignedLongEvaluator[val=" + read + "]",
             DataTypes.DOUBLE,
-            ul -> Math.log10(ul == null ? null : NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
+            ul -> Math.log10(ul == null ? null : unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
             BigInteger.ONE,
             UNSIGNED_LONG_MAX,
             List.of()

@@ -34,6 +34,11 @@ public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResul
         return new ChunkedTextEmbeddingResults(mlInferenceResults.getChunks());
     }
 
+    /**
+     * Returns a list of {@link ChunkedTextEmbeddingResults}. The number of entries in the list will match the input list size.
+     * Each {@link ChunkedTextEmbeddingResults} will have a single chunk containing the entire results from the
+     * {@link TextEmbeddingResults}.
+     */
     public static List<ChunkedInferenceServiceResults> of(List<String> inputs, TextEmbeddingResults textEmbeddings) {
         validateInputSizeAgainstEmbeddings(inputs, textEmbeddings.embeddings().size());
 

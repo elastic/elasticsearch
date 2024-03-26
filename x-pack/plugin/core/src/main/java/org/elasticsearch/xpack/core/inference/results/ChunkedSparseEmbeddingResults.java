@@ -33,6 +33,11 @@ public class ChunkedSparseEmbeddingResults implements ChunkedInferenceServiceRes
         return new ChunkedSparseEmbeddingResults(mlInferenceResults.getChunks());
     }
 
+    /**
+     * Returns a list of {@link ChunkedSparseEmbeddingResults}. The number of entries in the list will match the input list size.
+     * Each {@link ChunkedSparseEmbeddingResults} will have a single chunk containing the entire results from the
+     * {@link SparseEmbeddingResults}.
+     */
     public static List<ChunkedInferenceServiceResults> of(List<String> inputs, SparseEmbeddingResults sparseEmbeddingResults) {
         validateInputSizeAgainstEmbeddings(inputs, sparseEmbeddingResults.embeddings().size());
 

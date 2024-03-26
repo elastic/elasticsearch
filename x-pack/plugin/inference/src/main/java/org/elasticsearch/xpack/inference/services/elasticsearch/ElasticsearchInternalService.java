@@ -399,27 +399,6 @@ public class ElasticsearchInternalService implements InferenceService {
         }
     }
 
-    // private List<ChunkedInferenceServiceResults> translateChunkedResults(List<InferenceResults> inferenceResults) {
-    // var translated = new ArrayList<ChunkedInferenceServiceResults>();
-    //
-    // for (var inferenceResult : inferenceResults) {
-    // if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
-    // translated.add(ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult));
-    // } else if (inferenceResult instanceof ErrorInferenceResults error) {
-    // translated.add(new ErrorChunkedInferenceResults(error.getException()));
-    // } else {
-    // throw new ElasticsearchStatusException(
-    // "Expected a chunked inference [{}] received [{}]",
-    // RestStatus.INTERNAL_SERVER_ERROR,
-    // ChunkedTextEmbeddingResults.NAME,
-    // inferenceResult.getWriteableName()
-    // );
-    // }
-    // }
-    //
-    // return translated;
-    // }
-
     @Override
     public boolean isInClusterService() {
         return true;

@@ -31,6 +31,11 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
     public static final String NAME = "chunked_text_embedding_service_byte_results";
     public static final String FIELD_NAME = "text_embedding_byte_chunk";
 
+    /**
+     * Returns a list of {@link ChunkedTextEmbeddingByteResults}. The number of entries in the list will match the input list size.
+     * Each {@link ChunkedTextEmbeddingByteResults} will have a single chunk containing the entire results from the
+     * {@link TextEmbeddingByteResults}.
+     */
     public static List<ChunkedInferenceServiceResults> of(List<String> inputs, TextEmbeddingByteResults textEmbeddings) {
         validateInputSizeAgainstEmbeddings(inputs, textEmbeddings.embeddings().size());
 

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResul
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -392,6 +395,64 @@ public class ElserInternalServiceTests extends ESTestCase {
             terminate(threadpool);
         }
         assertTrue("Listener not called", gotResults.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testChunkInferSetsTokenization() {
+        var expectedSpan = new AtomicInteger();
+        var expectedWindowSize = new AtomicReference<Integer>();
+
+        ThreadPool threadpool = new TestThreadPool("test");
+        Client client = mock(Client.class);
+        try {
+            when(client.threadPool()).thenReturn(threadpool);
+            doAnswer(invocationOnMock -> {
+                var request = (InferTrainedModelDeploymentAction.Request) invocationOnMock.getArguments()[1];
+                assertThat(request.getUpdate(), instanceOf(TokenizationConfigUpdate.class));
+                var update = (TokenizationConfigUpdate) request.getUpdate();
+                assertEquals(update.getSpanSettings().span(), expectedSpan.get());
+                assertEquals(update.getSpanSettings().maxSequenceLength(), expectedWindowSize.get());
+                return null;
+            }).when(client)
+                .execute(
+                    same(InferTrainedModelDeploymentAction.INSTANCE),
+                    any(InferTrainedModelDeploymentAction.Request.class),
+                    any(ActionListener.class)
+                );
+
+            var model = new ElserInternalModel(
+                "foo",
+                TaskType.SPARSE_EMBEDDING,
+                "elser",
+                new ElserInternalServiceSettings(1, 1, "elser"),
+                new ElserMlNodeTaskSettings()
+            );
+            var service = createService(client);
+
+            expectedSpan.set(-1);
+            expectedWindowSize.set(null);
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                Map.of(),
+                InputType.SEARCH,
+                null,
+                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+            );
+
+            expectedSpan.set(-1);
+            expectedWindowSize.set(256);
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                Map.of(),
+                InputType.SEARCH,
+                new ChunkingOptions(256, null),
+                ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
+            );
+        } finally {
+            terminate(threadpool);
+        }
     }
 
     private ElserInternalService createService(Client client) {

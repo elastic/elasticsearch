@@ -251,9 +251,9 @@ public class ElasticsearchInternalService implements InferenceService {
             return;
         }
 
-        var configUpdate = chunkingOptions.settingsArePresent()
+        var configUpdate = chunkingOptions != null
             ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : TextEmbeddingConfigUpdate.EMPTY_INSTANCE;
+            : new TokenizationConfigUpdate(null, null);
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getInferenceEntityId(),

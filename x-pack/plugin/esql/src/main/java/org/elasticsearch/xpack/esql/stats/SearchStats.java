@@ -195,7 +195,8 @@ public class SearchStats {
             if (exists(field) == false) {
                 stat.singleValue = true;
             } else {
-                var sv = new boolean[] { true };
+                // fields are MV per default
+                var sv = new boolean[] { false };
                 for (SearchContext context : contexts) {
                     var sec = context.getSearchExecutionContext();
                     MappedFieldType mappedType = sec.isFieldMapped(field) ? null : sec.getFieldType(field);

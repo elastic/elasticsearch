@@ -38,7 +38,8 @@ public interface ServiceSettings extends ToXContentObject, VersionedNamedWriteab
     }
 
     /**
-     * The data type for the embeddings this service works with. Defaults to null.
+     * The data type for the embeddings this service works with. Defaults to null,
+     * Text Embedding models should return a non-null value
      *
      * @return the element type
      */

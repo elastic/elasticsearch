@@ -17,7 +17,7 @@ import java.util.Locale;
 public class XContentUtilsTests extends ESTestCase {
 
     public void testMoveToFirstToken() throws IOException {
-        String json = """
+        var json = """
             {
                 "key": "value"
             }
@@ -33,7 +33,7 @@ public class XContentUtilsTests extends ESTestCase {
     }
 
     public void testMoveToFirstToken_DoesNotMoveIfAlreadyAtAToken() throws IOException {
-        String json = """
+        var json = """
             {
                 "key": "value"
             }

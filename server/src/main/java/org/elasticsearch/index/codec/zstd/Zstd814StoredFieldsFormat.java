@@ -132,7 +132,7 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
                 }
                 src.buffer().flip();
 
-                final int decompressedLen = zstd.decompress(dest.buffer(), src.buffer());
+                final int decompressedLen = zstd.decompress(dest, src);
                 if (decompressedLen != originalLength) {
                     throw new CorruptIndexException("Expected " + originalLength + " decompressed bytes, got " + decompressedLen, in);
                 }
@@ -183,7 +183,7 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
                 }
                 src.buffer().flip();
 
-                final int compressedLen = zstd.compress(dest.buffer(), src.buffer(), level);
+                final int compressedLen = zstd.compress(dest, src, level);
                 out.writeVInt(compressedLen);
 
                 for (int written = 0; written < compressedLen;) {

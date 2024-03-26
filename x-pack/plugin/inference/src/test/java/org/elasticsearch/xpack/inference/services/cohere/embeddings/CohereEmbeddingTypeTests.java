@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
@@ -47,5 +48,13 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
             CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, TransportVersions.ML_INFERENCE_EMBEDDING_BYTE_ADDED),
             is(CohereEmbeddingType.FLOAT)
         );
+    }
+
+    public void testFromElementType_CovertsFloatToCohereEmbeddingTypeFloat() {
+        assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.FLOAT), is(CohereEmbeddingType.FLOAT));
+    }
+
+    public void testFromElementType_CovertsByteToCohereEmbeddingTypeByte() {
+        assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.BYTE), is(CohereEmbeddingType.BYTE));
     }
 }

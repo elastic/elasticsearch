@@ -150,6 +150,7 @@ public class InferenceResultFieldMapper extends MetadataFieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         boolean withinLeafObject = context.path().isWithinLeafObject();
         try {
+            // Disable dot expansion so there is no need to traverse subobjects for retrieving the field type
             context.path().setWithinLeafObject(true);
             XContentParser parser = context.parser();
             failIfTokenIsNot(parser, XContentParser.Token.START_OBJECT);

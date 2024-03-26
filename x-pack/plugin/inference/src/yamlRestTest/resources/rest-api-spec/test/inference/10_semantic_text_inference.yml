@@ -337,9 +337,9 @@ setup:
         index: test-multifield-index
         id: doc_1
 
-  - match: { _source.top_level_field: "multifield inference test" }
-  - match: { _source._inference.top_level_field\.semantic_multifield.results.0.text: "multifield inference test" }
-  - exists: _source._inference.top_level_field\.semantic_multifield.results.0.inference
+  - match:  { _source.top_level_field: "multifield inference test" }
+  - length: { _source._inference.top_level_field\.semantic_multifield.results: 1 }
+  - match:  { _source._inference.top_level_field\.semantic_multifield.results.0.text: "multifield inference test" }
   - exists: _source._inference.top_level_field\.semantic_multifield.results.0.inference
 
 

@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -69,6 +71,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.common.ResultsAndErrors;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequestTests;
@@ -80,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authc.DomainConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.profile.ProfileDocument.ProfileDocumentUser;
@@ -118,13 +122,16 @@ import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SEC
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -176,6 +183,7 @@ public class ProfileServiceTests extends ESTestCase {
     private Client client;
     private SecurityIndexManager profileIndex;
     private ProfileService profileService;
+    Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
     private boolean useProfileOrigin;
 
     @Before
@@ -207,8 +215,10 @@ public class ProfileServiceTests extends ESTestCase {
         when(featureService.clusterHasFeature(any(), eq(SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE))).thenReturn(
             useProfileOrigin
         );
+        realmRefLookup = realmIdentifier -> null;
         Realms realms = mock(Realms.class);
         when(realms.getDomainConfig(anyString())).then(args -> new DomainConfig(args.getArgument(0), Set.of(), false, null));
+        when(realms.getRealmRef(any(RealmConfig.RealmIdentifier.class))).then(args -> realmRefLookup.apply(args.getArgument(0)));
         this.profileService = new ProfileService(
             Settings.EMPTY,
             Clock.systemUTC(),
@@ -223,6 +233,53 @@ public class ProfileServiceTests extends ESTestCase {
     @After
     public void stopThreadPool() {
         terminate(threadPool);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileSearchForApiKeyOwnerWithoutDomain() throws Exception {
+        String realmName = "realmName_" + randomAlphaOfLength(8);
+        String realmType = "realmType_" + randomAlphaOfLength(8);
+        String username = "username_" + randomAlphaOfLength(8);
+        List<ApiKey> apiKeys = List.of(createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), username, realmName, realmType));
+        realmRefLookup = realmIdentifier -> {
+            assertThat(realmIdentifier.getName(), is(realmName));
+            assertThat(realmIdentifier.getType(), is(realmType));
+            return new Authentication.RealmRef(realmName, realmType, "nodeName_" + randomAlphaOfLength(8));
+        };
+        MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[1];
+        responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+        MultiSearchResponse emptyMultiSearchResponse = new MultiSearchResponse(responseItems, randomNonNegativeLong());
+        try {
+            doAnswer(invocation -> {
+                assertThat(
+                    threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                    equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                );
+                MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                assertThat(multiSearchRequest.requests().get(0).source().query(), instanceOf(BoolQueryBuilder.class));
+                assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(), iterableWithSize(3));
+                assertThat(
+                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(),
+                    containsInAnyOrder(
+                        new TermQueryBuilder("user_profile.user.username.keyword", username),
+                        new TermQueryBuilder("user_profile.user.realm.type", realmType),
+                        new TermQueryBuilder("user_profile.user.realm.name", realmName)
+                    )
+                );
+                var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(emptyMultiSearchResponse);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+
+            PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+            profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
+            Collection<String> profileUids = listener.get();
+            assertThat(profileUids, iterableWithSize(1));
+            assertThat(profileUids.iterator().next(), nullValue());
+        } finally {
+            emptyMultiSearchResponse.decRef();
+        }
     }
 
     public void testGetProfilesByUids() {
@@ -1130,5 +1187,60 @@ public class ProfileServiceTests extends ESTestCase {
             Map.of(),
             null
         );
+    }
+
+    private static ApiKey createApiKeyForOwner(String apiKeyId, String username, String realmName, String realmType) {
+        return new ApiKey(
+            randomAlphaOfLength(4),
+            apiKeyId,
+            randomFrom(ApiKey.Type.values()),
+            Instant.now(),
+            Instant.now().plusSeconds(3600),
+            false,
+            null,
+            username,
+            realmName,
+            realmType,
+            null,
+            List.of(
+                new RoleDescriptor(
+                    randomAlphaOfLength(5),
+                    new String[] { "manage_index_template" },
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("rad").build() },
+                    null,
+                    null,
+                    null,
+                    Map.of("_key", "value"),
+                    null,
+                    null,
+                    null
+                )
+            ),
+            null
+        );
+    }
+
+    private static class TestEmptySearchResponse extends SearchResponse {
+
+        TestEmptySearchResponse() {
+            super(
+                SearchHits.EMPTY_WITH_TOTAL_HITS,
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
+                null,
+                0,
+                0,
+                0,
+                0L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                Clusters.EMPTY,
+                null
+            );
+        }
     }
 }

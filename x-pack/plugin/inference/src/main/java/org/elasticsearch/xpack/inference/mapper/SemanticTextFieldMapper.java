@@ -249,7 +249,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
         }
 
         public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) throws IOException {
-            String nestedFieldPath = name() + "." + RESULTS;
+            String nestedFieldPath = name() + "." + CHUNKS;
             String inferenceResultsFieldName = nestedFieldPath + "." + INFERENCE_CHUNKS_RESULTS;
             QueryBuilder childQueryBuilder;
 

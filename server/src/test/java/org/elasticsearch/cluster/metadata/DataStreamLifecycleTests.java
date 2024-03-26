@@ -132,7 +132,11 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             } else {
                 assertThat(serialized, containsString("data_retention"));
             }
-            assertThat(serialized, containsString("effective_retention"));
+            if (lifecycle.isEnabled()) {
+                assertThat(serialized, containsString("effective_retention"));
+            } else {
+                assertThat(serialized, not(containsString("effective_retention")));
+            }
         }
     }
 

@@ -55,32 +55,32 @@ Contains the set of rules that are actively used for sync jobs. The `active` obj
     The value to be used in conjunction with the rule for matching the contents of the document's field.
     ** `order` (Required, number) +
     The order in which the rules are applied. The first rule to match has its policy applied.
-    ** `created_at` (Optional, datetime) +
+    ** `created_at` (Required, datetime) +
     The timestamp when the rule was added.
-    ** `updated_at` (Optional, datetime) +
+    ** `updated_at` (Required, datetime) +
     The timestamp when the rule was last edited.
 
-  * `advanced_snippet` (Optional, object) +
+  * `advanced_snippet` (Required, object) +
   Used for {enterprise-search-ref}/sync-rules.html#sync-rules-advanced[advanced filtering] at query time, with the following sub-attributes:
     ** `value` (Required, object) +
     A JSON object passed directly to the connector for advanced filtering.
-    ** `created_at` (Optional, datetime) +
+    ** `created_at` (Required, datetime) +
     The timestamp when this JSON object was created.
-    ** `updated_at` (Optional, datetime) +
+    ** `updated_at` (Required, datetime) +
     The timestamp when this JSON object was last edited.
 
-  * `validation` (Optional, object) +
+  * `validation` (Required, object) +
   Provides validation status for the rules, including:
     ** `state` (Required, string) +
     Indicates the validation state: "edited", "valid", or "invalid".
-    ** `errors` (Optional, object) +
+    ** `errors` (Required, object) +
     Contains details about any validation errors, with sub-attributes:
       *** `ids` (Required, string) +
       The ID(s) of any rules deemed invalid.
       *** `messages` (Required, string) +
       Messages explaining what is invalid about the rules.
 
-- `draft` (Optional, object) +
+- `draft` (Required, object) +
 An object identical in structure to the `active` object, but used for drafting and editing filtering rules before they become active.
 
 

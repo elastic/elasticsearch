@@ -51,7 +51,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             new ParseField(BulkByScrollResponse.FAILURES_FIELD)
         );
         // since the result of BulkByScrollResponse.Status are mixed we also parse that in this
-        Status.declareFields(PARSER);
+        BulkByScrollTaskStatusTests.declareFields(PARSER);
     }
 
     private static Object parseFailure(XContentParser parser) throws IOException {

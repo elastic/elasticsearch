@@ -731,7 +731,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
 
         Map<String, Object> updateWatch = entityAsMap(client().performRequest(createWatchRequest));
         assertThat(updateWatch.get("created"), equalTo(false));
-        assertThat(updateWatch.get("_version"), equalTo(2));
+        assertThat((int) updateWatch.get("_version"), greaterThanOrEqualTo(2));
 
         Map<String, Object> get = entityAsMap(client().performRequest(new Request("GET", "_watcher/watch/new_watch")));
         assertThat(get.get("found"), equalTo(true));

@@ -215,6 +215,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             }
         }
 
+        final IndexAbstraction rolloverTargetAbstraction = clusterState.metadata()
+            .getIndicesLookup()
+            .get(rolloverRequest.getRolloverTarget());
+        if (rolloverTargetAbstraction.getType() == IndexAbstraction.Type.ALIAS && rolloverTargetAbstraction.isDataStreamRelated()) {
+            listener.onFailure(
+                new IllegalStateException("Aliases to data streams cannot be rolled over. Please rollover the data stream itself.")
+            );
+            return;
+        }
+
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
             .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))

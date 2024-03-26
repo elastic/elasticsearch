@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.search;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
@@ -25,6 +26,7 @@ import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -48,9 +50,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
@@ -699,6 +706,169 @@ public class SearchMetricsServiceTests extends ESTestCase {
         );
     }
 
+    public void testGetNumberOfReplicaChangesOnSearchPowerUpdate() {
+        IndexMetadata outsideBoostWindowMetadata = createIndex(1, 1);
+        IndexMetadata withinBoostWindowMetadata = createIndex(3, 1);
+
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(createNodes(1))
+            .metadata(Metadata.builder().put(withinBoostWindowMetadata, false).put(outsideBoostWindowMetadata, false))
+            .build();
+
+        service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+        assertEquals(0, service.getNumberOfReplicaChanges().size());
+
+        service.processShardSizesRequest(
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(outsideBoostWindowMetadata.getIndex(), 0), new ShardSize(0, 1024, ZERO))
+            )
+        );
+        assertEquals(0, service.getNumberOfReplicaChanges().size());
+
+        int numShardsWithinBoostWindow = randomIntBetween(1, 3);
+        service.processShardSizesRequest(
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(
+                    new ShardId(withinBoostWindowMetadata.getIndex(), 0),
+                    new ShardSize(1024, randomBoolean() ? 1024 : 0, ZERO),
+                    new ShardId(withinBoostWindowMetadata.getIndex(), 1),
+                    new ShardSize(numShardsWithinBoostWindow > 1 ? 1024 : 0, randomBoolean() ? 1024 : 0, ZERO),
+                    new ShardId(withinBoostWindowMetadata.getIndex(), 2),
+                    new ShardSize(numShardsWithinBoostWindow > 2 ? 1024 : 0, randomBoolean() ? 1024 : 0, ZERO)
+                )
+            )
+        );
+        assertEquals(0, service.getNumberOfReplicaChanges().size());
+
+        service.updateSearchPower(randomIntBetween(250, 10000));
+        {
+            Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
+            assertEquals(1, numberOfReplicaChanges.size());
+            assertEquals(2, numberOfReplicaChanges.get(withinBoostWindowMetadata.getIndex().getName()).intValue());
+        }
+
+        // simulate updating replica count according to last decision
+        withinBoostWindowMetadata = IndexMetadata.builder(withinBoostWindowMetadata)
+            .settings(indexSettings(3, 2).put("index.version.created", Version.CURRENT))
+            .build();
+        var newState = ClusterState.builder(state).metadata(Metadata.builder().put(withinBoostWindowMetadata, false)).build();
+        service.clusterChanged(new ClusterChangedEvent("test", newState, state));
+
+        service.updateSearchPower(randomIntBetween(1, 99));
+        {
+            Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
+            assertEquals(1, numberOfReplicaChanges.size());
+            assertEquals(1, numberOfReplicaChanges.get(withinBoostWindowMetadata.getIndex().getName()).intValue());
+        }
+    }
+
+    public void testGetNumberOfReplicaChangesOnShardSizeUpdateHighSearchPower() {
+        service.updateSearchPower(randomIntBetween(250, 10000));
+        IndexMetadata outsideBoostWindowMetadata = createIndex(1, 1);
+        IndexMetadata withinBoostWindowMetadata = createIndex(3, 1);
+
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(createNodes(1))
+            .metadata(Metadata.builder().put(withinBoostWindowMetadata, false).put(outsideBoostWindowMetadata, false))
+            .build();
+
+        service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+        assertEquals(0, service.getNumberOfReplicaChanges().size());
+
+        service.processShardSizesRequest(
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(new ShardId(outsideBoostWindowMetadata.getIndex(), 0), new ShardSize(0, 1024, ZERO))
+            )
+        );
+        assertEquals(0, service.getNumberOfReplicaChanges().size());
+
+        int numShardsWithinBoostWindow = randomIntBetween(1, 3);
+        service.processShardSizesRequest(
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(
+                    new ShardId(withinBoostWindowMetadata.getIndex(), 0),
+                    new ShardSize(1024, randomBoolean() ? 1024 : 0, ZERO),
+                    new ShardId(withinBoostWindowMetadata.getIndex(), 1),
+                    new ShardSize(numShardsWithinBoostWindow > 1 ? 1024 : 0, randomBoolean() ? 1024 : 0, ZERO),
+                    new ShardId(withinBoostWindowMetadata.getIndex(), 2),
+                    new ShardSize(numShardsWithinBoostWindow > 2 ? 1024 : 0, randomBoolean() ? 1024 : 0, ZERO)
+                )
+            )
+        );
+        {
+            Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
+            assertEquals(1, numberOfReplicaChanges.size());
+            assertEquals(2, numberOfReplicaChanges.get(withinBoostWindowMetadata.getIndex().getName()).intValue());
+        }
+
+        // simulate updating replica count according to last decision
+        withinBoostWindowMetadata = IndexMetadata.builder(withinBoostWindowMetadata)
+            .settings(indexSettings(3, 2).put("index.version.created", Version.CURRENT))
+            .build();
+        var newState = ClusterState.builder(state).metadata(Metadata.builder().put(withinBoostWindowMetadata, false)).build();
+        service.clusterChanged(new ClusterChangedEvent("test", newState, state));
+
+        // simulate the index falling out of the boost window
+        service.processShardSizesRequest(
+            new PublishShardSizesRequest(
+                "search_node_1",
+                Map.of(
+                    new ShardId(withinBoostWindowMetadata.getIndex(), 0),
+                    new ShardSize(0, 1024, ZERO),
+                    new ShardId(withinBoostWindowMetadata.getIndex(), 1),
+                    new ShardSize(0, 1024, ZERO),
+                    new ShardId(withinBoostWindowMetadata.getIndex(), 2),
+                    new ShardSize(0, 1024, ZERO)
+                )
+            )
+        );
+        {
+            Map<String, Integer> numberOfReplicaChanges = service.getNumberOfReplicaChanges();
+            assertEquals(1, numberOfReplicaChanges.size());
+            assertEquals(1, numberOfReplicaChanges.get(withinBoostWindowMetadata.getIndex().getName()).intValue());
+        }
+    }
+
+    public void testGetNumberOfReplicaChangesIndexRemoved() {
+        Map<ShardId, ShardSize> shardSizeMap = new HashMap<>();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        for (int i = 0; i < 100; i++) {
+            IndexMetadata index = createIndex(1, 1);
+            metadataBuilder.put(index, false);
+            shardSizeMap.put(new ShardId(index.getIndex(), 0), new ShardSize(0, 1024, ZERO));
+        }
+
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(createNodes(1)).metadata(metadataBuilder).build();
+
+        service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+        service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", shardSizeMap));
+
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        try {
+            ClusterState newState = ClusterState.builder(state)
+                .metadata(Metadata.builder(state.metadata()).removeAllIndices().build())
+                .build();
+            Future<?> numReplicaChangesFuture = executorService.submit(
+                () -> { assertEquals(0, service.getNumberOfReplicaChanges().size()); }
+            );
+            Future<?> clusterChangedFuture = executorService.submit(
+                () -> service.clusterChanged(new ClusterChangedEvent("test", newState, state))
+            );
+            numReplicaChangesFuture.get();
+            clusterChangedFuture.get();
+        } catch (InterruptedException e) {
+            throw new ThreadInterruptedException(e);
+        } catch (ExecutionException e) {
+            fail(e);
+        } finally {
+            terminate(executorService);
+        }
+    }
+
     private static DiscoveryNodes createNodes(int searchNodes) {
         var builder = DiscoveryNodes.builder();
         builder.masterNodeId("master").localNodeId("master");
@@ -726,7 +896,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
             Sets.addToCopy(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
                 SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
-                SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING
+                SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
+                ServerlessSharedSettings.SEARCH_POWER_SETTING
             )
         );
     }

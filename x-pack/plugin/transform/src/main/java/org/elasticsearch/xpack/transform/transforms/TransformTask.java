@@ -71,7 +71,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
     @SuppressWarnings("this-escape")
-    public TransformTask(
+    TransformTask(
         long id,
         String type,
         String action,

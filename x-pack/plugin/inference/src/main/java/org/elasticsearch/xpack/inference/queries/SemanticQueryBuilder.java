@@ -35,12 +35,9 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -162,18 +159,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             return inferenceResults != null ? new SemanticQueryBuilder(this, inferenceResultsSupplier, inferenceResults) : this;
         }
 
-        Map<String, Set<String>> inferenceIdsForFields = computeInferenceIdsForFields(queryRewriteContext.getIndexMetadataMap().values());
-        Set<String> inferenceIdsForField = inferenceIdsForFields.getOrDefault(fieldName, Set.of());
-        if (inferenceIdsForField.size() > 1) {
-            // TODO: Handle multi-index semantic queries
-            throw new IllegalArgumentException("Field [" + fieldName + "] has multiple inference IDs associated with it");
-        }
-
+        String inferenceId = getInferenceIdForForField(queryRewriteContext.getIndexMetadataMap().values(), fieldName);
         SetOnce<InferenceServiceResults> inferenceResultsSupplier;
-        if (inferenceIdsForField.isEmpty() == false) {
+        if (inferenceId != null) {
             InferenceAction.Request inferenceRequest = new InferenceAction.Request(
                 TaskType.ANY,
-                inferenceIdsForField.iterator().next(),
+                inferenceId,
                 List.of(query),
                 Map.of(),
                 InputType.SEARCH
@@ -193,8 +184,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 )
             );
         } else {
-            // The most likely reason for an empty inferenceIdsForField set is an invalid field name, invalid index name(s), or a
-            // combination of both.
+            // The most likely reason for a null inference ID is an invalid field name, invalid index name(s), or a combination of both.
             // Set the inference results to an empty list so that query rewriting can continue.
             // Invalid index names will be handled in TransportSearchAction, which will throw IndexNotFoundException.
             // Invalid field names will be handled later in the rewrite process.
@@ -209,19 +199,23 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         throw new IllegalStateException(NAME + " should have been rewritten to another query type");
     }
 
-    private Map<String, Set<String>> computeInferenceIdsForFields(Collection<IndexMetadata> indexMetadataCollection) {
-        Map<String, Set<String>> inferenceIdsForFields = new HashMap<>();
+    private static String getInferenceIdForForField(Collection<IndexMetadata> indexMetadataCollection, String fieldName) {
+        String inferenceId = null;
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            Map<String, FieldInferenceMetadata.FieldInferenceOptions> fieldInferenceOptionsMap = indexMetadata.getFieldInferenceMetadata()
-                .getFieldInferenceOptions();
+            FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
+                .getFieldInferenceOptions().get(fieldName);
 
-            for (Map.Entry<String, FieldInferenceMetadata.FieldInferenceOptions> entry : fieldInferenceOptionsMap.entrySet()) {
-                Set<String> inferenceIds = inferenceIdsForFields.computeIfAbsent(entry.getKey(), v -> new HashSet<>());
-                inferenceIds.add(entry.getValue().inferenceId());
+            String indexInferenceId = fieldInferenceOptions != null ? fieldInferenceOptions.inferenceId() : null;
+            if (indexInferenceId != null) {
+                if (inferenceId != null && inferenceId.equals(indexInferenceId) == false) {
+                    throw new IllegalArgumentException("Field [" + fieldName + "] has multiple inference IDs associated with it");
+                }
+
+                inferenceId = indexInferenceId;
             }
         }
 
-        return inferenceIdsForFields;
+        return inferenceId;
     }
 
     @Override

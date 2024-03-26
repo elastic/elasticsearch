@@ -33,58 +33,58 @@ public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
 
-        return parameterSuppliersFromTypedData(
-            List.of(
-                new TestCaseSupplier(
-                    List.of(DataTypes.IP, DataTypes.KEYWORD),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(STRING_TO_IP.convert(BytesRefs.toBytesRef("192.168.0.10")), DataTypes.IP, "ip"),
-                            new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataTypes.KEYWORD, "cidrs")
-                        ),
-                        "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
-                        DataTypes.BOOLEAN,
-                        equalTo(true)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataTypes.IP, DataTypes.TEXT),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(STRING_TO_IP.convert(BytesRefs.toBytesRef("192.168.0.10")), DataTypes.IP, "ip"),
-                            new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataTypes.TEXT, "cidrs")
-                        ),
-                        "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
-                        DataTypes.BOOLEAN,
-                        equalTo(true)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataTypes.IP, DataTypes.KEYWORD),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(STRING_TO_IP.convert(BytesRefs.toBytesRef("192.168.0.10")), DataTypes.IP, "ip"),
-                            new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataTypes.KEYWORD, "cidrs")
-                        ),
-                        "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
-                        DataTypes.BOOLEAN,
-                        equalTo(false)
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataTypes.IP, DataTypes.TEXT),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(STRING_TO_IP.convert(BytesRefs.toBytesRef("192.168.0.10")), DataTypes.IP, "ip"),
-                            new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataTypes.TEXT, "cidrs")
-                        ),
-                        "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
-                        DataTypes.BOOLEAN,
-                        equalTo(false)
-                    )
+        var suppliers = List.of(
+            new TestCaseSupplier(
+                List.of(DataTypes.IP, DataTypes.KEYWORD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(STRING_TO_IP.convert(BytesRefs.toBytesRef("192.168.0.10")), DataTypes.IP, "ip"),
+                        new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataTypes.KEYWORD, "cidrs")
+                    ),
+                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
+                    DataTypes.BOOLEAN,
+                    equalTo(true)
+                )
+            ),
+            new TestCaseSupplier(
+                List.of(DataTypes.IP, DataTypes.TEXT),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(STRING_TO_IP.convert(BytesRefs.toBytesRef("192.168.0.10")), DataTypes.IP, "ip"),
+                        new TestCaseSupplier.TypedData(new BytesRef("192.168.0.0/16"), DataTypes.TEXT, "cidrs")
+                    ),
+                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
+                    DataTypes.BOOLEAN,
+                    equalTo(true)
+                )
+            ),
+            new TestCaseSupplier(
+                List.of(DataTypes.IP, DataTypes.KEYWORD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(STRING_TO_IP.convert(BytesRefs.toBytesRef("192.168.0.10")), DataTypes.IP, "ip"),
+                        new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataTypes.KEYWORD, "cidrs")
+                    ),
+                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
+                    DataTypes.BOOLEAN,
+                    equalTo(false)
+                )
+            ),
+            new TestCaseSupplier(
+                List.of(DataTypes.IP, DataTypes.TEXT),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(STRING_TO_IP.convert(BytesRefs.toBytesRef("192.168.0.10")), DataTypes.IP, "ip"),
+                        new TestCaseSupplier.TypedData(new BytesRef("10.0.0.0/16"), DataTypes.TEXT, "cidrs")
+                    ),
+                    "CIDRMatchEvaluator[ip=Attribute[channel=0], cidrs=[Attribute[channel=1]]]",
+                    DataTypes.BOOLEAN,
+                    equalTo(false)
                 )
             )
         );
+
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     @Override

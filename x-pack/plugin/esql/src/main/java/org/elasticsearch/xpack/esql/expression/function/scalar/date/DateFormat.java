@@ -11,8 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -27,7 +25,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
@@ -128,37 +125,5 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         Expression first = format != null ? format : field;
         Expression second = format != null ? field : null;
         return NodeInfo.create(this, DateFormat::new, first, second, configuration());
-    }
-
-    static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-
-        private final EvalOperator.ExpressionEvaluator.Factory value;
-
-        private final EvalOperator.ExpressionEvaluator.Factory chronoField;
-
-        private final ZoneId zone;
-
-        Factory(
-            Source source,
-            EvalOperator.ExpressionEvaluator.Factory value,
-            EvalOperator.ExpressionEvaluator.Factory chronoField,
-            ZoneId zone
-        ) {
-            this.source = source;
-            this.value = value;
-            this.chronoField = chronoField;
-            this.zone = zone;
-        }
-
-        @Override
-        public DateExtractEvaluator get(DriverContext context) {
-            return new DateExtractEvaluator(source, value.get(context), chronoField.get(context), zone, context);
-        }
-
-        @Override
-        public String toString() {
-            return "DateExtractEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
-        }
     }
 }

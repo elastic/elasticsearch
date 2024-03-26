@@ -292,12 +292,14 @@ public class MetadataRolloverService {
         DataStreamAutoShardingEvent dataStreamAutoShardingEvent = autoShardingResult == null
             ? dataStream.getAutoShardingEvent()
             : switch (autoShardingResult.type()) {
-                case NO_CHANGE_REQUIRED -> {
-                    logger.info(
-                        "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
-                        dataStreamName,
-                        dataStream.getAutoShardingEvent()
-                    );
+                case NO_CHANGE_REQUIRED, COOLDOWN_PREVENTED_INCREASE, COOLDOWN_PREVENTED_DECREASE -> {
+                    if (dataStream.getAutoShardingEvent() != null) {
+                        logger.info(
+                            "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
+                            dataStreamName,
+                            dataStream.getAutoShardingEvent()
+                        );
+                    }
                     yield dataStream.getAutoShardingEvent();
                 }
                 case INCREASE_SHARDS, DECREASE_SHARDS -> {
@@ -307,18 +309,6 @@ public class MetadataRolloverService {
                         autoShardingResult.targetNumberOfShards(),
                         now.toEpochMilli()
                     );
-                }
-                case COOLDOWN_PREVENTED_INCREASE, COOLDOWN_PREVENTED_DECREASE -> {
-                    // we're in the cooldown period for this particular recommendation so perhaps use a previous autosharding
-                    // recommendation (or the value configured in the backing index template otherwise)
-                    if (dataStream.getAutoShardingEvent() != null) {
-                        logger.info(
-                            "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
-                            dataStreamName,
-                            dataStream.getAutoShardingEvent()
-                        );
-                    }
-                    yield dataStream.getAutoShardingEvent();
                 }
                 // data sharding might not be available due to the feature not being available/enabled or due to cluster level excludes
                 // being configured. the index template will dictate the number of shards as usual

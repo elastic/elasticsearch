@@ -209,45 +209,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public SearchSourceBuilder() {}
 
     /**
-     * Copy constructor.
-     */
-    public SearchSourceBuilder(SearchSourceBuilder source) {
-        this.subSearchSourceBuilders = source.subSearchSourceBuilders;
-        this.postQueryBuilder = source.postQueryBuilder;
-        this.knnSearch = source.knnSearch;
-        this.rankBuilder = source.rankBuilder;
-        this.from = source.from;
-        this.size = source.size;
-        this.explain = source.explain;
-        this.version = source.version;
-        this.seqNoAndPrimaryTerm = source.seqNoAndPrimaryTerm;
-        this.sorts = source.sorts;
-        this.trackScores = source.trackScores;
-        this.trackTotalHitsUpTo = source.trackTotalHitsUpTo;
-        this.searchAfterBuilder = source.searchAfterBuilder;
-        this.sliceBuilder = source.sliceBuilder;
-        this.minScore = source.minScore;
-        this.timeout = source.timeout;
-        this.terminateAfter = source.terminateAfter;
-        this.storedFieldsContext = source.storedFieldsContext;
-        this.docValueFields = source.docValueFields;
-        this.scriptFields = source.scriptFields;
-        this.fetchSourceContext = source.fetchSourceContext;
-        this.fetchFields = source.fetchFields;
-        this.aggregations = source.aggregations;
-        this.highlightBuilder = source.highlightBuilder;
-        this.suggestBuilder = source.suggestBuilder;
-        this.rescoreBuilders = source.rescoreBuilders;
-        this.indexBoosts = source.indexBoosts;
-        this.stats = source.stats;
-        this.extBuilders = source.extBuilders;
-        this.profile = source.profile;
-        this.collapse = source.collapse;
-        this.pointInTimeBuilder = source.pointInTimeBuilder;
-        this.runtimeMappings = source.runtimeMappings;
-    }
-
-    /**
      * Read from a stream.
      */
     public SearchSourceBuilder(StreamInput in) throws IOException {

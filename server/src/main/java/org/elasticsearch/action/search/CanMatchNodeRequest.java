@@ -176,7 +176,7 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
             for (QueryBuilder aggregationQuery : aggregationQueries) {
                 subSearches.add(new SubSearchSourceBuilder(aggregationQuery));
             }
-            return new SearchSourceBuilder(searchRequest.source()).subSearches(subSearches);
+            return searchRequest.source().shallowCopy().subSearches(subSearches);
         }
     }
 

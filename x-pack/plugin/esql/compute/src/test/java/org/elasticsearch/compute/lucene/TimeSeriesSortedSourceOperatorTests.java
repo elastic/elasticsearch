@@ -67,7 +67,6 @@ import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_F
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.startsWith;
 
 public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
@@ -90,7 +89,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(5));
             DocVector docVector = (DocVector) page.getBlock(0).asVector();
-            IntVector tsidVector = (IntVector) page.getBlock(1).asVector();
+            BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
             LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
             LongVector voltageVector = (LongVector) page.getBlock(3).asVector();
             BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(4).asVector();
@@ -103,7 +102,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 assertThat(docVector.shards().getInt(i), equalTo(0));
                 assertThat(voltageVector.getLong(i), equalTo(expectedVoltage));
                 assertThat(hostnameVector.getBytesRef(i, new BytesRef()).utf8ToString(), equalTo(expectedHostname));
-                assertThat(tsidVector.getInt(i), equalTo(expectedTsidOrd));
+                assertThat(tsidVector.getBytesRef(i, new BytesRef()).utf8ToString(), equalTo("\u0001\bhostnames\u0007" + expectedHostname));
                 assertThat(timestampVector.getLong(i), equalTo(expectedTimestamp));
                 offset++;
             }
@@ -191,14 +190,14 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             }
             assertThat(page.getBlockCount(), equalTo(4));
             DocVector docVector = (DocVector) page.getBlock(0).asVector();
-            IntVector tsidVector = (IntVector) page.getBlock(1).asVector();
+            BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
             LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
             LongVector metricVector = (LongVector) page.getBlock(3).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 Doc doc = docs.get(offset);
                 offset++;
                 assertThat(docVector.shards().getInt(0), equalTo(0));
-                assertThat(tsidVector.getInt(i), equalTo(hostToTsidOrd.get(doc.host)));
+                assertThat(tsidVector.getBytesRef(i, new BytesRef()).utf8ToString(), equalTo("\u0001\bhostnames\u0002h" + doc.host));
                 assertThat(timestampVector.getLong(i), equalTo(doc.timestamp));
                 assertThat(metricVector.getLong(i), equalTo(doc.metric));
             }

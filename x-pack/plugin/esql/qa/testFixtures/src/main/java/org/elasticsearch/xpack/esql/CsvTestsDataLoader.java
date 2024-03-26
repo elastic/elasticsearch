@@ -56,7 +56,12 @@ public class CsvTestsDataLoader {
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs", "mapping-ul_logs.json", "ul_logs.csv");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data", "mapping-sample_data.json", "sample_data.csv");
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips", "mapping-clientips.json", "clientips.csv");
+    private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr", "mapping-client_cidr.json", "client_cidr.csv");
+    private static final TestsDataset AGES = new TestsDataset("ages", "mapping-ages.json", "ages.csv");
+    private static final TestsDataset HEIGHTS = new TestsDataset("heights", "mapping-heights.json", "heights.csv");
+    private static final TestsDataset DECADES = new TestsDataset("decades", "mapping-decades.json", "decades.csv");
     private static final TestsDataset AIRPORTS = new TestsDataset("airports", "mapping-airports.json", "airports.csv");
+    private static final TestsDataset AIRPORTS_MP = new TestsDataset("airports_mp", "mapping-airports.json", "airports_mp.csv");
     private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web", "mapping-airports_web.json", "airports_web.csv");
     private static final TestsDataset COUNTRIES_BBOX = new TestsDataset(
         "countries_bbox",
@@ -68,6 +73,11 @@ public class CsvTestsDataLoader {
         "mapping-countries_bbox_web.json",
         "countries_bbox_web.csv"
     );
+    private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset(
+        "airport_city_boundaries",
+        "mapping-airport_city_boundaries.json",
+        "airport_city_boundaries.csv"
+    );
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -77,17 +87,48 @@ public class CsvTestsDataLoader {
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
+        Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
+        Map.entry(AGES.indexName, AGES),
+        Map.entry(HEIGHTS.indexName, HEIGHTS),
+        Map.entry(DECADES.indexName, DECADES),
         Map.entry(AIRPORTS.indexName, AIRPORTS),
+        Map.entry(AIRPORTS_MP.indexName, AIRPORTS_MP),
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
-        Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB)
+        Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
+        Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
+    private static final EnrichConfig CLIENT_CIDR_ENRICH = new EnrichConfig("client_cidr_policy", "enrich-policy-client_cidr.json");
+    private static final EnrichConfig AGES_ENRICH = new EnrichConfig("ages_policy", "enrich-policy-ages.json");
+    private static final EnrichConfig HEIGHTS_ENRICH = new EnrichConfig("heights_policy", "enrich-policy-heights.json");
+    private static final EnrichConfig DECADES_ENRICH = new EnrichConfig("decades_policy", "enrich-policy-decades.json");
+    private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
+    private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
+    private static final EnrichConfig CITY_AIRPORTS_ENRICH = new EnrichConfig("city_airports", "enrich-policy-city_airports.json");
 
-    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips");
-    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH);
+    public static final List<String> ENRICH_SOURCE_INDICES = List.of(
+        "languages",
+        "clientips",
+        "client_cidr",
+        "ages",
+        "heights",
+        "decades",
+        "airport_city_boundaries"
+    );
+    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
+        LANGUAGES_ENRICH,
+        CLIENT_IPS_ENRICH,
+        CLIENT_CIDR_ENRICH,
+        AGES_ENRICH,
+        HEIGHTS_ENRICH,
+        DECADES_ENRICH,
+        CITY_NAMES_ENRICH,
+        CITY_BOUNDARIES_ENRICH,
+        CITY_AIRPORTS_ENRICH
+    );
 
     /**
      * <p>
@@ -244,6 +285,7 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
+        ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
             String line;
@@ -318,26 +360,20 @@ public class CsvTestsDataLoader {
                                     }
                                     // split on comma ignoring escaped commas
                                     String[] multiValues = entries[i].split(COMMA_ESCAPING_REGEX);
-                                    if (multiValues.length > 0) {// multi-value
+                                    if (multiValues.length > 1) {
                                         StringBuilder rowStringValue = new StringBuilder("[");
                                         for (String s : multiValues) {
-                                            if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
-                                                rowStringValue.append("\"" + s + "\",");
-                                            } else {
-                                                rowStringValue.append(s + ",");
-                                            }
+                                            rowStringValue.append(quoteIfNecessary(s)).append(",");
                                         }
                                         // remove the last comma and put a closing bracket instead
                                         rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
                                         entries[i] = rowStringValue.toString();
                                     } else {
-                                        if (entries[i].startsWith("\"") == false || entries[i].endsWith("\"") == false) {
-                                            entries[i] = "\"" + entries[i] + "\"";
-                                        }
+                                        entries[i] = quoteIfNecessary(entries[i]);
                                     }
                                     // replace any escaped commas with single comma
                                     entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                                    row.append("\"" + columns[i] + "\":" + entries[i]);
+                                    row.append("\"").append(columns[i]).append("\":").append(entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
                                         format(
@@ -359,17 +395,29 @@ public class CsvTestsDataLoader {
                 }
                 lineNumber++;
                 if (builder.length() > BULK_DATA_SIZE) {
-                    sendBulkRequest(indexName, builder, client, logger);
+                    sendBulkRequest(indexName, builder, client, logger, failures);
                     builder.setLength(0);
                 }
             }
         }
-        if (builder.length() > 0) {
-            sendBulkRequest(indexName, builder, client, logger);
+        if (builder.isEmpty() == false) {
+            sendBulkRequest(indexName, builder, client, logger, failures);
+        }
+        if (failures.isEmpty() == false) {
+            for (String failure : failures) {
+                logger.error(failure);
+            }
+            throw new IOException("Data loading failed with " + failures.size() + " errors: " + failures.get(0));
         }
     }
 
-    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger) throws IOException {
+    private static String quoteIfNecessary(String value) {
+        boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
+        return isQuoted ? value : "\"" + value + "\"";
+    }
+
+    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)
+        throws IOException {
         // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
         builder.append("\n");
         logger.debug("Sending bulk request of [{}] bytes for [{}]", builder.length(), indexName);
@@ -386,12 +434,24 @@ public class CsvTestsDataLoader {
                 if (Boolean.FALSE.equals(errors)) {
                     logger.info("Data loading of [{}] bytes into [{}] OK", builder.length(), indexName);
                 } else {
-                    throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
+                    addError(failures, indexName, builder, "errors: " + result);
                 }
             }
         } else {
-            throw new IOException("Data loading of [" + indexName + "] failed with status: " + response.getStatusLine());
+            addError(failures, indexName, builder, "status: " + response.getStatusLine());
         }
+    }
+
+    private static void addError(List<String> failures, String indexName, StringBuilder builder, String message) {
+        failures.add(
+            format(
+                "Data loading of [{}] bytes into [{}] failed with {}: Data [{}...]",
+                builder.length(),
+                indexName,
+                message,
+                builder.substring(0, 100)
+            )
+        );
     }
 
     private static void forceMerge(RestClient client, Set<String> indices, Logger logger) throws IOException {

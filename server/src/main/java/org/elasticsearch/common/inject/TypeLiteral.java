@@ -277,17 +277,4 @@ public class TypeLiteral<T> {
         return resolveAll(genericParameterTypes);
     }
 
-    /**
-     * Returns the resolved generic return type of {@code method}.
-     *
-     * @param method a method defined by this or any supertype.
-     * @since 2.0
-     */
-    public TypeLiteral<?> getReturnType(Method method) {
-        if (method.getDeclaringClass().isAssignableFrom(rawType) == false) {
-            throw new IllegalArgumentException(method + " is not defined by a supertype of " + type);
-        }
-
-        return resolve(method.getGenericReturnType());
-    }
 }

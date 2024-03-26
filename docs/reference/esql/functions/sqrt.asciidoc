@@ -20,8 +20,6 @@ return value is always a double.
 Square roots of negative numbers are NaN. Square roots of infinites are
 infinite.
 
-*Supported types*
-
 include::types/sqrt.asciidoc[]
 
 *Example*

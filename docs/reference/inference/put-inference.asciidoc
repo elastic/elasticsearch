@@ -25,7 +25,8 @@ or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 [[put-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+* Requires the `manage_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` role grants this privilege)
 
 
 [discrete]
@@ -100,6 +101,7 @@ the same name and the updated API key.
 (Optional, string)
 Specifies the types of embeddings you want to get back. Defaults to `float`.
 Valid values are:
+  * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`). 
   * `float`: use it for the default float embeddings.
   * `int8`: use it for signed int8 embeddings.
 
@@ -161,6 +163,12 @@ creating the {infer} model, you cannot change the associated API key. If you
 want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
+`model_id`:::
+(Optional, string)
+The name of the model to use for the {infer} task. Refer to the
+https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
+for the list of available text embedding models.
+
 `organization_id`:::
 (Optional, string)
 The unique identifier of your organization. You can find the Organization ID in
@@ -214,13 +222,6 @@ Valid values are:
   * `search`: use it for storing embeddings of search queries run against a
   vector data base to find relevant documents.
 
-`model`:::
-(Optional, string)
-For `openai` sevice only. The name of the model to use for the {infer} task. Refer
-to the
-https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
-for the list of available text embedding models.
-
 `truncate`:::
 (Optional, string)
 For `cohere` service only. Specifies how the API handles inputs longer than the
@@ -255,10 +256,8 @@ PUT _inference/text_embedding/cohere-embeddings
     "service": "cohere",
     "service_settings": {
         "api_key": "<api_key>",
-        "model": "embed-english-light-v3.0",
-        "embedding_type": "int8"
-    },
-    "task_settings": {
+        "model_id": "embed-english-light-v3.0",
+        "embedding_type": "byte"
     }
 }
 ------------------------------------------------------------
@@ -305,8 +304,7 @@ PUT _inference/sparse_embedding/my-elser-model
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1
-  },
-  "task_settings": {}
+  }
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
@@ -398,10 +396,8 @@ PUT _inference/text_embedding/openai_embeddings
 {
     "service": "openai",
     "service_settings": {
-        "api_key": "<api_key>"
-    },
-    "task_settings": {
-       "model": "text-embedding-ada-002"
+        "api_key": "<api_key>",
+        "model_id": "text-embedding-ada-002"
     }
 }
 ------------------------------------------------------------

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -43,12 +43,13 @@ public enum FeatureMetric {
     WHERE(Filter.class::isInstance),
     ENRICH(Enrich.class::isInstance),
     MV_EXPAND(MvExpand.class::isInstance),
-    SHOW(plan -> plan instanceof ShowInfo || plan instanceof ShowFunctions),
+    SHOW(ShowInfo.class::isInstance),
     ROW(Row.class::isInstance),
     FROM(EsRelation.class::isInstance),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
-    RENAME(Rename.class::isInstance);
+    RENAME(Rename.class::isInstance),
+    META(MetaFunctions.class::isInstance);
 
     private Predicate<LogicalPlan> planCheck;
 

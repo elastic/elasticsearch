@@ -21,7 +21,6 @@ import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.inject.Scope;
 import org.elasticsearch.common.inject.TypeLiteral;
@@ -197,22 +196,6 @@ public final class Errors {
         return addMessage("Binding to Provider is not allowed.");
     }
 
-    public Errors subtypeNotProvided(Class<? extends Provider<?>> providerType, Class<?> type) {
-        return addMessage("%s doesn't provide instances of %s.", providerType, type);
-    }
-
-    public Errors notASubtype(Class<?> implementationType, Class<?> type) {
-        return addMessage("%s doesn't extend %s.", implementationType, type);
-    }
-
-    public Errors recursiveImplementationType() {
-        return addMessage("@ImplementedBy points to the same class it annotates.");
-    }
-
-    public Errors recursiveProviderType() {
-        return addMessage("@ProvidedBy points to the same class it annotates.");
-    }
-
     public Errors missingRuntimeRetention(Object source) {
         return addMessage("Please annotate with @Retention(RUNTIME).%n" + " Bound at %s.", convert(source));
     }
@@ -264,10 +247,6 @@ public final class Errors {
 
     public Errors duplicateScopes(Scope existing, Class<? extends Annotation> annotationType, Scope scope) {
         return addMessage("Scope %s is already bound to %s. Cannot bind %s.", existing, annotationType, scope);
-    }
-
-    public Errors voidProviderMethod() {
-        return addMessage("Provider methods must return a value. Do not return void.");
     }
 
     public Errors missingConstantValues() {

@@ -188,6 +188,7 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.DisruptableMockTransport;
@@ -1390,6 +1391,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         safeAwait(testListener); // shouldn't throw
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
     public void testFullSnapshotUnassignedShards() {
         setupTestCluster(1, 0); // no data nodes, we want unassigned shards
 
@@ -1469,6 +1471,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
     public void testSnapshotNameAlreadyInUseExceptionLogging() {
         setupTestCluster(1, 1);
 
@@ -1519,6 +1522,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
     public void testIndexNotFoundExceptionLogging() {
         setupTestCluster(1, 0); // no need for data nodes here
 
@@ -1571,6 +1575,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         );
     }
 
+    @TestLogging(reason = "testing logging at INFO level", value = "org.elasticsearch.snapshots.SnapshotsService:INFO")
     public void testIllegalArgumentExceptionLogging() {
         setupTestCluster(1, 0); // no need for data nodes here
 

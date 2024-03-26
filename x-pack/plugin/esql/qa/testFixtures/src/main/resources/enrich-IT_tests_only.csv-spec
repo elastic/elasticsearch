@@ -151,3 +151,199 @@ row a = ["1", "2"] | enrich languages_policy on a with a_lang = language_name;
 a:keyword   | a_lang:keyword
 ["1", "2"]  | ["English", "French"] 
 ;
+
+
+enrichCidr#[skip:-8.13.99, reason:enrich for cidr added in 8.14.0]
+FROM sample_data
+| ENRICH client_cidr_policy ON client_ip WITH env
+| EVAL max_env = MV_MAX(env), count_env = MV_COUNT(env)
+| KEEP client_ip, count_env, max_env
+| SORT client_ip
+;
+
+client_ip:ip | count_env:i | max_env:keyword
+172.21.0.5   | 1           | Development
+172.21.2.113 | 2           | QA
+172.21.2.162 | 2           | QA
+172.21.3.15  | 2           | Production
+172.21.3.15  | 2           | Production
+172.21.3.15  | 2           | Production
+172.21.3.15  | 2           | Production
+;
+
+
+enrichCidr2#[skip:-8.99.99, reason:ip_range support not added yet]
+FROM sample_data
+| ENRICH client_cidr_policy ON client_ip WITH env, client_cidr
+| KEEP client_ip, env, client_cidr
+| SORT client_ip
+;
+
+client_ip:ip | env:keyword               | client_cidr:ip_range
+172.21.3.15  | [Development, Production] | 172.21.3.0/24
+172.21.3.15  | [Development, Production] | 172.21.3.0/24
+172.21.3.15  | [Development, Production] | 172.21.3.0/24
+172.21.3.15  | [Development, Production] | 172.21.3.0/24
+172.21.0.5   | Development               | 172.21.0.0/16
+172.21.2.113 | [Development, QA]         | 172.21.2.0/24
+172.21.2.162 | [Development, QA]         | 172.21.2.0/24
+;
+
+
+enrichAgesStatsYear#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM employees
+| WHERE birth_date > "1960-01-01"
+| EVAL birth_year = DATE_EXTRACT("year", birth_date)
+| EVAL age = 2022 - birth_year
+| ENRICH ages_policy ON age WITH age_group = description
+| STATS count=count(age_group) BY age_group, birth_year
+| KEEP birth_year, age_group, count
+| SORT birth_year DESC
+;
+
+birth_year:long | age_group:keyword | count:long
+1965            | Middle-aged       | 1
+1964            | Middle-aged       | 4
+1963            | Middle-aged       | 7
+1962            | Senior            | 6
+1961            | Senior            | 8
+1960            | Senior            | 8
+;
+
+
+enrichAgesStatsAgeGroup#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM employees
+| WHERE birth_date IS NOT NULL
+| EVAL age = 2022 - DATE_EXTRACT("year", birth_date)
+| ENRICH ages_policy ON age WITH age_group = description
+| STATS count=count(age_group) BY age_group
+| SORT count DESC
+;
+
+count:long | age_group:keyword
+78         | Senior
+12         | Middle-aged
+;
+
+
+enrichHeightsStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM employees
+| ENRICH heights_policy ON height WITH height_group = description
+| STATS count=count(height_group), min=min(height), max=max(height) BY height_group
+| KEEP height_group, min, max, count
+| SORT min ASC
+;
+
+height_group:k | min:double | max:double | count:long
+Very Short     | 1.41       | 1.48       | 9
+Short          | 1.5        | 1.59       | 20
+Medium Height  | 1.61       | 1.79       | 26
+Tall           | 1.8        | 1.99       | 25
+Very Tall      | 2.0        | 2.1        | 20
+;
+
+
+enrichDecadesStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM employees
+| ENRICH decades_policy ON birth_date WITH birth_decade = decade, birth_description = description
+| ENRICH decades_policy ON hire_date WITH hire_decade = decade, hire_description = description
+| STATS count=count(*) BY birth_decade, hire_decade, birth_description, hire_description
+| KEEP birth_decade, hire_decade, birth_description, hire_description, count
+| SORT birth_decade DESC, hire_decade DESC
+;
+
+birth_decade:long | hire_decade:l | birth_description:k | hire_description:k | count:long
+null              | 1990          | null                | Nineties Nostalgia | 6
+null              | 1980          | null                | Radical Eighties   | 4
+1960              | 1990          | Swinging Sixties    | Nineties Nostalgia | 13
+1960              | 1980          | Swinging Sixties    | Radical Eighties   | 21
+1950              | 1990          | Nifty Fifties       | Nineties Nostalgia | 22
+1950              | 1980          | Nifty Fifties       | Radical Eighties   | 34
+;
+
+
+spatialEnrichmentKeywordMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM airports
+| WHERE abbrev == "CPH"
+| ENRICH city_names ON city WITH airport, region, city_boundary
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| KEEP abbrev, city, city_location, country, location, name, airport, region, boundary_wkt_length
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point                       |  name:text   |  airport:text  |  region:text         |  boundary_wkt_length:integer
+CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          |  POINT(12.6493508684508 55.6285017221528) |  Copenhagen  |  Copenhagen    |  Københavns Kommune  |  265
+;
+
+
+spatialEnrichmentGeoMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM airports
+| WHERE abbrev == "CPH"
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| KEEP abbrev, city, city_location, country, location, name, airport, region, boundary_wkt_length
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point                       |  name:text   |  airport:text  |  region:text         |  boundary_wkt_length:integer
+CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          |  POINT(12.6493508684508 55.6285017221528) |  Copenhagen  |  Copenhagen    |  Københavns Kommune  |  265
+;
+
+
+spatialEnrichmentGeoMatchStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+required_feature: esql.mv_warn
+
+FROM airports
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| STATS city_centroid = ST_CENTROID(city_location), count = COUNT(city_location), min_wkt = MIN(boundary_wkt_length), max_wkt = MAX(boundary_wkt_length)
+;
+warning:Line 3:30: evaluation of [LENGTH(TO_STRING(city_boundary))] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:30: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+city_centroid:geo_point    |  count:long  |  min_wkt:integer  |  max_wkt:integer
+POINT(1.396561 24.127649)  |  872         |  88               |  1044
+;
+
+
+spatialEnrichmentKeywordMatchAndSpatialPredicate#[skip:-8.13.99, reason:st_intersects added in 8.14]
+FROM airports
+| ENRICH city_names ON city WITH airport, region, city_boundary
+| MV_EXPAND city_boundary
+| EVAL airport_in_city = ST_INTERSECTS(location, city_boundary)
+| STATS count=COUNT(*) BY airport_in_city
+| SORT count ASC
+;
+
+count:long  |  airport_in_city:boolean
+114         |  null
+396         |  true
+455         |  false
+;
+
+
+spatialEnrichmentKeywordMatchAndSpatialAggregation#[skip:-8.13.99, reason:st_intersects added in 8.14]
+FROM airports
+| ENRICH city_names ON city WITH airport, region, city_boundary
+| MV_EXPAND city_boundary
+| EVAL airport_in_city = ST_INTERSECTS(location, city_boundary)
+| STATS count=COUNT(*), centroid=ST_CENTROID(location) BY airport_in_city
+| SORT count ASC
+;
+
+count:long  |  centroid:geo_point            |  airport_in_city:boolean
+114         |  POINT (-24.750062 31.575549)  |  null
+396         |  POINT (-2.534797 20.667712)   |  true
+455         |  POINT (3.090752 27.676442)    |  false
+;
+
+
+spatialEnrichmentTextMatch#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
+FROM airports
+| WHERE abbrev == "IDR"
+| ENRICH city_airports ON name WITH city_name = city, region, city_boundary
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| KEEP abbrev, city_name, city_location, country, location, name, name, region, boundary_wkt_length
+;
+
+abbrev:k  |  city_name:k  |  city_location:geo_point |  country:k  |  location:geo_point                       |  name:text                    |  region:text  |  boundary_wkt_length:i
+IDR       |  Indore       |  POINT(75.8472 22.7167)  |  India      |  POINT(75.8092915005895 22.727749187571)  |  Devi Ahilyabai Holkar Int'l  |  Indore City  |  231
+;

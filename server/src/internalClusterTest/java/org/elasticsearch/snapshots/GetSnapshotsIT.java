@@ -659,7 +659,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 final GetSnapshotsResponse getSnapshotsResponse = sortedWithLimit(
                     repoNames,
                     sort,
-                    GetSnapshotsRequest.After.from(after, sort).asQueryParam(),
+                    sort.encodeAfterQueryParam(after),
                     i,
                     order
                 );

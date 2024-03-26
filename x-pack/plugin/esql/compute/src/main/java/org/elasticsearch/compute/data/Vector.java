@@ -82,4 +82,5 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     byte SERIALIZE_VECTOR_VALUES = 0;
     byte SERIALIZE_VECTOR_CONSTANT = 1;
     byte SERIALIZE_VECTOR_ARRAY = 2;
+    byte SERIALIZE_VECTOR_BIG_ARRAY = 3;
 }

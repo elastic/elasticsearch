@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -112,6 +113,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
+        final DataStreamGlobalRetention globalRetention = DataStreamGlobalRetention.getFromClusterState(state);
         final ClusterState stateWithTemplate;
         if (request.getIndexTemplateRequest() != null) {
             // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)
@@ -137,7 +139,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
 
         String matchingTemplate = findV2Template(stateWithTemplate.metadata(), request.getIndexName(), false);
         if (matchingTemplate == null) {
-            listener.onResponse(new SimulateIndexTemplateResponse(null, null));
+            listener.onResponse(new SimulateIndexTemplateResponse(null, null, null));
             return;
         }
 
@@ -165,11 +167,12 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 new SimulateIndexTemplateResponse(
                     template,
                     overlapping,
-                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
+                    globalRetention
                 )
             );
         } else {
-            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping, globalRetention));
         }
     }
 

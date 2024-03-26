@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -249,7 +248,6 @@ public class NodeShutdownIT extends ESRestTestCase {
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
         // assertBusy waiting for the shard to no longer be on that node
-        AtomicReference<List<Object>> debug = new AtomicReference<>();
         assertBusy(() -> {
             List<Object> shardsResponse = entityAsList(client().performRequest(checkShardsRequest));
             final long shardsOnNodeToShutDown = shardsResponse.stream()
@@ -258,16 +256,17 @@ public class NodeShutdownIT extends ESRestTestCase {
                 .filter(shard -> "STARTED".equals(shard.get("state")) || "RELOCATING".equals(shard.get("state")))
                 .count();
             assertThat(shardsOnNodeToShutDown, is(0L));
-            debug.set(shardsResponse);
         });
 
-        // Now check the shard migration status
-        Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
-        Response statusResponse = client().performRequest(getStatusRequest);
-        Map<String, Object> status = entityAsMap(statusResponse);
-        assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
-        assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
-        assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
+        assertBusy(() -> {
+            // Now check the shard migration status
+            Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            Response statusResponse = client().performRequest(getStatusRequest);
+            Map<String, Object> status = entityAsMap(statusResponse);
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
+        });
     }
 
     public void testShardsCanBeAllocatedAfterShutdownDeleted() throws Exception {
@@ -292,7 +291,6 @@ public class NodeShutdownIT extends ESRestTestCase {
         ensureGreen(indexName);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77456")
     public void testStalledShardMigrationProperlyDetected() throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
         int numberOfShards = randomIntBetween(1, 5);

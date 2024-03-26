@@ -236,6 +236,12 @@ public class BigArrays {
         }
 
         @Override
+        public void fillWith(StreamInput in) throws IOException {
+            final int numBytes = in.readVInt();
+            in.readBytes(array, 0, numBytes);
+        }
+
+        @Override
         public void set(long index, byte[] buf, int offset, int len) {
             assert index >= 0 && index < size();
             System.arraycopy(buf, offset << 2, array, (int) index << 2, len << 2);
@@ -298,6 +304,12 @@ public class BigArrays {
             out.writeVInt(size);
             out.write(array, 0, size);
         }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            int len = in.readVInt();
+            in.readBytes(array, 0, len);
+        }
     }
 
     private static class ByteArrayAsDoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
@@ -342,6 +354,12 @@ public class BigArrays {
             assert fromIndex >= 0 && fromIndex <= toIndex;
             assert toIndex >= 0 && toIndex <= size();
             BigDoubleArray.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            int numBytes = in.readVInt();
+            in.readBytes(array, 0, numBytes);
         }
 
         @Override

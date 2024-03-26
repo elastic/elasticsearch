@@ -193,9 +193,7 @@ public class ElasticsearchInternalService implements InferenceService {
                 inferenceEntityId,
                 taskType,
                 NAME,
-                (MultilingualE5SmallInternalServiceSettings) MultilingualE5SmallInternalServiceSettings.fromPersistentMap(
-                    serviceSettingsMap
-                ).build()
+                (MultilingualE5SmallInternalServiceSettings) MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap).build()
             );
         } else {
             return new CustomElandModel(

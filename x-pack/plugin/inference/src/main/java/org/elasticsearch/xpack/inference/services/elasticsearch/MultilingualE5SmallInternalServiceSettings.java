@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
@@ -39,7 +38,7 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     }
 
     /**
-     * Parse the MultilingualE5SmallServiceSettings from map that originated from persistent storage and validate the setting values.
+     * Parse the MultilingualE5SmallServiceSettings from map and validate the setting values.
      *
      * If required setting are missing or the values are invalid an
      * {@link ValidationException} is thrown.
@@ -47,7 +46,7 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
      * @param map Source map containing the config
      * @return The {@code MultilingualE5SmallServiceSettings} builder
      */
-    public static MultilingualE5SmallInternalServiceSettings.Builder fromPersistentMap(Map<String, Object> map) {
+    public static MultilingualE5SmallInternalServiceSettings.Builder fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
         var requestFields = extractRequestFields(map, validationException);
 
@@ -56,19 +55,6 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
         }
 
         return createBuilder(requestFields);
-    }
-
-    private static MultilingualE5SmallInternalServiceSettings.Builder createBuilder(RequestFields requestFields) {
-        var builder = new InternalServiceSettings.Builder() {
-            @Override
-            public MultilingualE5SmallInternalServiceSettings build() {
-                return new MultilingualE5SmallInternalServiceSettings(getNumAllocations(), getNumThreads(), getModelId());
-            }
-        };
-        builder.setNumAllocations(requestFields.numAllocations);
-        builder.setNumThreads(requestFields.numThreads);
-        builder.setModelId(requestFields.modelId);
-        return builder;
     }
 
     private static RequestFields extractRequestFields(Map<String, Object> map, ValidationException validationException) {
@@ -92,37 +78,20 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
         return new RequestFields(numAllocations, numThreads, modelId);
     }
 
-    private record RequestFields(@Nullable Integer numAllocations, @Nullable Integer numThreads, @Nullable String modelId) {}
-
-    /**
-     * Parse the MultilingualE5SmallServiceSettings from map and validate the setting values.
-     *
-     * If required setting are missing or the values are invalid an
-     * {@link ValidationException} is thrown.
-     *
-     * @param map Source map containing the config
-     * @return The {@code MultilingualE5SmallServiceSettings} builder
-     */
-    public static MultilingualE5SmallInternalServiceSettings.Builder fromMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
-        var requestFields = extractRequestFields(map, validationException);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return createBuilder(requestFields);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(NUM_ALLOCATIONS, getNumAllocations());
-        builder.field(NUM_THREADS, getNumThreads());
-        builder.field(MODEL_ID, getModelId());
-        builder.endObject();
+    private static MultilingualE5SmallInternalServiceSettings.Builder createBuilder(RequestFields requestFields) {
+        var builder = new InternalServiceSettings.Builder() {
+            @Override
+            public MultilingualE5SmallInternalServiceSettings build() {
+                return new MultilingualE5SmallInternalServiceSettings(getNumAllocations(), getNumThreads(), getModelId());
+            }
+        };
+        builder.setNumAllocations(requestFields.numAllocations);
+        builder.setNumThreads(requestFields.numThreads);
+        builder.setModelId(requestFields.modelId);
         return builder;
     }
+
+    private record RequestFields(@Nullable Integer numAllocations, @Nullable Integer numThreads, @Nullable String modelId) {}
 
     @Override
     public boolean isFragment() {

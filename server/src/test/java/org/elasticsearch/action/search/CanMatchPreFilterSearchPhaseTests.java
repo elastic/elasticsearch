@@ -47,6 +47,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -500,6 +501,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             contextProviderBuilder.build(),
             queryBuilder,
             List.of(),
+            null,
             (updatedSearchShardIterators, requests) -> {
                 List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
 
@@ -570,6 +572,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             contextProviderBuilder.build(),
             queryBuilder,
             List.of(),
+            null,
             this::assertAllShardsAreQueried
         );
     }
@@ -627,6 +630,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             contextProviderBuilder.build(),
             queryBuilder,
             List.of(),
+            null,
             this::assertAllShardsAreQueried
         );
     }
@@ -650,6 +654,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             contextProviderBuilder.build(),
             query,
             List.of(aggregation),
+            null,
             // The default background filter matches the whole index, so all shards must be queried.
             this::assertAllShardsAreQueried
         );
@@ -678,6 +683,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             contextProviderBuilder.build(),
             query,
             List.of(aggregation),
+            null,
             (updatedSearchShardIterators, requests) -> {
                 // The search query matches index4, the background query matches index1 and index2,
                 // so index3 is the only one that must be skipped.
@@ -689,6 +695,34 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     }
                 }
             }
+        );
+    }
+
+    public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withSuggest() throws Exception {
+        Index index1 = new Index("index1", UUIDs.base64UUID());
+        Index index2 = new Index("index2", UUIDs.base64UUID());
+        Index index3 = new Index("index3", UUIDs.base64UUID());
+
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2100).to(2200));
+        AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms").backgroundFilter(
+            new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2000).to(2300)
+        );
+        SuggestBuilder suggest = new SuggestBuilder().setGlobalText("test");
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(),
+            List.of(index1, index2, index3),
+            contextProviderBuilder.build(),
+            query,
+            List.of(aggregation),
+            suggest,
+            // The query and aggregation and match only index3, but suggest should match everything.
+            this::assertAllShardsAreQueried
         );
     }
 
@@ -734,6 +768,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             contextProviderBuilder.build(),
             queryBuilder,
             List.of(),
+            null,
             (updatedSearchShardIterators, requests) -> {
                 var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
                 var nonSkippedShards = updatedSearchShardIterators.stream()
@@ -784,6 +819,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         CoordinatorRewriteContextProvider contextProvider,
         QueryBuilder query,
         List<AggregationBuilder> aggregations,
+        SuggestBuilder suggest,
         BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
@@ -836,6 +872,9 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchSourceBuilder.query(query);
             for (AggregationBuilder aggregation : aggregations) {
                 searchSourceBuilder.aggregation(aggregation);
+            }
+            if (suggest != null) {
+                searchSourceBuilder.suggest(suggest);
             }
             searchRequest.source(searchSourceBuilder);
 

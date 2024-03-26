@@ -18,13 +18,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -173,12 +172,11 @@ public class CanMatchNodeRequest extends TransportRequest implements IndicesRequ
         if (aggregationQueries.isEmpty()) {
             return searchRequest.source();
         } else {
-            BoolQueryBuilder query = QueryBuilders.boolQuery();
-            query.should(searchRequest.source().query());
+            List<SubSearchSourceBuilder> subSearches = new ArrayList<>(searchRequest.source().subSearches());
             for (QueryBuilder aggregationQuery : aggregationQueries) {
-                query.should(aggregationQuery);
+                subSearches.add(new SubSearchSourceBuilder(aggregationQuery));
             }
-            return SearchSourceBuilder.searchSource().query(query);
+            return new SearchSourceBuilder(searchRequest.source()).subSearches(subSearches);
         }
     }
 

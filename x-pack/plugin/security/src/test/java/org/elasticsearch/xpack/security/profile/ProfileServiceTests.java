@@ -1194,6 +1194,40 @@ public class ProfileServiceTests extends ESTestCase {
         }
     }
 
+    public void testProfilesIndexMissingOrUnavailableWhenRetrievingProfilesOfApiKeyOwners() throws Exception {
+        // profiles index missing
+        when(this.profileIndex.indexExists()).thenReturn(false);
+        String realmName = "realmName_" + randomAlphaOfLength(8);
+        String realmType = "realmType_" + randomAlphaOfLength(8);
+        String username = "username_" + randomAlphaOfLength(8);
+        List<ApiKey> apiKeys = List.of(createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), username, realmName, realmType));
+        realmRefLookup = realmIdentifier -> {
+            assertThat(realmIdentifier.getName(), is(realmName));
+            assertThat(realmIdentifier.getType(), is(realmType));
+            return new Authentication.RealmRef(realmName, realmType, "nodeName_" + randomAlphaOfLength(8));
+        };
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+            listener.onFailure(new Exception("test failed, code should not be reachable"));
+            return null;
+        }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+        when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+        PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+        profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
+        Collection<String> profileUids = listener.get();
+        assertThat(profileUids, nullValue());
+        // profiles index unavailable
+        when(this.profileIndex.indexExists()).thenReturn(true);
+        when(this.profileIndex.isAvailable(any())).thenReturn(false);
+        when(this.profileIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException("test unavailable"));
+        listener = new PlainActionFuture<>();
+        profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
+        PlainActionFuture<Collection<String>> finalListener = listener;
+        ExecutionException e = expectThrows(ExecutionException.class, () -> finalListener.get());
+        assertThat(e.getMessage(), containsString("test unavailable"));
+    }
+
     record SampleDocumentParameter(String uid, String username, List<String> roles, long lastSynchronized) {}
 
     private void mockMultiGetRequest(List<SampleDocumentParameter> sampleDocumentParameters) {

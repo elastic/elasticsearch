@@ -342,9 +342,9 @@
   - is_true: errors
   - length: { action_results: 2 }
   - match: { action_results.0.success: true }
-  - match: { action_results.0.action: add }
+  - match: { action_results.0.action: { 'type': 'add', 'indices': ['log-foobar'], 'aliases': ['test_alias1'] } }
   - match: { action_results.1.success: false }
-  - match: { action_results.1.action: remove }
+  - match: { action_results.1.action: { 'type': 'remove', 'indices': ['log-foobar'], 'aliases': ['test_non_existing'] } }
   - match: { action_results.1.error: aliases_not_found_exception }
 ---
 "Single action result per action":
@@ -384,7 +384,7 @@
   - is_true: errors
   - length: { action_results: 2 }
   - match: { action_results.0.success: true }
-  - match: { action_results.0.action: add }
+  - match: { action_results.0.action: { 'type': 'add', 'indices': ['log-test-*'], 'aliases': ['test_alias1'] } }
   - match: { action_results.1.success: false }
-  - match: { action_results.1.action: remove }
+  - match: { action_results.1.action: { 'type': 'remove', 'indices': ['log-test-*'], 'aliases': ['test_non_existing'] } }
   - match: { action_results.1.error: aliases_not_found_exception }

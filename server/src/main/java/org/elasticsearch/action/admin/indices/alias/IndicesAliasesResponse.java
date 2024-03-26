@@ -73,52 +73,65 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     }
 
     public static class AliasActionResult implements Writeable, ToXContentObject {
-        public static AliasActionResult REMOVE_MISSING = new AliasActionResult(
-            AliasActions.Type.REMOVE,
-            false,
-            "aliases_not_found_exception"
-        );
-
-        private final AliasActions.Type actionType;
+        private static final String ALIAS_MISSING_ERROR = "aliases_not_found_exception";
+        private final AliasActions action;
         private final boolean success;
         private final String error;
 
         public static AliasActionResult build(AliasActions action, int numAliasesRemoved) {
             if (action.actionType() == AliasActions.Type.REMOVE && numAliasesRemoved == 0) {
-                return REMOVE_MISSING;
-            } else {
-                return new AliasActionResult(action.actionType(), true, null);
+                return buildRemoveError(action);
             }
+            return buildSuccess(action);
         }
 
-        private AliasActionResult(AliasActions.Type actionType, boolean success, String error) {
+        private static AliasActionResult buildRemoveError(AliasActions action) {
+            return new AliasActionResult(action, false, ALIAS_MISSING_ERROR);
+        }
+
+        public static AliasActionResult buildSuccess(AliasActions action) {
+            return new AliasActionResult(action, true, null);
+        }
+
+        private AliasActionResult(AliasActions action, boolean success, String error) {
             assert error != null ^ success : "AliasActionResult should contain error message if and only if action not successful";
-            this.actionType = actionType;
+            this.action = action;
             this.success = success;
             this.error = error;
         }
 
         private AliasActionResult(StreamInput in) throws IOException {
-            this.actionType = AliasActions.Type.fromValue(in.readByte());
+            this.action = new AliasActions(in);
             this.success = in.readBoolean();
             this.error = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(actionType.value());
+            action.writeTo(out);
             out.writeBoolean(success);
             out.writeOptionalString(error);
         }
 
         public static final String ACTION_FIELD = "action";
+        public static final String ACTION_TYPE_FIELD = "type";
+        public static final String ACTION_INDICES_FIELD = "indices";
+        public static final String ACTION_ALIASES_FIELD = "aliases";
         public static final String SUCCESS_FIELD = "success";
         public static final String ERROR_FIELD = "error";
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(ACTION_FIELD, actionType.getFieldName());
+
+            // include subset of fields from action request
+            builder.field(ACTION_FIELD);
+            builder.startObject();
+            builder.field(ACTION_TYPE_FIELD, action.actionType().getFieldName());
+            builder.array(ACTION_INDICES_FIELD, action.getOriginalIndices());
+            builder.array(ACTION_ALIASES_FIELD, action.getOriginalAliases());
+            builder.endObject();
+
             builder.field(SUCCESS_FIELD, success);
             if (error != null) {
                 builder.field(ERROR_FIELD, error);

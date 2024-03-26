@@ -165,7 +165,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                                 finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
                             }
                         }
-                        actionResults.add(AliasActionResult.build(action, numAliasesRemoved));
+                        actionResults.add(AliasActionResult.buildSuccess(action));
                         continue;
                     }
                     case REMOVE -> {

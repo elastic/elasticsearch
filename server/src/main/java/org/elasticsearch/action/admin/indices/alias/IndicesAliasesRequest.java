@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -83,6 +84,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
         private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
         private static final ParseField MUST_EXIST = new ParseField("must_exist");
+        private static final ParseField ORIGINAL_INDICES = new ParseField("original_indices");
 
         private static final ParseField ADD = new ParseField("add");
         private static final ParseField REMOVE = new ParseField("remove");
@@ -217,6 +219,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
         private final AliasActions.Type type;
         private String[] indices;
+        private String[] originalIndices;
         private String[] aliases = Strings.EMPTY_ARRAY;
         private String[] originalAliases = Strings.EMPTY_ARRAY;
         private String filter;
@@ -246,6 +249,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             isHidden = in.readOptionalBoolean();
             originalAliases = in.readStringArray();
             mustExist = in.readOptionalBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ALIAS_ACTION_RESULTS)) {
+                originalIndices = in.readStringArray();
+            }
         }
 
         @Override
@@ -261,6 +267,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalBoolean(isHidden);
             out.writeStringArray(originalAliases);
             out.writeOptionalBoolean(mustExist);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ALIAS_ACTION_RESULTS)) {
+                out.writeStringArray(originalIndices);
+            }
         }
 
         /**
@@ -294,6 +303,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 }
             }
             this.indices = indices;
+            if (this.originalIndices == null) {
+                this.originalIndices = this.indices;
+            }
             return this;
         }
 
@@ -305,6 +317,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 throw new IllegalArgumentException("[index] can't be empty string");
             }
             this.indices = new String[] { index };
+            if (this.originalIndices == null) {
+                this.originalIndices = this.indices;
+            }
             return this;
         }
 
@@ -485,6 +500,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         @Override
         public String[] indices() {
             return indices;
+        }
+
+        public String[] getOriginalIndices() {
+            // originalIndices can be null in mixed version cluster
+            return originalIndices != null ? originalIndices : indices;
         }
 
         @Override

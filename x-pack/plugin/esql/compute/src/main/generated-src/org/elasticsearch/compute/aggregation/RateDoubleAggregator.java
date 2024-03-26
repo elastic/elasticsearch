@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -35,9 +36,9 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "resets", type = "DOUBLE") }
 )
 public class RateDoubleAggregator {
-    public static DoubleRateGroupingState initGrouping(BigArrays bigArrays, long unitInMillis) {
-        // TODO: pass BlockFactory instead bigArrays so we can use the breaker
-        return new DoubleRateGroupingState(bigArrays, unitInMillis);
+
+    public static DoubleRateGroupingState initGrouping(DriverContext driverContext, long unitInMillis) {
+        return new DoubleRateGroupingState(driverContext.bigArrays(), driverContext.breaker(), unitInMillis);
     }
 
     public static void combine(DoubleRateGroupingState current, int groupId, long timestamp, double value) {
@@ -68,7 +69,7 @@ public class RateDoubleAggregator {
         return state.evaluateFinal(selected, driverContext.blockFactory());
     }
 
-    private static class DoubleRateState implements Accountable {
+    private static class DoubleRateState {
         static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(DoubleRateState.class);
         final long[] timestamps; // descending order
         final double[] values;
@@ -101,9 +102,10 @@ public class RateDoubleAggregator {
             return timestamps.length;
         }
 
-        @Override
-        public long ramBytesUsed() {
-            return BASE_RAM_USAGE;
+        static long bytesUsed(int entries) {
+            var ts = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * entries);
+            var vs = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Double.BYTES * entries);
+            return BASE_RAM_USAGE + ts + vs;
         }
     }
 
@@ -111,9 +113,12 @@ public class RateDoubleAggregator {
         private ObjectArray<DoubleRateState> states;
         private final long unitInMillis;
         private final BigArrays bigArrays;
+        private final CircuitBreaker breaker;
+        private long stateBytes; // for individual states
 
-        DoubleRateGroupingState(BigArrays bigArrays, long unitInMillis) {
+        DoubleRateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, long unitInMillis) {
             this.bigArrays = bigArrays;
+            this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
             this.unitInMillis = unitInMillis;
         }
@@ -122,16 +127,25 @@ public class RateDoubleAggregator {
             states = bigArrays.grow(states, groupId + 1);
         }
 
+        void adjustBreaker(long bytes) {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            stateBytes += bytes;
+            assert stateBytes >= 0 : stateBytes;
+        }
+
         void append(int groupId, long timestamp, double value) {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
+                adjustBreaker(DoubleRateState.bytesUsed(1));
                 state = new DoubleRateState(new long[] { timestamp }, new double[] { value });
                 states.set(groupId, state);
             } else {
                 if (state.entries() == 1) {
+                    adjustBreaker(DoubleRateState.bytesUsed(2));
                     state = new DoubleRateState(new long[] { state.timestamps[0], timestamp }, new double[] { state.values[0], value });
                     states.set(groupId, state);
+                    adjustBreaker(-DoubleRateState.bytesUsed(1)); // old state
                 } else {
                     state.append(timestamp, value);
                 }
@@ -147,6 +161,7 @@ public class RateDoubleAggregator {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
+                adjustBreaker(DoubleRateState.bytesUsed(valueCount));
                 state = new DoubleRateState(valueCount);
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
@@ -155,9 +170,11 @@ public class RateDoubleAggregator {
                     state.values[i] = values.getDouble(firstIndex + i);
                 }
             } else {
+                adjustBreaker(DoubleRateState.bytesUsed(state.entries() + valueCount));
                 var newState = new DoubleRateState(state.entries() + valueCount);
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
+                adjustBreaker(-DoubleRateState.bytesUsed(state.entries())); // old state
             }
             state.reset += reset;
         }
@@ -193,12 +210,12 @@ public class RateDoubleAggregator {
 
         @Override
         public long ramBytesUsed() {
-            return states.ramBytesUsed();
+            return states.ramBytesUsed() + stateBytes;
         }
 
         @Override
         public void close() {
-            Releasables.close(states);
+            Releasables.close(states, () -> adjustBreaker(-stateBytes));
         }
 
         @Override

@@ -25,6 +25,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
+
 /**
  * A rate grouping aggregation definition for int.
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
@@ -60,10 +62,10 @@ public class RateIntAggregator {
     public static void combineStates(
         IntRateGroupingState current,
         int currentGroupId, // make the stylecheck happy
-        IntRateGroupingState state,
-        int statePosition
+        IntRateGroupingState otherState,
+        int otherGroupId
     ) {
-        throw new UnsupportedOperationException("ordinals grouping is not supported yet");
+        current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
     public static Block evaluateFinal(IntRateGroupingState state, IntVector selected, DriverContext driverContext) {
@@ -164,6 +166,7 @@ public class RateIntAggregator {
             if (state == null) {
                 adjustBreaker(IntRateState.bytesUsed(valueCount));
                 state = new IntRateState(valueCount);
+                state.reset = reset;
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
                 for (int i = 0; i < valueCount; i++) {
@@ -173,11 +176,11 @@ public class RateIntAggregator {
             } else {
                 adjustBreaker(IntRateState.bytesUsed(state.entries() + valueCount));
                 var newState = new IntRateState(state.entries() + valueCount);
+                newState.reset = state.reset + reset;
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
                 adjustBreaker(-IntRateState.bytesUsed(state.entries())); // old state
             }
-            state.reset += reset;
         }
 
         void merge(IntRateState curr, IntRateState dst, int firstIndex, int rightCount, LongBlock timestamps, IntBlock values) {
@@ -207,6 +210,49 @@ public class RateIntAggregator {
                 ++k;
                 ++j;
             }
+        }
+
+        void combineState(int groupId, IntRateGroupingState otherState, int otherGroupId) {
+            var other = otherGroupId < otherState.states.size() ? otherState.states.get(otherGroupId) : null;
+            if (other == null) {
+                return;
+            }
+            ensureCapacity(groupId);
+            var curr = states.get(groupId);
+            if (curr == null) {
+                var len = other.entries();
+                adjustBreaker(IntRateState.bytesUsed(len));
+                curr = new IntRateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
+                curr.reset = other.reset;
+                states.set(groupId, curr);
+            } else {
+                states.set(groupId, mergeState(curr, other));
+            }
+        }
+
+        IntRateState mergeState(IntRateState s1, IntRateState s2) {
+            var newLen = s1.entries() + s2.entries();
+            adjustBreaker(IntRateState.bytesUsed(newLen));
+            var dst = new IntRateState(newLen);
+            dst.reset = s1.reset + s2.reset;
+            int i = 0, j = 0, k = 0;
+            while (i < s1.entries() && j < s2.entries()) {
+                if (s1.timestamps[i] > s2.timestamps[j]) {
+                    dst.timestamps[k] = s1.timestamps[i];
+                    dst.values[k] = s1.values[i];
+                    ++i;
+                } else {
+                    dst.timestamps[k] = s2.timestamps[j];
+                    dst.values[k] = s2.values[j];
+                    ++j;
+                }
+                ++k;
+            }
+            System.arraycopy(s1.timestamps, i, dst.timestamps, k, s1.entries() - i);
+            System.arraycopy(s1.values, i, dst.values, k, s1.entries() - i);
+            System.arraycopy(s2.timestamps, j, dst.timestamps, k, s2.entries() - j);
+            System.arraycopy(s2.values, j, dst.values, k, s2.entries() - j);
+            return dst;
         }
 
         @Override

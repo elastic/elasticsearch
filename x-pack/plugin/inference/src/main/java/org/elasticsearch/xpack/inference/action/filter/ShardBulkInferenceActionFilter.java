@@ -22,6 +22,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
@@ -37,7 +38,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.inference.mapper.InferenceResultFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
@@ -49,10 +50,10 @@ import java.util.stream.Collectors;
 
 /**
  * An {@link ActionFilter} that performs inference on {@link BulkShardRequest} asynchronously and stores the results in
- * the individual {@link BulkItemRequest}. The results are then consumed by the {@link InferenceResultFieldMapper}
+ * the individual {@link BulkItemRequest}. The results are then consumed by the {@link InferenceMetadataFieldMapper}
  * in the subsequent {@link TransportShardBulkAction} downstream.
  */
-public class ShardBulkInferenceActionFilter implements ActionFilter {
+public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private static final Logger logger = LogManager.getLogger(ShardBulkInferenceActionFilter.class);
 
     private final InferenceServiceRegistry inferenceServiceRegistry;
@@ -67,6 +68,11 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
     public int order() {
         // must execute last (after the security action filter)
         return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public String actionName() {
+        return TransportShardBulkAction.ACTION_NAME;
     }
 
     @Override
@@ -261,10 +267,10 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
             Map<String, Object> newDocMap = indexRequest.sourceAsMap();
             Map<String, Object> inferenceMap = new LinkedHashMap<>();
             // ignore the existing inference map if any
-            newDocMap.put(InferenceResultFieldMapper.NAME, inferenceMap);
+            newDocMap.put(InferenceMetadataFieldMapper.NAME, inferenceMap);
             for (FieldInferenceResponse fieldResponse : response.responses()) {
                 try {
-                    InferenceResultFieldMapper.applyFieldInference(
+                    InferenceMetadataFieldMapper.applyFieldInference(
                         inferenceMap,
                         fieldResponse.field(),
                         fieldResponse.model(),
@@ -289,41 +295,47 @@ public class ShardBulkInferenceActionFilter implements ActionFilter {
                     continue;
                 }
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
+                boolean hasInput = false;
                 for (var entry : fieldInferenceMetadata.getFieldInferenceOptions().entrySet()) {
                     String inferenceId = entry.getValue().inferenceId();
                     String fieldName = entry.getKey();
                     for (var sourceField : entry.getValue().sourceFields()) {
-                        var value = XContentMapValues.extractValue(sourceField, docMap);
-                        if (value == null) {
-                            continue;
-                        }
-                        if (inferenceResults.get(item.id()) == null) {
-                            inferenceResults.set(
-                                item.id(),
-                                new FieldInferenceResponseAccumulator(
-                                    item.id(),
-                                    Collections.synchronizedList(new ArrayList<>()),
-                                    Collections.synchronizedList(new ArrayList<>())
-                                )
-                            );
-                        }
-                        if (value instanceof String valueStr) {
-                            List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(
-                                inferenceId,
-                                k -> new ArrayList<>()
-                            );
-                            fieldRequests.add(new FieldInferenceRequest(item.id(), fieldName, valueStr));
-                        } else {
-                            inferenceResults.get(item.id()).failures.add(
-                                new ElasticsearchStatusException(
-                                    "Invalid format for field [{}], expected [String] got [{}]",
-                                    RestStatus.BAD_REQUEST,
-                                    fieldName,
-                                    value.getClass().getSimpleName()
-                                )
-                            );
-                        }
+
+                    var value = XContentMapValues.extractValue(sourceField, docMap);
+                    if (value == null) {
+                        continue;
                     }
+                    if (inferenceResults.get(item.id()) == null) {
+                        inferenceResults.set(
+                            item.id(),
+                            new FieldInferenceResponseAccumulator(
+                                item.id(),
+                                Collections.synchronizedList(new ArrayList<>()),
+                                Collections.synchronizedList(new ArrayList<>())
+                            )
+                        );
+                    }
+                    if (value instanceof String valueStr) {
+                        List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
+                        fieldRequests.add(new FieldInferenceRequest(item.id(), fieldName, valueStr));
+                        hasInput = true;
+                    } else {
+                        inferenceResults.get(item.id()).failures.add(
+                            new ElasticsearchStatusException(
+                                "Invalid format for field [{}], expected [String] got [{}]",
+                                RestStatus.BAD_REQUEST,
+                                fieldName,
+                                value.getClass().getSimpleName()
+                            )
+                        );
+                    }
+                }
+                if (hasInput == false) {
+                    // remove the existing _inference field (if present) since none of the content require inference.
+                    if (docMap.remove(InferenceMetadataFieldMapper.NAME) != null) {
+                        indexRequest.source(docMap);
+                    }
+                }
                 }
             }
             return fieldRequestsMap;

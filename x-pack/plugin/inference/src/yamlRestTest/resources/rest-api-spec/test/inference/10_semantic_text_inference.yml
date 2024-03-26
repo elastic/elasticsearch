@@ -27,6 +27,7 @@ setup:
             "service_settings": {
               "model": "my_model",
               "dimensions": 10,
+              "similarity": "cosine",
               "api_key": "abc64"
             },
             "task_settings": {
@@ -41,10 +42,10 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: sparse-inference-id
+                inference_id: sparse-inference-id
               another_inference_field:
                 type: semantic_text
-                model_id: sparse-inference-id
+                inference_id: sparse-inference-id
               non_inference_field:
                 type: text
 
@@ -56,10 +57,10 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: dense-inference-id
+                inference_id: dense-inference-id
               another_inference_field:
                 type: semantic_text
-                model_id: dense-inference-id
+                inference_id: dense-inference-id
               non_inference_field:
                 type: text
 
@@ -83,11 +84,11 @@ setup:
     - match: { _source.another_inference_field: "another inference test" }
     - match: { _source.non_inference_field: "non inference test" }
 
-    - match: { _source._inference.inference_field.results.0.text: "inference test" }
-    - match: { _source._inference.another_inference_field.results.0.text: "another inference test" }
+    - match: { _source._inference.inference_field.chunks.0.text: "inference test" }
+    - match: { _source._inference.another_inference_field.chunks.0.text: "another inference test" }
 
-    - exists: _source._inference.inference_field.results.0.inference
-    - exists: _source._inference.another_inference_field.results.0.inference
+    - exists: _source._inference.inference_field.chunks.0.inference
+    - exists: _source._inference.another_inference_field.chunks.0.inference
 
 ---
 "text expansion documents do not create new mappings":
@@ -120,11 +121,11 @@ setup:
   - match: { _source.another_inference_field: "another inference test" }
   - match: { _source.non_inference_field: "non inference test" }
 
-  - match: { _source._inference.inference_field.results.0.text: "inference test" }
-  - match: { _source._inference.another_inference_field.results.0.text: "another inference test" }
+  - match: { _source._inference.inference_field.chunks.0.text: "inference test" }
+  - match: { _source._inference.another_inference_field.chunks.0.text: "another inference test" }
 
-  - exists: _source._inference.inference_field.results.0.inference
-  - exists: _source._inference.another_inference_field.results.0.inference
+  - exists: _source._inference.inference_field.chunks.0.inference
+  - exists: _source._inference.another_inference_field.chunks.0.inference
 
 
 ---
@@ -154,8 +155,8 @@ setup:
           index: test-sparse-index
           id: doc_1
 
-    - set: { _source._inference.inference_field.results.0.inference: inference_field_embedding }
-    - set: { _source._inference.another_inference_field.results.0.inference: another_inference_field_embedding }
+    - set: { _source._inference.inference_field.chunks.0.inference: inference_field_embedding }
+    - set: { _source._inference.another_inference_field.chunks.0.inference: another_inference_field_embedding }
 
     - do:
         update:
@@ -174,11 +175,11 @@ setup:
     - match: { _source.another_inference_field: "another inference test" }
     - match: { _source.non_inference_field: "another non inference test" }
 
-    - match: { _source._inference.inference_field.results.0.text: "inference test" }
-    - match: { _source._inference.another_inference_field.results.0.text: "another inference test" }
+    - match: { _source._inference.inference_field.chunks.0.text: "inference test" }
+    - match: { _source._inference.another_inference_field.chunks.0.text: "another inference test" }
 
-    - match: { _source._inference.inference_field.results.0.inference: $inference_field_embedding }
-    - match: { _source._inference.another_inference_field.results.0.inference: $another_inference_field_embedding }
+    - match: { _source._inference.inference_field.chunks.0.inference: $inference_field_embedding }
+    - match: { _source._inference.another_inference_field.chunks.0.inference: $another_inference_field_embedding }
 
 ---
 "Updating semantic_text fields recalculates embeddings":
@@ -214,8 +215,8 @@ setup:
     - match: { _source.another_inference_field: "another updated inference test" }
     - match: { _source.non_inference_field: "non inference test" }
 
-    - match: { _source._inference.inference_field.results.0.text: "updated inference test" }
-    - match: { _source._inference.another_inference_field.results.0.text: "another updated inference test" }
+    - match: { _source._inference.inference_field.chunks.0.text: "updated inference test" }
+    - match: { _source._inference.another_inference_field.chunks.0.text: "another updated inference test" }
 
 ---
 "Reindex works for semantic_text fields":
@@ -233,8 +234,8 @@ setup:
         index: test-sparse-index
         id: doc_1
 
-  - set: { _source._inference.inference_field.results.0.inference: inference_field_embedding }
-  - set: { _source._inference.another_inference_field.results.0.inference: another_inference_field_embedding }
+  - set: { _source._inference.inference_field.chunks.0.inference: inference_field_embedding }
+  - set: { _source._inference.another_inference_field.chunks.0.inference: another_inference_field_embedding }
 
   - do:
       indices.refresh: { }
@@ -247,10 +248,10 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: sparse-inference-id
+                inference_id: sparse-inference-id
               another_inference_field:
                 type: semantic_text
-                model_id: sparse-inference-id
+                inference_id: sparse-inference-id
               non_inference_field:
                 type: text
 
@@ -271,11 +272,11 @@ setup:
   - match: { _source.another_inference_field: "another inference test" }
   - match: { _source.non_inference_field: "non inference test" }
 
-  - match: { _source._inference.inference_field.results.0.text: "inference test" }
-  - match: { _source._inference.another_inference_field.results.0.text: "another inference test" }
+  - match: { _source._inference.inference_field.chunks.0.text: "inference test" }
+  - match: { _source._inference.another_inference_field.chunks.0.text: "another inference test" }
 
-  - match: { _source._inference.inference_field.results.0.inference: $inference_field_embedding }
-  - match: { _source._inference.another_inference_field.results.0.inference: $another_inference_field_embedding }
+  - match: { _source._inference.inference_field.chunks.0.inference: $inference_field_embedding }
+  - match: { _source._inference.another_inference_field.chunks.0.inference: $another_inference_field_embedding }
 
 ---
 "Fails for non-existent model":
@@ -287,7 +288,7 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: non-existing-inference-id
+                inference_id: non-existing-inference-id
               non_inference_field:
                 type: text
 
@@ -338,8 +339,8 @@ setup:
         id: doc_1
 
   - match:  { _source.top_level_field: "multifield inference test" }
-  - length: { _source._inference.top_level_field\.semantic_multifield.results: 1 }
-  - match:  { _source._inference.top_level_field\.semantic_multifield.results.0.text: "multifield inference test" }
+  - length: { _source._inference.top_level_field\.semantic_multifield.chunks: 1 }
+  - match:  { _source._inference.top_level_field\.semantic_multifield.chunks.0.text: "multifield inference test" }
   - exists: _source._inference.top_level_field\.semantic_multifield.results.0.inference
 
 
@@ -373,7 +374,7 @@ setup:
 
   - match: { _source.inference_field: "inference test" }
   - length: {_source._inference.inference_field.results: 2}
-  - exists: _source._inference.inference_field.results.0.inference
-  - exists: _source._inference.inference_field.results.0.text
-  - exists: _source._inference.inference_field.results.1.inference
-  - exists: _source._inference.inference_field.results.1.text
+  - exists: _source._inference.inference_field.chunks.0.inference
+  - exists: _source._inference.inference_field.chunks.0.text
+  - exists: _source._inference.inference_field.chunks.1.inference
+  - exists: _source._inference.inference_field.chunks.1.text

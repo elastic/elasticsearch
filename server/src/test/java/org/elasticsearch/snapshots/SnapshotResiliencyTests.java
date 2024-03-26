@@ -2133,7 +2133,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             recoverySettings
                         ) {
                             @Override
-                            protected void assertSnapshotOrGenericOrStatelessThread() {
+                            protected void assertSnapshotOrStatelessPermittedThreadPool() {
                                 // eliminate thread name check as we create repo in the test thread
                             }
                         }

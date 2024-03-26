@@ -68,13 +68,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
     public static class Names {
-        // Often used for quick operations not worth the costs of switching to another thread. Also used to avoid the cost of re-queuing
-        // work while leveraging the interface for ease of coding.
-        // This should not be used on Netty transport threads if the task may not always complete quickly.
+        /**
+         * Often used for quick operations not worth the costs of switching to another thread. Also used to avoid the cost of re-queuing
+         * work while leveraging the interface for ease of coding. This should not be used on Netty transport threads if the task may not
+         * always complete quickly.
+         */
         public static final String SAME = "same";
-        // All the tasks that do not fit into the other categories. Try to avoid this if possible.
+        /** All the tasks that do not fit into the other categories. Try to avoid this if possible. */
         public static final String GENERIC = "generic";
-        // Important management tasks that keep the cluster from falling apart. We do not want these operations stalled.
+        /**
+         * Important management tasks that keep the cluster from falling apart.
+         * This thread pool ensures cluster coordination tasks do not get blocked by less critical tasks and can continue to make progress.
+         * This thread pool also defaults to a single thread, reducing contention on the Coordinator mutex.
+         */
         public static final String CLUSTER_COORDINATION = "cluster_coordination";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
@@ -84,8 +90,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
-        // Important cluster management tasks. Tasks that manage data, and tasks that report on the cluster health via statistics etc.
-        // It is important that these tasks do not stall because that would block cluster diagnostics.
+        /** Cluster management tasks. Tasks that manage data, and tasks that report on the cluster health via statistics etc. */
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";

@@ -79,7 +79,9 @@ CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen
 ###############################################
 # Tests for ST_INTERSECTS with GEO_SHAPE
 
-pointIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+pointIntersectsLiteralPolygon
+required_feature: esql.st_intersects
+
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
@@ -90,7 +92,9 @@ abbrev:keyword | name:text      | location:geo_shape                     | count
 HOD            | Hodeidah Int'l | POINT(42.97109630194 14.7552534413725) | Yemen           | Al Ḩudaydah  | POINT(42.9511 14.8022)
 ;
 
-polygonIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+polygonIntersectsLiteralPolygon
+required_feature: esql.st_intersects
+
 FROM airport_city_boundaries
 | WHERE ST_INTERSECTS(city_boundary, TO_GEOSHAPE("POLYGON((109.4 18.1, 109.6 18.1, 109.6 18.3, 109.4 18.3, 109.4 18.1))"))
 | KEEP abbrev, airport, region, city, city_location
@@ -101,7 +105,9 @@ abbrev:keyword | airport:text         | region:text | city:keyword | city_locati
 SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(109.5036 18.2533)
 ;
 
-pointIntersectsLiteralPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
+pointIntersectsLiteralPolygonReversed
+required_feature: esql.st_intersects
+
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)
 | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
@@ -112,7 +118,9 @@ abbrev:keyword | name:text      | location:geo_shape                     | count
 HOD            | Hodeidah Int'l | POINT(42.97109630194 14.7552534413725) | Yemen           | Al Ḩudaydah  | POINT(42.9511 14.8022)
 ;
 
-literalPointIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+literalPointIntersectsLiteralPolygon
+required_feature: esql.st_intersects
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -124,7 +132,9 @@ wkt:keyword   | pt:geo_point
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-literalPointIntersectsLiteralPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
+literalPointIntersectsLiteralPolygonReversed
+required_feature: esql.st_intersects
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -136,7 +146,9 @@ wkt:keyword   | pt:geo_point
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-literalPointAsShapeIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+literalPointAsShapeIntersectsLiteralPolygon
+required_feature: esql.st_intersects
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOSHAPE(wkt)
@@ -148,7 +160,9 @@ wkt:keyword   | pt:geo_shape
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-literalPointAsShapeIntersectsLiteralPolygonReversed#[skip:-8.13.99, reason:st_intersects added in 8.14]
+literalPointAsShapeIntersectsLiteralPolygonReversed
+required_feature: esql.st_intersects
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOSHAPE(wkt)
@@ -160,7 +174,9 @@ wkt:keyword   | pt:geo_shape
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-shapeIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+shapeIntersectsLiteralPolygon
+required_feature: esql.st_intersects
+
 FROM countries_bbox
 | WHERE ST_INTERSECTS(shape, TO_GEOSHAPE("POLYGON((29 -30, 31 -30, 31 -27.3, 29 -27.3, 29 -30))"))
 | SORT id DESC
@@ -172,7 +188,9 @@ SWZ        | Swaziland    | BBOX(30.798336, 32.133400, -25.728336, -27.316391)
 LSO        | Lesotho      | BBOX(27.013973, 29.455554, -28.570691, -30.650527)
 ;
 
-literalPolygonIntersectsLiteralPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+literalPolygonIntersectsLiteralPolygon
+required_feature: esql.st_intersects
+
 ROW wkt = ["POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))", "POLYGON((20 60, 6 60, 6 66, 20 66, 20 60))"]
 | EVAL other = TO_GEOSHAPE("POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))")
 | MV_EXPAND wkt
@@ -185,7 +203,9 @@ wkt:keyword                                       | shape:geo_shape             
 "POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))" | POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60)) | POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))
 ;
 
-literalPolygonIntersectsLiteralPolygonOneRow#[skip:-8.13.99, reason:st_intersects added in 8.14]
+literalPolygonIntersectsLiteralPolygonOneRow
+required_feature: esql.st_intersects
+
 ROW intersects = ST_INTERSECTS(TO_GEOSHAPE("POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))"), TO_GEOSHAPE("POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))"))
 ;
 
@@ -196,7 +216,9 @@ true
 ###############################################
 # Tests for ST_CONTAINS and ST_WITHIN with GEO_SHAPE
 
-polygonContainsLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+polygonContainsLiteralPolygon
+required_feature: esql.st_contains
+
 // tag::st_contains-airport_city_boundaries[]
 FROM airport_city_boundaries
 | WHERE ST_CONTAINS(city_boundary, TO_GEOSHAPE("POLYGON((109.35 18.3, 109.45 18.3, 109.45 18.4, 109.35 18.4, 109.35 18.3))"))
@@ -211,7 +233,9 @@ SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(1
 // end::st_contains-airport_city_boundaries-results[]
 ;
 
-polygonWithinLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+polygonWithinLiteralPolygon
+required_feature: esql.st_contains
+
 // tag::st_within-airport_city_boundaries[]
 FROM airport_city_boundaries
 | WHERE ST_WITHIN(city_boundary, TO_GEOSHAPE("POLYGON((109.1 18.15, 109.6 18.15, 109.6 18.65, 109.1 18.65, 109.1 18.15))"))
@@ -343,7 +367,9 @@ abbrev:keyword | name:text    | scalerank:integer | type:keyword | location:cart
 ###############################################
 # Tests for ST_INTERSECTS with CARTESIAN_SHAPE
 
-cartesianPointIntersectsPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+cartesianPointIntersectsPolygon
+required_feature: esql.st_intersects
+
 FROM airports_web
 | EVAL location = TO_CARTESIANSHAPE(location)
 | WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
@@ -354,7 +380,9 @@ abbrev:keyword |  name:text     | location:cartesian_shape                     |
 HOD            | Hodeidah Int'l | POINT (4783520.559160681 1661010.0197476079) | 9           | mid
 ;
 
-literalCartesianPointIntersectsPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+literalCartesianPointIntersectsPolygon
+required_feature: esql.st_intersects
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANSHAPE(wkt)
@@ -366,7 +394,9 @@ wkt:keyword   | pt:cartesian_shape
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-cartesianShapeIntersectsPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+cartesianShapeIntersectsPolygon
+required_feature: esql.st_intersects
+
 FROM countries_bbox_web
 | WHERE ST_INTERSECTS(shape, TO_CARTESIANSHAPE("POLYGON((3100000 -3400000, 3500000 -3400000, 3500000 -3150000, 3100000 -3150000, 3100000 -3400000))"))
 | SORT id DESC
@@ -378,7 +408,9 @@ SWZ        | Swaziland    | BBOX(3428455.080322901, 3577073.7249586442, -2965472
 LSO        | Lesotho      | BBOX(3007181.718244638, 3278977.271857335, -3321117.2692412077, -3587446.106149188)
 ;
 
-literalCartesianPolygonIntersectsPolygon#[skip:-8.13.99, reason:st_intersects added in 8.14]
+literalCartesianPolygonIntersectsPolygon
+required_feature: esql.st_intersects
+
 ROW wkt = ["POLYGON((-2000 6000, -600 6000, -600 6600, -2000 6600, -2000 6000))", "POLYGON((2000 6000, 600 6000, 600 6600, 2000 6600, 2000 6000))"]
 | MV_EXPAND wkt
 | EVAL shape = TO_CARTESIANSHAPE(wkt)
@@ -393,7 +425,9 @@ wkt:keyword                                                           | shape:ca
 ###############################################
 # Tests for ST_CONTAINS and ST_WITHIN with CARTESIAN_SHAPE
 
-cartesianShapeContainsPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+cartesianShapeContainsPolygon
+required_feature: esql.st_contains
+
 FROM countries_bbox_web
 | WHERE ST_CONTAINS(shape, TO_CARTESIANSHAPE("POLYGON((3100000 -3400000, 3500000 -3400000, 3500000 -3150000, 3100000 -3150000, 3100000 -3400000))"))
 | SORT id DESC

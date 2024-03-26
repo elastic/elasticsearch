@@ -71,6 +71,16 @@ public class EsqlFeatures implements FeatureSpecification {
     private static final NodeFeature ST_CENTROID = new NodeFeature("esql.st_centroid");
 
     /**
+     * Support for spatial aggregation {@code ST_INTERSECTS}. Done in #104907.
+     */
+    private static final NodeFeature ST_INTERSECTS = new NodeFeature("esql.st_intersects");
+
+    /**
+     * Support for spatial aggregation {@code ST_CONTAINS} and {@code ST_WITHIN}. Done in #106503.
+     */
+    private static final NodeFeature ST_CONTAINS_WITHIN = new NodeFeature("esql.st_contains_within");
+
+    /**
      * The introduction of the {@code VALUES} agg.
      */
     private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
@@ -96,7 +106,9 @@ public class EsqlFeatures implements FeatureSpecification {
             FROM_OPTIONS,
             SPATIAL_POINTS_FROM_SOURCE,
             SPATIAL_SHAPES,
-            ST_CENTROID
+            ST_CENTROID,
+            ST_INTERSECTS,
+            ST_CONTAINS_WITHIN
         );
     }
 

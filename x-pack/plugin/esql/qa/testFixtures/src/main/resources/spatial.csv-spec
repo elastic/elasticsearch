@@ -3,7 +3,7 @@
 ###############################################
 
 convertFromStringQuantize
-required_feature: esql.geo_point
+required_feature: esql.spatial_points
 
 row wkt = "POINT(42.97109629958868 14.7552534006536)"
 | eval pt = to_geopoint(wkt);
@@ -12,7 +12,9 @@ wkt:keyword           |pt:geo_point
 POINT(42.97109629958868 14.7552534006536) |POINT(42.97109629958868 14.7552534006536)
 ;
 
-convertFromString#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
+convertFromString
+required_feature: esql.spatial_points_from_source
+
 // tag::to_geopoint-str[]
 ROW wkt = "POINT(42.97109630194 14.7552534413725)"
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -25,7 +27,9 @@ wkt:keyword                              |pt:geo_point
 // end::to_geopoint-str-result[]
 ;
 
-convertFromStringArray#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
+convertFromStringArray
+required_feature: esql.spatial_points_from_source
+
 row wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
 | eval pt = to_geopoint(wkt);
 
@@ -33,7 +37,9 @@ wkt:keyword                                                                     
 ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
 ;
 
-centroidFromStringNested#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromStringNested
+required_feature: esql.st_centroid
+
 row wkt = "POINT(42.97109629958868 14.7552534006536)"
 | STATS c = ST_CENTROID(TO_GEOPOINT(wkt));
 
@@ -41,7 +47,9 @@ c:geo_point
 POINT(42.97109629958868 14.7552534006536)
 ;
 
-centroidFromString1#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromString1
+required_feature: esql.st_centroid
+
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -51,7 +59,9 @@ c:geo_point
 POINT(42.97109629958868 14.7552534006536)
 ;
 
-centroidFromString2#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromString2
+required_feature: esql.st_centroid
+
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -61,7 +71,9 @@ c:geo_point
 POINT(59.390193899162114 18.741501288022846)
 ;
 
-centroidFromString3#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromString3
+required_feature: esql.st_centroid
+
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -99,7 +111,9 @@ POINT(42.97109629958868 14.7552534006536)  | 42.97109629958868 | 14.755253400653
 // end::st_x_y-result[]
 ;
 
-simpleLoad#[skip:-8.12.99, reason:spatial type geo_point improved precision in 8.13]
+simpleLoad
+required_feature: esql.spatial_points_from_source
+
 FROM airports | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
 
 abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k   
@@ -134,7 +148,9 @@ c:long  | x:double  | y:double
 ###############################################
 # Tests for ST_CENTROID on GEO_POINT type
 
-centroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirports
+required_feature: esql.st_centroid
+
 // tag::st_centroid-airports[]
 FROM airports
 | STATS centroid=ST_CENTROID(location)
@@ -147,7 +163,9 @@ POINT(-0.030548143003023033 24.37553649504829)
 // end::st_centroid-airports-result[]
 ;
 
-centroidFromAirportsNested#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsNested
+required_feature: esql.st_centroid
+
 FROM airports
 | STATS centroid=ST_CENTROID(TO_GEOPOINT(location))
 ;
@@ -156,7 +174,9 @@ centroid:geo_point
 POINT (-0.03054810272375508 24.37553651570554)
 ;
 
-centroidFromAirportsCount#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsCount
+required_feature: esql.st_centroid
+
 FROM airports
 | STATS centroid=ST_CENTROID(location), count=COUNT()
 ;
@@ -165,7 +185,9 @@ centroid:geo_point                             | count:long
 POINT(-0.030548143003023033 24.37553649504829) | 891
 ;
 
-centroidFromAirportsCountGrouped#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsCountGrouped
+required_feature: esql.st_centroid
+
 FROM airports
 | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
 | SORT scalerank DESC
@@ -182,7 +204,9 @@ POINT(-26.976065734634176 42.907839377294295) | 24         | 3
 POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
 ;
 
-centroidFromAirportsFiltered#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsFiltered
+required_feature: esql.st_centroid
+
 FROM airports
 | WHERE scalerank == 9
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -192,7 +216,9 @@ centroid:geo_point                         | count:long
 POINT(83.27726172452623 28.99289782286029) | 33
 ;
 
-centroidFromAirportsCountGroupedCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsCountGroupedCentroid
+required_feature: esql.st_centroid
+
 FROM airports
 | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
 | STATS centroid=ST_CENTROID(centroid), count=SUM(count)
@@ -202,7 +228,9 @@ centroid:geo_point                           | count:long
 POINT (7.572387259169772 26.836561792945492) | 891
 ;
 
-centroidFromAirportsCountCityLocations#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsCountCityLocations
+required_feature: esql.st_centroid
+
 FROM airports
 | STATS centroid=ST_CENTROID(city_location), count=COUNT()
 ;
@@ -211,7 +239,9 @@ centroid:geo_point                            | count:long
 POINT (1.3965610809060276 24.127649406297987) | 891
 ;
 
-centroidFromAirportsCountGroupedCountry#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsCountGroupedCountry
+required_feature: esql.st_centroid
+
 FROM airports
 | STATS centroid=ST_CENTROID(city_location), count=COUNT() BY country
 | SORT count DESC, country ASC
@@ -238,7 +268,9 @@ POINT (6.725663595240224 9.201645437966693)    | 11         | Nigeria
 POINT (70.7946499697864 30.69746997440234)     | 10         | Pakistan
 ;
 
-centroidFromAirportsFilteredCountry#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsFilteredCountry
+required_feature: esql.st_centroid
+
 FROM airports
 | WHERE country == "United States"
 | STATS centroid=ST_CENTROID(city_location), count=COUNT()
@@ -248,7 +280,9 @@ centroid:geo_point                          | count:long
 POINT (-97.3333946136801 38.07953176370194) | 129
 ;
 
-centroidFromAirportsCountGroupedCountryCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsCountGroupedCountryCentroid
+required_feature: esql.st_centroid
+
 FROM airports
 | STATS centroid=ST_CENTROID(city_location), count=COUNT() BY country
 | STATS centroid=ST_CENTROID(centroid), count=SUM(count)
@@ -258,7 +292,9 @@ centroid:geo_point                            | count:long
 POINT (17.55538044598613 18.185558743854063)  | 891
 ;
 
-centroidFromAirportsCountryCount#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsCountryCount
+required_feature: esql.st_centroid
+
 FROM airports
 | STATS airports=ST_CENTROID(location), cities=ST_CENTROID(city_location), count=COUNT()
 ;
@@ -267,7 +303,9 @@ airports:geo_point                             | cities:geo_point               
 POINT(-0.030548143003023033 24.37553649504829) | POINT (1.3965610809060276 24.127649406297987) | 891
 ;
 
-centroidFromAirportsFilteredAndSorted#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsFilteredAndSorted
+required_feature: esql.st_centroid
+
 FROM airports
 | WHERE scalerank == 9
 | SORT abbrev
@@ -279,7 +317,9 @@ centroid:geo_point                          | count:long
 POINT(78.73736493755132 26.761841227998957) | 12
 ;
 
-centroidFromAirportsAfterMvExpand#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsAfterMvExpand
+required_feature: esql.st_centroid
+
 FROM airports
 | MV_EXPAND type
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -289,7 +329,9 @@ centroid:geo_point                          | count:long
 POINT(2.121611400672094 24.559172889205755) | 933
 ;
 
-centroidFromAirportsGroupedAfterMvExpand#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsGroupedAfterMvExpand
+required_feature: esql.st_centroid
+
 FROM airports
 | MV_EXPAND type
 | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
@@ -307,7 +349,9 @@ POINT(-26.976065734634176 42.907839377294295) | 24         | 3
 POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
 ;
 
-centroidFromAirportsGroupedAfterMvExpandFiltered#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsGroupedAfterMvExpandFiltered
+required_feature: esql.st_centroid
+
 FROM airports
 | WHERE scalerank == 9
 | MV_EXPAND type
@@ -318,7 +362,9 @@ centroid:geo_point                            | count:long | scalerank:i
 POINT(83.16847535921261 28.79002037679311)    | 40         | 9
 ;
 
-centroidFromAirportsAfterMvExpandFiltered#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsAfterMvExpandFiltered
+required_feature: esql.st_centroid
+
 FROM airports
 | WHERE scalerank == 9
 | MV_EXPAND type
@@ -329,7 +375,9 @@ centroid:geo_point                            | count:long
 POINT(83.16847535921261 28.79002037679311)    | 40
 ;
 
-centroidFromAirportsAfterKeywordPredicateCountryUK#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromAirportsAfterKeywordPredicateCountryUK
+required_feature: esql.st_centroid
+
 FROM airports
 | WHERE country == "United Kingdom"
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -735,7 +783,9 @@ wkt:keyword                               |pt:geo_point
 # Tests for CARTESIAN_POINT type
 ###############################################
 
-convertCartesianFromString#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
+convertCartesianFromString
+required_feature: esql.spatial_points_from_source
+
 // tag::to_cartesianpoint-str[]
 ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
 | MV_EXPAND wkt
@@ -750,7 +800,9 @@ wkt:keyword               |pt:cartesian_point
 // end::to_cartesianpoint-str-result[]
 ;
 
-convertCartesianFromStringArray#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
+convertCartesianFromStringArray
+required_feature: esql.spatial_points_from_source
+
 row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
 | eval pt = to_cartesianpoint(wkt);
 
@@ -758,7 +810,9 @@ wkt:keyword                                           |pt:cartesian_point
 ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
 ;
 
-centroidCartesianFromStringNested#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidCartesianFromStringNested
+required_feature: esql.st_centroid
+
 row wkt = "POINT(4297.10986328125 -1475.530029296875)"
 | STATS c = ST_CENTROID(TO_CARTESIANPOINT(wkt));
 
@@ -766,7 +820,9 @@ c:cartesian_point
 POINT(4297.10986328125 -1475.530029296875)
 ;
 
-centroidFromCartesianString1#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromCartesianString1
+required_feature: esql.st_centroid
+
 ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
@@ -776,7 +832,9 @@ c:cartesian_point
 POINT(4297.10986328125 -1475.530029296875)
 ;
 
-centroidFromCartesianString2#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromCartesianString2
+required_feature: esql.st_centroid
+
 ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
@@ -786,7 +844,9 @@ c:cartesian_point
 POINT(5939.02001953125 398.6199951171875)
 ;
 
-centroidFromCartesianString3#[skip:-8.12.99, reason:st_centroid added in 8.13]
+centroidFromCartesianString3
+required_feature: esql.st_centroid
+
 ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)", "POINT(-30.548143003023033 2437.553649504829)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
@@ -807,7 +867,9 @@ point:cartesian_point                       | x:double          | y:double
 POINT(4297.10986328125 -1475.530029296875)  | 4297.10986328125 | -1475.530029296875
 ;
 
-simpleCartesianLoad#[skip:-8.12.99, reason:spatial type cartesian_point improved precision in 8.13]
+simpleCartesianLoad
+required_feature: esql.spatial_points_from_source
+
 FROM airports_web | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
 
 abbrev:keyword | location:cartesian_point                      | name:text                   | scalerank:i | type:k
@@ -824,7 +886,9 @@ ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l  
 ###############################################
 # Tests for ST_CENTROID on CARTESIAN_POINT type
 
-cartesianCentroidFromAirports#[skip:-8.12.99, reason:st_centroid added in 8.13]
+cartesianCentroidFromAirports
+required_feature: esql.st_centroid
+
 FROM airports_web
 | STATS centroid=ST_CENTROID(location);
 
@@ -832,7 +896,9 @@ centroid:cartesian_point
 POINT(-266681.67563861894 3053301.5120195406)
 ;
 
-cartesianCentroidFromAirportsNested#[skip:-8.12.99, reason:st_centroid added in 8.13]
+cartesianCentroidFromAirportsNested
+required_feature: esql.st_centroid
+
 FROM airports_web
 | STATS centroid=ST_CENTROID(TO_CARTESIANPOINT(location));
 
@@ -840,7 +906,9 @@ centroid:cartesian_point
 POINT (-266681.66530554957 3053301.506061676)
 ;
 
-cartesianCentroidFromAirportsCount#[skip:-8.12.99, reason:st_centroid added in 8.13]
+cartesianCentroidFromAirportsCount
+required_feature: esql.st_centroid
+
 FROM airports_web
 | STATS centroid=ST_CENTROID(location), count=COUNT()
 ;
@@ -849,7 +917,9 @@ centroid:cartesian_point                      | count:long
 POINT(-266681.67563861894 3053301.5120195406) | 849
 ;
 
-cartesianCentroidFromAirportsCountGrouped#[skip:-8.12.99, reason:st_centroid added in 8.13]
+cartesianCentroidFromAirportsCountGrouped
+required_feature: esql.st_centroid
+
 FROM airports_web
 | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
 | SORT scalerank DESC
@@ -866,7 +936,9 @@ POINT(-3002961.9270833335 5451641.91796875)   | 24         | 3
 POINT(140136.12878224207 3081220.7881944445)  | 63         | 2
 ;
 
-cartesianCentroidFromAirportsFiltered#[skip:-8.12.99, reason:st_centroid added in 8.13]
+cartesianCentroidFromAirportsFiltered
+required_feature: esql.st_centroid
+
 FROM airports_web
 | WHERE scalerank == 9
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -876,7 +948,9 @@ centroid:cartesian_point                    | count:long
 POINT(9289013.153846154 3615537.0533353365) | 26
 ;
 
-cartesianCentroidFromAirportsFilteredAndSorted#[skip:-8.12.99, reason:st_centroid added in 8.13]
+cartesianCentroidFromAirportsFilteredAndSorted
+required_feature: esql.st_centroid
+
 FROM airports_web
 | WHERE scalerank == 9
 | SORT abbrev
@@ -888,7 +962,9 @@ centroid:cartesian_point            | count:long
 POINT(9003597.4375 3429344.0078125) | 8
 ;
 
-cartesianCentroidFromAirportsCountGroupedCentroid#[skip:-8.12.99, reason:st_centroid added in 8.13]
+cartesianCentroidFromAirportsCountGroupedCentroid
+required_feature: esql.st_centroid
+
 FROM airports_web
 | STATS centroid=ST_CENTROID(location), count=COUNT() BY scalerank
 | STATS centroid=ST_CENTROID(centroid), count=SUM(count)

@@ -2,7 +2,9 @@
 # Tests for GEO_SHAPE type
 #
 
-convertFromString#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+convertFromString
+required_feature: esql.spatial_shapes
+
 // tag::to_geoshape-str[]
 ROW wkt = "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"
 | EVAL geom = TO_GEOSHAPE(wkt)
@@ -15,7 +17,9 @@ wkt:keyword                                     | geom:geo_shape
 // end::to_geoshape-str-result[]
 ;
 
-convertFromStringArray#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+convertFromStringArray
+required_feature: esql.spatial_shapes
+
 row wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POINT(75.8092915005895 22.727749187571)"]
 | eval pt = to_geoshape(wkt);
 
@@ -23,7 +27,9 @@ wkt:keyword                                                                     
 ["POLYGON ((30 10\, 40 40\, 20 40\, 10 20\, 30 10))", "POINT(75.8092915005895 22.727749187571)"] |[POLYGON ((30 10\, 40 40\, 20 40\, 10 20\, 30 10)), POINT(75.8092915005895 22.727749187571)]
 ;
 
-convertFromStringViaPoint#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+convertFromStringViaPoint
+required_feature: esql.spatial_shapes
+
 ROW wkt = "POINT (30 10)"
 | EVAL point = TO_GEOPOINT(wkt)
 | EVAL shape = TO_GEOSHAPE(point)
@@ -34,14 +40,18 @@ wkt:keyword     | point:geo_point | shape:geo_shape
 ;
 
 # need to work out how to upload WKT
-simpleLoad#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+simpleLoad
+required_feature: esql.spatial_shapes
+
 FROM countries_bbox | WHERE id == "ISL";
 
 id:keyword|	name:keyword|	shape:geo_shape
 ISL|Iceland|BBOX(-24.538400, -13.499446, 66.536100, 63.390000)
 ;
 
-simpleLoadPointsAsShapes#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+simpleLoadPointsAsShapes
+required_feature: esql.spatial_shapes
+
 FROM airports
 | WHERE abbrev == "CPH" OR abbrev == "VLC"
 | SORT abbrev
@@ -219,7 +229,9 @@ SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(1
 ###############################################
 # Tests for Equality and casting with GEO_SHAPE
 
-geo_shapeEquals#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+geo_shapeEquals
+required_feature: esql.spatial_shapes
+
 ROW wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POINT(75.8092915005895 22.727749187571)"]
 | MV_EXPAND wkt
 | EVAL pt = to_geoshape(wkt)
@@ -230,7 +242,9 @@ wkt:keyword                              |pt:geo_shape
 "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))" |POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))
 ;
 
-geo_shapeNotEquals#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+geo_shapeNotEquals
+required_feature: esql.spatial_shapes
+
 ROW wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POINT(75.8092915005895 22.727749187571)"]
 | MV_EXPAND wkt
 | EVAL pt = to_geoshape(wkt)
@@ -241,7 +255,9 @@ wkt:keyword                               |pt:geo_shape
 "POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
 ;
 
-convertFromStringParseError#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
+convertFromStringParseError
+required_feature: esql.spatial_shapes
+
 row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)", "POINT(111)"]
 | mv_expand wkt
 | eval pt = to_geoshape(wkt)
@@ -261,7 +277,9 @@ wkt:keyword                               |pt:geo_shape
 # Tests for CARTESIAN_SHAPE type
 #
 
-convertCartesianShapeFromString#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
+convertCartesianShapeFromString
+required_feature: esql.spatial_shapes
+
 // tag::to_cartesianshape-str[]
 ROW wkt = ["POINT(4297.11 -1475.53)", "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))"]
 | MV_EXPAND wkt
@@ -276,7 +294,9 @@ wkt:keyword               |geom:cartesian_shape
 // end::to_cartesianshape-str-result[]
 ;
 
-convertCartesianFromStringArray#[skip:-8.12.99, reason:spatial type cartesian_shape only added in 8.13]
+convertCartesianFromStringArray
+required_feature: esql.spatial_shapes
+
 row wkt = ["POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))", "POINT(7580.93 2272.77)"]
 | eval pt = to_cartesianshape(wkt);
 
@@ -284,7 +304,9 @@ wkt:keyword                                                                     
 ["POLYGON ((3339584.72 1118889.97\, 4452779.63 4865942.27\, 2226389.81 4865942.27\, 1113194.90 2273030.92\, 3339584.72 1118889.97))", "POINT(7580.93 2272.77)"] |[POLYGON ((3339584.72 1118889.97\, 4452779.63 4865942.27\, 2226389.81 4865942.27\, 1113194.90 2273030.92\, 3339584.72 1118889.97)), POINT(7580.93 2272.77)]
 ;
 
-convertCartesianFromStringViaPoint#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
+convertCartesianFromStringViaPoint
+required_feature: esql.spatial_shapes
+
 ROW wkt = "POINT (3010 -1010)"
 | EVAL point = TO_CARTESIANPOINT(wkt)
 | EVAL shape = TO_CARTESIANSHAPE(point)
@@ -295,14 +317,18 @@ wkt:keyword          | point:cartesian_point | shape:cartesian_shape
 ;
 
 # need to work out how to upload WKT
-simpleCartesianShapeLoad#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
+simpleCartesianShapeLoad
+required_feature: esql.spatial_shapes
+
 FROM countries_bbox_web | WHERE id == "ISL";
 
 id:keyword|	name:keyword|shape:cartesian_shape
 ISL|Iceland|BBOX(-2731602.192501422, -1502751.454502109, 1.0025136653899286E7, 9196525.03584683)
 ;
 
-simpleLoadCartesianPointsAsShapes#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
+simpleLoadCartesianPointsAsShapes
+required_feature: esql.spatial_shapes
+
 FROM airports_web
 | WHERE abbrev == "CPH" OR abbrev == "VLC"
 | SORT abbrev
@@ -392,7 +418,9 @@ LSO        | Lesotho      | BBOX(3007181.718244638, 3278977.271857335, -3321117.
 ###############################################
 # Tests for Equality and casting with CARTESIAN_SHAPE
 
-cartesianshapeEquals#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
+cartesianshapeEquals
+required_feature: esql.spatial_shapes
+
 ROW wkt = ["POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))", "POINT(7580.93 2272.77)"]
 | MV_EXPAND wkt
 | EVAL pt = to_cartesianshape(wkt)
@@ -403,7 +431,9 @@ wkt:keyword               |pt:cartesian_shape
 "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))" |POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))
 ;
 
-cartesianShapeNotEquals#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
+cartesianShapeNotEquals
+required_feature: esql.spatial_shapes
+
 ROW wkt = ["POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))", "POINT(7580.93 2272.77)"]
 | MV_EXPAND wkt
 | EVAL pt = to_cartesianshape(wkt)
@@ -414,7 +444,9 @@ wkt:keyword              |pt:cartesian_shape
 "POINT(7580.93 2272.77)" |POINT(7580.93 2272.77)
 ;
 
-convertCartesianShapeFromStringParseError#[skip:-8.12.99, reason: spatial type cartesian_shape only added in 8.13]
+convertCartesianShapeFromStringParseError
+required_feature: esql.spatial_shapes
+
 row wkt = ["POINTX(4297.11 -1475.53)", "POINT(7580.93 2272.77)", "POINT(111)"]
 | mv_expand wkt
 | eval pt = to_cartesianshape(wkt)

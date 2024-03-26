@@ -39,9 +39,14 @@ public class EsqlFeatures implements FeatureSpecification {
     private static final NodeFeature MV_WARN = new NodeFeature("esql.mv_warn");
 
     /**
-     * Support for loading {@code geo_point} fields. Added in #102177.
+     * Support for loading {@code geo_point} and {@code cartesian_point} fields. Added in #102177.
      */
-    private static final NodeFeature GEO_POINT_SUPPORT = new NodeFeature("esql.geo_point");
+    private static final NodeFeature SPATIAL_POINTS = new NodeFeature("esql.spatial_points");
+
+    /**
+     * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
+     */
+    private static final NodeFeature SPATIAL_POINTS_FROM_SOURCE = new NodeFeature("esql.spatial_points_from_source");
 
     /**
      * When we added the warnings when conversion functions fail. Like {@code TO_INT('foo')}.
@@ -55,10 +60,15 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     private static final NodeFeature POW_DOUBLE = new NodeFeature("esql.pow_double");
 
-    // /**
-    // * Support for loading {@code geo_point} fields.
-    // */
-    // private static final NodeFeature GEO_SHAPE_SUPPORT = new NodeFeature("esql.geo_shape");
+    /**
+     * Support for loading {@code geo_shape} and {@code cartesian_shape} fields. Done in #104269.
+     */
+    private static final NodeFeature SPATIAL_SHAPES = new NodeFeature("esql.spatial_shapes");
+
+    /**
+     * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
+     */
+    private static final NodeFeature ST_CENTROID = new NodeFeature("esql.st_centroid");
 
     /**
      * The introduction of the {@code VALUES} agg.
@@ -85,10 +95,12 @@ public class EsqlFeatures implements FeatureSpecification {
         return Map.ofEntries(
             Map.entry(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0),
             Map.entry(MV_WARN, Version.V_8_12_0),
-            Map.entry(GEO_POINT_SUPPORT, Version.V_8_12_0),
+            Map.entry(SPATIAL_POINTS, Version.V_8_12_0),
+            Map.entry(SPATIAL_POINTS_FROM_SOURCE, Version.V_8_13_0),
+            Map.entry(SPATIAL_SHAPES, Version.V_8_13_0),
             Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0)
-            // Map.entry(GEO_SHAPE_SUPPORT, Version.V_8_13_0)
+            Map.entry(POW_DOUBLE, Version.V_8_12_0),
+            Map.entry(ST_CENTROID, Version.V_8_13_0)
         );
     }
 }

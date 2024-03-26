@@ -21,7 +21,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -444,7 +444,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final LongObjectPagedHashMap<MultiBucketAggregatorsReducer> bucketsReducer = new LongObjectPagedHashMap<>(
+            private final LongObjectPagedHashMap<BucketReducer<Bucket>> bucketsReducer = new LongObjectPagedHashMap<>(
                 getBuckets().size(),
                 reduceContext.bigArrays()
             );
@@ -460,9 +460,9 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
                     min = Math.min(min, histogram.buckets.get(0).key);
                     max = Math.max(max, histogram.buckets.get(histogram.buckets.size() - 1).key);
                     for (Bucket bucket : histogram.buckets) {
-                        MultiBucketAggregatorsReducer reducer = bucketsReducer.get(bucket.key);
+                        BucketReducer<Bucket> reducer = bucketsReducer.get(bucket.key);
                         if (reducer == null) {
-                            reducer = new MultiBucketAggregatorsReducer(reduceContext, size);
+                            reducer = new BucketReducer<>(bucket, reduceContext, size);
                             bucketsReducer.put(bucket.key, reducer);
                         }
                         reducer.accept(bucket);
@@ -480,34 +480,34 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
                 {
                     // fill the array and sort it
                     final int[] index = new int[] { 0 };
-                    bucketsReducer.iterator().forEachRemaining(c -> keys[index[0]++] = c.key);
+                    bucketsReducer.forEach(c -> keys[index[0]++] = c.key);
                     Arrays.sort(keys);
                 }
 
                 final List<Bucket> reducedBuckets = new ArrayList<>();
                 if (keys.length > 0) {
                     // list of buckets coming from different shards that have the same key
-                    MultiBucketAggregatorsReducer currentReducer = null;
+                    BucketReducer<Bucket> currentReducer = null;
                     long key = reduceRounding.round(keys[0]);
                     for (long top : keys) {
                         if (reduceRounding.round(top) != key) {
                             assert currentReducer != null;
                             // the key changes, reduce what we already buffered and reset the buffer for current buckets
-                            reducedBuckets.add(createBucket(key, currentReducer.getDocCount(), currentReducer.get()));
+                            reducedBuckets.add(createBucket(key, currentReducer.getDocCount(), currentReducer.getAggregations()));
                             currentReducer = null;
                             key = reduceRounding.round(top);
                         }
 
-                        final MultiBucketAggregatorsReducer nextReducer = bucketsReducer.get(top);
+                        final BucketReducer<Bucket> nextReducer = bucketsReducer.get(top);
                         if (currentReducer == null) {
                             currentReducer = nextReducer;
                         } else {
-                            currentReducer.accept(createBucket(key, nextReducer.getDocCount(), nextReducer.get()));
+                            currentReducer.accept(createBucket(key, nextReducer.getDocCount(), nextReducer.getAggregations()));
                         }
                     }
 
                     if (currentReducer != null) {
-                        reducedBuckets.add(createBucket(key, currentReducer.getDocCount(), currentReducer.get()));
+                        reducedBuckets.add(createBucket(key, currentReducer.getDocCount(), currentReducer.getAggregations()));
                     }
                 }
 
@@ -546,7 +546,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
             @Override
             public void close() {
-                bucketsReducer.iterator().forEachRemaining(c -> Releasables.close(c.value));
+                bucketsReducer.forEach(c -> Releasables.close(c.value));
                 Releasables.close(bucketsReducer);
             }
         };

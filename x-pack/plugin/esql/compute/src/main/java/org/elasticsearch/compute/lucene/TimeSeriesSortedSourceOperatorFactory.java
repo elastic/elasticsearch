@@ -228,15 +228,13 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             void consume() throws IOException {
                 if (queue != null) {
                     currentTsid = BytesRef.deepCopyOf(queue.top().timeSeriesHash);
-                    boolean breakOnNextTsidChange = false;
+                    if (queue.size() > 0) {
+                        queue.top().reinitializeIfNeeded(Thread.currentThread());
+                    }
                     while (queue.size() > 0) {
-                        if (remainingDocs <= 0) {
+                        if (remainingDocs <= 0 || currentPagePos >= maxPageSize) {
                             break;
                         }
-                        if (currentPagePos > maxPageSize) {
-                            breakOnNextTsidChange = true;
-                        }
-
                         currentPagePos++;
                         remainingDocs--;
                         Leaf leaf = queue.top();
@@ -244,46 +242,34 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                         docsBuilder.appendInt(leaf.iterator.docID());
                         timestampIntervalBuilder.appendLong(leaf.timestamp);
                         tsOrdBuilder.appendInt(globalTsidOrd);
+                        final Leaf newTop;
                         if (leaf.nextDoc()) {
                             // TODO: updating the top is one of the most expensive parts of this operation.
                             // Ideally we would do this a less as possible. Maybe the top can be updated every N docs?
-                            Leaf newTop = queue.updateTop();
-                            if (newTop.timeSeriesHash.equals(currentTsid) == false) {
-                                globalTsidOrd++;
-                                currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
-                                if (breakOnNextTsidChange) {
-                                    break;
-                                }
-                            }
+                            newTop = queue.updateTop();
                         } else {
                             queue.pop();
+                            newTop = queue.size() > 0 ? queue.top() : null;
+                        }
+                        if (newTop != null && newTop.timeSeriesHash.equals(currentTsid) == false) {
+                            newTop.reinitializeIfNeeded(Thread.currentThread());
+                            globalTsidOrd++;
+                            currentTsid = BytesRef.deepCopyOf(newTop.timeSeriesHash);
                         }
                     }
                 } else {
-                    int previousTsidOrd = leaf.timeSeriesHashOrd;
-                    boolean breakOnNextTsidChange = false;
                     // Only one segment, so no need to use priority queue and use segment ordinals as tsid ord.
+                    leaf.reinitializeIfNeeded(Thread.currentThread());
                     while (leaf.nextDoc()) {
-                        if (remainingDocs <= 0) {
-                            break;
-                        }
-                        if (currentPagePos > maxPageSize) {
-                            breakOnNextTsidChange = true;
-                        }
-                        if (breakOnNextTsidChange) {
-                            if (previousTsidOrd != leaf.timeSeriesHashOrd) {
-                                break;
-                            }
-                        }
-
-                        currentPagePos++;
-                        remainingDocs--;
-
                         tsOrdBuilder.appendInt(leaf.timeSeriesHashOrd);
                         timestampIntervalBuilder.appendLong(leaf.timestamp);
                         // Don't append segment ord, because there is only one segment.
                         docsBuilder.appendInt(leaf.iterator.docID());
-                        previousTsidOrd = leaf.timeSeriesHashOrd;
+                        currentPagePos++;
+                        remainingDocs--;
+                        if (remainingDocs <= 0 || currentPagePos >= maxPageSize) {
+                            break;
+                        }
                     }
                 }
             }
@@ -299,37 +285,55 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             static class Leaf {
 
                 private final int segmentOrd;
-                private final SortedDocValues tsids;
-                private final SortedNumericDocValues timestamps;
-                private final DocIdSetIterator iterator;
+                private final Weight weight;
+                private final LeafReaderContext leaf;
+                private SortedDocValues tsids;
+                private SortedNumericDocValues timestamps;
+                private DocIdSetIterator iterator;
+                private Thread createdThread;
 
                 private long timestamp;
                 private int timeSeriesHashOrd;
                 private BytesRef timeSeriesHash;
+                private int docID = -1;
 
                 Leaf(Weight weight, LeafReaderContext leaf) throws IOException {
                     this.segmentOrd = leaf.ord;
+                    this.weight = weight;
+                    this.leaf = leaf;
+                    this.createdThread = Thread.currentThread();
                     tsids = leaf.reader().getSortedDocValues("_tsid");
                     timestamps = leaf.reader().getSortedNumericDocValues("@timestamp");
                     iterator = weight.scorer(leaf).iterator();
                 }
 
                 boolean nextDoc() throws IOException {
-                    int docID = iterator.nextDoc();
+                    docID = iterator.nextDoc();
                     if (docID == DocIdSetIterator.NO_MORE_DOCS) {
                         return false;
                     }
 
-                    boolean advanced = tsids.advanceExact(iterator.docID());
+                    boolean advanced = tsids.advanceExact(docID);
                     assert advanced;
                     timeSeriesHashOrd = tsids.ordValue();
                     timeSeriesHash = tsids.lookupOrd(timeSeriesHashOrd);
-                    advanced = timestamps.advanceExact(iterator.docID());
+                    advanced = timestamps.advanceExact(docID);
                     assert advanced;
                     timestamp = timestamps.nextValue();
                     return true;
                 }
 
+                void reinitializeIfNeeded(Thread executingThread) throws IOException {
+                    if (executingThread != createdThread) {
+                        tsids = leaf.reader().getSortedDocValues("_tsid");
+                        timestamps = leaf.reader().getSortedNumericDocValues("@timestamp");
+                        iterator = weight.scorer(leaf).iterator();
+                        if (docID != -1) {
+                            iterator.advance(docID);
+                        }
+                        createdThread = executingThread;
+                    }
+                }
             }
 
         }

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -67,7 +67,7 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
 
     @Override
     protected TypeResolution resolveType() { // TODO: move the foldability check from QL's In to SQL's and remove this method
-        TypeResolution resolution = TypeResolutions.isExact(value(), functionName(), DEFAULT);
+        TypeResolution resolution = EsqlTypeResolutions.isExact(value(), functionName(), DEFAULT);
         if (resolution.unresolved()) {
             return resolution;
         }

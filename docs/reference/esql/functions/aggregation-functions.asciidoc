@@ -18,6 +18,7 @@ The <<esql-stats-by>> function supports these aggregate functions:
 * <<esql-agg-percentile>>
 * <<esql-agg-st-centroid>>
 * <<esql-agg-sum>>
+* <<esql-agg-values>>
 // end::agg_list[]
 
 include::avg.asciidoc[]
@@ -30,3 +31,4 @@ include::min.asciidoc[]
 include::percentile.asciidoc[]
 include::st_centroid.asciidoc[]
 include::sum.asciidoc[]
+include::values.asciidoc[]

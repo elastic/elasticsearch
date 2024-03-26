@@ -37,6 +37,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.ToLongFunction;
 
+import static org.elasticsearch.TransportVersions.AGGS_EXCLUDED_DELETED_DOCS;
+
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final int KEY_ORDER_CONCURRENCY_THRESHOLD = 50;
 
@@ -112,6 +114,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
 
     private boolean showTermDocCountError = false;
+    private boolean excludeDeletedDocs = false;
 
     public TermsAggregationBuilder(String name) {
         super(name);
@@ -195,6 +198,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(AGGS_EXCLUDED_DELETED_DOCS)) {
+            excludeDeletedDocs = in.readBoolean();
+        }
     }
 
     @Override
@@ -210,6 +216,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
+        if (out.getTransportVersion().onOrAfter(AGGS_EXCLUDED_DELETED_DOCS)) {
+            out.writeBoolean(excludeDeletedDocs);
+        }
     }
 
     /**
@@ -391,6 +400,18 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         return this;
     }
 
+    /**
+     * Set whether deleted documents should be explicitly excluded from the aggregation results
+     */
+    public TermsAggregationBuilder excludeDeletedDocs(boolean excludeDeletedDocs) {
+        this.excludeDeletedDocs = excludeDeletedDocs;
+        return this;
+    }
+
+    public boolean excludeDeletedDocs() {
+        return excludeDeletedDocs;
+    }
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
@@ -417,7 +438,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             parent,
             subFactoriesBuilder,
             metadata,
-            aggregatorSupplier
+            aggregatorSupplier,
+            excludeDeletedDocs
         );
     }
 
@@ -448,7 +470,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             executionHint,
             includeExclude,
             order,
-            showTermDocCountError
+            showTermDocCountError,
+            excludeDeletedDocs
         );
     }
 
@@ -463,7 +486,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             && Objects.equals(executionHint, other.executionHint)
             && Objects.equals(includeExclude, other.includeExclude)
             && Objects.equals(order, other.order)
-            && Objects.equals(showTermDocCountError, other.showTermDocCountError);
+            && Objects.equals(showTermDocCountError, other.showTermDocCountError)
+            && Objects.equals(excludeDeletedDocs, other.excludeDeletedDocs);
     }
 
     @Override

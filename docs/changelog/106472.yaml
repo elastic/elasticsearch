@@ -1,0 +1,6 @@
+pr: 106472
+summary: "Fix the position of spike, dip and distribution changes bucket when the\
+  \ sibling aggregation includes empty buckets"
+area: Machine Learning
+type: bug
+issues: []

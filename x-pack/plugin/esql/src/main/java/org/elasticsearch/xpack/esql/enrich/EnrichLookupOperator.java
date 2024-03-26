@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,6 +30,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
     private final String sessionId;
     private final CancellableTask parentTask;
     private final int inputChannel;
+    private final DataType inputDataType;
     private final String enrichIndex;
     private final String matchType;
     private final String matchField;
@@ -41,6 +43,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         int maxOutstandingRequests,
         int inputChannel,
         EnrichLookupService enrichLookupService,
+        DataType inputDataType,
         String enrichIndex,
         String matchType,
         String matchField,
@@ -68,6 +71,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
                 maxOutstandingRequests,
                 inputChannel,
                 enrichLookupService,
+                inputDataType,
                 enrichIndex,
                 matchType,
                 matchField,
@@ -83,6 +87,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         int maxOutstandingRequests,
         int inputChannel,
         EnrichLookupService enrichLookupService,
+        DataType inputDataType,
         String enrichIndex,
         String matchType,
         String matchField,
@@ -93,6 +98,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;
         this.enrichLookupService = enrichLookupService;
+        this.inputDataType = inputDataType;
         this.enrichIndex = enrichIndex;
         this.matchType = matchType;
         this.matchField = matchField;
@@ -107,6 +113,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
             sessionId,
             parentTask,
             enrichIndex,
+            inputDataType,
             matchType,
             matchField,
             enrichFields,
@@ -119,6 +126,8 @@ public final class EnrichLookupOperator extends AsyncOperator {
     public String toString() {
         return "EnrichOperator[index="
             + enrichIndex
+            + " input_type="
+            + inputDataType
             + " match_field="
             + matchField
             + " enrich_fields="

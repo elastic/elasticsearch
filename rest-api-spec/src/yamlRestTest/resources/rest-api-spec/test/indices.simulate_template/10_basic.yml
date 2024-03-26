@@ -202,7 +202,7 @@
 ---
 "Simulate template with lifecycle and include defaults":
   - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
+      version: " - 8.13.99"
       reason: "Data stream lifecycle with effective retention was released in 8.14"
       features: ["default_shards"]
 

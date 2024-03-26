@@ -2981,10 +2981,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, false, true),
-            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, false),
-            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, false),
-            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, false),
-            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, false, false) };
+            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, false, true) };
         for (TestSpatialRelation test : tests) {
             var plan = this.physicalPlan("FROM " + test.index.index.name() + " | WHERE " + test.predicate(), test.index);
             var limit = as(plan, LimitExec.class);
@@ -3031,10 +3031,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
-            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, false),
-            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, false),
-            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, false),
-            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, false, false) };
+            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, false, true) };
         for (TestSpatialRelation test : tests) {
             var centroidExpr = "centroid=ST_CENTROID(location), count=COUNT()";
             var plan = this.physicalPlan(

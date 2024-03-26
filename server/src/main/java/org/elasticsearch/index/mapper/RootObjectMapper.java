@@ -195,7 +195,7 @@ public class RootObjectMapper extends ObjectMapper {
                                                     + "]"
                                             );
                                         }
-                                        // The same object has been processed before and return early.
+                                        // The same object has been processed before, return early.
                                         aliasMappers.clear();
                                         return;
                                     }

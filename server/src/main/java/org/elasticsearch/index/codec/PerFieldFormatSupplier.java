@@ -26,6 +26,10 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.Objects;
 
+/**
+ * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
+ * vectors.
+ */
 public class PerFieldFormatSupplier {
 
     private final MapperService mapperService;

@@ -1,0 +1,6 @@
+pr: 106654
+summary: "ES|QL: Fix usage of IN operator with TEXT fields"
+area: ES|QL
+type: bug
+issues:
+ - 105379

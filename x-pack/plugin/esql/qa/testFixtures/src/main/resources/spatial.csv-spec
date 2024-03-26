@@ -399,7 +399,9 @@ centroid:geo_point                              | count:long
 POINT (-2.597342072712148 54.33551226578214)    | 17
 ;
 
-centroidFromAirportsAfterContainsPredicateCountryUK#[skip:-8.13.99, reason:st_contains added in 8.14]
+centroidFromAirportsAfterContainsPredicateCountryUK
+required_feature: esql.st_contains_within
+
 FROM airports
 | WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"), location)
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -409,7 +411,9 @@ centroid:geo_point                              | count:long
 POINT (-2.597342072712148 54.33551226578214)    | 17
 ;
 
-centroidFromAirportsAfterWithinPredicateCountryUK#[skip:-8.13.99, reason:st_within added in 8.14]
+centroidFromAirportsAfterWithinPredicateCountryUK
+required_feature: esql.st_contains_within
+
 FROM airports
 | WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -604,7 +608,9 @@ POINT (0 0)         | POINT (0 0)              |  1
 ###############################################
 # Tests for ST_CONTAINS on GEO_POINT type
 
-literalPolygonContainsLiteralPoint#[skip:-8.13.99, reason:st_contains added in 8.14]
+literalPolygonContainsLiteralPoint
+required_feature: esql.st_contains_within
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -616,7 +622,9 @@ wkt:keyword   | pt:geo_point
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-literalPointDoesNotContainLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+literalPointDoesNotContainLiteralPolygon
+required_feature: esql.st_contains_within
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -626,7 +634,9 @@ ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 wkt:keyword   | pt:geo_point
 ;
 
-literalPolygonContainsLiteralPointOneRow#[skip:-8.13.99, reason:st_contains added in 8.14]
+literalPolygonContainsLiteralPointOneRow
+required_feature: esql.st_contains_within
+
 ROW contains = ST_CONTAINS(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
 ;
 
@@ -634,7 +644,9 @@ contains:boolean
 true
 ;
 
-literalPointDoesNotContainLiteralPolygonOneRow#[skip:-8.13.99, reason:st_contains added in 8.14]
+literalPointDoesNotContainLiteralPolygonOneRow
+required_feature: esql.st_contains_within
+
 ROW contains = ST_CONTAINS(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
 ;
 
@@ -642,7 +654,9 @@ contains:boolean
 false
 ;
 
-pointContainedInLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+pointContainedInLiteralPolygon
+required_feature: esql.st_contains_within
+
 FROM airports
 | WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
 ;
@@ -651,7 +665,9 @@ abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword
 HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
 ;
 
-pointContainedInLiteralPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+pointContainedInLiteralPolygon
+required_feature: esql.st_contains_within
+
 FROM airports
 | WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
 ;
@@ -660,7 +676,9 @@ abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword
 HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
 ;
 
-airportCityLocationPointContains#[skip:-8.13.99, reason:st_contains added in 8.14]
+airportCityLocationPointContains
+required_feature: esql.st_contains_within
+
 FROM airports_mp
 | WHERE ST_CONTAINS(location, city_location)
 ;
@@ -669,7 +687,9 @@ abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  
 XXX             |  Atlantis      |  POINT(0 0)              |  Atlantis         |  POINT(0 0)          |  Atlantis Int'l  |  1            |  mid
 ;
 
-airportCityLocationPointIntersectionCentroid#[skip:-8.13.99, reason:st_contains added in 8.14]
+airportCityLocationPointIntersectionCentroid
+required_feature: esql.st_contains_within
+
 FROM airports_mp
 | WHERE ST_CONTAINS(location, city_location)
 | STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
@@ -682,7 +702,9 @@ POINT (0 0)         | POINT (0 0)              |  1
 ###############################################
 # Tests for ST_WITHIN on GEO_POINT type
 
-literalPolygonNotWithinLiteralPoint#[skip:-8.13.99, reason:st_within added in 8.14]
+literalPolygonNotWithinLiteralPoint
+required_feature: esql.st_contains_within
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -692,7 +714,9 @@ ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 wkt:keyword   | pt:geo_point
 ;
 
-literalPointWithinLiteralPolygon#[skip:-8.13.99, reason:st_within added in 8.14]
+literalPointWithinLiteralPolygon
+required_feature: esql.st_contains_within
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_GEOPOINT(wkt)
@@ -704,7 +728,9 @@ wkt:keyword   | pt:geo_point
 "POINT(1 -1)" | POINT(1 -1)
 ;
 
-literalPolygonNotWithinLiteralPointOneRow#[skip:-8.13.99, reason:st_within added in 8.14]
+literalPolygonNotWithinLiteralPointOneRow
+required_feature: esql.st_contains_within
+
 ROW within = ST_WITHIN(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
 ;
 
@@ -712,7 +738,9 @@ within:boolean
 false
 ;
 
-literalPointWithinLiteralPolygonOneRow#[skip:-8.13.99, reason:st_within added in 8.14]
+literalPointWithinLiteralPolygonOneRow
+required_feature: esql.st_contains_within
+
 ROW within = ST_WITHIN(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
 ;
 
@@ -720,7 +748,9 @@ within:boolean
 true
 ;
 
-pointWithinLiteralPolygon#[skip:-8.13.99, reason:st_within added in 8.14]
+pointWithinLiteralPolygon
+required_feature: esql.st_contains_within
+
 // tag::st_within-airports[]
 FROM airports
 | WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
@@ -733,7 +763,9 @@ HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen        
 // end::st_within-airports-results[]
 ;
 
-airportCityLocationPointWithin#[skip:-8.13.99, reason:st_within added in 8.14]
+airportCityLocationPointWithin
+required_feature: esql.st_contains_within
+
 FROM airports_mp
 | WHERE ST_WITHIN(location, city_location)
 ;
@@ -742,7 +774,9 @@ abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  
 XXX             |  Atlantis      |  POINT(0 0)              |  Atlantis         |  POINT(0 0)          |  Atlantis Int'l  |  1            |  mid
 ;
 
-airportCityLocationPointWithinCentroid#[skip:-8.13.99, reason:st_within added in 8.14]
+airportCityLocationPointWithinCentroid
+required_feature: esql.st_contains_within
+
 FROM airports_mp
 | WHERE ST_WITHIN(location, city_location)
 | STATS location=ST_CENTROID(location), city_location=ST_CENTROID(city_location), count=COUNT()
@@ -755,7 +789,9 @@ POINT (0 0)         | POINT (0 0)              |  1
 ###############################################
 # Tests for Equality and casting with GEO_POINT
 
-geoPointEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+geoPointEquals
+required_feature: esql.spatial_points_from_source
+
 // tag::to_geopoint-equals[]
 ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
 | MV_EXPAND wkt
@@ -770,7 +806,9 @@ wkt:keyword                              |pt:geo_point
 // end::to_geopoint-equals-result[]
 ;
 
-geoPointNotEquals#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+geoPointNotEquals
+required_feature: esql.spatial_points_from_source
+
 // tag::to_geopoint-not-equals[]
 ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
 | MV_EXPAND wkt
@@ -785,7 +823,9 @@ wkt:keyword                               |pt:geo_point
 // end::to_geopoint-not-equals-result[]
 ;
 
-convertFromStringParseError#[skip:-8.12.99, reason:spatial type geo_point improved in 8.13]
+convertFromStringParseError
+required_feature: esql.spatial_points_from_source
+
 // tag::to_geopoint-str-parse-error[]
 row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)", "POINT(111)"]
 | mv_expand wkt
@@ -1045,7 +1085,9 @@ wkt:keyword   | pt:cartesian_point
 ###############################################
 # Tests for ST_CONTAINS on CARTESIAN_POINT type
 
-cartesianCentroidFromAirportsAfterContainsPredicate#[skip:-8.13.99, reason:st_contains added in 8.14]
+cartesianCentroidFromAirportsAfterContainsPredicate
+required_feature: esql.st_contains_within
+
 FROM airports_web
 | WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"), location)
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -1055,7 +1097,9 @@ centroid:cartesian_point     | count:long
 POINT (4783520.5 1661010.0)  | 1
 ;
 
-cartesianPointContainsPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+cartesianPointContainsPolygon
+required_feature: esql.st_contains_within
+
 FROM airports_web
 | WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"), location)
 ;
@@ -1064,7 +1108,9 @@ abbrev:keyword | location:cartesian_point                     |  name:text     |
 HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
 ;
 
-literalCartesianPointContainsPolygon#[skip:-8.13.99, reason:st_contains added in 8.14]
+literalCartesianPointContainsPolygon
+required_feature: esql.st_contains_within
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
@@ -1079,7 +1125,9 @@ wkt:keyword   | pt:cartesian_point
 ###############################################
 # Tests for ST_WITHIN on CARTESIAN_POINT type
 
-cartesianCentroidFromAirportsAfterWithinPredicate#[skip:-8.13.99, reason:st_within added in 8.14]
+cartesianCentroidFromAirportsAfterWithinPredicate
+required_feature: esql.st_contains_within
+
 FROM airports_web
 | WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
 | STATS centroid=ST_CENTROID(location), count=COUNT()
@@ -1089,7 +1137,9 @@ centroid:cartesian_point     | count:long
 POINT (4783520.5 1661010.0)  | 1
 ;
 
-cartesianPointWithinPolygon#[skip:-8.13.99, reason:st_within added in 8.14]
+cartesianPointWithinPolygon
+required_feature: esql.st_contains_within
+
 FROM airports_web
 | WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
 ;
@@ -1098,7 +1148,9 @@ abbrev:keyword | location:cartesian_point                     |  name:text     |
 HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
 ;
 
-literalCartesianPointWithinPolygon#[skip:-8.13.99, reason:st_within added in 8.14]
+literalCartesianPointWithinPolygon
+required_feature: esql.st_contains_within
+
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
 | EVAL pt = TO_CARTESIANPOINT(wkt)
@@ -1113,7 +1165,9 @@ wkt:keyword   | pt:cartesian_point
 ###############################################
 # Tests for Equality and casting with GEO_POINT
 
-cartesianPointEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+cartesianPointEquals
+required_feature: esql.spatial_points_from_source
+
 // tag::to_cartesianpoint-equals[]
 ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
 | MV_EXPAND wkt
@@ -1128,7 +1182,9 @@ wkt:keyword               |pt:cartesian_point
 // end::to_cartesianpoint-equals-result[]
 ;
 
-cartesianPointNotEquals#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+cartesianPointNotEquals
+required_feature: esql.spatial_points_from_source
+
 // tag::to_cartesianpoint-not-equals[]
 ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
 | MV_EXPAND wkt
@@ -1143,7 +1199,9 @@ wkt:keyword              |pt:cartesian_point
 // end::to_cartesianpoint-not-equals-result[]
 ;
 
-convertCartesianFromStringParseError#[skip:-8.12.99, reason:spatial type cartesian_point improved in 8.13]
+convertCartesianFromStringParseError
+required_feature: esql.spatial_points_from_source
+
 // tag::to_cartesianpoint-str-parse-error[]
 row wkt = ["POINTX(4297.11 -1475.53)", "POINT(7580.93 2272.77)", "POINT(111)"]
 | mv_expand wkt

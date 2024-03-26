@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
+import java.awt.geom.Point2D;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -35,6 +36,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.apache.lucene.document.ShapeField.QueryRelation.CONTAINS;
 import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
@@ -293,7 +295,15 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         protected boolean pointRelatesGeometry(long encoded, Component2D component2D) {
             // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
             Point point = spatialCoordinateType.longAsPoint(encoded);
-            return geometryRelatesPoint(component2D, point);
+            if (queryRelation == CONTAINS) {
+                if (component2D instanceof Point2D point2D) {
+                    return point2D.getX() == point.getX() && point2D.getY() == point.getY();
+                }
+                // Points cannot contain anything other than points
+                return false;
+            } else {
+                return geometryRelatesPoint(component2D, point);
+            }
         }
 
         private boolean geometryRelatesPoint(Component2D component2D, Point point) {

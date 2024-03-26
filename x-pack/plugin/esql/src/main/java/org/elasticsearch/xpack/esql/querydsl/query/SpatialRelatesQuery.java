@@ -231,6 +231,10 @@ public class SpatialRelatesQuery extends Query {
             SearchExecutionContext context
         ) {
             final boolean hasDocValues = context.getFieldType(fieldName).hasDocValues();
+            if (geometry.type() != ShapeType.POINT && relation == ShapeField.QueryRelation.CONTAINS) {
+                // A point field can never contain a non-point geometry
+                return new MatchNoDocsQuery();
+            }
             final Consumer<ShapeType> checker = t -> {
                 if (t == ShapeType.POINT || t == ShapeType.MULTIPOINT || t == ShapeType.LINESTRING || t == ShapeType.MULTILINESTRING) {
                     throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + t + " queries");

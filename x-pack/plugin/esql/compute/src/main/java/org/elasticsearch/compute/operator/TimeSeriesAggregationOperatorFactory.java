@@ -27,7 +27,17 @@ public record TimeSeriesAggregationOperatorFactory(
 
     @Override
     public String describe() {
-        return null;
+        return "TimeSeriesAggregationOperator[mode="
+            + mode
+            + ", tsHashChannel = "
+            + tsHashChannel
+            + ", timestampChannel = "
+            + timestampChannel
+            + ", timeSeriesPeriod = "
+            + timeSeriesPeriod
+            + ", maxPageSize = "
+            + maxPageSize
+            + "]";
     }
 
     @Override

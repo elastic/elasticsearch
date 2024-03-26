@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -253,6 +252,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return CONTENT_TYPE;
         }
 
+        public String getInferenceId() {
+            return inferenceId;
+        }
+
         public SemanticTextModelSettings getModelSettings() {
             return modelSettings;
         }
@@ -275,11 +278,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return super.syntheticFieldLoader();
     }
 
     private static Mapper.Builder createInferenceMapperBuilder(

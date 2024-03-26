@@ -53,6 +53,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.canMergeModelSettings;
+
 /**
  * A mapper for the {@code _inference} field.
  * <br>
@@ -213,7 +215,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
             return newMapper.getSubMappers();
         } else {
             SemanticTextFieldMapper.Conflicts conflicts = new Conflicts(fullFieldName);
-            SemanticTextFieldMapper.canMergeModelSettings(semanticFieldContext.mapper.getModelSettings(), newModelSettings, conflicts);
+            canMergeModelSettings(semanticFieldContext.mapper.getModelSettings(), newModelSettings, conflicts);
             try {
                 conflicts.check();
             } catch (Exception exc) {

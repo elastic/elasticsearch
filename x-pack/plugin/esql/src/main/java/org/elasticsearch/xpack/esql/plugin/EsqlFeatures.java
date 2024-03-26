@@ -87,7 +87,17 @@ public class EsqlFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(ASYNC_QUERY, AGG_VALUES, MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y, FROM_OPTIONS);
+        return Set.of(
+            ASYNC_QUERY,
+            AGG_VALUES,
+            MV_SORT,
+            DISABLE_NULLABLE_OPTS,
+            ST_X_Y,
+            FROM_OPTIONS,
+            SPATIAL_POINTS_FROM_SOURCE,
+            SPATIAL_SHAPES,
+            ST_CENTROID
+        );
     }
 
     @Override
@@ -96,11 +106,8 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0),
             Map.entry(MV_WARN, Version.V_8_12_0),
             Map.entry(SPATIAL_POINTS, Version.V_8_12_0),
-            Map.entry(SPATIAL_POINTS_FROM_SOURCE, Version.V_8_13_0),
-            Map.entry(SPATIAL_SHAPES, Version.V_8_13_0),
             Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0),
-            Map.entry(ST_CENTROID, Version.V_8_13_0)
+            Map.entry(POW_DOUBLE, Version.V_8_12_0)
         );
     }
 }

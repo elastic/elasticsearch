@@ -63,6 +63,7 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
@@ -103,7 +104,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -476,6 +479,10 @@ public class SearchExecutionContextTests extends ESTestCase {
         when(mapperService.isMultiField(anyString())).then(
             (Answer<Boolean>) invocation -> mappingLookup.isMultiField(invocation.getArgument(0))
         );
+        when(mapperService.getSourceLoader(any(), eq(true))).thenReturn(
+            new SourceLoader.Synthetic(mappingLookup.getMapping(), SourceFieldMetrics.NOOP)
+        );
+        when(mapperService.getSourceLoader(any(), eq(false))).thenReturn(mappingLookup.newSourceLoader());
         return mapperService;
     }
 

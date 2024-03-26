@@ -22,9 +22,7 @@ import java.util.function.Supplier;
 /**
  * Transforms an indexing request using error information into a new index request to be stored in a data stream's failure store.
  */
-public final class FailureStoreDocument {
-
-    private FailureStoreDocument() {}
+public class FailureStoreDocumentConverter {
 
     /**
      * Combines an {@link IndexRequest} that has failed during the bulk process with the error thrown for that request. The result is a
@@ -35,7 +33,7 @@ public final class FailureStoreDocument {
      * @return A new {@link IndexRequest} with a failure store compliant structure
      * @throws IOException If there is a problem when the document's new source is serialized
      */
-    public static IndexRequest transformFailedRequest(IndexRequest source, Exception exception, String targetIndexName) throws IOException {
+    public IndexRequest transformFailedRequest(IndexRequest source, Exception exception, String targetIndexName) throws IOException {
         return transformFailedRequest(source, exception, targetIndexName, System::currentTimeMillis);
     }
 
@@ -49,7 +47,7 @@ public final class FailureStoreDocument {
      * @return A new {@link IndexRequest} with a failure store compliant structure
      * @throws IOException If there is a problem when the document's new source is serialized
      */
-    public static IndexRequest transformFailedRequest(
+    public IndexRequest transformFailedRequest(
         IndexRequest source,
         Exception exception,
         String targetIndexName,

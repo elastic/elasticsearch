@@ -22,7 +22,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.bucket.DelayedMultiBucketAggregatorsReducer;
+import org.elasticsearch.search.aggregations.bucket.DelayedBucketReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -257,7 +257,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     }
 
     private class BucketsQueue implements Releasable {
-        private final ObjectObjectPagedHashMap<Object, DelayedMultiBucketAggregatorsReducer> bucketReducers;
+        private final ObjectObjectPagedHashMap<Object, DelayedBucketReducer<InternalBucket>> bucketReducers;
         private final ObjectArrayPriorityQueue<InternalBucket> queue;
         private final AggregationReduceContext reduceContext;
 
@@ -274,12 +274,12 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
         /** adds a bucket to the queue. Return false if the bucket is not competitive, otherwise true.*/
         boolean add(InternalBucket bucket) {
-            DelayedMultiBucketAggregatorsReducer delayed = bucketReducers.get(bucket.key);
+            DelayedBucketReducer<InternalBucket> delayed = bucketReducers.get(bucket.key);
             if (delayed == null) {
                 final InternalBucket out = queue.insertWithOverflow(bucket);
                 if (out == null) {
                     // bucket is added
-                    delayed = new DelayedMultiBucketAggregatorsReducer(reduceContext);
+                    delayed = new DelayedBucketReducer<>(bucket, reduceContext);
                 } else if (out == bucket) {
                     // bucket is not competitive
                     return false;
@@ -287,7 +287,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                     // bucket replaces existing bucket
                     delayed = bucketReducers.remove(out.key);
                     assert delayed != null;
-                    delayed.reset();
+                    delayed.reset(bucket);
                 }
                 bucketReducers.put(bucket.key, delayed);
             }
@@ -307,7 +307,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                  * just whatever formats make sense for *its* index. This can be real
                  * trouble when the index doing the reducing is unmapped. */
                 final var reducedFormats = bucket.formats;
-                final DelayedMultiBucketAggregatorsReducer reducer = Objects.requireNonNull(bucketReducers.get(bucket.key));
+                final DelayedBucketReducer<InternalBucket> reducer = Objects.requireNonNull(bucketReducers.get(bucket.key));
                 result[i] = new InternalBucket(
                     sourceNames,
                     reducedFormats,
@@ -315,7 +315,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                     reverseMuls,
                     missingOrders,
                     reducer.getDocCount(),
-                    reducer.get()
+                    reducer.getAggregations()
                 );
             }
             return List.of(result);

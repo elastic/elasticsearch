@@ -199,7 +199,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         updateOneTransform(next, dryRun, timeout, ActionListener.wrap(updateResponse -> {
             if (UpdateResult.Status.DELETED.equals(updateResponse.getStatus()) == false) {
                 auditor.info(next, "Updated transform.");
-                logger.debug("[{}] Updated transform [{}]", next, updateResponse.getStatus());
+                logger.info("[{}] Updated transform [{}]", next, updateResponse.getStatus());
                 updatesByStatus.compute(updateResponse.getStatus(), (k, v) -> (v == null) ? 1 : v + 1L);
             }
             if (transformsToUpgrade.isEmpty() == false) {

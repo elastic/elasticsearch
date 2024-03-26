@@ -232,11 +232,11 @@ public abstract class TransportNodesAction<
     }
 
     /**
-     * resolve node ids to concrete nodes of the incoming request
-     **/
+     * Resolves node ids to concrete nodes of the incoming request.
+     * NB: if the request's nodeIds() returns nothing, then the request will be sent to ALL known nodes in the cluster.
+     */
     protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
-        //// SNEAKY BEHAVIOR: if nodesIds is empty, resolveNodes will fetch ALL the nodes in the cluster??...
         String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
         request.setConcreteNodes(Arrays.stream(nodesIds).map(clusterState.nodes()::get).toArray(DiscoveryNode[]::new));
     }

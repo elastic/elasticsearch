@@ -126,6 +126,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -1102,6 +1103,7 @@ public class ProfileServiceTests extends ESTestCase {
                     equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
                 );
                 MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                assertThat(multiSearchRequest.requests(), iterableWithSize(1));
                 assertThat(multiSearchRequest.requests().get(0).source().query(), instanceOf(BoolQueryBuilder.class));
                 assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(), iterableWithSize(3));
                 assertThat(
@@ -1156,6 +1158,7 @@ public class ProfileServiceTests extends ESTestCase {
                     equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
                 );
                 MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                assertThat(multiSearchRequest.requests(), iterableWithSize(1));
                 assertThat(multiSearchRequest.requests().get(0).source().query(), instanceOf(BoolQueryBuilder.class));
                 assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(), iterableWithSize(1));
                 assertThat(
@@ -1219,8 +1222,9 @@ public class ProfileServiceTests extends ESTestCase {
                     threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
                     equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
                 );
-                // a single search request for a single owner of multiple keys
                 MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                // a single search request for a single owner of multiple keys
+                assertThat(multiSearchRequest.requests(), iterableWithSize(1));
                 assertThat(multiSearchRequest.requests().get(0).source().query(), instanceOf(BoolQueryBuilder.class));
                 assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(), iterableWithSize(3));
                 assertThat(
@@ -1247,6 +1251,77 @@ public class ProfileServiceTests extends ESTestCase {
             }
         } finally {
             emptyMultiSearchResponse.decRef();
+        }
+    }
+
+    public void testProfileSearchErrorForApiKeyOwner() {
+        // 2 keys with different owners
+        List<ApiKey> apiKeys = List.of(
+            createApiKeyForOwner("keyId_0", "username_0", "realmName_0", "realmType_0"),
+            createApiKeyForOwner("keyId_1", "username_1", "realmName_1", "realmType_1")
+        );
+        realmRefLookup = realmIdentifier -> {
+            assertThat(realmIdentifier.getName(), either(is("realmName_0")).or(is("realmName_1")));
+            assertThat(realmIdentifier.getType(), either(is("realmType_0")).or(is("realmType_1")));
+            return new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), "nodeName");
+        };
+        MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[2];
+        // one search request (for one of the key owner) fails
+        if (randomBoolean()) {
+            responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+            responseItems[1] = new MultiSearchResponse.Item(null, new Exception("test search failure"));
+        } else {
+            responseItems[0] = new MultiSearchResponse.Item(null, new Exception("test search failure"));
+            responseItems[1] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+        }
+        MultiSearchResponse multiSearchResponseWithError = new MultiSearchResponse(responseItems, randomNonNegativeLong());
+        try {
+            doAnswer(invocation -> {
+                assertThat(
+                    threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                    equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                );
+                // a single search request for a single owner of multiple keys
+                MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                // 2 search requests for the 2 Api key owners
+                assertThat(multiSearchRequest.requests(), iterableWithSize(2));
+                for (int i = 0; i < 2; i++) {
+                    assertThat(multiSearchRequest.requests().get(i).source().query(), instanceOf(BoolQueryBuilder.class));
+                    assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(i).source().query()).filter(), iterableWithSize(3));
+                    List<QueryBuilder> filters = ((BoolQueryBuilder) multiSearchRequest.requests().get(i).source().query()).filter();
+                    assertThat(
+                        filters,
+                        either(
+                            Matchers.<QueryBuilder>containsInAnyOrder(
+                                new TermQueryBuilder("user_profile.user.username.keyword", "username_1"),
+                                new TermQueryBuilder("user_profile.user.realm.type", "realmType_1"),
+                                new TermQueryBuilder("user_profile.user.realm.name", "realmName_1")
+                            )
+                        ).or(
+                            Matchers.<QueryBuilder>containsInAnyOrder(
+                                new TermQueryBuilder("user_profile.user.username.keyword", "username_0"),
+                                new TermQueryBuilder("user_profile.user.realm.type", "realmType_0"),
+                                new TermQueryBuilder("user_profile.user.realm.name", "realmName_0")
+                            )
+                        )
+                    );
+                }
+                @SuppressWarnings("unchecked")
+                var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(multiSearchResponseWithError);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+
+            PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+            profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
+            ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+            assertThat(
+                e.getMessage(),
+                containsString("failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)")
+            );
+        } finally {
+            multiSearchResponseWithError.decRef();
         }
     }
 

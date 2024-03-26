@@ -578,7 +578,7 @@ dynamic templates with nesting:
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
-dynamic templates - incremental:
+dynamic templates with incremental indexing:
   - skip:
       version: " - 8.12.99"
       reason: "Support for dynamic fields was added in 8.13"
@@ -645,6 +645,19 @@ dynamic templates - incremental:
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
           - '{ "@timestamp": "2023-09-01T13:04:10.238Z","data": "140", "resource.attributes.another.dim1": "2", "attributes.another.dim2": "20.5" }'
 
+  - do:
+      bulk:
+        index: k9s
+        refresh: true
+        body:
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:08.138Z","data": "210", "resource.attributes.another.deeper.dim1": "1", "attributes.another.deeper.dim2": "10.5" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:09.138Z","data": "220", "resource.attributes.another.deeper.dim1": "1", "attributes.another.deeper.dim2": "10.5" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:10.138Z","data": "230", "resource.attributes.another.deeper.dim1": "2", "attributes.another.deeper.dim2": "20.5" }'
+          - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
+          - '{ "@timestamp": "2023-09-01T13:05:10.238Z","data": "240", "resource.attributes.another.deeper.dim1": "2", "attributes.another.deeper.dim2": "20.5" }'
 
   - do:
       bulk:
@@ -652,13 +665,13 @@ dynamic templates - incremental:
         refresh: true
         body:
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:05:08.138Z","data": "210",  "attributes.a.much.deeper.nested.dim": "AC" }'
+          - '{ "@timestamp": "2023-09-01T13:06:08.138Z","data": "310",  "attributes.a.much.deeper.nested.dim": "AC" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:05:09.138Z","data": "220",  "attributes.a.much.deeper.nested.dim": "AC" }'
+          - '{ "@timestamp": "2023-09-01T13:06:09.138Z","data": "320",  "attributes.a.much.deeper.nested.dim": "AC" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:05:10.138Z","data": "230",  "attributes.a.much.deeper.nested.dim": "BD" }'
+          - '{ "@timestamp": "2023-09-01T13:06:10.138Z","data": "330",  "attributes.a.much.deeper.nested.dim": "BD" }'
           - '{ "create": { "dynamic_templates": { "data": "counter_metric" } } }'
-          - '{ "@timestamp": "2023-09-01T13:05:10.238Z","data": "240",  "attributes.a.much.deeper.nested.dim": "BD" }'
+          - '{ "@timestamp": "2023-09-01T13:06:10.238Z","data": "340",  "attributes.a.much.deeper.nested.dim": "BD" }'
 
   - do:
       search:
@@ -666,7 +679,7 @@ dynamic templates - incremental:
         body:
           size: 0
 
-  - match: { hits.total.value: 12 }
+  - match: { hits.total.value: 16 }
 
   - do:
       search:
@@ -713,7 +726,7 @@ dynamic templates - incremental:
             filterA:
               filter:
                 term:
-                  another.dim1: 1
+                  another.deeper.dim1: 1
               aggs:
                 tsids:
                   terms:
@@ -731,7 +744,7 @@ dynamic templates - incremental:
             filterA:
               filter:
                 term:
-                  another.dim2: 10.5
+                  another.deeper.dim2: 10.5
               aggs:
                 tsids:
                   terms:

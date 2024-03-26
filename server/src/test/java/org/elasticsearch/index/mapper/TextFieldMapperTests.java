@@ -258,8 +258,10 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         var indexSettingsBuilder = getIndexSettingsBuilder();
         if (timeSeriesIndexMode) {
-            indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-            indexSettingsBuilder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension");
+            indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
         }
         var indexSettings = indexSettingsBuilder.build();
 
@@ -290,13 +292,14 @@ public class TextFieldMapperTests extends MapperTestCase {
         });
         DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
 
-        ParsedDocument doc = mapper.parse(source(b -> {
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");
             if (timeSeriesIndexMode) {
                 b.field("@timestamp", randomMillisUpToYear9999());
                 b.field("dimension", "dimension1");
             }
-        }));
+        }, null);
+        ParsedDocument doc = mapper.parse(source);
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         IndexableFieldType fieldType = fields.get(0).fieldType();
         if (isStored || (timeSeriesIndexMode && hasKeywordFieldForSyntheticSource == false)) {

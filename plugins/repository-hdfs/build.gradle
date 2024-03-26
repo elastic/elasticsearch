@@ -7,6 +7,7 @@
  */
 
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -81,6 +82,7 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.withType(RestIntegTestTask).configureEach {
   usesDefaultDistribution()
+  BuildParams.withFipsEnabledOnly(it)
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }
 

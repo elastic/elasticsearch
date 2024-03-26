@@ -52,7 +52,7 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
 
         final int level, blockSizeInBytes, blockDocCount;
 
-        private Mode(int level, int blockSizeInBytes, int blockDocCount) {
+        Mode(int level, int blockSizeInBytes, int blockDocCount) {
             this.level = level;
             this.blockSizeInBytes = blockSizeInBytes;
             this.blockDocCount = blockDocCount;

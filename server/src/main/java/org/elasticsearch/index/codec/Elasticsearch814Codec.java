@@ -60,7 +60,8 @@ public class Elasticsearch814Codec extends FilterCodec {
     }
 
     /**
-     * Constructor. Takes a {@link Zstd814StoredFieldsFormat.Mode} that describes whether to optimize for retrieval speed at the expense of worse space-efficiency or vice-versa.
+     * Constructor. Takes a {@link Zstd814StoredFieldsFormat.Mode} that describes whether to optimize for retrieval speed at the expense of
+     * worse space-efficiency or vice-versa.
      */
     public Elasticsearch814Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch814", new Lucene99Codec());

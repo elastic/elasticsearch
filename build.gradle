@@ -432,7 +432,7 @@ tasks.register("spotlessApply").configure {
 }
 
 subprojects { subProject ->
-  subProject.tasks.withType(Test) { task ->
+  subProject.tasks.withType(Test).configureEach { task ->
     def slowTasks = [
       ":docs:yamlRestTest",
       ":qa:smoke-test-multinode:yamlRestTest",

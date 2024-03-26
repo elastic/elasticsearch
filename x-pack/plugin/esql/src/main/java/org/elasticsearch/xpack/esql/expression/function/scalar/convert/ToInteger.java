@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToInt;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -29,7 +32,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToInteger extends AbstractConvertFunction {
 
@@ -84,10 +86,10 @@ public class ToInteger extends AbstractConvertFunction {
     static int fromKeyword(BytesRef in) {
         String asString = in.utf8ToString();
         try {
-            return Integer.parseInt(asString);
+            return stringToInt(asString);
         } catch (NumberFormatException nfe) {
             try {
-                return fromDouble(Double.parseDouble(asString));
+                return fromDouble(stringToDouble(asString));
             } catch (Exception e) {
                 throw nfe;
             }
@@ -101,12 +103,7 @@ public class ToInteger extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class })
     static int fromUnsignedLong(long ul) {
-        Number n = unsignedLongAsNumber(ul);
-        int i = n.intValue();
-        if (i != n.longValue()) {
-            throw new InvalidArgumentException("[{}] out of [integer] range", n);
-        }
-        return i;
+        return unsignedLongToInt(ul);
     }
 
     @ConvertEvaluator(extraName = "FromLong", warnExceptions = { InvalidArgumentException.class })

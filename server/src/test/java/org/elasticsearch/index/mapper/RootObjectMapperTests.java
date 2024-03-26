@@ -401,7 +401,8 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     {
                         b.startObject("properties");
                         b.startObject("dim").field("type", "keyword").endObject();
-                        b.startObject("more.attributes.another.dim").field("type", "keyword").endObject();
+                        b.startObject("more.attributes.another.dimA").field("type", "keyword").endObject();
+                        b.startObject("more.attributes.another.dimB").field("type", "keyword").endObject();
                         b.endObject();
                     }
                     b.endObject();
@@ -409,15 +410,52 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
+            b.startObject("attributes").field("type", "passthrough");
+            {
+                b.startObject("properties");
+                b.startObject("another.dim").field("type", "keyword").endObject();
+                b.startObject("more.attributes.another.dimC").field("type", "keyword").endObject();
+                b.startObject("more.attributes.another.dimD").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
         }));
+
         assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
         assertThat(mapperService.mappingLookup().getMapper("resource.attributes.dim"), instanceOf(KeywordFieldMapper.class));
         assertThat(
-            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dim"),
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimA"),
             instanceOf(FieldAliasMapper.class)
         );
         assertThat(
-            mapperService.mappingLookup().getMapper("resource.attributes.more.attributes.another.dim"),
+            mapperService.mappingLookup().getMapper("resource.attributes.more.attributes.another.dimA"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimB"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("resource.attributes.more.attributes.another.dimB"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+
+        assertThat(mapperService.mappingLookup().objectMappers().get("another").getMapper("dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimC"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("attributes.more.attributes.another.dimC"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimD"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("attributes.more.attributes.another.dimD"),
             instanceOf(KeywordFieldMapper.class)
         );
     }

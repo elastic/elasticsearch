@@ -168,10 +168,6 @@ public class RootObjectMapper extends ObjectMapper {
                                             + fieldMapper.name()
                                             + " conflicts with existing field or alias, skipping alias creation."
                                     );
-                                } else {
-                                    // Aliases have been already added, return.
-                                    aliasMappers.clear();
-                                    return;
                                 }
                             } else {
                                 // Check if the field name contains dots, as aliases require nesting within objects in this case.
@@ -195,9 +191,6 @@ public class RootObjectMapper extends ObjectMapper {
                                                     + "]"
                                             );
                                         }
-                                        // The same object has been processed before, return early.
-                                        aliasMappers.clear();
-                                        return;
                                     }
 
                                     // Nest the alias within object(s).
@@ -208,9 +201,8 @@ public class RootObjectMapper extends ObjectMapper {
                                     ObjectMapper.Builder intermediate = null;
                                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                                         String intermediateObjectName = fieldNameParts[i];
-                                        String fullName = passthroughMapper.name() + concatStrings(fieldNameParts, i);
                                         intermediate = objectIntermediatesFullName.computeIfAbsent(
-                                            fullName,
+                                            concatStrings(fieldNameParts, i),
                                             s -> new ObjectMapper.Builder(intermediateObjectName, ObjectMapper.Defaults.SUBOBJECTS)
                                         );
                                         intermediate.add(fieldBuilder);
@@ -248,18 +240,15 @@ public class RootObjectMapper extends ObjectMapper {
 
     private static boolean isConflictingObject(Mapper mapper, String[] parts) {
         for (int i = 0; i < parts.length - 1; i++) {
-            // The mapper name needs to match.
-            if (mapper == null || mapper.simpleName().equals(parts[i]) == false) {
+            if (mapper == null) {
                 return true;
             }
-            // The child needs to be an object.
             if (mapper instanceof ObjectMapper objectMapper) {
                 mapper = objectMapper.getMapper(parts[i + 1]);
             } else {
                 return true;
             }
         }
-        // The leaf field needs to match too.
         return mapper == null;
     }
 

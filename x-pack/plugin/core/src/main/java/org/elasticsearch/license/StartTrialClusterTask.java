@@ -67,11 +67,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         assert taskContext.getTask() == this;
         if (featureService.clusterHasFeature(state, License.INDEPENDENT_TRIAL_VERSION_FEATURE) == false) {
             throw new IllegalStateException(
-                "Please ensure all nodes are on the same version before starting your trial, the highest node version in this cluster is ["
-                    + state.nodes().getMaxNodeVersion()
-                    + "] and the lowest node version is ["
-                    + state.nodes().getMinNodeVersion()
-                    + "]"
+                "Please ensure all nodes are up to date before starting your trial"
             );
         }
         final var listener = ActionListener.runBefore(this.listener, () -> {

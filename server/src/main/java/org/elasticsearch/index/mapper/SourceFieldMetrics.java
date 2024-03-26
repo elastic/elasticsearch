@@ -20,7 +20,7 @@ import java.util.function.LongSupplier;
 public class SourceFieldMetrics {
     public static SourceFieldMetrics NOOP = new SourceFieldMetrics(MeterRegistry.NOOP, () -> 0);
 
-    public static final String SYNTHETIC_SOURCE_LOAD_LATENCY = "es.synthetic_source.load.latency.histogram";
+    public static final String SYNTHETIC_SOURCE_LOAD_LATENCY = "es.mapper.synthetic_source.load.latency.histogram";
 
     private final LongSupplier relativeTimeSupplier;
 

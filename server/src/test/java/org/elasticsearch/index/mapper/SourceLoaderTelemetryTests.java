@@ -27,11 +27,9 @@ public class SourceLoaderTelemetryTests extends MapperServiceTestCase {
     }
 
     @Override
-    @Ignore
     public void testFieldHasValue() {}
 
     @Override
-    @Ignore
     public void testFieldHasValueWithEmptyFieldInfos() {}
 
     public void testSyntheticSourceTelemetry() throws IOException {

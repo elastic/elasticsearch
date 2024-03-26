@@ -79,6 +79,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -645,17 +646,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private volatile boolean isDeleted;
         // map generations to compound commit blob instances
         private final Map<PrimaryTermAndGeneration, BlobReference> primaryTermAndGenToBlobReference = new ConcurrentHashMap<>();
-        /**
-         * Map from commit to set of search node-ids using the commit. The lifecycle of entries is like this:
-         * 1. Initially added on recovery or commit created - with an empty set. Only this adds to the keys of the Map.
-         * 2. Add to set of nodes before sending commit notification or when search shard registers during its initialization.
-         *    Only these two actions add to the set of node ids.
-         * 3. Remove from set of nodes when receiving commit notification response.
-         * 4. Remove from set of nodes when a new cluster state indicates a search shard is no longer allocated.
-         * 5. Remove from map when nodes is empty, using remove(key, Set.of()) to ensure we are atomic towards a search shard registering.
-         *    When successful this dec-refs the BlobReference's external reader ref-count.
-         */
-        private final Map<BlobReference, Set<String>> commitsToSearchNodes = new ConcurrentHashMap<>();
 
         // maps file names to their (maybe future) compound commit blob & blob location
         private final Map<String, CommitAndBlobLocation> blobLocations = new ConcurrentHashMap<>();
@@ -779,7 +769,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .map(ShardRouting::currentNodeId)
                 .collect(Collectors.toSet());
 
-            primaryTermAndGenToBlobReference.values().forEach(this::initializeUnpromotableCommitReferences);
             primaryTermAndGenToBlobReference.values()
                 .forEach(commit -> trackOutstandingUnpromotableShardCommitRef(currentUnpromotableShardAssignedNodes, commit));
 
@@ -858,13 +847,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 assert previous == null || isGenerationalFile(fileName) : fileName + ':' + previous + ':' + blobReference;
             });
 
-            initializeUnpromotableCommitReferences(blobReference);
             return blobReference;
-        }
-
-        private void initializeUnpromotableCommitReferences(BlobReference blobReference) {
-            Set<String> previous = commitsToSearchNodes.put(blobReference, Set.of());
-            assert previous == null;
         }
 
         public void markCommitDeleted(long generation) {
@@ -1044,8 +1027,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * those commits to be eventually deleted when no longer in use by any shard.
          */
         private void maybeResendLatestNewCommitNotification() {
-            StatelessCompoundCommit latestStatelessCompoundCommitUploaded = null;
-            BlobReference latestBlobReference = null;
+            final StatelessCompoundCommit latestStatelessCompoundCommitUploaded;
+            final BlobReference latestBlobReference;
 
             // Get latest uploaded stateless compound commit and the respective compound commit blob
             synchronized (this) {
@@ -1058,20 +1041,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 assert latestBlobReference != null : "could not find latest " + termGen + " in compound commit blobs";
             }
 
-            if (commitsToSearchNodes.size() == 1 && commitsToSearchNodes.keySet().contains(latestBlobReference)) {
-                lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
-                return;
-            }
+            final boolean anyOldBlobReferencesStillInUse = primaryTermAndGenToBlobReference.values()
+                .stream()
+                .anyMatch(blobReference -> blobReference != latestBlobReference && blobReference.isExternalReadersClosed() == false);
 
-            logger.debug("sending new commit notifications for inactive shard [{}]", shardId);
-            sendNewCommitNotification(
-                latestBlobReference,
-                // TODO: hack to create a singleton BCC for now, we need to record uploaded BCC instead of CC in future
-                new BatchedCompoundCommit(
-                    latestStatelessCompoundCommitUploaded.primaryTermAndGeneration(),
-                    List.of(latestStatelessCompoundCommitUploaded)
-                )
-            );
+            // Resend the notification if older blob references are still in use
+            if (anyOldBlobReferencesStillInUse) {
+                logger.debug("sending new commit notifications for inactive shard [{}]", shardId);
+                sendNewCommitNotification(
+                    latestBlobReference,
+                    // TODO: hack to create a singleton BCC for now, we need to record uploaded BCC instead of CC in future
+                    new BatchedCompoundCommit(
+                        latestStatelessCompoundCommitUploaded.primaryTermAndGeneration(),
+                        List.of(latestStatelessCompoundCommitUploaded)
+                    )
+                );
+            } else {
+                lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+            }
         }
 
         /**
@@ -1253,20 +1240,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
             // TODO: provide Map<nodeId, Set<PrimaryTermAndGeneration>>
 
-            for (BlobReference commit : commitsToSearchNodes.keySet()) {
+            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 // we are allowed to shrink the set of search nodes for any generation <= notificationGeneration, since after the
                 // notification generation has been refreshed on the search shard, we know that the shard will never add more use of any
                 // earlier generations.
-                if (commit.getPrimaryTermAndGeneration().generation() <= notificationGeneration
-                    && primaryTermAndGenerationsInUse.contains(commit.getPrimaryTermAndGeneration()) == false) {
-                    // remove nodes from the set. Any search shard registered during initialization will be left until it starts responding.
-                    Set<String> remainingSearchNodes = commitsToSearchNodes.computeIfPresent(
-                        commit,
-                        (k, v) -> Sets.difference(v, searchNodes)
-                    );
-                    // only mark it closed for readers if it is not the newest commit, since we want a new search shard to be able to use at
-                    // least that commit (relevant only in case there are no search shards currently).
-                    removeCommitAndCloseExternalReadersIfNoSearchNodesRemain(notificationGeneration, commit, remainingSearchNodes);
+                if (blobReference.getPrimaryTermAndGeneration().generation() <= notificationGeneration
+                    && primaryTermAndGenerationsInUse.contains(blobReference.getPrimaryTermAndGeneration()) == false) {
+                    // remove nodes from the search nodes set. Any search shard registered during initialization will be left until it
+                    // starts responding.
+                    blobReference.removeSearchNodes(searchNodes, notificationGeneration);
                 }
             }
         }
@@ -1276,39 +1258,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes, long generationNotified) {
-            for (Map.Entry<BlobReference, Set<String>> entry : commitsToSearchNodes.entrySet()) {
-                Set<String> remainingSearchNodes = commitsToSearchNodes.computeIfPresent(
-                    entry.getKey(),
-                    (k, v) -> Sets.intersection(v, currentUnpromotableNodes)
-                );
-                removeCommitAndCloseExternalReadersIfNoSearchNodesRemain(generationNotified, entry.getKey(), remainingSearchNodes);
+            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
+                blobReference.retainSearchNodes(currentUnpromotableNodes, generationNotified);
             }
         }
 
         /**
-         * Removes a commit from {@link #commitsToSearchNodes} and marks the commit as closed, only if the remaining search nodes set
-         * is empty and there are newer shard commits.
-         *
-         * @param notificationGeneration
-         * @param commit
-         * @param remainingSearchNodes
-         */
-        private void removeCommitAndCloseExternalReadersIfNoSearchNodesRemain(
-            long notificationGeneration,
-            BlobReference commit,
-            Set<String> remainingSearchNodes
-        ) {
-            if (remainingSearchNodes != null
-                && remainingSearchNodes.isEmpty()
-                && notificationGeneration > commit.getPrimaryTermAndGeneration().generation()) {
-                if (commitsToSearchNodes.remove(commit, Set.of())) {
-                    commit.closedExternalReaders();
-                }
-            }
-        }
-
-        /**
-         * Registers the given set of 'nodes' in the {@link #commitsToSearchNodes} for the specified 'commitReference'.
+         * Registers the given set of 'nodes' in the {@link BlobReference} for the specified 'commitReference'.
          */
         void trackOutstandingUnpromotableShardCommitRef(Set<String> nodes, BlobReference commitReference) {
             boolean success = registerUnpromoteableCommitRefs(nodes, commitReference);
@@ -1351,7 +1307,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             long previousGenerationUploaded = -1;
             while (true) {
                 if (compoundCommit != null && registerUnpromoteableCommitRefs(Set.of(nodeId), compoundCommit)) {
-                    assert compoundCommit.externalReadersClosed.get() == false;
+                    assert compoundCommit.isExternalReadersClosed() == false;
                     return compoundCommit;
                 } else {
                     long generation = getMaxUploadedGeneration();
@@ -1364,14 +1320,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Adds the given 'nodes' to the {@link #commitsToSearchNodes} for 'compoundCommit'.
+         * Adds the given 'nodes' to the {@link BlobReference} for 'compoundCommit'.
          */
         boolean registerUnpromoteableCommitRefs(Set<String> nodes, BlobReference compoundCommit) {
-            Set<String> immutableNodes = Set.copyOf(nodes);
-            Set<String> result = commitsToSearchNodes.computeIfPresent(
-                compoundCommit,
-                (key, existingValue) -> Sets.union(existingValue, immutableNodes)
-            );
+            Set<String> result = compoundCommit.addSearchNodes(nodes);
             return result != null;
         }
 
@@ -1395,7 +1347,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             private final Collection<BlobReference> references;
             private final AtomicBoolean deleted = new AtomicBoolean();
             private final AtomicBoolean readersClosed = new AtomicBoolean();
-            private final AtomicBoolean externalReadersClosed = new AtomicBoolean();
+            /**
+             * Set of search node-ids using the commit. The lifecycle of entries is like this:
+             * 1. Initially created at instantiation on recovery or commit created - with an empty set.
+             * 2. Add to set of nodes before sending commit notification or when search shard registers during its initialization.
+             *    Only these two actions add to the set of node ids.
+             * 3. Remove from set of nodes when receiving commit notification response.
+             * 4. Remove from set of nodes when a new cluster state indicates a search shard is no longer allocated.
+             * 5. When nodes is empty, using getAndUpdate to atomically set the reference to null.
+             *    When successful this dec-refs the BlobReference's external reader ref-count.
+             */
+            private final AtomicReference<Set<String>> searchNodesRef = new AtomicReference<>(Set.of());
 
             BlobReference(long primaryTerm, long generation, Set<String> internalFiles, Collection<BlobReference> references) {
                 this(new PrimaryTermAndGeneration(primaryTerm, generation), internalFiles, references);
@@ -1472,13 +1434,76 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
             }
 
-            public void closedExternalReaders() {
-                if (externalReadersClosed.compareAndSet(false, true)) {
-                    references.forEach(AbstractRefCounted::decRef);
-                    decRef();
-                } else {
-                    assert false : "external readers already closed for [" + this + "]";
+            /**
+             * Decref the blob reference if it is no longer used by any search nodes and the latest notified generation is newer.
+             * The blob reference may be removed and released if the decref releases the last refcount.
+             */
+            private void closedExternalReadersIfNoSearchNodesRemain(long notificationGeneration, Set<String> remainingSearchNodes) {
+                if (remainingSearchNodes != null && remainingSearchNodes.isEmpty()
+                // only mark it closed for readers if it is not the newest commit, since we want a new search shard to be able to use at
+                // least that commit (relevant only in case there are no search shards currently).
+                    && notificationGeneration > primaryTermAndGeneration.generation()) {
+                    final Set<String> previousSearchNodes = searchNodesRef.getAndUpdate(existing -> {
+                        if (existing == null) {
+                            // a concurrent thread already updated it to null. that's ok. assume the other thread handles it
+                            return null;
+                        } else if (existing.isEmpty()) {
+                            // This thread successfully updates it to null and must close the external readers afterwards
+                            return null;
+                        } else {
+                            // Some other thread updates the set to something else, that's ok. do nothing in this case
+                            return existing;
+                        }
+                    });
+                    if (previousSearchNodes != null && previousSearchNodes.isEmpty()) {
+                        assert searchNodesRef.get() == null;
+                        logger.trace(() -> Strings.format("[%s] closing external readers", shardId));
+                        references.forEach(AbstractRefCounted::decRef);
+                        decRef();
+                    }
                 }
+            }
+
+            public boolean isExternalReadersClosed() {
+                return searchNodesRef.get() == null;
+            }
+
+            /**
+             * Add given nodeIds to the search nodes set unless the set is already a null, in which case a null is returned.
+             * @param searchNodes The search nodeIds to be added as part of the search nodes tracking.
+             * @return The unified set of search nodes after merging the given {@code searchNodes} or {@code null} if the
+             * set of search nodes is already null. When it returns {@code null}, it means the reference for external readers
+             * is already closed, see also {@link BlobReference#isExternalReadersClosed}.
+             */
+            @Nullable
+            public Set<String> addSearchNodes(Set<String> searchNodes) {
+                return updateSearchNodes(searchNodes, Sets::union);
+            }
+
+            /**
+             * Remove the nodeIds from the search nodes set. It may mark the external readers to be closed if the result set is empty.
+             */
+            public void removeSearchNodes(Set<String> searchNodes, long notificationGeneration) {
+                Set<String> remainingSearchNodes = updateSearchNodes(searchNodes, Sets::difference);
+                closedExternalReadersIfNoSearchNodesRemain(notificationGeneration, remainingSearchNodes);
+            }
+
+            /**
+             * Retain the nodeIds in the search nodes set. It may mark the external readers to be closed if the result set is empty.
+             */
+            public void retainSearchNodes(Set<String> searchNodes, long notificationGeneration) {
+                Set<String> remainingSearchNodes = updateSearchNodes(searchNodes, Sets::intersection);
+                closedExternalReadersIfNoSearchNodesRemain(notificationGeneration, remainingSearchNodes);
+            }
+
+            @Nullable
+            private Set<String> updateSearchNodes(Set<String> searchNodes, BinaryOperator<Set<String>> updateFunc) {
+                return searchNodesRef.accumulateAndGet(searchNodes, (existing, update) -> {
+                    if (existing == null) {
+                        return null; // null is the final state that can no longer change
+                    }
+                    return updateFunc.apply(existing, update);
+                });
             }
 
             @Override
@@ -1516,6 +1541,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             @Override
             public String toString() {
+                final Set<String> searchNodes = searchNodesRef.get();
+                final boolean externalReaderClosed = searchNodes == null;
                 return "Compound commit blob "
                     + primaryTermAndGeneration
                     + " ["
@@ -1523,7 +1550,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + ","
                     + readersClosed.get()
                     + ","
-                    + externalReadersClosed.get()
+                    + externalReaderClosed
+                    + (externalReaderClosed ? "" : "=" + searchNodes)
                     + ","
                     + refCount()
                     + "]";

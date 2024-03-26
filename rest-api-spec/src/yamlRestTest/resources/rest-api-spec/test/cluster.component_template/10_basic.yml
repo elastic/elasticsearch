@@ -1,7 +1,7 @@
 ---
 "Basic CRUD":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["templates_v2"]
       reason: "index/component template v2 API unavailable before 7.8"
 
   - do:
@@ -48,8 +48,8 @@
 
 ---
 "Delete multiple templates":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["cluster_templates_delete_multiple"]
       reason: "not yet backported"
 
   - do:
@@ -116,8 +116,8 @@
 
 ---
 "Add data stream lifecycle":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["datastream_lifecycle"]
       reason: "Data stream lifecycle was available from 8.11"
 
   - do:
@@ -144,8 +144,8 @@
 
 ---
 "Get data stream lifecycle with default rollover":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["datastream_lifecycle"]
       reason: "Data stream lifecycle was available from 8.11"
 
   - do:

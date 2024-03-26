@@ -8,9 +8,7 @@ PUT _inference/text_embedding/cohere_embeddings <1>
     "service_settings": {
         "api_key": "<api_key>", <2>
         "model_id": "embed-english-v3.0", <3>
-        "embedding_type": "int8"
-    },
-    "task_settings": {
+        "embedding_type": "byte"
     }
 }
 ------------------------------------------------------------
@@ -23,6 +21,13 @@ your API key only once. The <<get-inference-api>> does not return your API
 key.
 <3> The name of the embedding model to use. You can find the list of Cohere
 embedding models https://docs.cohere.com/reference/embed[here].
+
+NOTE: When using this model the recommended similarity measure to use in the
+`dense_vector` field mapping is `dot_product`. In the case of Cohere models, the
+embeddings are normalized to unit length in which case the `dot_product` and
+the `cosine` measures are equivalent.
+
+
 
 // end::cohere[]
 
@@ -37,8 +42,6 @@ PUT _inference/text_embedding/openai_embeddings <1>
     "service_settings": {
         "api_key": "<api_key>", <2>
         "model_id": "text-embedding-ada-002" <3>
-    },
-    "task_settings": {
     }
 }
 ------------------------------------------------------------
@@ -52,5 +55,10 @@ key.
 <3> The name of the embedding model to use. You can find the list of OpenAI
 embedding models
 https://platform.openai.com/docs/guides/embeddings/embedding-models[here].
+
+NOTE: When using this model the recommended similarity measure to use in the
+`dense_vector` field mapping is `dot_product`. In the case of OpenAI models, the
+embeddings are normalized to unit length in which case the `dot_product` and
+the `cosine` measures are equivalent.
 
 // end::openai[]

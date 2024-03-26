@@ -23,6 +23,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.LongHeap;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 import java.util.Arrays;

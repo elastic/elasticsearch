@@ -45,7 +45,9 @@ from ul_logs | sort bytes_in desc nulls last, id | limit 12;
 2017-11-10T20:26:21.000Z|17067060651018256448|1722789377000665830 |67             |OK
 ;
 
-filterPushDownGT#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+filterPushDownGT
+required_feature: esql.mv_warn
+
 from ul_logs | where bytes_in >= to_ul(74330435873664882) | sort bytes_in | eval div = bytes_in / to_ul(pow(10., 15)) | keep bytes_in, div, id | limit 12;
 warning:Line 1:22: evaluation of [bytes_in >= to_ul(74330435873664882)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -65,7 +67,9 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
 2703254959364209157|2703           |18
 ;
 
-filterPushDownRange#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+filterPushDownRange
+required_feature: esql.mv_warn
+
 from ul_logs | where bytes_in >= to_ul(74330435873664882) | where bytes_in <= to_ul(316080452389500167)  | sort bytes_in | eval div = bytes_in / to_ul(pow(10., 15)) | keep bytes_in, div, id | limit 12;
 warning:Line 1:22: evaluation of [bytes_in >= to_ul(74330435873664882)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -79,7 +83,9 @@ warning:#[Emulated:Line 1:67: java.lang.IllegalArgumentException: single-value f
 316080452389500167 |316            |25
 ;
 
-filterPushDownIn#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+filterPushDownIn
+required_feature: esql.mv_warn
+
 // TODO: testing framework doesn't perform implicit conversion to UL of given values, needs explicit conversion
 from ul_logs | where bytes_in in (to_ul(74330435873664882), to_ul(154551962150890564), to_ul(195161570976258241)) | sort bytes_in | keep bytes_in, id;
 warning:Line 1:22: evaluation of [bytes_in in (to_ul(74330435873664882), to_ul(154551962150890564), to_ul(195161570976258241))] failed, treating result as null. Only first 20 failures recorded.
@@ -91,7 +97,9 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
 195161570976258241 |88
 ;
 
-filterOnFieldsEquality#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+filterOnFieldsEquality
+required_feature: esql.mv_warn
+
 from ul_logs | where bytes_in == bytes_out;
 warning:Line 1:22: evaluation of [bytes_in == bytes_out] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -100,7 +108,9 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
 2017-11-10T21:12:17.000Z|16002960716282089759|16002960716282089759|34             |OK
 ;
 
-filterOnFieldsInequality#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+filterOnFieldsInequality
+required_feature: esql.mv_warn
+
 from ul_logs | sort id | where bytes_in < bytes_out | eval b_in = bytes_in / to_ul(pow(10.,15)), b_out = bytes_out / to_ul(pow(10.,15)) | limit 5;
 warning:Line 1:32: evaluation of [bytes_in < bytes_out] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:32: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -129,7 +139,9 @@ from ul_logs | stats c = count(bytes_in) by bytes_in | sort c desc, bytes_in des
 1              |18317075104972913640
 ;
 
-case#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+case
+required_feature: esql.mv_warn
+
 from ul_logs | where case(bytes_in == to_ul(154551962150890564), true, false);
 warning:Line 1:27: evaluation of [bytes_in == to_ul(154551962150890564)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:27: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -152,7 +164,9 @@ FROM ul_logs
 2017-11-10T20:34:43.000Z | 17764691215469285192 | 1.75E19
 ;
 
-toDegrees#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+toDegrees
+required_feature: esql.mv_warn
+
 FROM ul_logs | WHERE bytes_in == bytes_out | EVAL deg = TO_DEGREES(bytes_in) | KEEP bytes_in, deg
 ;
 warning:Line 1:22: evaluation of [bytes_in == bytes_out] failed, treating result as null. Only first 20 failures recorded.
@@ -162,7 +176,9 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
 16002960716282089759 | 9.169021087566165E20
 ;
 
-toRadians#[skip:-8.11.99, reason:Lucene multivalue warning introduced in 8.12 only]
+toRadians
+required_feature: esql.mv_warn
+
 FROM ul_logs | WHERE bytes_in == bytes_out | EVAL rad = TO_RADIANS(bytes_in) | KEEP bytes_in, rad
 ;
 warning:Line 1:22: evaluation of [bytes_in == bytes_out] failed, treating result as null. Only first 20 failures recorded.

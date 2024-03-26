@@ -1,0 +1,4 @@
+*Parameters*
+
+`number`::
+Number between -1 and 1. If `null`, the function returns `null`.

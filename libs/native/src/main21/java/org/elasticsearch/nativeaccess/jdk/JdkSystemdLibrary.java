@@ -24,6 +24,7 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 class JdkSystemdLibrary implements SystemdLibrary {
+
     static {
         System.load(findLibSystemd());
     }
@@ -39,6 +40,7 @@ class JdkSystemdLibrary implements SystemdLibrary {
                 continue;
             }
             try (var stream = Files.walk(basepath)) {
+
                 var foundpath = stream.filter(Files::isDirectory).map(p -> p.resolve(libsystemd)).filter(Files::exists).findAny();
                 if (foundpath.isPresent()) {
                     return foundpath.get().toAbsolutePath().toString();
@@ -56,7 +58,7 @@ class JdkSystemdLibrary implements SystemdLibrary {
     @Override
     public int sd_notify(int unset_environment, String state) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment nativeState = arena.allocateUtf8String(state);
+            MemorySegment nativeState = MemorySegmentUtil.allocateString(arena, state);
             return (int) sd_notify$mh.invokeExact(unset_environment, nativeState);
         } catch (Throwable t) {
             throw new AssertionError(t);

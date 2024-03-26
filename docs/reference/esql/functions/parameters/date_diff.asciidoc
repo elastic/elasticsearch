@@ -1,0 +1,10 @@
+*Parameters*
+
+`unit`::
+A valid date unit
+
+`startTimestamp`::
+A string representing a start timestamp
+
+`endTimestamp`::
+A string representing an end timestamp

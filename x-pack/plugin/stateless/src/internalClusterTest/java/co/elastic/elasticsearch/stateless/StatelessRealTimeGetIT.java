@@ -523,8 +523,9 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         Runnable reader = () -> {
             // Run until told to stop AND ids left to GET
             while (run.get() || ids.isEmpty() == false) {
+                String id = null;
                 try {
-                    var id = randomBoolean() ? ids.poll(1, TimeUnit.SECONDS) : ids.peek();
+                    id = randomBoolean() ? ids.poll(1, TimeUnit.SECONDS) : ids.peek();
                     if (id != null) {
                         logger.info("Getting a document by id '{}'", id);
                         var getResponse = client().prepareGet(indexName, id).get(timeValueSeconds(30));
@@ -532,7 +533,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
                         safeSleep(randomLongBetween(1, 100));
                     }
                 } catch (ElasticsearchTimeoutException e) {
-                    throw new AssertionError(Strings.format("Unable to GET id '%s' due to timeout", numOfShards), e);
+                    throw new AssertionError(Strings.format("Unable to GET id '%s' due to timeout", id), e);
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }

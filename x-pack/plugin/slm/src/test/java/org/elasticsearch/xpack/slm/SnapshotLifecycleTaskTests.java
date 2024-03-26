@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotInfoUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -194,7 +195,9 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 assertThat(req.includeGlobalState(), equalTo(globalState));
 
                 try {
-                    return CreateSnapshotResponse.fromXContent(createParser(JsonXContent.jsonXContent, createSnapResponse));
+                    return SnapshotInfoUtils.createSnapshotResponseFromXContent(
+                        createParser(JsonXContent.jsonXContent, createSnapResponse)
+                    );
                 } catch (IOException e) {
                     fail("failed to parse snapshot response");
                     return null;

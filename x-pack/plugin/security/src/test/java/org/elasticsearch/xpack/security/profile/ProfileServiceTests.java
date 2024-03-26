@@ -1194,6 +1194,62 @@ public class ProfileServiceTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testProfileSearchForOwnerOfMultipleApiKeys() throws Exception {
+        String realmName = "realmName_" + randomAlphaOfLength(8);
+        String realmType = "realmType_" + randomAlphaOfLength(8);
+        String username = "username_" + randomAlphaOfLength(8);
+        int apiKeyCount = randomIntBetween(2, 6);
+        List<ApiKey> apiKeys = new ArrayList<>(apiKeyCount);
+        for (int i = 0; i < apiKeyCount; i++) {
+            // all keys have the same owner
+            apiKeys.add(createApiKeyForOwner("keyId_" + i, username, realmName, realmType));
+        }
+        realmRefLookup = realmIdentifier -> {
+            assertThat(realmIdentifier.getName(), is(realmName));
+            assertThat(realmIdentifier.getType(), is(realmType));
+            return new Authentication.RealmRef(realmName, realmType, "nodeName");
+        };
+        MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[1];
+        responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+        MultiSearchResponse emptyMultiSearchResponse = new MultiSearchResponse(responseItems, randomNonNegativeLong());
+        try {
+            doAnswer(invocation -> {
+                assertThat(
+                    threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                    equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                );
+                // a single search request for a single owner of multiple keys
+                MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                assertThat(multiSearchRequest.requests().get(0).source().query(), instanceOf(BoolQueryBuilder.class));
+                assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(), iterableWithSize(3));
+                assertThat(
+                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(),
+                    containsInAnyOrder(
+                        new TermQueryBuilder("user_profile.user.username.keyword", username),
+                        new TermQueryBuilder("user_profile.user.realm.type", realmType),
+                        new TermQueryBuilder("user_profile.user.realm.name", realmName)
+                    )
+                );
+                var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(emptyMultiSearchResponse);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+
+            PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+            profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
+            Collection<String> profileUids = listener.get();
+            assertThat(profileUids, iterableWithSize(apiKeyCount));
+            var profileUidsIterator = profileUids.iterator();
+            while (profileUidsIterator.hasNext()) {
+                assertThat(profileUidsIterator.next(), nullValue());
+            }
+        } finally {
+            emptyMultiSearchResponse.decRef();
+        }
+    }
+
     public void testUnclearApiKeyOwnersAreIgnoredWhenRetrievingProfiles() throws Exception {
         String realmName = "realmName_" + randomAlphaOfLength(8);
         String realmType = "realmType_" + randomAlphaOfLength(8);
@@ -1211,6 +1267,7 @@ public class ProfileServiceTests extends ESTestCase {
         realmRefLookup = realmIdentifier -> {
             assertThat(realmIdentifier.getName(), is(realmName));
             assertThat(realmIdentifier.getType(), is(realmType));
+            // realm not configured
             return null;
         };
         doAnswer(invocation -> {

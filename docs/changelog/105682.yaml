@@ -1,5 +1,5 @@
 pr: 105682
-summary: "[DSL] Introduce data stream global retention - Part 3"
+summary: "Introduce global retention in data stream lifecycle."
 area: Data streams
 type: feature
 issues: []

@@ -34,8 +34,6 @@ dependencies {
   javaRestTestImplementation(project(path: xpackModule('core')))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation(project(':modules:lang-mustache'))
-
-  module ':modules:search-business-rules'
 }
 
 testClusters.configureEach {

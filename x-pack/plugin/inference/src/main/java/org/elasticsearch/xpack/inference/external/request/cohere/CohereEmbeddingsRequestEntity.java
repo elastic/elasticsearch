@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.invalidInputTypeMessage;
+
 public record CohereEmbeddingsRequestEntity(
     List<String> input,
     CohereEmbeddingsTaskSettings taskSettings,
@@ -29,14 +31,8 @@ public record CohereEmbeddingsRequestEntity(
 
     private static final String SEARCH_DOCUMENT = "search_document";
     private static final String SEARCH_QUERY = "search_query";
-    /**
-     * Maps the {@link InputType} to the expected value for cohere for the input_type field in the request using the enum's ordinal.
-     * The order of these entries is important and needs to match the order in the enum
-     */
-    private static final String[] INPUT_TYPE_MAPPING = { SEARCH_DOCUMENT, SEARCH_QUERY };
-    static {
-        assert INPUT_TYPE_MAPPING.length == InputType.values().length : "input type mapping was incorrectly defined";
-    }
+    private static final String CLUSTERING = "clustering";
+    private static final String CLASSIFICATION = "classification";
 
     private static final String TEXTS_FIELD = "texts";
 
@@ -53,26 +49,36 @@ public record CohereEmbeddingsRequestEntity(
         builder.startObject();
         builder.field(TEXTS_FIELD, input);
         if (model != null) {
-            builder.field(CohereServiceSettings.MODEL, model);
+            builder.field(CohereServiceSettings.OLD_MODEL_ID_FIELD, model);
         }
 
-        if (taskSettings.inputType() != null) {
-            builder.field(INPUT_TYPE_FIELD, covertToString(taskSettings.inputType()));
+        if (taskSettings.getInputType() != null) {
+            builder.field(INPUT_TYPE_FIELD, covertToString(taskSettings.getInputType()));
         }
 
         if (embeddingType != null) {
             builder.field(EMBEDDING_TYPES_FIELD, List.of(embeddingType));
         }
 
-        if (taskSettings.truncation() != null) {
-            builder.field(CohereServiceFields.TRUNCATE, taskSettings.truncation());
+        if (taskSettings.getTruncation() != null) {
+            builder.field(CohereServiceFields.TRUNCATE, taskSettings.getTruncation());
         }
 
         builder.endObject();
         return builder;
     }
 
-    private static String covertToString(InputType inputType) {
-        return INPUT_TYPE_MAPPING[inputType.ordinal()];
+    // default for testing
+    static String covertToString(InputType inputType) {
+        return switch (inputType) {
+            case INGEST -> SEARCH_DOCUMENT;
+            case SEARCH -> SEARCH_QUERY;
+            case CLASSIFICATION -> CLASSIFICATION;
+            case CLUSTERING -> CLUSTERING;
+            default -> {
+                assert false : invalidInputTypeMessage(inputType);
+                yield null;
+            }
+        };
     }
 }

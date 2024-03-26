@@ -3,7 +3,7 @@ setup:
   - skip:
       version: " - 8.11.99"
       reason: "more field loading added in 8.12+"
-      features: warnings
+      features: allowed_warnings_regex
 
 ---
 constant_keyword:
@@ -30,8 +30,8 @@ constant_keyword:
           - { "color": "red" }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -44,8 +44,8 @@ constant_keyword:
   - match: { values.0.1: wow such constant }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | eval l=length(kind) | keep l'
@@ -108,8 +108,8 @@ multivalued keyword:
           - { "card": ["jack", "of", "diamonds"] }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -139,8 +139,8 @@ keyword no doc_values:
           - { "card": ["jack", "of", "diamonds"] }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -169,8 +169,8 @@ wildcard:
           - { "card": "jack of diamonds" }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -180,8 +180,8 @@ wildcard:
   - match: {values.0.0: jack of diamonds}
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | eval l=length(card) | keep l'
@@ -220,8 +220,8 @@ numbers:
           - { i: 123, l: -1234567891011121131, d: 1.234567891234568, mv_i: [123456, -123456], mv_l: [1234567891011121131, -1234567891011121131], mv_d: [1.234567891234568, -1.234567891234568] }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -271,8 +271,8 @@ small_numbers:
           - { b: 1, s: 1245, hf: 12.01, f: 112.0 }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -291,8 +291,8 @@ small_numbers:
   - match: {values.0.3: 1245}
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | eval sum_d = b + f + hf + s, sum_i = b + s | keep sum_d, sum_i'
@@ -305,8 +305,8 @@ small_numbers:
   - match: {values.0.1: 1246}
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | eval r_f = round(f), r_hf = round(hf) | keep r_f, r_hf'
@@ -341,8 +341,8 @@ scaled_float:
           - { f: 112.01, d: 1.0 }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -355,8 +355,8 @@ scaled_float:
   - match: {values.0.1: 112.01}
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | eval sum = d + f | keep sum'
@@ -385,8 +385,8 @@ multivalued boolean:
           - { "booleans": [ true, false, false, false ] }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -417,8 +417,8 @@ ip:
           - { "ip": "127.0.0.1", "keyword": "127.0.0.2" }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -431,8 +431,8 @@ ip:
   - match: { values.0.1: "127.0.0.2" }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where keyword == "127.0.0.2" | rename ip as IP | drop keyword'
@@ -487,8 +487,8 @@ alias:
           - { "foo": "def", "level1": {"level2": 50}, "some_long": 15, "some_date": "2015-01-01T12:00:00.000Z" }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | keep foo, bar, level1.level2, level2_alias, some_long, some_long_alias, some_long_alias2, some_date, some_date_alias | sort level2_alias'
@@ -531,8 +531,8 @@ alias:
   - match: { values.1.8: 2015-01-01T12:00:00.000Z }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where bar == "abc" | keep foo, bar, level1.level2, level2_alias'
@@ -551,8 +551,8 @@ alias:
   - match: { values.0.3: 10 }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where level2_alias == 10 | keep foo, bar, level1.level2, level2_alias'
@@ -571,16 +571,16 @@ alias:
   - match: { values.0.3: 10 }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where level2_alias == 20'
   - length: { values: 0 }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats x = max(level2_alias)'
@@ -609,8 +609,8 @@ version:
           - { "version": [ "1.2.3", "4.5.6-SNOOPY" ] }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -621,6 +621,9 @@ version:
 
 ---
 id:
+  - skip:
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
   - do:
       indices.create:
         index: test
@@ -639,11 +642,11 @@ id:
           - { "kw": "keyword1" }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test [metadata _id] | keep _id, kw'
+          query: 'from test metadata _id | keep _id, kw'
   - match: { columns.0.name: _id }
   - match: { columns.0.type: keyword }
   - length: { values: 1 }
@@ -670,8 +673,8 @@ unsigned_long:
           - { "number": [ "1", "9223372036854775808", "0", "18446744073709551615" ] }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -683,8 +686,8 @@ unsigned_long:
 ---
 _source:
   - skip:
-      version: " - 8.11.99"
-      reason: "_source is available in 8.12+"
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
 
   - do:
       bulk:
@@ -697,7 +700,7 @@ _source:
   - do:
       esql.query:
         body:
-          query: 'FROM test [METADATA _source] | KEEP _source | LIMIT 1'
+          query: 'FROM test METADATA _source | KEEP _source | LIMIT 1'
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }
@@ -711,8 +714,8 @@ _source:
 ---
 _source keep all:
   - skip:
-      version: " - 8.11.99"
-      reason: "_source is available in 8.12+"
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
 
   - do:
       indices.create:
@@ -732,7 +735,7 @@ _source keep all:
   - do:
       esql.query:
         body:
-          query: 'FROM test [METADATA _source] | LIMIT 1'
+          query: 'FROM test METADATA _source | LIMIT 1'
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }
@@ -746,8 +749,8 @@ _source keep all:
 ---
 _source disabled:
   - skip:
-      version: " - 8.11.99"
-      reason: "_source is available in 8.12+"
+      version: " - 8.12.99"
+      reason: "_source is available in 8.13+"
 
   - do:
       indices.create:
@@ -768,7 +771,7 @@ _source disabled:
   - do:
       esql.query:
         body:
-          query: 'FROM test [METADATA _source] | KEEP _source | LIMIT 1'
+          query: 'FROM test METADATA _source | KEEP _source | LIMIT 1'
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }
@@ -889,8 +892,8 @@ geo_point:
           - { "location": "POINT(1 -1)" }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -922,8 +925,8 @@ cartesian_point:
           - { "location": "POINT(4321 -1234)" }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'

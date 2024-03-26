@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -239,7 +240,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>(
             super.getRestHandlers(
@@ -250,7 +252,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 indexScopedSettings,
                 settingsFilter,
                 indexNameExpressionResolver,
-                nodesInCluster
+                nodesInCluster,
+                clusterSupportsFeature
             )
         );
         filterPlugins(ActionPlugin.class).forEach(
@@ -263,7 +266,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                     indexScopedSettings,
                     settingsFilter,
                     indexNameExpressionResolver,
-                    nodesInCluster
+                    nodesInCluster,
+                    clusterSupportsFeature
                 )
             )
         );

@@ -621,7 +621,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return XContentHelper.createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, source, xContentType);
     }
 
-    private static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)
+    public static RoleDescriptor.IndicesPrivileges[] parseIndices(String roleName, XContentParser parser, boolean allow2xFormat)
         throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
@@ -954,7 +954,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    private static ApplicationResourcePrivileges[] parseApplicationPrivileges(String roleName, XContentParser parser) throws IOException {
+    public static ApplicationResourcePrivileges[] parseApplicationPrivileges(String roleName, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
                 "failed to parse application privileges for role [{}]. expected field [{}] value "
@@ -1623,7 +1623,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return sb.toString();
         }
 
-        static Restriction parse(String roleName, XContentParser parser) throws IOException {
+        public static Restriction parse(String roleName, XContentParser parser) throws IOException {
             // advance to the START_OBJECT token if needed
             XContentParser.Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
             if (token != XContentParser.Token.START_OBJECT) {

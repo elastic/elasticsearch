@@ -20,10 +20,6 @@ public class FetchPhaseExecutionException extends SearchException {
         super(shardTarget, "Fetch Failed [" + msg + "]", t);
     }
 
-    public FetchPhaseExecutionException(SearchShardTarget shardTarget, String msg) {
-        super(shardTarget, "Fetch Failed [" + msg + "]");
-    }
-
     public FetchPhaseExecutionException(StreamInput in) throws IOException {
         super(in);
     }

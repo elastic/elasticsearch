@@ -1,0 +1,5 @@
+pr: 104895
+summary: Aggs support for Query API Key Information API
+area: Security
+type: enhancement
+issues: []

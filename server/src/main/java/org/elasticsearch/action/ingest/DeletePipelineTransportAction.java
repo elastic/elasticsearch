@@ -29,7 +29,7 @@ import java.util.Set;
 
 public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNodeAction<DeletePipelineRequest> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/ingest/pipeline/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/delete");
     private final IngestService ingestService;
 
     @Inject

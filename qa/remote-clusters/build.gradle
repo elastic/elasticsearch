@@ -17,10 +17,6 @@ apply plugin: 'elasticsearch.internal-distribution-download'
 
 testFixtures.useFixture()
 
-dependencies {
-  testImplementation project(':client:rest-high-level')
-}
-
 tasks.register("copyNodeKeyMaterial", Sync) {
   from project(':x-pack:plugin:core')
     .files(

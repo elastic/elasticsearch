@@ -515,3 +515,15 @@ setup:
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._seq_no: 0 }
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._primary_term: 1 }
+---
+"Test collapse with inner_hits and missing name fails":
+  - skip:
+      version: " - 8.12.99"
+      reason: fixed in 8.13
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          collapse: { field: numeric_group, inner_hits: { size: 1 } }
+          sort: [{ sort: desc }]

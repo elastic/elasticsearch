@@ -214,6 +214,34 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         assertEquals("float", flatFieldMappings.get("root.usage.float"));
     }
 
+    public void testOnlyMatchLeafFields() throws IOException {
+        // tests that some of the match conditions only apply to leaf fields, not intermediate objects
+        String indexName = "test";
+        createTestIndex(indexName);
+        Map<String, Object> fieldsMap = createTestDocument(false);
+        fieldsMap.put("foo.message.bar", 123);
+        fieldsMap.put("foo.url.path.bar", 123);
+        fieldsMap.put("foo.url.full.bar", 123);
+        fieldsMap.put("foo.stack_trace.bar", 123);
+        fieldsMap.put("foo.user_agent.original.bar", 123);
+        fieldsMap.put("foo.created.bar", 123);
+        fieldsMap.put("foo._score.bar", 123);
+        fieldsMap.put("foo.structured_data", 123);
+        indexDocument(indexName, fieldsMap);
+
+        final Map<String, Object> rawMappings = getMappings(indexName);
+        final Map<String, String> flatFieldMappings = new HashMap<>();
+        processRawMappingsSubtree(rawMappings, flatFieldMappings, new HashMap<>(), "");
+        assertEquals("long", flatFieldMappings.get("foo.message.bar"));
+        assertEquals("long", flatFieldMappings.get("foo.url.path.bar"));
+        assertEquals("long", flatFieldMappings.get("foo.url.full.bar"));
+        assertEquals("long", flatFieldMappings.get("foo.stack_trace.bar"));
+        assertEquals("long", flatFieldMappings.get("foo.user_agent.original.bar"));
+        assertEquals("long", flatFieldMappings.get("foo.created.bar"));
+        assertEquals("float", flatFieldMappings.get("foo._score.bar"));
+        assertEquals("long", flatFieldMappings.get("foo.structured_data"));
+    }
+
     private static void indexDocument(String indexName, Map<String, Object> flattenedFieldsMap) throws IOException {
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             Request indexRequest = new Request("POST", "/" + indexName + "/_doc");

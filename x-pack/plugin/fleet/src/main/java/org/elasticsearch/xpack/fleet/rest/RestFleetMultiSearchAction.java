@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -30,6 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
@@ -42,15 +44,18 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
     private final SearchUsageHolder searchUsageHolder;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
     public RestFleetMultiSearchAction(
         Settings settings,
         SearchUsageHolder searchUsageHolder,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.searchUsageHolder = searchUsageHolder;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -75,6 +80,7 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
             namedWriteableRegistry,
             allowExplicitIndex,
             searchUsageHolder,
+            clusterSupportsFeature,
             (key, value, searchRequest) -> {
                 if ("wait_for_checkpoints".equals(key)) {
                     String[] stringWaitForCheckpoints = nodeStringArrayValue(value);

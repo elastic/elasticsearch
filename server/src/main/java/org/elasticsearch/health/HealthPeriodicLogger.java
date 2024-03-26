@@ -17,7 +17,9 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
@@ -31,15 +33,16 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.io.Closeable;
+import java.io.IOException;
 import java.time.Clock;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -47,9 +50,13 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 
 /**
- * This class periodically logs the results of the Health API to the standard Elasticsearch server log file.
+ * This class periodically logs the results of the Health API to the standard Elasticsearch server log file. It a lifecycle
+ * aware component because it health depends on other lifecycle aware components. This means:
+ * - We do not schedule any jobs until the lifecycle state is STARTED
+ * - When the lifecycle state becomes STOPPED, do not schedule any more runs, but we do let the current one finish
+ * - When the lifecycle state becomes CLOSED, we will interrupt the current run as well.
  */
-public class HealthPeriodicLogger implements ClusterStateListener, Closeable, SchedulerEngine.Listener {
+public class HealthPeriodicLogger extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
     public static final String HEALTH_FIELD_PREFIX = "elasticsearch.health";
     public static final String MESSAGE_FIELD = "message";
 
@@ -120,10 +127,10 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     private final HealthService healthService;
     private final Clock clock;
 
-    // default visibility for testing purposes
-    volatile boolean isHealthNode = false;
+    private volatile boolean isHealthNode = false;
 
-    private final AtomicBoolean currentlyRunning = new AtomicBoolean(false);
+    // This semaphore is used to ensure only one schedule is currently running and to wait for this run to finish before closing
+    private final Semaphore currentlyRunning = new Semaphore(1, true);
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private volatile TimeValue pollInterval;
@@ -169,7 +176,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         BiConsumer<LongGaugeMetric, Long> metricWriter,
         Consumer<ESLogMessage> logWriter
     ) {
-        HealthPeriodicLogger logger = new HealthPeriodicLogger(
+        HealthPeriodicLogger healthLogger = new HealthPeriodicLogger(
             settings,
             clusterService,
             client,
@@ -178,8 +185,8 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             metricWriter,
             logWriter
         );
-        logger.registerListeners();
-        return logger;
+        healthLogger.registerListeners();
+        return healthLogger;
     }
 
     private HealthPeriodicLogger(
@@ -198,7 +205,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         this.clock = Clock.systemUTC();
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = ENABLED_SETTING.get(settings);
-        this.outputModes = new HashSet<>(OUTPUT_MODE_SETTING.get(settings));
+        this.outputModes = EnumSet.copyOf(OUTPUT_MODE_SETTING.get(settings));
         this.meterRegistry = meterRegistry;
         this.metricWriter = metricWriter == null ? LongGaugeMetric::set : metricWriter;
         this.logWriter = logWriter == null ? logger::info : logWriter;
@@ -217,6 +224,17 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::enable);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::updatePollInterval);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(OUTPUT_MODE_SETTING, this::updateOutputModes);
+        this.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void afterStart() {
+                maybeScheduleJob();
+            }
+
+            @Override
+            public void afterStop() {
+                maybeCancelJob();
+            }
+        });
     }
 
     @Override
@@ -246,10 +264,35 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     }
 
     @Override
-    public void close() {
-        SchedulerEngine engine = scheduler.get();
-        if (engine != null) {
-            engine.stop();
+    protected void doStart() {
+        logger.debug("Periodic health logger is starting.");
+    }
+
+    /**
+     * Stopping means that the periodic health logger will not schedule any more runs. If the logger is currently running it will
+     * let this run finish, but it will cancel any future scheduling, and it will deregister the cluster state listener.
+     */
+    @Override
+    protected void doStop() {
+        clusterService.removeListener(this);
+        logger.debug("Periodic health logger is stopping.");
+    }
+
+    @Override
+    protected void doClose() throws IOException {
+        logger.debug("Periodic health logger is closing.");
+        try {
+            // The health API is expected to be a quick call, so we do not need a very long timeout
+            if (currentlyRunning.tryAcquire(2, TimeUnit.SECONDS)) {
+                logger.debug("Periodic health logger's last run has successfully finished.");
+            }
+        } catch (InterruptedException e) {
+            logger.warn("Error while waiting for the last run of the periodic health logger to finish.", e);
+        } finally {
+            SchedulerEngine engine = scheduler.get();
+            if (engine != null) {
+                engine.stop();
+            }
         }
     }
 
@@ -260,20 +303,29 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
         }
     }
 
-    // default visibility for testing purposes
-    void tryToLogHealth() {
-        if (this.currentlyRunning.compareAndExchange(false, true) == false) {
-            RunOnce release = new RunOnce(() -> currentlyRunning.set(false));
-            try {
-                ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
-                this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
-            } catch (Exception e) {
-                logger.warn(() -> "The health periodic logger encountered an error.", e);
-                // In case of an exception before the listener was wired, we can release the flag here, and we feel safe
-                // that it will not release it again because this can only be run once.
-                release.run();
+    // default visibility and returns true if the semaphore was acquired, used only for testing
+    boolean tryToLogHealth() {
+        try {
+            // We only try to run this because we do not want to pile up the executions.
+            if (currentlyRunning.tryAcquire(0, TimeUnit.SECONDS)) {
+                RunOnce release = new RunOnce(currentlyRunning::release);
+                try {
+                    ActionListener<List<HealthIndicatorResult>> listenerWithRelease = ActionListener.runAfter(resultsListener, release);
+                    this.healthService.getHealth(this.client, null, false, 0, listenerWithRelease);
+                } catch (Exception e) {
+                    // In case of an exception before the listener was wired, we can release the flag here, and we feel safe
+                    // that it will not release it again because this can only be run once.
+                    release.run();
+                    logger.warn(() -> "The health periodic logger encountered an error.", e);
+                }
+                return true;
+            } else {
+                logger.debug("Skipping this run because it's already in progress.");
             }
+        } catch (InterruptedException e) {
+            logger.debug("Periodic health logger run was interrupted.", e);
         }
+        return false;
     }
 
     // default visibility for testing purposes
@@ -388,7 +440,7 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
     }
 
     private void updateOutputModes(List<OutputMode> newMode) {
-        this.outputModes = new HashSet<>(newMode);
+        this.outputModes = EnumSet.copyOf(newMode);
     }
 
     /**
@@ -417,11 +469,11 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
             return;
         }
 
-        // don't schedule the job if the node is shutting down
-        if (isClusterServiceStoppedOrClosed()) {
+        // don't schedule the job if the node is not started yet, or it's shutting down
+        if (isStarted() == false) {
             logger.trace(
-                "Skipping scheduling a health periodic logger job due to the cluster lifecycle state being: [{}] ",
-                clusterService.lifecycleState()
+                "Skipping scheduling a health periodic logger job due to the health logger lifecycle state being: [{}] ",
+                this.lifecycleState()
             );
             return;
         }
@@ -447,7 +499,8 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
     private void enable(boolean enabled) {
         this.enabled = enabled;
-        if (enabled) {
+        // After the health logger is stopped we do not want to reschedule it
+        if (enabled & isStoppedOrClosed() == false) {
             clusterService.addListener(this);
             maybeScheduleJob();
         } else {
@@ -458,11 +511,42 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
 
     private void updatePollInterval(TimeValue newInterval) {
         this.pollInterval = newInterval;
-        maybeScheduleJob();
+        // After the health logger is stopped we do not want to reschedule it
+        if (isStoppedOrClosed() == false) {
+            maybeScheduleJob();
+        }
     }
 
-    private boolean isClusterServiceStoppedOrClosed() {
-        final Lifecycle.State state = clusterService.lifecycleState();
-        return state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED;
+    private boolean isStarted() {
+        return lifecycleState() == Lifecycle.State.STARTED;
+    }
+
+    private boolean isStoppedOrClosed() {
+        return lifecycleState() == Lifecycle.State.STOPPED || lifecycleState() == Lifecycle.State.CLOSED;
+    }
+
+    // Visible for testing
+    TimeValue getPollInterval() {
+        return pollInterval;
+    }
+
+    // Visible for testing
+    boolean isHealthNode() {
+        return isHealthNode;
+    }
+
+    // Visible for testing
+    boolean enabled() {
+        return enabled;
+    }
+
+    // Visible for testing
+    boolean currentlyRunning() {
+        return currentlyRunning.availablePermits() == 0;
+    }
+
+    // Visible for testing
+    boolean waitingToFinishCurrentRun() {
+        return currentlyRunning.hasQueuedThreads();
     }
 }

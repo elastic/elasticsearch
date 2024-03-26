@@ -1,0 +1,6 @@
+pr: 105440
+summary: Avoid false-positive matches on intermediate objects in `ecs@mappings`
+area: Data streams
+type: bug
+issues:
+ - 102794

@@ -1,0 +1,5 @@
+pr: 105180
+summary: Use new `ignore_dynamic_beyond_limit` in logs and metric data streams
+area: Data streams
+type: enhancement
+issues: []

@@ -38,12 +38,14 @@ public final class QueryUserRequest extends ActionRequest {
     @Nullable
     private final SearchAfterBuilder searchAfterBuilder;
 
+    private final boolean withProfileUid;
+
     public QueryUserRequest() {
         this(null);
     }
 
     public QueryUserRequest(QueryBuilder queryBuilder) {
-        this(queryBuilder, null, null, null, null);
+        this(queryBuilder, null, null, null, null, false);
     }
 
     public QueryUserRequest(
@@ -51,13 +53,15 @@ public final class QueryUserRequest extends ActionRequest {
         @Nullable Integer from,
         @Nullable Integer size,
         @Nullable List<FieldSortBuilder> fieldSortBuilders,
-        @Nullable SearchAfterBuilder searchAfterBuilder
+        @Nullable SearchAfterBuilder searchAfterBuilder,
+        boolean withProfileUid
     ) {
         this.queryBuilder = queryBuilder;
         this.from = from;
         this.size = size;
         this.fieldSortBuilders = fieldSortBuilders;
         this.searchAfterBuilder = searchAfterBuilder;
+        this.withProfileUid = withProfileUid;
     }
 
     public QueryBuilder getQueryBuilder() {
@@ -95,5 +99,9 @@ public final class QueryUserRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         TransportAction.localOnly();
+    }
+
+    public boolean isWithProfileUid() {
+        return withProfileUid;
     }
 }

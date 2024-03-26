@@ -30,7 +30,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
     public static final String NAME = "cluster:admin/transform/start";
 
     private StartTransformAction() {
-        super(NAME, StartTransformAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

@@ -582,7 +582,18 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden, mustExist);
+            return Objects.hash(
+                type,
+                Arrays.hashCode(indices),
+                Arrays.hashCode(aliases),
+                filter,
+                routing,
+                indexRouting,
+                searchRouting,
+                writeIndex,
+                isHidden,
+                mustExist
+            );
         }
     }
 

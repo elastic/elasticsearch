@@ -19,7 +19,8 @@
             "path_match": [
               "message",
               "*.message"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -45,7 +46,8 @@
               "*.message_id",
               "*registry.data.strings",
               "*url.path"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -62,7 +64,8 @@
               "*.body.content",
               "*url.full",
               "*url.original"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -78,7 +81,8 @@
             "match": [
               "*command_line",
               "*stack_trace"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -103,7 +107,8 @@
               "email.subject",
               "vulnerability.description",
               "user_agent.original"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -127,7 +132,8 @@
               "*.ingested",
               "*.start",
               "*.end"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -139,7 +145,8 @@
               "*.score.*",
               "*_score*"
             ],
-            "path_unmatch": "*.version"
+            "path_unmatch": "*.version",
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -149,27 +156,7 @@
               "scaling_factor": 1000
             },
             "path_match": "*.usage",
-            "match_mapping_type": "double"
-          }
-        },
-        {
-          "ecs_usage_long_scaled_float": {
-            "mapping": {
-              "type": "scaled_float",
-              "scaling_factor": 1000
-            },
-            "path_match": "*.usage",
-            "match_mapping_type": "long"
-          }
-        },
-        {
-          "ecs_usage_long_scaled_float": {
-            "mapping": {
-              "type": "scaled_float",
-              "scaling_factor": 1000
-            },
-            "path_match": "*.usage",
-            "match_mapping_type": "string"
+            "match_mapping_type": ["double", "long", "string"]
           }
         },
         {
@@ -192,7 +179,8 @@
               "*structured_data",
               "*exports",
               "*imports"
-            ]
+            ],
+            "match_mapping_type": "object"
           }
         },
         {

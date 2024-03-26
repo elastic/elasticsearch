@@ -38,7 +38,7 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
     }
 
     private ClearCcrRestoreSessionAction(String name) {
-        super(name, in -> ActionResponse.Empty.INSTANCE);
+        super(name);
     }
 
     abstract static class TransportDeleteCcrRestoreSessionAction extends HandledTransportAction<

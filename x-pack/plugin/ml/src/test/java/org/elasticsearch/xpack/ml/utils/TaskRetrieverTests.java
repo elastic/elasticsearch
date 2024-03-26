@@ -68,18 +68,18 @@ public class TaskRetrieverTests extends ESTestCase {
 
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getDownloadTaskInfo(client, "modelId", false, TIMEOUT, () -> "", listener);
+        getDownloadTaskInfo(client, "inferenceEntityId", false, TIMEOUT, () -> "", listener);
 
         var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(exception.getMessage(), is("Unable to retrieve task information for model id [modelId]"));
+        assertThat(exception.getMessage(), is("Unable to retrieve task information for model id [inferenceEntityId]"));
     }
 
     public void testGetExistingTaskInfoCallsListenerWithNullWhenNoTasksExist() {
         var client = mockClientWithTasksResponse(Collections.emptyList(), threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getDownloadTaskInfo(client, "modelId", false, TIMEOUT, () -> "", listener);
+        getDownloadTaskInfo(client, "inferenceEntityId", false, TIMEOUT, () -> "", listener);
 
         assertThat(listener.actionGet(TIMEOUT), nullValue());
     }
@@ -89,7 +89,7 @@ public class TaskRetrieverTests extends ESTestCase {
         var client = mockClientWithTasksResponse(listTaskInfo, threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getDownloadTaskInfo(client, "modelId", false, TIMEOUT, () -> "", listener);
+        getDownloadTaskInfo(client, "inferenceEntityId", false, TIMEOUT, () -> "", listener);
 
         assertThat(listener.actionGet(TIMEOUT), is(listTaskInfo.get(0)));
     }
@@ -99,7 +99,7 @@ public class TaskRetrieverTests extends ESTestCase {
         var client = mockClientWithTasksResponse(listTaskInfo, threadPool);
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getDownloadTaskInfo(client, "modelId", false, TIMEOUT, () -> "", listener);
+        getDownloadTaskInfo(client, "inferenceEntityId", false, TIMEOUT, () -> "", listener);
 
         assertThat(listener.actionGet(TIMEOUT), is(listTaskInfo.get(0)));
     }
@@ -123,7 +123,7 @@ public class TaskRetrieverTests extends ESTestCase {
 
         var listener = new PlainActionFuture<TaskInfo>();
 
-        getDownloadTaskInfo(client, "modelId", true, TIMEOUT, () -> "Testing timeout", listener);
+        getDownloadTaskInfo(client, "inferenceEntityId", true, TIMEOUT, () -> "Testing timeout", listener);
 
         var exception = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.REQUEST_TIMEOUT));

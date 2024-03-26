@@ -21,7 +21,7 @@
 * <<esql-to_long>>
 * <<esql-to_radians>>
 * <<esql-to_string>>
-* <<esql-to_unsigned_long>>
+* experimental:[] <<esql-to_unsigned_long>>
 * <<esql-to_version>>
 // end::type_list[]
 

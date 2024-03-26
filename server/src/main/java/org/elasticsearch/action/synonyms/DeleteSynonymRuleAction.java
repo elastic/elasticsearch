@@ -25,7 +25,7 @@ public class DeleteSynonymRuleAction extends ActionType<SynonymUpdateResponse> {
     public static final String NAME = "cluster:admin/synonym_rules/delete";
 
     public DeleteSynonymRuleAction() {
-        super(NAME, SynonymUpdateResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,7 +25,11 @@ public class TokenizationConfigUpdate implements InferenceConfigUpdate {
 
     private final Tokenization.SpanSettings spanSettings;
 
-    public TokenizationConfigUpdate(Tokenization.SpanSettings spanSettings) {
+    public TokenizationConfigUpdate(@Nullable Integer maxSequenceLength, @Nullable Integer span) {
+        this(span == null ? new Tokenization.SpanSettings(maxSequenceLength) : new Tokenization.SpanSettings(maxSequenceLength, span));
+    }
+
+    private TokenizationConfigUpdate(Tokenization.SpanSettings spanSettings) {
         this.spanSettings = spanSettings;
     }
 

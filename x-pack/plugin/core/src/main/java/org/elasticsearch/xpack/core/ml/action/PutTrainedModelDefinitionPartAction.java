@@ -34,7 +34,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/part/put";
 
     private PutTrainedModelDefinitionPartAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

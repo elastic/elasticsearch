@@ -1927,7 +1927,7 @@ public class ApiKeyService {
                         Arrays.toString(apiKeyIds),
                         activeOnly
                     );
-                    listener.onResponse(GetApiKeyResponse.emptyResponse());
+                    listener.onResponse(GetApiKeyResponse.EMPTY);
                 } else {
                     listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
                 }
@@ -1937,11 +1937,10 @@ public class ApiKeyService {
 
     public void queryApiKeys(SearchRequest searchRequest, boolean withLimitedBy, ActionListener<QueryApiKeyResponse> listener) {
         ensureEnabled();
-
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
-            listener.onResponse(QueryApiKeyResponse.emptyResponse());
+            listener.onResponse(QueryApiKeyResponse.EMPTY);
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
@@ -1956,13 +1955,13 @@ public class ApiKeyService {
                         final long total = searchResponse.getHits().getTotalHits().value;
                         if (total == 0) {
                             logger.debug("No api keys found for query [{}]", searchRequest.source().query());
-                            listener.onResponse(QueryApiKeyResponse.emptyResponse());
+                            listener.onResponse(QueryApiKeyResponse.EMPTY);
                             return;
                         }
                         final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
                             .map(hit -> convertSearchHitToQueryItem(hit, withLimitedBy))
                             .toList();
-                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem));
+                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem, searchResponse.getAggregations()));
                     }, listener::onFailure)
                 )
             );
@@ -2004,6 +2003,7 @@ public class ApiKeyService {
             apiKeyDoc.invalidation != -1 ? Instant.ofEpochMilli(apiKeyDoc.invalidation) : null,
             (String) apiKeyDoc.creator.get("principal"),
             (String) apiKeyDoc.creator.get("realm"),
+            (String) apiKeyDoc.creator.get("realm_type"),
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors

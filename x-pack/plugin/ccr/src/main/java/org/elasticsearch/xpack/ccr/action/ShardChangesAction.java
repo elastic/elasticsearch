@@ -66,7 +66,7 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
     private ShardChangesAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     public static class Request extends SingleShardRequest<Request> implements RawIndexingDataTransportRequest {

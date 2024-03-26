@@ -9,7 +9,7 @@
 package org.elasticsearch.test.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -55,7 +55,7 @@ public class SharedSignificantTermsTestMethods {
                 StringTerms classes = response.getAggregations().get("class");
                 Assert.assertThat(classes.getBuckets().size(), equalTo(2));
                 for (Terms.Bucket classBucket : classes.getBuckets()) {
-                    Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
+                    Map<String, InternalAggregation> aggs = classBucket.getAggregations().asMap();
                     Assert.assertTrue(aggs.containsKey("sig_terms"));
                     SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
                     Assert.assertThat(agg.getBuckets().size(), equalTo(1));

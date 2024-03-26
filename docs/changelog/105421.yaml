@@ -1,0 +1,5 @@
+pr: 105421
+summary: "ESQL: Add timers to many status results"
+area: ES|QL
+type: enhancement
+issues: []

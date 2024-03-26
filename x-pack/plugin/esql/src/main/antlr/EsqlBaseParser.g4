@@ -24,6 +24,7 @@ sourceCommand
     | fromCommand
     | rowCommand
     | showCommand
+    | metaCommand
     ;
 
 processingCommand
@@ -102,9 +103,17 @@ fromCommand
     ;
 
 metadata
-    : OPENING_BRACKET METADATA fromIdentifier (COMMA fromIdentifier)* CLOSING_BRACKET
+    : metadataOption
+    | deprecated_metadata
     ;
 
+metadataOption
+    : METADATA fromIdentifier (COMMA fromIdentifier)*
+    ;
+
+deprecated_metadata
+    : OPENING_BRACKET metadataOption CLOSING_BRACKET
+    ;
 
 evalCommand
     : EVAL fields
@@ -137,8 +146,7 @@ identifier
     ;
 
 identifierPattern
-    : UNQUOTED_ID_PATTERN
-    | QUOTED_IDENTIFIER
+    : ID_PATTERN
     ;
 
 constant
@@ -168,7 +176,6 @@ orderExpression
 
 keepCommand
     :  KEEP qualifiedNamePattern (COMMA qualifiedNamePattern)*
-    |  PROJECT qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
 dropCommand
@@ -238,17 +245,16 @@ subqueryExpression
 
 showCommand
     : SHOW INFO                                                           #showInfo
-    | SHOW FUNCTIONS                                                      #showFunctions
+    ;
+
+metaCommand
+    : META FUNCTIONS                                                      #metaFunctions
     ;
 
 enrichCommand
-    : ENRICH setting* policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
-    ;
-
-setting
-    : OPENING_BRACKET name=SETTING COLON value=SETTING CLOSING_BRACKET
     ;

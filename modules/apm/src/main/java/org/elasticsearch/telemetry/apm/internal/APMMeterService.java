@@ -49,7 +49,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * @see APMAgentSettings#addClusterSettingsListeners(ClusterService, APMTelemetryProvider, APMMeterService)
+     * @see APMAgentSettings#addClusterSettingsListeners(ClusterService, APMTelemetryProvider)
      */
     void setEnabled(boolean enabled) {
         this.enabled = enabled;

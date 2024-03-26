@@ -43,7 +43,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class TransportDeleteComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<
     TransportDeleteComponentTemplateAction.Request> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("cluster:admin/component_template/delete");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/component_template/delete");
 
     private final MetadataIndexTemplateService indexTemplateService;
 

@@ -110,6 +110,30 @@ public class ConnectorFeaturesTests extends ESTestCase {
         testToXContentChecker(content);
     }
 
+    public void testToXContent_NativeConnectorAPIKeysEnabled() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+                {
+                    "document_level_security": {
+                        "enabled": true
+                    },
+                    "filtering_advanced_config": true,
+                    "sync_rules": {
+                        "advanced": {
+                            "enabled": false
+                        },
+                        "basic": {
+                            "enabled": true
+                        }
+                    },
+                    "native_connector_api_keys": {
+                        "enabled": true
+                    }
+                }
+            """);
+
+        testToXContentChecker(content);
+    }
+
     private void testToXContentChecker(String content) throws IOException {
         ConnectorFeatures features = ConnectorFeatures.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;

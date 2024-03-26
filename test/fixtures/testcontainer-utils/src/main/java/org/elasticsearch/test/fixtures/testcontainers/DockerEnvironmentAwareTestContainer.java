@@ -64,8 +64,14 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
     public void start() {
         Assume.assumeFalse("Docker support excluded on OS", EXCLUDED_OS);
         Assume.assumeTrue("Docker probing succesful", DOCKER_PROBING_SUCCESSFUL);
-        withLogConsumer(new Slf4jLogConsumer(logger()));
+        withLogConsumer(new Slf4jLogConsumer(LOGGER));
         super.start();
+    }
+
+    @Override
+    public void stop() {
+        LOGGER.info("Stopping container {}", getContainerId());
+        super.stop();
     }
 
     @Override
@@ -115,7 +121,7 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
     }
 
     private static List<String> getLinuxExclusionList() {
-        File exclusionsFile = new File(DOCKER_ON_LINUX_EXCLUSIONS_FILE);
+        File exclusionsFile = new File(System.getProperty("workspace.dir"), DOCKER_ON_LINUX_EXCLUSIONS_FILE);
         if (exclusionsFile.exists()) {
             try {
                 return Files.readAllLines(exclusionsFile.toPath())

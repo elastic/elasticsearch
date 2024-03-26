@@ -23,7 +23,7 @@ public class PauseFollowAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ccr/pause_follow";
 
     private PauseFollowAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

@@ -107,7 +107,7 @@
 
   - do:
       allowed_warnings:
-        - "index template [other-template] has index patterns [ds-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [other-template] will take precedence during new index creation"
+        - "index template [other-template] has index patterns [other-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [other-template] will take precedence during new index creation"
       indices.put_index_template:
         name: other-template
         body:

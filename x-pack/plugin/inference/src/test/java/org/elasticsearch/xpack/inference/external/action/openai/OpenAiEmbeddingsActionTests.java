@@ -21,10 +21,10 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -70,7 +70,11 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
     }
 
     public void testExecute_ReturnsSuccessfulResponse() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = new HttpRequestSender.Factory(
+            ServiceComponentsTests.createWithEmptySettings(threadPool),
+            clientManager,
+            mockClusterServiceEmpty()
+        );
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -131,7 +135,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
     public void testExecute_ThrowsElasticsearchException() {
         var sender = mock(Sender.class);
-        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
+        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
@@ -148,11 +152,11 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[1];
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
-        }).when(sender).send(any(), any());
+        }).when(sender).send(any(), any(), any());
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
@@ -169,11 +173,11 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[1];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[1];
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
-        }).when(sender).send(any(), any());
+        }).when(sender).send(any(), any(), any());
 
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
@@ -187,7 +191,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
     public void testExecute_ThrowsException() {
         var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
+        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
@@ -201,7 +205,7 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
 
     public void testExecute_ThrowsExceptionWithNullUrl() {
         var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
+        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(null, "org", "secret", "model", "user", sender);
 

@@ -27,7 +27,7 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/update";
 
     private UpdateDataFrameAnalyticsAction() {
-        super(NAME, PutDataFrameAnalyticsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -261,7 +262,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));
-        var createdEnum = extractOptionalEnum(map, "abc", "scope", InputType::fromString, InputType.values(), validation);
+        var createdEnum = extractOptionalEnum(map, "abc", "scope", InputType::fromString, EnumSet.allOf(InputType.class), validation);
 
         assertNull(createdEnum);
         assertTrue(validation.validationErrors().isEmpty());
@@ -271,7 +272,14 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testExtractOptionalEnum_ReturnsNullAndAddsException_WhenAnInvalidValueExists() {
         var validation = new ValidationException();
         Map<String, Object> map = modifiableMap(Map.of("key", "invalid_value"));
-        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, InputType.values(), validation);
+        var createdEnum = extractOptionalEnum(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.SEARCH),
+            validation
+        );
 
         assertNull(createdEnum);
         assertFalse(validation.validationErrors().isEmpty());
@@ -282,6 +290,44 @@ public class ServiceUtilsTests extends ESTestCase {
         );
     }
 
+    public void testExtractOptionalEnum_ReturnsNullAndAddsException_WhenValueIsNotPartOfTheAcceptableValues() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.UNSPECIFIED.toString()));
+        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, EnumSet.of(InputType.INGEST), validation);
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value [unspecified] received. [key] must be one of [ingest]"));
+    }
+
+    public void testExtractOptionalEnum_ReturnsIngest_WhenValueIsAcceptable() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.INGEST.toString()));
+        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, EnumSet.of(InputType.INGEST), validation);
+
+        assertThat(createdEnum, is(InputType.INGEST));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalEnum_ReturnsClassification_WhenValueIsAcceptable() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.CLASSIFICATION.toString()));
+        var createdEnum = extractOptionalEnum(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.CLASSIFICATION),
+            validation
+        );
+
+        assertThat(createdEnum, is(InputType.CLASSIFICATION));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
     public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingResults_IsEmpty() {
         var service = mock(InferenceService.class);
 
@@ -290,11 +336,11 @@ public class ServiceUtilsTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[3];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
             listener.onResponse(new TextEmbeddingResults(List.of()));
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -313,11 +359,11 @@ public class ServiceUtilsTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[3];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
             listener.onResponse(new TextEmbeddingByteResults(List.of()));
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -338,11 +384,11 @@ public class ServiceUtilsTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[3];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
             listener.onResponse(textEmbedding);
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);
@@ -362,11 +408,11 @@ public class ServiceUtilsTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[3];
+            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[4];
             listener.onResponse(textEmbedding);
 
             return Void.TYPE;
-        }).when(service).infer(any(), any(), any(), any());
+        }).when(service).infer(any(), any(), any(), any(), any());
 
         PlainActionFuture<Integer> listener = new PlainActionFuture<>();
         getEmbeddingSize(model, service, listener);

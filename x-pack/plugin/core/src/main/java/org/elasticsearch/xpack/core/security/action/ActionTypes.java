@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 public final class ActionTypes {
     private ActionTypes() {};
 
-    public static final ActionType<ActionResponse.Empty> RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION = ActionType.localOnly(
+    public static final ActionType<ActionResponse.Empty> RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION = new ActionType<>(
         "cluster:admin/xpack/security/remote_cluster_credentials/reload"
     );
 
-    public static final ActionType<QueryUserResponse> QUERY_USER_ACTION = ActionType.localOnly("cluster:admin/xpack/security/user/query");
+    public static final ActionType<QueryUserResponse> QUERY_USER_ACTION = new ActionType<>("cluster:admin/xpack/security/user/query");
 }

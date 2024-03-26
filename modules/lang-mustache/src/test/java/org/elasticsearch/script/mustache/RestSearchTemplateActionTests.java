@@ -28,7 +28,7 @@ public final class RestSearchTemplateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestSearchTemplateAction(mock(NamedWriteableRegistry.class)));
+        controller().registerHandler(new RestSearchTemplateAction(mock(NamedWriteableRegistry.class), nf -> false));
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(SearchTemplateResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(SearchTemplateResponse.class));
     }

@@ -16,11 +16,11 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.ArrayList;
@@ -59,7 +59,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
         this.job = Objects.requireNonNull(job);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         this.parsedQuery = datafeedConfig.getParsedQuery(xContentRegistry);
-        AggregationBuilder aggregationBuilder = ExtractorUtils.getHistogramAggregation(
+        AggregationBuilder aggregationBuilder = DatafeedConfigUtils.getHistogramAggregation(
             datafeedConfig.getParsedAggregations(xContentRegistry).getAggregatorFactories()
         );
         if (aggregationBuilder instanceof CompositeAggregationBuilder == false) {
@@ -106,7 +106,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
         compositeAggregationBuilder.size(numBuckets);
         subAggs.forEach(compositeAggregationBuilder::subAggregation);
         subPipelineAggs.forEach(compositeAggregationBuilder::subAggregation);
-        long histogramInterval = ExtractorUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
+        long histogramInterval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         CompositeAggregationDataExtractorContext dataExtractorContext = new CompositeAggregationDataExtractorContext(
             job.getId(),
             job.getDataDescription().getTimeField(),

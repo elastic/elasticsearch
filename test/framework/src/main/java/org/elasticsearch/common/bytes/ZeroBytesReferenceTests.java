@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.bytes;
 
+import java.io.IOException;
+
 import static org.hamcrest.Matchers.containsString;
 
 public class ZeroBytesReferenceTests extends AbstractBytesReferenceTestCase {
@@ -20,6 +22,11 @@ public class ZeroBytesReferenceTests extends AbstractBytesReferenceTestCase {
     @Override
     protected BytesReference newBytesReferenceWithOffsetOfZero(int length) {
         return new ZeroBytesReference(length);
+    }
+
+    @Override
+    protected BytesReference newBytesReference(byte[] content) {
+        throw new AssertionError("can't build a zero bytes reference with arbitrary content");
     }
 
     @Override
@@ -44,4 +51,8 @@ public class ZeroBytesReferenceTests extends AbstractBytesReferenceTestCase {
         );
     }
 
+    @Override
+    public void testReadSlices() throws IOException {
+        // irrelevant for zero bytes reference
+    }
 }

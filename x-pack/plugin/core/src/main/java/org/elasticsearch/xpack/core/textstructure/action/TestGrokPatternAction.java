@@ -30,7 +30,7 @@ import java.util.Objects;
 
 public class TestGrokPatternAction {
 
-    public static final ActionType<TestGrokPatternAction.Response> INSTANCE = ActionType.localOnly(
+    public static final ActionType<TestGrokPatternAction.Response> INSTANCE = new ActionType<>(
         "cluster:monitor/text_structure/test_grok_pattern"
     );
 

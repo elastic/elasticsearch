@@ -96,6 +96,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
     public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
+    public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
 
     public enum ThreadPoolType {
         DIRECT("direct"),
@@ -387,7 +388,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
             if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
-                handler.registerCounter(meterRegistry, prefix, name);
+                handler.registerCounter(meterRegistry, prefix + THREAD_POOL_METRIC_NAME_REJECTED, name);
             }
         }
         return instruments;
@@ -596,11 +597,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
-        var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {
-            if (logger.isDebugEnabled()) {
-                logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e);
-            }
-        }, (e) -> logger.warn(() -> format("failed to run scheduled task [%s] on thread pool [%s]", command, executor), e));
+        var runnable = new ReschedulingRunnable(
+            command,
+            interval,
+            executor,
+            this,
+            e -> logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e),
+            e -> logger.warn(() -> format("failed to run scheduled task [%s] on thread pool [%s]", command, executor), e)
+        );
         runnable.start();
         return runnable;
     }

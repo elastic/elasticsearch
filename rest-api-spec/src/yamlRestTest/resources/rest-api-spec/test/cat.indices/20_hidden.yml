@@ -1,7 +1,7 @@
 ---
 "Test cat indices output for hidden index":
-  - skip:
-      version: "- 8.10.99"
+  - requires:
+      cluster_features: ["cat_indices_dataset_size"]
       reason: "dataset size was added in 8.11.0"
   - do:
       indices.create:
@@ -41,8 +41,8 @@
 
 ---
 "Test cat indices output for dot-hidden index and dot-prefixed pattern":
-  - skip:
-      version: "- 8.10.99"
+  - requires:
+      cluster_features: ["cat_indices_dataset_size"]
       reason: "dataset size was added in 8.11.0"
   - do:
       indices.create:
@@ -80,8 +80,8 @@
 
 ---
 "Test cat indices output with a hidden index with a visible alias":
-  - skip:
-      version: "- 8.10.99"
+  - requires:
+      cluster_features: ["cat_indices_dataset_size"]
       reason: "dataset size was added in 8.11.0"
 
   - do:
@@ -145,8 +145,8 @@
          $/
 ---
 "Test cat indices output with a hidden index with a hidden alias":
-  - skip:
-      version: "- 8.10.99"
+  - requires:
+      cluster_features: ["cat_indices_dataset_size"]
       reason: "dataset size was added in 8.11.0"
 
   - do:
@@ -209,8 +209,8 @@
          $/
 ---
 "Test cat indices output with a hidden index, dot-hidden alias and dot pattern":
-  - skip:
-      version: "- 8.10.99"
+  - requires:
+      cluster_features: ["cat_indices_dataset_size"]
       reason: "dataset size was added in 8.11.0"
 
   - do:

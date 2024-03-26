@@ -240,8 +240,9 @@ POST _aliases
 include::{es-repo-dir}/indices/aliases.asciidoc[tag=write-index-defaults]
 
 TIP: We recommend using data streams to store append-only time series data. If
-you frequently update or delete existing time series data, use an index alias
-with a write index instead. See
+you need to update or delete existing time series data, you can perform update or delete operations
+directly on the data stream backing index. If you frequently send multiple documents using the same
+`_id` expecting last-write-wins, you may want to use an index alias with a write index instead. See
 <<manage-time-series-data-without-data-streams>>.
 
 [discrete]

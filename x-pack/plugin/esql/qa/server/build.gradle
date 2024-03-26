@@ -7,5 +7,7 @@ dependencies {
 
   // Common utilities from QL
   api project(xpackModule('ql:test-fixtures'))
+  // Requirement for some ESQL-specific utilities
+  implementation project(':x-pack:plugin:esql')
   api project(xpackModule('esql:qa:testFixtures'))
 }

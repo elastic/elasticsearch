@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class GetAliasesAction extends ActionType<GetAliasesResponse> {
 
@@ -17,6 +16,6 @@ public class GetAliasesAction extends ActionType<GetAliasesResponse> {
     public static final String NAME = "indices:admin/aliases/get";
 
     private GetAliasesAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

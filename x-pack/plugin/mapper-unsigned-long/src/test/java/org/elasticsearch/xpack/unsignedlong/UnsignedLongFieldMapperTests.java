@@ -19,9 +19,10 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.WholeNumberFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -29,6 +30,7 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -38,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 
-public class UnsignedLongFieldMapperTests extends MapperTestCase {
+public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -160,6 +162,9 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
         }
     }
+
+    @Override
+    public void testCoerce() {} // coerce is unimplemented
 
     @Override
     protected boolean supportsIgnoreMalformed() {
@@ -367,6 +372,36 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
+        return Collections.emptyList(); // unimplemented
+    }
+
+    @Override
+    public void testIgnoreMalformedWithObject() {} // unimplemented
+
+    @Override
+    public void testAllowMultipleValuesField() {} // unimplemented
+
+    @Override
+    public void testScriptableTypes() {} // unimplemented
+
+    @Override
+    protected Number missingValue() {
+        return 123L;
+    }
+
+    @Override
+    protected Number randomNumber() {
+        if (randomBoolean()) {
+            return randomLong();
+        }
+        if (randomBoolean()) {
+            return randomDouble();
+        }
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
+        return randomDoubleBetween(0L, Long.MAX_VALUE, true);
+    }
+
     protected Function<Object, Object> loadBlockExpected() {
         return v -> {
             // Numbers are in the block as a long but the test needs to compare them to their BigInteger value parsed from xcontent.

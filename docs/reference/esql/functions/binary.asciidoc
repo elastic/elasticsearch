@@ -23,15 +23,11 @@ include::types/not_equals.asciidoc[]
 [.text-center]
 image::esql/functions/signature/less_than.svg[Embedded,opts=inline]
 
-Supported types:
-
 include::types/less_than.asciidoc[]
 
 ==== Less than or equal to `<=`
 [.text-center]
 image::esql/functions/signature/less_than_or_equal.svg[Embedded,opts=inline]
-
-Supported types:
 
 include::types/less_than_or_equal.asciidoc[]
 
@@ -39,15 +35,11 @@ include::types/less_than_or_equal.asciidoc[]
 [.text-center]
 image::esql/functions/signature/greater_than.svg[Embedded,opts=inline]
 
-Supported types:
-
 include::types/greater_than.asciidoc[]
 
 ==== Greater than or equal to `>=`
 [.text-center]
 image::esql/functions/signature/greater_than_or_equal.svg[Embedded,opts=inline]
-
-Supported types:
 
 include::types/greater_than_or_equal.asciidoc[]
 
@@ -55,15 +47,11 @@ include::types/greater_than_or_equal.asciidoc[]
 [.text-center]
 image::esql/functions/signature/add.svg[Embedded,opts=inline]
 
-Supported types:
-
 include::types/add.asciidoc[]
 
 ==== Subtract `-`
 [.text-center]
 image::esql/functions/signature/sub.svg[Embedded,opts=inline]
-
-Supported types:
 
 include::types/sub.asciidoc[]
 
@@ -71,22 +59,16 @@ include::types/sub.asciidoc[]
 [.text-center]
 image::esql/functions/signature/mul.svg[Embedded,opts=inline]
 
-Supported types:
-
 include::types/mul.asciidoc[]
 
 ==== Divide `/`
 [.text-center]
 image::esql/functions/signature/div.svg[Embedded,opts=inline]
 
-Supported types:
-
 include::types/div.asciidoc[]
 
 ==== Modulus `%`
 [.text-center]
 image::esql/functions/signature/mod.svg[Embedded,opts=inline]
-
-Supported types:
 
 include::types/mod.asciidoc[]

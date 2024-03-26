@@ -60,7 +60,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         private final ThreadPool threadPool;
 
         public RollupJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool) {
-            super(RollupField.TASK_NAME, ThreadPool.Names.GENERIC);
+            super(RollupField.TASK_NAME, threadPool.generic());
             this.client = client;
             this.schedulerEngine = schedulerEngine;
             this.threadPool = threadPool;

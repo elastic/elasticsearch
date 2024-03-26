@@ -1,0 +1,5 @@
+pr: 104840
+summary: Support enrich ANY mode in cross clusters query
+area: ES|QL
+type: enhancement
+issues: []

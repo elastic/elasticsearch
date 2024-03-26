@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.application.LocalStateEnterpriseSearch;
+import org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -62,7 +63,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(LocalStateEnterpriseSearch.class);
+        return List.of(LocalStateEnterpriseSearch.class, SearchBusinessRules.class);
     }
 
     public void testIllegalArguments() {

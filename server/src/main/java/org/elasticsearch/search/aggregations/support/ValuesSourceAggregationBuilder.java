@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.xcontent.AbstractObjectParser;
@@ -119,9 +118,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
-                throw new AggregationInitializationException(
-                    "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-                );
+                throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
             }
         }
 
@@ -134,9 +131,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
         @Override
         public final AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException(
-                "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-            );
+            throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
         }
 
         @Override
@@ -192,7 +187,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
-    protected ValuesSourceConfig config;
 
     protected ValuesSourceAggregationBuilder(String name) {
         super(name);
@@ -209,7 +203,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         this.format = clone.format;
         this.missing = clone.missing;
         this.timeZone = clone.timeZone;
-        this.config = clone.config;
         this.script = clone.script;
     }
 

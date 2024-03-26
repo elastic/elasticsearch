@@ -35,7 +35,11 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder(), mock(NamedWriteableRegistry.class));
+        action = new RestSubmitAsyncSearchAction(
+            new UsageService().getSearchUsageHolder(),
+            mock(NamedWriteableRegistry.class),
+            nf -> false
+        );
         controller().registerHandler(action);
     }
 

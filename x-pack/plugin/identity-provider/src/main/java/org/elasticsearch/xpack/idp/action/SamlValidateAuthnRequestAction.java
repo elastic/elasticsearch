@@ -14,6 +14,6 @@ public class SamlValidateAuthnRequestAction extends ActionType<SamlValidateAuthn
     public static final SamlValidateAuthnRequestAction INSTANCE = new SamlValidateAuthnRequestAction();
 
     private SamlValidateAuthnRequestAction() {
-        super(NAME, SamlValidateAuthnRequestResponse::new);
+        super(NAME);
     }
 }

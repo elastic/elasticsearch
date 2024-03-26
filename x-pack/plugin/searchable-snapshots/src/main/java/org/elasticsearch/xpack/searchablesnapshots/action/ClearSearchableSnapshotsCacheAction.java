@@ -15,6 +15,6 @@ public class ClearSearchableSnapshotsCacheAction extends ActionType<BroadcastRes
     static final String NAME = "cluster:admin/xpack/searchable_snapshots/cache/clear";
 
     private ClearSearchableSnapshotsCacheAction() {
-        super(NAME, BroadcastResponse::new);
+        super(NAME);
     }
 }

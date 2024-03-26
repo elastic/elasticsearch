@@ -32,3 +32,20 @@ setup:
       catch: "missing"
       connector.delete:
         connector_id: test-nonexistent-connector
+
+
+---
+"Delete connector fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.delete:
+        connector_id: test-connector-to-delete
+
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-to-delete

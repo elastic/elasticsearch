@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class IndicesStatsAction extends ActionType<IndicesStatsResponse> {
 
@@ -22,6 +21,6 @@ public class IndicesStatsAction extends ActionType<IndicesStatsResponse> {
     );
 
     private IndicesStatsAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

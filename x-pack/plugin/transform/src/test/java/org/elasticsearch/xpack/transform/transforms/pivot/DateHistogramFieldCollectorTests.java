@@ -12,10 +12,10 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
@@ -60,8 +60,8 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
 
     @Before
     public void setupDateHistogramFieldCollectorTest() {
-        minTimestamp = mock(NumericMetricsAggregation.SingleValue.class);
-        maxTimestamp = mock(NumericMetricsAggregation.SingleValue.class);
+        minTimestamp = mock(InternalNumericMetricsAggregation.SingleValue.class);
+        maxTimestamp = mock(InternalNumericMetricsAggregation.SingleValue.class);
 
         when(minTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.min");
         when(maxTimestamp.getName()).thenReturn("_transform_change_collector.output_timestamp.max");
@@ -173,7 +173,7 @@ public class DateHistogramFieldCollectorTests extends ESTestCase {
     private static SearchResponse buildSearchResponse(SingleValue minTimestamp, SingleValue maxTimestamp) {
         return new SearchResponse(
             SearchHits.EMPTY_WITH_TOTAL_HITS,
-            new Aggregations(Arrays.asList(minTimestamp, maxTimestamp)),
+            InternalAggregations.from(Arrays.asList(minTimestamp, maxTimestamp)),
             null,
             false,
             null,

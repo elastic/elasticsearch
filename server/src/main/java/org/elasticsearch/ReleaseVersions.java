@@ -9,6 +9,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
@@ -104,9 +105,15 @@ public class ReleaseVersions {
                     // the next version is just a guess - might be a newer revision, might be a newer minor or major...
                     lowerBound = nextVersion(lastItem(lowerRange.getValue())).toString();
                 } else {
-                    // we know about all preceding versions - how can this version be less than everything else we know about???
-                    assert false : "Could not find preceding version for id " + id;
-                    lowerBound = "snapshot[" + id + "]";
+                    // a really old version we don't have a record for
+                    // assume it's an old version id - we can just return it directly
+                    // this will no longer be the case with ES 10 (which won't know about ES v8.x where we introduced separated versions)
+                    // maybe keep the release mapping around in the csv file?
+                    // SEP for now
+                    @UpdateForV9
+                    // @UpdateForV10
+                    Version oldVersion = Version.fromId(id);
+                    return oldVersion.toString();
                 }
 
                 var upperRange = versions.higherEntry(id);

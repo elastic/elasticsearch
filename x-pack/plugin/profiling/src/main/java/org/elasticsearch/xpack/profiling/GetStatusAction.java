@@ -25,7 +25,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
     public static final String NAME = "cluster:monitor/profiling/status/get";
 
     protected GetStatusAction() {
-        super(NAME, GetStatusAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

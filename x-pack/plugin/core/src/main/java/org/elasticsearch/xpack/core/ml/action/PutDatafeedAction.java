@@ -26,7 +26,7 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/put";
 
     private PutDatafeedAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

@@ -123,6 +123,7 @@ public class LuceneCountOperator extends LuceneOperator {
             assert remainingDocs <= 0 : remainingDocs;
             return null;
         }
+        long start = System.nanoTime();
         try {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             // no scorer means no more docs
@@ -171,6 +172,8 @@ public class LuceneCountOperator extends LuceneOperator {
             return page;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            processingNanos += System.nanoTime() - start;
         }
     }
 

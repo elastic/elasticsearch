@@ -1,0 +1,5 @@
+pr: 105427
+summary: Adding `executedPipelines` to the `IngestDocument` copy constructor
+area: Ingest Node
+type: bug
+issues: []

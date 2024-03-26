@@ -32,7 +32,7 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
     public static final String NAME = "cluster:monitor/xpack/ml/autoscaling/stats/get";
 
     public GetMlAutoscalingStats() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

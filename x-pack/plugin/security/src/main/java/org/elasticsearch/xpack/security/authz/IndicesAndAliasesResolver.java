@@ -46,7 +46,6 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -120,7 +119,7 @@ class IndicesAndAliasesResolver {
      * @return The {@link ResolvedIndices} or null if wildcard expansion must be performed.
      */
     @Nullable
-    static ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest) {
+    ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest) {
         // We only take care of IndicesRequest
         if (false == transportRequest instanceof IndicesRequest) {
             return null;
@@ -145,7 +144,7 @@ class IndicesAndAliasesResolver {
         return false;
     }
 
-    static ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
+    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
@@ -162,20 +161,28 @@ class IndicesAndAliasesResolver {
             );
         }
 
+        final ResolvedIndices split;
+        if (indicesRequest instanceof IndicesRequest.SingleIndexNoWildcards single && single.allowsRemoteIndices()) {
+            split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
+        } else {
+            split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), List.of());
+        }
+
         // NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
         // replacing their indices.
         // That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
         // corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
         // shard level requests.
-        final List<String> localIndices = new ArrayList<>(indices.length);
-        for (String name : indices) {
+        final List<String> localIndices = new ArrayList<>(split.getLocal().size());
+        for (String localName : split.getLocal()) {
             // TODO: Shard level requests have wildcard expanded already and do not need go through this check
-            if (Regex.isSimpleMatchPattern(name)) {
-                throwOnUnexpectedWildcards(action, indices);
+            if (Regex.isSimpleMatchPattern(localName)) {
+                throwOnUnexpectedWildcards(action, split.getLocal());
             }
-            localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(name));
+            localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(localName));
         }
-        return new ResolvedIndices(localIndices, List.of());
+
+        return new ResolvedIndices(localIndices, split.getRemote());
     }
 
     /**
@@ -196,8 +203,8 @@ class IndicesAndAliasesResolver {
         return split;
     }
 
-    private static void throwOnUnexpectedWildcards(String action, String[] indices) {
-        final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).toList();
+    private static void throwOnUnexpectedWildcards(String action, List<String> indices) {
+        final List<String> wildcards = indices.stream().filter(Regex::isSimpleMatchPattern).toList();
         assert wildcards.isEmpty() == false : "we already know that there's at least one wildcard in the indices";
         throw new IllegalArgumentException(
             "the action "

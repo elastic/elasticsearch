@@ -25,7 +25,7 @@ public class ResetTransformAction extends ActionType<AcknowledgedResponse> {
     public static final ResetTransformAction INSTANCE = new ResetTransformAction();
 
     private ResetTransformAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

@@ -314,7 +314,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 IndexMode.TIME_SERIES,
                 ds.getLifecycle(),
                 ds.isFailureStore(),
-                ds.getFailureIndices()
+                ds.getFailureIndices(),
+                null
             )
         );
         Metadata metadata = mb.build();
@@ -636,6 +637,33 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
         assertEquals(2, IndexMetadata.INDEX_ROUTING_PATH.get(result).size());
+    }
+
+    public void testGenerateRoutingPathFromPassThroughObject() throws Exception {
+        Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "labels": {
+                            "type": "passthrough",
+                            "time_series_dimension": true
+                        },
+                        "metrics": {
+                            "type": "passthrough"
+                        },
+                        "another_field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings result = generateTsdbSettings(mapping, now);
+        assertThat(result.size(), equalTo(3));
+        assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
+        assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("labels.*"));
     }
 
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {

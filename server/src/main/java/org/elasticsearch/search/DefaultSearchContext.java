@@ -27,13 +27,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -74,10 +77,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
+
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 final class DefaultSearchContext extends SearchContext {
 
@@ -202,7 +209,8 @@ final class DefaultSearchContext extends SearchContext {
                 searcher,
                 request::nowInMillis,
                 shardTarget.getClusterAlias(),
-                request.getRuntimeMappings()
+                request.getRuntimeMappings(),
+                request.source() == null ? null : request.source().size()
             );
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
@@ -300,7 +308,7 @@ final class DefaultSearchContext extends SearchContext {
             return;
         }
         long from = from() == -1 ? 0 : from();
-        long size = size() == -1 ? 10 : size();
+        long size = size() == -1 ? DEFAULT_SIZE : size();
         long resultWindow = from + size;
         int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
 
@@ -890,8 +898,27 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            var indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
-            return IdLoader.createTsIdLoader(indexRouting, indexService.getMetadata().getRoutingPaths());
+            IndexRouting.ExtractFromSource indexRouting = null;
+            List<String> routingPaths = null;
+            if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
+                indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
+                routingPaths = indexService.getMetadata().getRoutingPaths();
+                for (String routingField : routingPaths) {
+                    if (routingField.contains("*")) {
+                        // In case the routing fields include path matches, find any matches and add them as distinct fields
+                        // to the routing path.
+                        Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
+                        for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
+                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
+                                matchingRoutingPaths.add(mapper.name());
+                            }
+                        }
+                        routingPaths = new ArrayList<>(matchingRoutingPaths);
+                        break;
+                    }
+                }
+            }
+            return IdLoader.createTsIdLoader(indexRouting, routingPaths);
         } else {
             return IdLoader.fromLeafStoredFieldLoader();
         }

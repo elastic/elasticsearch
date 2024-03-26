@@ -29,7 +29,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
     public static final String NAME = "indices:admin/ilm/remove_policy";
 
     protected RemoveIndexLifecyclePolicyAction() {
-        super(NAME, RemoveIndexLifecyclePolicyAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

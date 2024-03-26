@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
@@ -34,16 +33,14 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class UpdateConnectorLastSyncStatsAction extends ActionType<ConnectorUpdateActionResponse> {
+public class UpdateConnectorLastSyncStatsAction {
 
-    public static final UpdateConnectorLastSyncStatsAction INSTANCE = new UpdateConnectorLastSyncStatsAction();
-    public static final String NAME = "cluster:admin/xpack/connector/update_last_sync_stats";
+    public static final String NAME = "indices:data/write/xpack/connector/update_last_sync_stats";
+    public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
-    public UpdateConnectorLastSyncStatsAction() {
-        super(NAME, ConnectorUpdateActionResponse::new);
-    }
+    private UpdateConnectorLastSyncStatsAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
 

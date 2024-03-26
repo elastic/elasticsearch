@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class ClusterStateAction extends ActionType<ClusterStateResponse> {
 
@@ -22,6 +21,6 @@ public class ClusterStateAction extends ActionType<ClusterStateResponse> {
     );
 
     private ClusterStateAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

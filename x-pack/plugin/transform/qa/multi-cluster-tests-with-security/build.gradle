@@ -10,7 +10,6 @@ apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:qa')
-  testImplementation project(':client:rest-high-level')
 }
 
 Version ccsCompatVersion = new Version(VersionProperties.getElasticsearchVersion().getMajor(), VersionProperties.getElasticsearchVersion().getMinor() - 1, 0)

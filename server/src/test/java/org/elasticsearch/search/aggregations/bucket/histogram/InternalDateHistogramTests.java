@@ -167,11 +167,6 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
     }
 
     @Override
-    protected Class<ParsedDateHistogram> implementationClass() {
-        return ParsedDateHistogram.class;
-    }
-
-    @Override
     protected InternalDateHistogram mutateInstance(InternalDateHistogram instance) {
         String name = instance.getName();
         List<InternalDateHistogram.Bucket> buckets = instance.getBuckets();

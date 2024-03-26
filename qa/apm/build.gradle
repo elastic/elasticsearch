@@ -18,10 +18,6 @@ apply plugin: 'elasticsearch.internal-distribution-download'
 
 testFixtures.useFixture()
 
-dependencies {
-  testImplementation project(':client:rest-high-level')
-}
-
 dockerCompose {
   environment.put 'STACK_VERSION', BuildParams.snapshotBuild ? VersionProperties.elasticsearch : VersionProperties.elasticsearch + "-SNAPSHOT"
 }

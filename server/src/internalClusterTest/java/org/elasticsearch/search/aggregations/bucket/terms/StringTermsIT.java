@@ -1265,12 +1265,15 @@ public class StringTermsIT extends AbstractTermsTestCase {
         String source = builder.toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            assertNoFailuresAndResponse(prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true)), response -> {
-                LongTerms terms = response.getAggregations().get("terms");
-                assertThat(terms, notNullValue());
-                assertThat(terms.getName(), equalTo("terms"));
-                assertThat(terms.getBuckets().size(), equalTo(1));
-            });
+            assertNoFailuresAndResponse(
+                prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true, nf -> false)),
+                response -> {
+                    LongTerms terms = response.getAggregations().get("terms");
+                    assertThat(terms, notNullValue());
+                    assertThat(terms.getName(), equalTo("terms"));
+                    assertThat(terms.getBuckets().size(), equalTo(1));
+                }
+            );
         }
 
         String invalidValueType = source.replaceAll("\"value_type\":\"n.*\"", "\"value_type\":\"foobar\"");
@@ -1278,7 +1281,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidValueType)) {
             XContentParseException ex = expectThrows(
                 XContentParseException.class,
-                () -> prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true)).get()
+                () -> prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true, nf -> false)).get()
             );
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(ex.getCause().getMessage(), containsString("Unknown value type [foobar]"));

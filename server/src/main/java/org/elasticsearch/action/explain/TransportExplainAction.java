@@ -49,7 +49,7 @@ import java.util.function.LongSupplier;
 // TODO: AggregatedDfs. Currently the idf can be different then when executing a normal search with explain.
 public class TransportExplainAction extends TransportSingleShardAction<ExplainRequest, ExplainResponse> {
 
-    public static final ActionType<ExplainResponse> TYPE = new ActionType<>("indices:data/read/explain", ExplainResponse::new);
+    public static final ActionType<ExplainResponse> TYPE = new ActionType<>("indices:data/read/explain");
     private final SearchService searchService;
 
     @Inject

@@ -1,0 +1,6 @@
+pr: 104721
+summary: Add default rollover conditions to ILM explain API response
+area: ILM+SLM
+type: enhancement
+issues:
+ - 103395

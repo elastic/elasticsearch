@@ -26,21 +26,16 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchHitsTests;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.search.aggregations.AggregationsTests;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,25 +54,13 @@ public class SearchResponseTests extends ESTestCase {
 
     private static final NamedXContentRegistry xContentRegistry;
     static {
-        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(InternalAggregationTestCase.getDefaultNamedXContents());
-        namedXContents.addAll(SuggestTests.getDefaultNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(SuggestTests.getDefaultNamedXContents());
         xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
         new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables()
     );
-    private AggregationsTests aggregationsTests = new AggregationsTests();
-
-    @Before
-    public void init() throws Exception {
-        aggregationsTests.init();
-    }
-
-    @After
-    public void cleanUp() throws Exception {
-        aggregationsTests.cleanUp();
-    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -116,12 +99,11 @@ public class SearchResponseTests extends ESTestCase {
         if (minimal == false) {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
             try {
-                InternalAggregations aggregations = aggregationsTests.createTestInstance();
                 Suggest suggest = SuggestTests.createTestItem();
                 SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
                 return new SearchResponse(
                     hits,
-                    aggregations,
+                    null,
                     suggest,
                     timedOut,
                     terminatedEarly,
@@ -317,7 +299,7 @@ public class SearchResponseTests extends ESTestCase {
             mutated = originalBytes;
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), mutated)) {
-            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
                 assertToXContentEquivalent(
                     originalBytes,
@@ -354,7 +336,7 @@ public class SearchResponseTests extends ESTestCase {
             response.decRef();
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
-            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
                 for (int i = 0; i < parsed.getShardFailures().length; i++) {
                     ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];

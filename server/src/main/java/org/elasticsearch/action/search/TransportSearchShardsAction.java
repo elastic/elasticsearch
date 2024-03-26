@@ -45,7 +45,7 @@ import java.util.Set;
 public class TransportSearchShardsAction extends HandledTransportAction<SearchShardsRequest, SearchShardsResponse> {
 
     public static final String NAME = "indices:admin/search/search_shards";
-    public static final ActionType<SearchShardsResponse> TYPE = ActionType.localOnly(NAME);
+    public static final ActionType<SearchShardsResponse> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<SearchShardsResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
         SearchShardsResponse::new

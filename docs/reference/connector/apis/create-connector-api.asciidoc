@@ -6,8 +6,13 @@
 
 preview::[]
 
-Creates a connector.
+Creates an Elastic connector.
+Connectors are third-party {es} integrations which can be deployed on {ecloud} or hosted on your own infrastructure:
 
+* *Native connectors* are a managed service on {ecloud}
+* *Connector clients* are self-managed on your infrastructure
+
+Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
 
 [source,console]
 --------------------------------------------------

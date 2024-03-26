@@ -24,19 +24,23 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public abstract static class Builder {
 
-        protected final String name;
+        private String name;
 
         protected Builder(String name) {
-            this.name = internFieldName(name);
+            setName(name);
         }
 
         // TODO rename this to leafName?
-        public String name() {
+        public final String name() {
             return this.name;
         }
 
         /** Returns a newly built mapper. */
         public abstract Mapper build(MapperBuilderContext context);
+
+        void setName(String name) {
+            this.name = internFieldName(name);
+        }
     }
 
     public interface TypeParser {
@@ -137,16 +141,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     }
 
     /**
-     * Returns the size this mapper counts against the {@linkplain MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING field limit}.
-     * <p>
-     * Needs to be in sync with {@link MappingLookup#getTotalFieldsCount()}.
+     * The total number of fields as defined in the mapping.
+     * Defines how this mapper counts towards {@link MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING}.
      */
-    public int mapperSize() {
-        int size = 1;
-        for (Mapper mapper : this) {
-            size += mapper.mapperSize();
-        }
-        return size;
-    }
-
+    public abstract int getTotalFieldsCount();
 }

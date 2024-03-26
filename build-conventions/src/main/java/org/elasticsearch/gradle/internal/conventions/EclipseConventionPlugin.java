@@ -78,7 +78,7 @@ public class EclipseConventionPlugin implements Plugin<Project> {
                 copy.filter(new Transformer<String, String>() {
                     @Override
                     public String transform(String s) {
-                        return s.replaceAll("@@LICENSE_HEADER_TEXT@@", finalLicenseHeader);
+                        return s.replace("@@LICENSE_HEADER_TEXT@@", finalLicenseHeader);
                     }
                 });
         });

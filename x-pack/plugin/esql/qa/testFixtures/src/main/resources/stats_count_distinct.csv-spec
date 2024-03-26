@@ -152,3 +152,28 @@ m:long  | languages:i
 20   | 5
 10   | null
 ;
+
+docsCountDistinctWithExpression#[skip:-8.12.99,reason:supported in 8.13+]
+// tag::docsCountDistinctWithExpression[]
+ROW words="foo;bar;baz;qux;quux;foo"
+| STATS distinct_word_count = COUNT_DISTINCT(SPLIT(words, ";"))
+// end::docsCountDistinctWithExpression[]
+;
+
+// tag::docsCountDistinctWithExpression-result[]
+distinct_word_count:long
+5
+// end::docsCountDistinctWithExpression-result[]
+;
+
+countDistinctWithGroupPrecisionAndNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
+from employees | stats m = count_distinct(height + 5, 9876) by languages | sort languages;
+
+m:long  | languages:i
+13   | 1
+16   | 2
+14   | 3
+15   | 4
+20   | 5
+10   | null
+;

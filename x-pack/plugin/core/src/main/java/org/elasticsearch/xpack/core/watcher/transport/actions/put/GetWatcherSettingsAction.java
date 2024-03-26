@@ -25,7 +25,7 @@ public class GetWatcherSettingsAction extends ActionType<GetWatcherSettingsActio
     public static final String NAME = "cluster:admin/xpack/watcher/settings/get";
 
     public GetWatcherSettingsAction() {
-        super(NAME, GetWatcherSettingsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {

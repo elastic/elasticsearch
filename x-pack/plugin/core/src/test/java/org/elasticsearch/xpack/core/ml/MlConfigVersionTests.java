@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.MlConfigVersionUtils;
 import org.hamcrest.Matchers;
@@ -147,6 +148,51 @@ public class MlConfigVersionTests extends ESTestCase {
 
         assertEquals(MlConfigVersion.V_7_1_0, MlConfigVersion.getMinMlConfigVersion(nodes));
         assertEquals(MlConfigVersion.V_10, MlConfigVersion.getMaxMlConfigVersion(nodes));
+    }
+
+    public void testGetMinMaxMlConfigVersionWhenMlConfigVersionAttrIsMissing() {
+        Map<String, String> nodeAttr1 = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_7_1_0.toString());
+        Map<String, String> nodeAttr2 = Map.of(MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.V_8_2_0.toString());
+        Map<String, String> nodeAttr3 = Map.of();
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(
+                DiscoveryNodeUtils.builder("_node_id1")
+                    .name("_node_name1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr1)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("7.2.0")))
+                    .build()
+            )
+            .add(
+                DiscoveryNodeUtils.builder("_node_id2")
+                    .name("_node_name2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9301))
+                    .attributes(nodeAttr2)
+                    .roles(ROLES_WITH_ML)
+                    .version(VersionInformation.inferVersions(Version.fromString("7.1.0")))
+                    .build()
+            )
+            .add(
+                DiscoveryNodeUtils.builder("_node_id3")
+                    .name("_node_name3")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9302))
+                    .attributes(nodeAttr3)
+                    .roles(ROLES_WITH_ML)
+                    .version(
+                        new VersionInformation(
+                            Version.V_8_11_0,
+                            IndexVersion.getMinimumCompatibleIndexVersion(Version.V_8_11_0.id),
+                            IndexVersion.fromId(Version.V_8_11_0.id)
+                        )
+                    )
+                    .build()
+            )
+            .build();
+
+        assertEquals(MlConfigVersion.V_7_1_0, MlConfigVersion.getMinMlConfigVersion(nodes));
+        // _node_name3 is ignored
+        assertEquals(MlConfigVersion.V_8_2_0, MlConfigVersion.getMaxMlConfigVersion(nodes));
     }
 
     public void testGetMlConfigVersionForNode() {

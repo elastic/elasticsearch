@@ -32,7 +32,7 @@ public class RestReindexActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestReindexAction(mock(NamedWriteableRegistry.class));
+        action = new RestReindexAction(mock(NamedWriteableRegistry.class), nf -> false);
         controller().registerHandler(action);
     }
 

@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -43,7 +42,7 @@ import java.util.stream.Collectors;
  */
 public record TextEmbeddingByteResults(List<Embedding> embeddings) implements InferenceServiceResults, TextEmbedding {
     public static final String NAME = "text_embedding_service_byte_results";
-    public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
+    public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
 
     public TextEmbeddingByteResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(Embedding::new));
@@ -56,7 +55,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(TEXT_EMBEDDING);
+        builder.startArray(TEXT_EMBEDDING_BYTES);
         for (Embedding embedding : embeddings) {
             embedding.toXContent(builder, params);
         }
@@ -78,7 +77,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
             .map(embedding -> embedding.values.stream().mapToDouble(value -> value).toArray())
-            .map(values -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING, values, false))
+            .map(values -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING_BYTES, values, false))
             .toList();
     }
 
@@ -94,7 +93,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(TEXT_EMBEDDING, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
+        map.put(TEXT_EMBEDDING_BYTES, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
 
         return map;
     }

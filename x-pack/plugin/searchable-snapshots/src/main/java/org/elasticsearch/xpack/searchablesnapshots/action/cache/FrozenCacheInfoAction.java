@@ -31,7 +31,7 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
     public static final FrozenCacheInfoAction INSTANCE = new FrozenCacheInfoAction();
 
     private FrozenCacheInfoAction() {
-        super(NAME, FrozenCacheInfoResponse::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {

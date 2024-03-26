@@ -23,11 +23,11 @@ public class PreAnalyzer {
         public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList());
 
         public final List<TableInfo> indices;
-        public final List<String> policyNames;
+        public final List<Enrich> enriches;
 
-        public PreAnalysis(List<TableInfo> indices, List<String> policyNames) {
+        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches) {
             this.indices = indices;
-            this.policyNames = policyNames;
+            this.enriches = enriches;
         }
     }
 
@@ -41,14 +41,14 @@ public class PreAnalyzer {
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         List<TableInfo> indices = new ArrayList<>();
-        List<String> policyNames = new ArrayList<>();
+        List<Enrich> unresolvedEnriches = new ArrayList<>();
 
         plan.forEachUp(EsqlUnresolvedRelation.class, p -> indices.add(new TableInfo(p.table(), p.frozen())));
-        plan.forEachUp(Enrich.class, p -> policyNames.add((String) p.policyName().fold()));
+        plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indices, policyNames);
+        return new PreAnalysis(indices, unresolvedEnriches);
     }
 }

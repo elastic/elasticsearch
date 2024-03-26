@@ -28,6 +28,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
@@ -35,8 +37,10 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
+import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
@@ -61,6 +65,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -190,6 +195,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
     }
 
+    @Override
+    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+        return List.of(new YamlTestLegacyFeatures());
+    }
+
     /**
      * Create the test execution context. Can be overwritten in sub-implementations of the test if the context needs to be modified.
      */
@@ -231,6 +241,28 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     /**
+     * Create parameters for this parameterized test.
+     * Enables support for parsing the legacy version-based node_selector format.
+     */
+    @Deprecated
+    @UpdateForV9
+    public static Iterable<Object[]> createParametersWithLegacyNodeSelectorSupport() throws Exception {
+        var executableSectionRegistry = new NamedXContentRegistry(
+            Stream.concat(
+                ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS.stream().filter(entry -> entry.name.getPreferredName().equals("do") == false),
+                Stream.of(
+                    new NamedXContentRegistry.Entry(
+                        ExecutableSection.class,
+                        new ParseField("do"),
+                        DoSection::parseWithLegacyNodeSelectorSupport
+                    )
+                )
+            ).toList()
+        );
+        return createParameters(executableSectionRegistry, null);
+    }
+
+    /**
      * Create parameters for this parameterized test. Uses the
      * {@link ExecutableSection#XCONTENT_REGISTRY list} of executable sections
      * defined in {@link ExecutableSection}.
@@ -249,8 +281,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Create parameters for this parameterized test.
      */
+    public static Iterable<Object[]> createParameters(String[] testPaths, Map<String, Object> yamlParameters) throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, testPaths, yamlParameters);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     */
     public static Iterable<Object[]> createParameters(String[] testPaths) throws Exception {
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY, testPaths);
+        return createParameters(testPaths, Collections.emptyMap());
     }
 
     /**
@@ -263,6 +302,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String[] testPaths)
         throws Exception {
+        return createParameters(executeableSectionRegistry, testPaths, Collections.emptyMap());
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     *
+     * @param executeableSectionRegistry registry of executable sections
+     * @param testPaths list of paths to explicitly search for tests. If <code>null</code> then include all tests in root path.
+     * @param yamlParameters map or parameters used within the yaml specs to be replaced at parsing time.
+     * @return list of test candidates.
+     * @throws Exception
+     */
+    public static Iterable<Object[]> createParameters(
+        NamedXContentRegistry executeableSectionRegistry,
+        String[] testPaths,
+        Map<String, ?> yamlParameters
+    ) throws Exception {
         if (testPaths != null && System.getProperty(REST_TESTS_SUITE) != null) {
             throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
         }
@@ -276,7 +332,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         for (String api : yamlSuites.keySet()) {
             List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
             for (Path yamlFile : yamlFiles) {
-                ClientYamlTestSuite suite = ClientYamlTestSuite.parse(executeableSectionRegistry, api, yamlFile);
+                ClientYamlTestSuite suite = ClientYamlTestSuite.parse(executeableSectionRegistry, api, yamlFile, yamlParameters);
                 suites.add(suite);
                 try {
                     suite.validate();

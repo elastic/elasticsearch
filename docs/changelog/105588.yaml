@@ -1,0 +1,5 @@
+pr: 105588
+summary: '`URLRepository` should not block shutdown'
+area: Snapshot/Restore
+type: bug
+issues: []

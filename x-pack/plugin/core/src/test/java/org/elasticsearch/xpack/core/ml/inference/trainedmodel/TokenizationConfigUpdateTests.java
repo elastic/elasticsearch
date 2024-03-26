@@ -22,7 +22,7 @@ public class TokenizationConfigUpdateTests extends AbstractWireSerializingTestCa
     protected TokenizationConfigUpdate createTestInstance() {
         Integer maxSequenceLength = randomBoolean() ? null : randomIntBetween(32, 64);
         int span = randomIntBetween(8, 16);
-        return new TokenizationConfigUpdate(new Tokenization.SpanSettings(maxSequenceLength, span));
+        return new TokenizationConfigUpdate(maxSequenceLength, span);
     }
 
     @Override

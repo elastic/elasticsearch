@@ -1,0 +1,5 @@
+pr: 105468
+summary: Include better output in profiling & `toString` for automaton based queries
+area: Search
+type: enhancement
+issues: []

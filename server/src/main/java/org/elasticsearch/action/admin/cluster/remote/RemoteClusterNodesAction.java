@@ -39,7 +39,7 @@ import java.util.Objects;
 public class RemoteClusterNodesAction {
 
     public static final String NAME = "cluster:internal/remote_cluster/nodes";
-    public static final ActionType<RemoteClusterNodesAction.Response> TYPE = ActionType.localOnly(NAME);
+    public static final ActionType<RemoteClusterNodesAction.Response> TYPE = new ActionType<>(NAME);
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(
         NAME,
         RemoteClusterNodesAction.Response::new

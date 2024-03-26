@@ -163,7 +163,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
         TransportPutTrainedModelAction.checkForExistingTask(
             client,
-            "modelId",
+            "inferenceEntityId",
             true,
             responseListener,
             new PlainActionFuture<Void>(),
@@ -172,7 +172,7 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
         var exception = expectThrows(ElasticsearchException.class, () -> responseListener.actionGet(TIMEOUT));
         assertThat(exception.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(exception.getMessage(), is("Unable to retrieve task information for model id [modelId]"));
+        assertThat(exception.getMessage(), is("Unable to retrieve task information for model id [inferenceEntityId]"));
     }
 
     public void testCheckForExistingTaskCallsStoreModelListenerWhenNoTasksExist() {
@@ -180,7 +180,14 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
 
         var storeListener = new PlainActionFuture<Void>();
 
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, new PlainActionFuture<>(), storeListener, TIMEOUT);
+        TransportPutTrainedModelAction.checkForExistingTask(
+            client,
+            "inferenceEntityId",
+            true,
+            new PlainActionFuture<>(),
+            storeListener,
+            TIMEOUT
+        );
 
         assertThat(storeListener.actionGet(TIMEOUT), nullValue());
     }
@@ -190,16 +197,26 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         prepareGetTrainedModelResponse(client, Collections.emptyList());
 
         var respListener = new PlainActionFuture<PutTrainedModelAction.Response>();
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>(), TIMEOUT);
+        TransportPutTrainedModelAction.checkForExistingTask(
+            client,
+            "inferenceEntityId",
+            true,
+            respListener,
+            new PlainActionFuture<>(),
+            TIMEOUT
+        );
 
         var exception = expectThrows(ElasticsearchException.class, () -> respListener.actionGet(TIMEOUT));
-        assertThat(exception.getMessage(), is("No model information found for a concurrent create model execution for model id [modelId]"));
+        assertThat(
+            exception.getMessage(),
+            is("No model information found for a concurrent create model execution for model id [inferenceEntityId]")
+        );
     }
 
     public void testCheckForExistingTaskReturnsTask() {
         var client = mockClientWithTasksResponse(getTaskInfoListOfOne(), threadPool);
 
-        TrainedModelConfig trainedModel = TrainedModelConfigTests.createTestInstance("modelId")
+        TrainedModelConfig trainedModel = TrainedModelConfigTests.createTestInstance("inferenceEntityId")
             .setTags(Collections.singletonList("prepackaged"))
             .setModelSize(1000)
             .setEstimatedOperations(2000)
@@ -207,7 +224,14 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
         prepareGetTrainedModelResponse(client, List.of(trainedModel));
 
         var respListener = new PlainActionFuture<PutTrainedModelAction.Response>();
-        TransportPutTrainedModelAction.checkForExistingTask(client, "modelId", true, respListener, new PlainActionFuture<>(), TIMEOUT);
+        TransportPutTrainedModelAction.checkForExistingTask(
+            client,
+            "inferenceEntityId",
+            true,
+            respListener,
+            new PlainActionFuture<>(),
+            TIMEOUT
+        );
 
         var returnedModel = respListener.actionGet(TIMEOUT);
         assertThat(returnedModel.getResponse().getModelId(), is(trainedModel.getModelId()));

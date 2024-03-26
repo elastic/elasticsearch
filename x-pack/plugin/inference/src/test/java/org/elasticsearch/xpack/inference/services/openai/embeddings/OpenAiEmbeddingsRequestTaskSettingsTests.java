@@ -18,38 +18,21 @@ import static org.hamcrest.Matchers.is;
 public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
-
-        assertNull(settings.model());
         assertNull(settings.user());
     }
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapDoesNotContainTheFields() {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of("key", "model")));
-
-        assertNull(settings.model());
         assertNull(settings.user());
     }
 
-    public void testFromMap_ReturnsEmptyModel_WhenTheMapDoesNotContainThatField() {
+    public void testFromMap_ReturnsUser() {
         var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")));
-
-        assertNull(settings.model());
         assertThat(settings.user(), is("user"));
     }
 
-    public void testFromMap_ReturnsEmptyUser_WhenTheDoesMapNotContainThatField() {
-        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, "model")));
-
-        assertNull(settings.user());
-        assertThat(settings.model(), is("model"));
-    }
-
-    public static Map<String, Object> getRequestTaskSettingsMap(@Nullable String model, @Nullable String user) {
+    public static Map<String, Object> getRequestTaskSettingsMap(@Nullable String user) {
         var map = new HashMap<String, Object>();
-
-        if (model != null) {
-            map.put(OpenAiEmbeddingsTaskSettings.MODEL, model);
-        }
 
         if (user != null) {
             map.put(OpenAiEmbeddingsTaskSettings.USER, user);

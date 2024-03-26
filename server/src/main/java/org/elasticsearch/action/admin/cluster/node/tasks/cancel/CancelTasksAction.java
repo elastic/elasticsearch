@@ -20,6 +20,6 @@ public class CancelTasksAction extends ActionType<ListTasksResponse> {
     public static final String NAME = "cluster:admin/tasks/cancel";
 
     private CancelTasksAction() {
-        super(NAME, ListTasksResponse::new);
+        super(NAME);
     }
 }

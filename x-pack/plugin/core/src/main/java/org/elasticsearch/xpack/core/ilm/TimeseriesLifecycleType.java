@@ -378,7 +378,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
                         }
                         // if multiple phases are cited replace last occurrence of "," with " and"
                         StringBuilder builder = new StringBuilder();
-                        int last_comma_index = error.lastIndexOf(",");
+                        int last_comma_index = error.lastIndexOf(',');
                         builder.append(error, 0, last_comma_index);
                         builder.append(" and");
                         builder.append(error.substring(last_comma_index + 1));

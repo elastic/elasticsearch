@@ -34,7 +34,12 @@ public final class RestMultiSearchActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestMultiSearchAction(Settings.EMPTY, new UsageService().getSearchUsageHolder(), mock(NamedWriteableRegistry.class));
+        action = new RestMultiSearchAction(
+            Settings.EMPTY,
+            new UsageService().getSearchUsageHolder(),
+            mock(NamedWriteableRegistry.class),
+            nf -> false
+        );
         controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(MultiSearchResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(MultiSearchResponse.class));

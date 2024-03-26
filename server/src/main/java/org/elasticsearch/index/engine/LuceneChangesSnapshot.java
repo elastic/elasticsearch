@@ -22,7 +22,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -296,14 +296,13 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final Query rangeQuery = rangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo, indexVersionCreated);
         assert accurateTotalHits == false || after == null : "accurate total hits is required by the first batch only";
         final SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
-        final TopFieldCollector collector = TopFieldCollector.create(
+        TopFieldCollectorManager topFieldCollectorManager = new TopFieldCollectorManager(
             new Sort(sortBySeqNo),
             searchBatchSize,
             after,
             accurateTotalHits ? Integer.MAX_VALUE : 0
         );
-        indexSearcher.search(rangeQuery, collector);
-        return collector.topDocs();
+        return indexSearcher.search(rangeQuery, topFieldCollectorManager);
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {

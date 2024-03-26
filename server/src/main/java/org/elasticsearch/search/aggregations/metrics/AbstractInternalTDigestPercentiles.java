@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,7 +22,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -132,22 +132,26 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     @Override
-    public AbstractInternalTDigestPercentiles reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        TDigestState merged = null;
-        for (InternalAggregation aggregation : aggregations) {
-            final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
-            if (percentiles.state == null) {
-                continue;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            TDigestState merged = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
+                if (percentiles.state != null) {
+                    if (merged == null) {
+                        merged = TDigestState.createUsingParamsFrom(percentiles.state);
+                    }
+                    merged = merge(merged, percentiles.state);
+                }
             }
-            if (merged == null) {
-                merged = TDigestState.createUsingParamsFrom(percentiles.state);
+
+            @Override
+            public InternalAggregation get() {
+                return createReduced(getName(), keys, merged == null ? EMPTY_HISTOGRAM : merged, keyed, getMetadata());
             }
-            merged = merge(merged, percentiles.state);
-        }
-        if (merged == null) {
-            merged = EMPTY_HISTOGRAM;
-        }
-        return createReduced(getName(), keys, merged, keyed, getMetadata());
+        };
     }
 
     /**

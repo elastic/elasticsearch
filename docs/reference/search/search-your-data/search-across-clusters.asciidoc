@@ -22,10 +22,11 @@ The following APIs support {ccs}:
 * experimental:[] <<eql-search-api,EQL search>>
 * experimental:[] <<sql-search-api,SQL search>>
 * experimental:[] <<search-vector-tile-api,Vector tile search>>
+* experimental:[] <<esql,ES|QL>>
 
 [discrete]
-[[ccs-prereqs]]
 === Prerequisites
+// tag::ccs-prereqs[]
 
 * {ccs-cap} requires remote clusters. To set up remote clusters on {ess},
 see link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. If you
@@ -39,15 +40,19 @@ To ensure your remote cluster configuration supports {ccs}, see
 
 * The local coordinating node must have the
 <<remote-node,`remote_cluster_client`>> node role.
+// end::ccs-prereqs[]
 
 [[ccs-gateway-seed-nodes]]
+// tag::ccs-gateway-seed-nodes[]
 * If you use <<sniff-mode,sniff mode>>, the local coordinating node
 must be able to connect to seed and gateway nodes on the remote cluster.
 +
 We recommend using gateway nodes capable of serving as coordinating nodes.
 The seed nodes can be a subset of these gateway nodes.
+// end::ccs-gateway-seed-nodes[]
 
 [[ccs-proxy-mode]]
+// tag::ccs-proxy-mode[]
 * If you use <<proxy-mode,proxy mode>>, the local coordinating node must be able
 to connect to the configured `proxy_address`. The proxy at this address must be
 able to route connections to gateway and coordinating nodes on the remote
@@ -56,6 +61,7 @@ cluster.
 * {ccs-cap} requires different security privileges on the local cluster and
 remote cluster. See <<remote-clusters-privileges-ccs>> and
 <<remote-clusters>>.
+// end::ccs-proxy-mode[]
 
 [discrete]
 [[ccs-example]]
@@ -64,6 +70,7 @@ remote cluster. See <<remote-clusters-privileges-ccs>> and
 [discrete]
 [[ccs-remote-cluster-setup]]
 ==== Remote cluster setup
+// tag::ccs-remote-cluster-setup[]
 
 The following <<cluster-update-settings,cluster update settings>> API request
 adds three remote clusters: `cluster_one`, `cluster_two`, and `cluster_three`.
@@ -99,6 +106,7 @@ PUT _cluster/settings
 --------------------------------
 // TEST[setup:host]
 // TEST[s/35.238.149.\d+:930\d+/\${transport_host}/]
+// end::ccs-remote-cluster-setup[]
 
 <1> Since `skip_unavailable` was not set on `cluster_three`, it uses
 the default of `false`. See the <<skip-unavailable-clusters>>
@@ -1393,6 +1401,7 @@ cluster as the local cluster when running a {ccs}.
 [[ccs-during-upgrade]]
 ==== {ccs-cap} during an upgrade
 
+// tag::ccs-during-upgrade[]
 You can still search a remote cluster while performing a
 rolling upgrade on the local cluster. However, the local
 coordinating node's "upgrade from" and "upgrade to" version must be compatible
@@ -1403,3 +1412,4 @@ duration of an upgrade is not supported.
 
 For more information about upgrades, see
 {stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].
+// end::ccs-during-upgrade[]

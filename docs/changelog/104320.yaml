@@ -1,0 +1,5 @@
+pr: 104320
+summary: Hot-reloadable LDAP bind password
+area: Authentication
+type: enhancement
+issues: []

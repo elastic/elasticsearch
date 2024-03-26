@@ -13,6 +13,6 @@ public class GetAsyncStatusAction extends ActionType<AsyncStatusResponse> {
     public static final String NAME = "cluster:monitor/async_search/status";
 
     private GetAsyncStatusAction() {
-        super(NAME, AsyncStatusResponse::new);
+        super(NAME);
     }
 }

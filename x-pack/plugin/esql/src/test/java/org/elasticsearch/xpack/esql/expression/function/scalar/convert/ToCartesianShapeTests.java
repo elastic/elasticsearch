@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -26,6 +27,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 
+@FunctionName("to_cartesianshape")
 public class ToCartesianShapeTests extends AbstractFunctionTestCase {
     public ToCartesianShapeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -38,8 +40,9 @@ public class ToCartesianShapeTests extends AbstractFunctionTestCase {
         final Function<String, String> evaluatorName = s -> "ToCartesianShape" + s + "Evaluator[field=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, EsqlDataTypes.CARTESIAN_SHAPE, v -> v, List.of());
         TestCaseSupplier.forUnaryCartesianShape(suppliers, attribute, EsqlDataTypes.CARTESIAN_SHAPE, v -> v, List.of());
-        // random strings that don't look like a geo point
+        // random strings that don't look like a cartesian shape
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             evaluatorName.apply("FromString"),

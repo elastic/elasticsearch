@@ -7,11 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -21,6 +16,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 
@@ -44,9 +40,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
 /**
  * API key information
  */
-public final class ApiKey implements ToXContentObject, Writeable {
-
-    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersions.V_8_9_X;
+public final class ApiKey implements ToXContentObject {
 
     public enum Type {
         /**
@@ -95,6 +89,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
     private final Instant invalidation;
     private final String username;
     private final String realm;
+    @Nullable
+    private final String realmType;
     private final Map<String, Object> metadata;
     @Nullable
     private final List<RoleDescriptor> roleDescriptors;
@@ -111,6 +107,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         @Nullable Instant invalidation,
         String username,
         String realm,
+        @Nullable String realmType,
         @Nullable Map<String, Object> metadata,
         @Nullable List<RoleDescriptor> roleDescriptors,
         @Nullable List<RoleDescriptor> limitedByRoleDescriptors
@@ -125,6 +122,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             invalidation,
             username,
             realm,
+            realmType,
             metadata,
             roleDescriptors,
             limitedByRoleDescriptors == null ? null : new RoleDescriptorsIntersection(List.of(Set.copyOf(limitedByRoleDescriptors)))
@@ -141,6 +139,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         Instant invalidation,
         String username,
         String realm,
+        @Nullable String realmType,
         @Nullable Map<String, Object> metadata,
         @Nullable List<RoleDescriptor> roleDescriptors,
         @Nullable RoleDescriptorsIntersection limitedBy
@@ -157,52 +156,12 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.invalidation = (invalidation != null) ? Instant.ofEpochMilli(invalidation.toEpochMilli()) : null;
         this.username = username;
         this.realm = realm;
+        this.realmType = realmType;
         this.metadata = metadata == null ? Map.of() : metadata;
         this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
         // This assertion will need to be changed (or removed) when derived keys are properly supported
         assert limitedBy == null || limitedBy.roleDescriptorsList().size() == 1 : "can only have one set of limited-by role descriptors";
         this.limitedBy = limitedBy;
-    }
-
-    public ApiKey(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            this.name = in.readOptionalString();
-        } else {
-            this.name = in.readString();
-        }
-        this.id = in.readString();
-        if (in.getTransportVersion().onOrAfter(CROSS_CLUSTER_KEY_VERSION)) {
-            this.type = in.readEnum(Type.class);
-        } else {
-            // This default is safe because
-            // 1. ApiKey objects never transfer between nodes
-            // 2. Creating cross-cluster API keys mandates minimal node version that understands the API key type
-            this.type = Type.REST;
-        }
-        this.creation = in.readInstant();
-        this.expiration = in.readOptionalInstant();
-        this.invalidated = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.GET_API_KEY_INVALIDATION_TIME_ADDED)) {
-            this.invalidation = in.readOptionalInstant();
-        } else {
-            this.invalidation = null;
-        }
-
-        this.username = in.readString();
-        this.realm = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            this.metadata = in.readGenericMap();
-        } else {
-            this.metadata = Map.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            final List<RoleDescriptor> roleDescriptors = in.readOptionalCollectionAsList(RoleDescriptor::new);
-            this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
-            this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
-        } else {
-            this.roleDescriptors = null;
-            this.limitedBy = null;
-        }
     }
 
     public String getId() {
@@ -241,6 +200,17 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return realm;
     }
 
+    public @Nullable String getRealmType() {
+        return realmType;
+    }
+
+    public @Nullable RealmConfig.RealmIdentifier getRealmIdentifier() {
+        if (realm != null && realmType != null) {
+            return new RealmConfig.RealmIdentifier(realmType, realm);
+        }
+        return null;
+    }
+
     public Map<String, Object> getMetadata() {
         return metadata;
     }
@@ -271,7 +241,11 @@ public final class ApiKey implements ToXContentObject, Writeable {
         if (invalidation != null) {
             builder.field("invalidation", invalidation.toEpochMilli());
         }
-        builder.field("username", username).field("realm", realm).field("metadata", (metadata == null ? Map.of() : metadata));
+        builder.field("username", username).field("realm", realm);
+        if (realmType != null) {
+            builder.field("realm_type", realmType);
+        }
+        builder.field("metadata", (metadata == null ? Map.of() : metadata));
         if (roleDescriptors != null) {
             builder.startObject("role_descriptors");
             for (var roleDescriptor : roleDescriptors) {
@@ -324,34 +298,6 @@ public final class ApiKey implements ToXContentObject, Writeable {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
-            out.writeOptionalString(name);
-        } else {
-            out.writeString(name);
-        }
-        out.writeString(id);
-        if (out.getTransportVersion().onOrAfter(CROSS_CLUSTER_KEY_VERSION)) {
-            out.writeEnum(type);
-        }
-        out.writeInstant(creation);
-        out.writeOptionalInstant(expiration);
-        out.writeBoolean(invalidated);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.GET_API_KEY_INVALIDATION_TIME_ADDED)) {
-            out.writeOptionalInstant(invalidation);
-        }
-        out.writeString(username);
-        out.writeString(realm);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeGenericMap(metadata);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
-            out.writeOptionalCollection(roleDescriptors);
-            out.writeOptionalWriteable(limitedBy);
-        }
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(
             name,
@@ -363,6 +309,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             invalidation,
             username,
             realm,
+            realmType,
             metadata,
             roleDescriptors,
             limitedBy
@@ -390,6 +337,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
             && Objects.equals(invalidation, other.invalidation)
             && Objects.equals(username, other.username)
             && Objects.equals(realm, other.realm)
+            && Objects.equals(realmType, other.realmType)
             && Objects.equals(metadata, other.metadata)
             && Objects.equals(roleDescriptors, other.roleDescriptors)
             && Objects.equals(limitedBy, other.limitedBy);
@@ -407,9 +355,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
             (args[6] == null) ? null : Instant.ofEpochMilli((Long) args[6]),
             (String) args[7],
             (String) args[8],
-            (args[9] == null) ? null : (Map<String, Object>) args[9],
-            (List<RoleDescriptor>) args[10],
-            (RoleDescriptorsIntersection) args[11]
+            (String) args[9],
+            (args[10] == null) ? null : (Map<String, Object>) args[10],
+            (List<RoleDescriptor>) args[11],
+            (RoleDescriptorsIntersection) args[12]
         );
     });
     static {
@@ -422,6 +371,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         PARSER.declareLong(optionalConstructorArg(), new ParseField("invalidation"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareString(constructorArg(), new ParseField("realm"));
+        PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("realm_type"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
         PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
             p.nextToken();
@@ -459,6 +409,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
             + username
             + ", realm="
             + realm
+            + ", realm_type="
+            + realmType
             + ", metadata="
             + metadata
             + ", role_descriptors="

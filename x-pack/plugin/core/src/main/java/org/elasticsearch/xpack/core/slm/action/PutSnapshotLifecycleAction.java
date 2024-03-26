@@ -27,7 +27,7 @@ public class PutSnapshotLifecycleAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:admin/slm/put";
 
     protected PutSnapshotLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {

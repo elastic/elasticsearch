@@ -769,7 +769,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             SnapshotException.class,
             clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx")
         );
-        assertThat(sne.getMessage(), containsString("Indices don't have primary shards"));
+        assertThat(sne.getMessage(), containsString("the following indices have unassigned primary shards"));
         assertThat(getRepositoryData("test-repo"), is(RepositoryData.EMPTY));
     }
 

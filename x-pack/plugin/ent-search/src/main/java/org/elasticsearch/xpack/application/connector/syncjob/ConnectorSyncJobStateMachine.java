@@ -15,9 +15,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The {@link ConnectorSyncJobStateMachine} class manages state transitions for sync jobs
+ * The {@link ConnectorSyncJobStateMachine} class manages state transitions for instances of {@link ConnectorSyncJob}
  * in accordance with the <a href="https://github.com/elastic/connectors/blob/main/docs/CONNECTOR_PROTOCOL.md">Connector Protocol</a>.
- * It defines valid transitions between different connector sync job states and provides a method to validate these transitions.
+ * It defines valid transitions between instances of {@link ConnectorSyncStatus} and provides a method to validate these transitions.
  */
 public class ConnectorSyncJobStateMachine {
 
@@ -39,12 +39,25 @@ public class ConnectorSyncJobStateMachine {
     );
 
     /**
-     * Checks if a transition from one connector sync job state to another is valid.
+     * Checks if a transition from one {@link ConnectorSyncStatus} to another is valid.
      *
-     * @param current The current state of the connector sync job.
-     * @param next The proposed next state of the connector sync job.
+     * @param current The current {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
+     * @param next The proposed next {link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
      */
     public static boolean isValidTransition(ConnectorSyncStatus current, ConnectorSyncStatus next) {
         return VALID_TRANSITIONS.getOrDefault(current, Collections.emptySet()).contains(next);
+    }
+
+    /**
+     * Throws {@link ConnectorSyncJobInvalidStatusTransitionException} if a
+     * transition from one {@link ConnectorSyncStatus} to another is invalid.
+     *
+     * @param current The current {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
+     * @param next The proposed next {@link ConnectorSyncStatus} of the {@link ConnectorSyncJob}.
+     */
+    public static void assertValidStateTransition(ConnectorSyncStatus current, ConnectorSyncStatus next)
+        throws ConnectorSyncJobInvalidStatusTransitionException {
+        if (isValidTransition(current, next)) return;
+        throw new ConnectorSyncJobInvalidStatusTransitionException(current, next);
     }
 }

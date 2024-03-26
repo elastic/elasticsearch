@@ -349,7 +349,7 @@ public class TrainedModelProviderTests extends ESTestCase {
     public void testStoreTrainedModelConfigCallsClientExecuteWithOperationCreate() {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
-            var config = TrainedModelConfigTests.createTestInstance("modelId").build();
+            var config = TrainedModelConfigTests.createTestInstance("inferenceEntityId").build();
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
@@ -361,7 +361,7 @@ public class TrainedModelProviderTests extends ESTestCase {
     public void testStoreTrainedModelConfigCallsClientExecuteWithOperationCreateWhenAllowOverwriteIsFalse() {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
-            var config = TrainedModelConfigTests.createTestInstance("modelId").build();
+            var config = TrainedModelConfigTests.createTestInstance("inferenceEntityId").build();
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
@@ -373,7 +373,7 @@ public class TrainedModelProviderTests extends ESTestCase {
     public void testStoreTrainedModelConfigCallsClientExecuteWithOperationIndex() {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
-            var config = TrainedModelConfigTests.createTestInstance("modelId").build();
+            var config = TrainedModelConfigTests.createTestInstance("inferenceEntityId").build();
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
@@ -385,7 +385,7 @@ public class TrainedModelProviderTests extends ESTestCase {
     public void testStoreTrainedModelWithDefinitionCallsClientExecuteWithOperationCreate() throws IOException {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
-            var config = createTrainedModelConfigWithDefinition("modelId");
+            var config = createTrainedModelConfigWithDefinition("inferenceEntityId");
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
@@ -397,7 +397,7 @@ public class TrainedModelProviderTests extends ESTestCase {
     public void testStoreTrainedModelWithDefinitionCallsClientExecuteWithOperationCreateWhenAllowOverwriteIsFalse() throws IOException {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
-            var config = createTrainedModelConfigWithDefinition("modelId");
+            var config = createTrainedModelConfigWithDefinition("inferenceEntityId");
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
@@ -409,7 +409,7 @@ public class TrainedModelProviderTests extends ESTestCase {
     public void testStoreTrainedModelWithDefinitionCallsClientExecuteWithOperationIndex() throws IOException {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
-            var config = createTrainedModelConfigWithDefinition("modelId");
+            var config = createTrainedModelConfigWithDefinition("inferenceEntityId");
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
@@ -461,7 +461,7 @@ public class TrainedModelProviderTests extends ESTestCase {
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
-            trainedModelProvider.storeTrainedModelVocabulary("modelId", mock(VocabularyConfig.class), vocab, future);
+            trainedModelProvider.storeTrainedModelVocabulary("inferenceEntityId", mock(VocabularyConfig.class), vocab, future);
             assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.CREATE);
         }
     }
@@ -473,7 +473,7 @@ public class TrainedModelProviderTests extends ESTestCase {
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
-            trainedModelProvider.storeTrainedModelVocabulary("modelId", mock(VocabularyConfig.class), vocab, future, false);
+            trainedModelProvider.storeTrainedModelVocabulary("inferenceEntityId", mock(VocabularyConfig.class), vocab, future, false);
             assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.CREATE);
         }
     }
@@ -485,7 +485,7 @@ public class TrainedModelProviderTests extends ESTestCase {
             var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
-            trainedModelProvider.storeTrainedModelVocabulary("modelId", mock(VocabularyConfig.class), vocab, future, true);
+            trainedModelProvider.storeTrainedModelVocabulary("inferenceEntityId", mock(VocabularyConfig.class), vocab, future, true);
             assertThatIndexRequestHasOperation(client, DocWriteRequest.OpType.INDEX);
         }
     }

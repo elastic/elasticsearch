@@ -8,14 +8,29 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
+
+    private static final int NUM_DOCS = 10;
 
     private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
 
@@ -24,395 +39,81 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         return codec;
     }
 
-    // NOTE: here and below we disable tests dealing with non-numeric fields
-    // because ES87TSDBDocValuesFormat only deals with numeric fields.
-    @Override
-    public void testTwoBinaryValues() {
-        assumeTrue("doc values format only supports numerics", false);
+    public void testSortedDocValuesSingleUniqueValue() throws IOException {
+        try (Directory directory = newDirectory()) {
+            Analyzer analyzer = new MockAnalyzer(random());
+            IndexWriterConfig conf = newIndexWriterConfig(analyzer);
+            conf.setMergePolicy(newLogMergePolicy());
+            try (RandomIndexWriter iwriter = new RandomIndexWriter(random(), directory, conf)) {
+                for (int i = 0; i < NUM_DOCS; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedDocValuesField("field", newBytesRef("value")));
+                    doc.add(new SortedDocValuesField("field" + i, newBytesRef("value" + i)));
+                    iwriter.addDocument(doc);
+                }
+                iwriter.forceMerge(1);
+            }
+            try (IndexReader ireader = maybeWrapWithMergingReader(DirectoryReader.open(directory))) {
+                assert ireader.leaves().size() == 1;
+                SortedDocValues field = ireader.leaves().get(0).reader().getSortedDocValues("field");
+                for (int i = 0; i < NUM_DOCS; i++) {
+                    assertEquals(i, field.nextDoc());
+                    assertEquals(0, field.ordValue());
+                    BytesRef scratch = field.lookupOrd(0);
+                    assertEquals("value", scratch.utf8ToString());
+                }
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, field.nextDoc());
+                for (int i = 0; i < NUM_DOCS; i++) {
+                    SortedDocValues fieldN = ireader.leaves().get(0).reader().getSortedDocValues("field" + i);
+                    assertEquals(i, fieldN.nextDoc());
+                    assertEquals(0, fieldN.ordValue());
+                    BytesRef scratch = fieldN.lookupOrd(0);
+                    assertEquals("value" + i, scratch.utf8ToString());
+                    assertEquals(DocIdSetIterator.NO_MORE_DOCS, fieldN.nextDoc());
+                }
+            }
+        }
+    }
+
+    public void testSortedSetDocValuesSingleUniqueValue() throws IOException {
+        try (Directory directory = newDirectory()) {
+            Analyzer analyzer = new MockAnalyzer(random());
+            IndexWriterConfig conf = newIndexWriterConfig(analyzer);
+            conf.setMergePolicy(newLogMergePolicy());
+            try (RandomIndexWriter iwriter = new RandomIndexWriter(random(), directory, conf)) {
+                for (int i = 0; i < NUM_DOCS; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("field", newBytesRef("value")));
+                    doc.add(new SortedSetDocValuesField("field" + i, newBytesRef("value" + i)));
+                    iwriter.addDocument(doc);
+                }
+                iwriter.forceMerge(1);
+            }
+
+            try (IndexReader ireader = maybeWrapWithMergingReader(DirectoryReader.open(directory))) {
+                assert ireader.leaves().size() == 1;
+                var field = ireader.leaves().get(0).reader().getSortedSetDocValues("field");
+                for (int i = 0; i < NUM_DOCS; i++) {
+                    assertEquals(i, field.nextDoc());
+                    assertEquals(1, field.docValueCount());
+                    assertEquals(0, field.nextOrd());
+                    BytesRef scratch = field.lookupOrd(0);
+                    assertEquals("value", scratch.utf8ToString());
+                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, field.nextOrd());
+                }
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, field.nextDoc());
+                for (int i = 0; i < NUM_DOCS; i++) {
+                    var fieldN = ireader.leaves().get(0).reader().getSortedSetDocValues("field" + i);
+                    assertEquals(i, fieldN.nextDoc());
+                    assertEquals(1, fieldN.docValueCount());
+                    assertEquals(0, fieldN.nextOrd());
+                    BytesRef scratch = fieldN.lookupOrd(0);
+                    assertEquals("value" + i, scratch.utf8ToString());
+                    assertEquals(DocIdSetIterator.NO_MORE_DOCS, fieldN.nextDoc());
+                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, fieldN.nextOrd());
+                }
+            }
+        }
     }
 
-    @Override
-    public void testVariouslyCompressibleBinaryValues() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testTwoFieldsMixed() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testThreeFieldsMixed() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testThreeFieldsMixed2() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testBytes() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testBytesTwoDocumentsMerged() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testBytesMergeAwayAllValues() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedBytes() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedBytesTwoDocuments() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedBytesThreeDocuments() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedBytesTwoDocumentsMerged() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedMergeAwayAllValues() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testBytesWithNewline() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testMissingSortedBytes() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedTermsEnum() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testEmptySortedBytes() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testEmptyBytes() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testVeryLargeButLegalBytes() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testVeryLargeButLegalSortedBytes() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testCodecUsesOwnBytes() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testCodecUsesOwnSortedBytes() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testDocValuesSimple() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testRandomSortedBytes() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testBinaryFixedLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSparseBinaryFixedLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testBinaryVariableLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSparseBinaryVariableLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void doTestBinaryVariableLengthVsStoredFields(double density) throws Exception {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    protected void doTestSortedVsStoredFields(int numDocs, double density, Supplier<byte[]> bytes) throws Exception {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedFixedLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSparseSortedFixedLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedVariableLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSparseSortedVariableLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    protected void doTestSortedVsStoredFields(int numDocs, double density, int minLength, int maxLength) throws Exception {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetOneValue() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetTwoFields() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetTwoDocumentsMerged() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetTwoValues() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetTwoValuesUnordered() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetThreeValuesTwoDocs() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetTwoDocumentsLastMissing() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetTwoDocumentsLastMissingMerge() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetTwoDocumentsFirstMissing() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetTwoDocumentsFirstMissingMerge() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetMergeAwayAllValues() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetTermsEnum() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetFixedLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetVariableLengthVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetFixedLengthSingleValuedVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetVariableLengthSingleValuedVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetFixedLengthFewUniqueSetsVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetVariableLengthFewUniqueSetsVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetVariableLengthManyValuesPerDocVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetFixedLengthManyValuesPerDocVsStoredFields() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSparseGCDCompression() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testTwoBytesOneMissing() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testTwoBytesOneMissingWithMerging() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testThreeBytesOneMissingWithMerging() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testThreads() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testEmptyBinaryValueOnPageSizes() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testOneSortedNumber() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testOneSortedNumberOneMissing() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testTwoSortedNumber() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testTwoSortedNumberSameValue() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testTwoSortedNumberOneMissing() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedNumberMerge() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedNumberMergeAwayAllValues() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedEnumAdvanceIndependently() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetEnumAdvanceIndependently() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedMergeAwayAllValuesLargeSegment() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testSortedSetMergeAwayAllValuesLargeSegment() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testBinaryMergeAwayAllValuesLargeSegment() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testRandomAdvanceBinary() throws IOException {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testHighOrdsSortedSetDV() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testCheckIntegrityReadsAllBytes() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testMergeStability() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
-
-    @Override
-    public void testRandomExceptions() {
-        assumeTrue("doc values format only supports numerics", false);
-    }
 }

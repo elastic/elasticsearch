@@ -289,7 +289,7 @@ public class EsqlDataTypeConverter {
         return NumericUtils.asLongUnsigned(safeToUnsignedLong(field));
     }
 
-    public static int unsignedLongToInt(Long field) {
+    public static int unsignedLongToInt(long field) {
         Number n = NumericUtils.unsignedLongAsNumber(field);
         int i = n.intValue();
         if (i != n.longValue()) {

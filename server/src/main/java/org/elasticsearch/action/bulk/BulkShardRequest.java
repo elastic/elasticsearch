@@ -35,7 +35,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     private final BulkItemRequest[] items;
 
-    private transient Map<String, InferenceFieldMetadata> fieldInferenceMap = null;
+    private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -52,24 +52,24 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
      * Public for test
      * Set the transient metadata indicating that this request requires running inference before proceeding.
      */
-    public void setFieldInferenceMap(Map<String, InferenceFieldMetadata> fieldInferenceMap) {
-        this.fieldInferenceMap = fieldInferenceMap;
+    public void setInferenceFieldMap(Map<String, InferenceFieldMetadata> fieldInferenceMap) {
+        this.inferenceFieldMap = fieldInferenceMap;
     }
 
     /**
      * Consumes the inference metadata to execute inference on the bulk items just once.
      */
-    public Map<String, InferenceFieldMetadata> consumeFieldInferenceMetadata() {
-        Map<String, InferenceFieldMetadata> ret = fieldInferenceMap;
-        fieldInferenceMap = null;
+    public Map<String, InferenceFieldMetadata> consumeInferenceFieldMap() {
+        Map<String, InferenceFieldMetadata> ret = inferenceFieldMap;
+        inferenceFieldMap = null;
         return ret;
     }
 
     /**
      * Public for test
      */
-    public Map<String, InferenceFieldMetadata> getFieldInferenceMap() {
-        return fieldInferenceMap;
+    public Map<String, InferenceFieldMetadata> getInferenceFieldMap() {
+        return inferenceFieldMap;
     }
 
     public long totalSizeInBytes() {

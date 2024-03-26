@@ -245,6 +245,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
+    private IndexVersion lastModificationIndexVersion;
+
     @Nullable
     private volatile RecoveryState recoveryState;
 
@@ -1418,6 +1420,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public BulkStats bulkStats() {
         return bulkOperationListener.stats();
+    }
+
+    /**
+     * Returns the highest IndexVersion that has been used to write segments to this shard
+     */
+    public IndexVersion getMaxCommitIndexVersion() {
+        return Engine.readIndexVersion(getEngine().getLastCommittedSegmentInfos().userData.get(Engine.ES_VERSION));
     }
 
     /**

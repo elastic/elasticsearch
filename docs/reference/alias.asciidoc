@@ -162,12 +162,20 @@ The API returns the following result:
   "errors": true,
   "action_results": [
     {
-      "action": "remove",
+      "action": {
+        "type": "remove",
+        "indices": [ "index1" ],
+        "aliases": [ "logs-non-existing" ],
+      },
       "success": false,
       "error": "aliases_not_found_exception"
     },
     {
-      "action": "add",
+      "action": {
+        "type": "add",
+        "indices": [ "index2" ],
+        "aliases": [ "logs-non-existing" ],
+      },
       "success": true
     }
   ]

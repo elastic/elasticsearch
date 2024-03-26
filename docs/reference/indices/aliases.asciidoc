@@ -191,15 +191,28 @@ If `true`, the request received a response from the master node within the
 If `true`, at least one of the requested actions failed.
 
 `action_results`::
-(array of objects) Results for each requested action.
+(Optional, array of objects) Results for each requested action.
 +
 .Properties of `action_results` objects
 [%collapsible%open]
 ====
 
 `action`::
-(string)
-The type of the associated action, the values will be one of `add`, `remove`, or `remove_index`.
+(object)
+Description of the associated action request.
++
+.Properties of `action` object
+[%collapsible%open]
+=====
+`type`::
+(string) The type of the associated action, one of `add`, `remove`, or `remove_index`.
+
+`indices`::
+(array of strings) List of indices in the associated action.
+
+`aliases`::
+(array of strings) List of aliases in the associated action.
+=====
 
 `success`::
 (boolean)

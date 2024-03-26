@@ -125,6 +125,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         );
     }
 
+    //TODO: who calls this ?
     public void addRemoteCluster(final String[] privileges, final String[] remoteClusters) {
         remoteClusterPrivileges.add(new RoleDescriptor.RemoteClusterPrivileges(remoteClusters, privileges));
     }

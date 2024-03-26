@@ -451,6 +451,10 @@ public class CompositeRolesStore {
                 groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
             }
 
+            if(descriptor.hasRemoteClusterPrivileges()) {
+                groupClusterPrivilegesByCluster(); //TODO!!
+            }
+
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
                 Tuple<String, Set<String>> key = new Tuple<>(appPrivilege.getApplication(), newHashSet(appPrivilege.getResources()));
                 applicationPrivilegesMap.compute(key, (k, v) -> {
@@ -493,7 +497,7 @@ public class CompositeRolesStore {
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
             remoteIndicesPrivilegesForCluster.forEach(
-                (privilege) -> builder.addRemoteGroup(
+                (privilege) -> builder.addRemoteIndicesGroup(
                     clusterAliasKey,
                     fieldPermissionsCache.getFieldPermissions(
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
@@ -592,6 +596,10 @@ public class CompositeRolesStore {
             final Set<String> clusterAliasKey = newHashSet(remoteIndicesPrivilege.remoteClusters());
             remoteIndexPrivilegesByCluster.computeIfAbsent(clusterAliasKey, k -> new HashSet<>()).add(indicesPrivilege);
         }
+    }
+
+    private static void groupClusterPrivilegesByCluster() {
+        //TODO!
     }
 
     /**

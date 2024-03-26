@@ -150,7 +150,7 @@ public class SimpleRoleTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() {
         SimpleRole role = Role.builder(RESTRICTED_INDICES, randomAlphaOfLength(6))
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(
                 Set.of("remote-cluster-a"),
                 FieldPermissions.DEFAULT,
                 null,
@@ -159,9 +159,9 @@ public class SimpleRoleTests extends ESTestCase {
                 "remote-index-a-1",
                 "remote-index-a-2"
             )
-            .addRemoteGroup(Set.of("remote-*-a"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-a-3")
+            .addRemoteIndicesGroup(Set.of("remote-*-a"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-a-3")
             // This privilege should be ignored
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(
                 Set.of("remote-cluster-b"),
                 FieldPermissions.DEFAULT,
                 null,
@@ -171,7 +171,7 @@ public class SimpleRoleTests extends ESTestCase {
                 "remote-index-b-2"
             )
             // This privilege should be ignored
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(
                 Set.of(randomAlphaOfLength(8)),
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { randomAlphaOfLength(5) }, null)),
                 null,

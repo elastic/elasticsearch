@@ -76,6 +76,11 @@ public final class LimitedRole implements Role {
     }
 
     @Override
+    public RemoteClusterPermissions remoteCluster() {
+        throw new UnsupportedOperationException("cannot retrieve remote cluster permission on limited role");
+    }
+
+    @Override
     public boolean hasWorkflowsRestriction() {
         return baseRole.hasWorkflowsRestriction() || limitedByRole.hasWorkflowsRestriction();
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -1070,22 +1071,33 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return builder.build();
     }
 
+    //TODO: can this be replace completely by RemoteClusterPermissions.RemoteClusterGroup ?
     public static final class RemoteClusterPrivileges implements Writeable, ToXContentObject {
 
         private static final RemoteClusterPrivileges[] NONE = new RemoteClusterPrivileges[0];
-        private final String[] clusterPrivileges;
-        private final String[] remoteClusters;
+        private final RemoteClusterPermissions.RemoteClusterGroup remoteClusterGroup;
 
         public RemoteClusterPrivileges(String[] clusterPrivileges, String[] remoteClusters) {
-            this.clusterPrivileges = clusterPrivileges;
-            this.remoteClusters = remoteClusters;
+            remoteClusterGroup = new RemoteClusterPermissions.RemoteClusterGroup(clusterPrivileges, remoteClusters);
+        }
+
+        public String[] clusterPrivileges() {
+            return remoteClusterGroup.clusterPrivileges();
+        }
+
+        public String[] remoteClusters() {
+            return remoteClusterGroup.remoteClusterAliases();
+        }
+
+        public RemoteClusterPermissions.RemoteClusterGroup remoteClusterGroup() {
+            return remoteClusterGroup;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.array(Fields.PRIVILEGES.getPreferredName(), clusterPrivileges);
-            builder.array(Fields.CLUSTERS.getPreferredName(), remoteClusters);
+            builder.array(Fields.PRIVILEGES.getPreferredName(), remoteClusterGroup.clusterPrivileges());
+            builder.array(Fields.CLUSTERS.getPreferredName(), remoteClusterGroup.remoteClusterAliases());
             builder.endObject();
             return builder;
         }

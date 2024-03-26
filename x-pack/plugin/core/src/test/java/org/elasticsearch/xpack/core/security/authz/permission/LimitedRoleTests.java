@@ -94,7 +94,7 @@ public class LimitedRoleTests extends ESTestCase {
             .toArray(String[]::new);
 
         Role baseRole = Role.builder(EMPTY_RESTRICTED_INDICES, "base-role")
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(
                 Set.of(remoteClusterAlias),
                 baseFieldPermissions,
                 baseQuery,
@@ -103,7 +103,7 @@ public class LimitedRoleTests extends ESTestCase {
                 baseIndices
             )
             // This privilege should be ignored
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(
                 Set.of(randomAlphaOfLength(3)),
                 randomFlsPermissions(),
                 randomDlsQuery(),
@@ -123,7 +123,7 @@ public class LimitedRoleTests extends ESTestCase {
             .toArray(String[]::new);
 
         Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role")
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(
                 Set.of(remoteClusterPrefix + "-*", randomAlphaOfLength(4)),
                 limitedFieldPermissions,
                 limitedQuery,
@@ -132,7 +132,7 @@ public class LimitedRoleTests extends ESTestCase {
                 limitedIndices
             )
             // This privilege should be ignored
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(
                 Set.of(randomAlphaOfLength(4)),
                 randomFlsPermissions(),
                 randomDlsQuery(),
@@ -221,7 +221,7 @@ public class LimitedRoleTests extends ESTestCase {
         if (includeRemoteIndicesPermission) {
             String roleToAddRemoteGroup = randomFrom("b", "l1", "l2");
             switch (roleToAddRemoteGroup) {
-                case "b" -> baseRole.addRemoteGroup(
+                case "b" -> baseRole.addRemoteIndicesGroup(
                     Set.of(remoteClusterAlias),
                     randomFlsPermissions(randomAlphaOfLength(3)),
                     randomDlsQuery(),
@@ -229,7 +229,7 @@ public class LimitedRoleTests extends ESTestCase {
                     randomBoolean(),
                     randomAlphaOfLength(3)
                 );
-                case "l1" -> limitedByRole1.addRemoteGroup(
+                case "l1" -> limitedByRole1.addRemoteIndicesGroup(
                     Set.of(remoteClusterAlias),
                     randomFlsPermissions(randomAlphaOfLength(4)),
                     randomDlsQuery(),
@@ -237,7 +237,7 @@ public class LimitedRoleTests extends ESTestCase {
                     randomBoolean(),
                     randomAlphaOfLength(4)
                 );
-                case "l2" -> limitedByRole2.addRemoteGroup(
+                case "l2" -> limitedByRole2.addRemoteIndicesGroup(
                     Set.of(remoteClusterAlias),
                     randomFlsPermissions(randomAlphaOfLength(5)),
                     randomDlsQuery(),
@@ -253,7 +253,7 @@ public class LimitedRoleTests extends ESTestCase {
         // Note: defining a remote indices privileges for a remote cluster that we do not request intersection for, should be ignored
         if (randomBoolean()) {
             String otherRemoteClusterAlias = randomValueOtherThan(remoteClusterAlias, () -> randomAlphaOfLengthBetween(4, 6));
-            baseRole.addRemoteGroup(
+            baseRole.addRemoteIndicesGroup(
                 Set.of(otherRemoteClusterAlias),
                 randomFlsPermissions(randomAlphaOfLength(3)),
                 randomDlsQuery(),
@@ -261,7 +261,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomBoolean(),
                 randomAlphaOfLength(5)
             );
-            limitedByRole1.addRemoteGroup(
+            limitedByRole1.addRemoteIndicesGroup(
                 Set.of(otherRemoteClusterAlias),
                 randomFlsPermissions(randomAlphaOfLength(4)),
                 randomDlsQuery(),
@@ -269,7 +269,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomBoolean(),
                 randomAlphaOfLength(4)
             );
-            limitedByRole2.addRemoteGroup(
+            limitedByRole2.addRemoteIndicesGroup(
                 Set.of(otherRemoteClusterAlias),
                 randomFlsPermissions(randomAlphaOfLength(5)),
                 randomDlsQuery(),

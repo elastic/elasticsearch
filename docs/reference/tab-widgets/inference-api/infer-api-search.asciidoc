@@ -8,7 +8,7 @@ GET cohere-embeddings/_search
     "field": "content_embedding",
     "query_vector_builder": {
       "text_embedding": {
-        "model_id": "cohere_embeddings",
+        "inference_id": "cohere_embeddings",
         "model_text": "Muscles in human body"
       }
     },
@@ -83,7 +83,7 @@ GET openai-embeddings/_search
     "field": "content_embedding",
     "query_vector_builder": {
       "text_embedding": {
-        "model_id": "openai_embeddings",
+        "inference_id": "openai_embeddings",
         "model_text": "Calculate fuel cost"
       }
     },

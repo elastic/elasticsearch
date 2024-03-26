@@ -51,6 +51,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
@@ -921,7 +922,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      */
     public Map<String, MappingMetadata> findMappings(
         String[] concreteIndices,
-        Function<String, Predicate<String>> fieldFilter,
+        Function<String, ? extends Predicate<String>> fieldFilter,
         Runnable onNextIndex
     ) {
         assert Transports.assertNotTransportThread("decompressing mappings is too expensive for a transport thread");
@@ -974,7 +975,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         if (mappingMetadata == null) {
             return MappingMetadata.EMPTY_MAPPINGS;
         }
-        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+        if (fieldPredicate == FieldPredicate.ACCEPT_ALL) {
             return mappingMetadata;
         }
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetadata.source().compressedReference(), true).v2();
@@ -997,7 +998,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     @SuppressWarnings("unchecked")
     private static boolean filterFields(String currentPath, Map<String, Object> fields, Predicate<String> fieldPredicate) {
-        assert fieldPredicate != MapperPlugin.NOOP_FIELD_PREDICATE;
+        assert fieldPredicate != FieldPredicate.ACCEPT_ALL;
         Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
         while (entryIterator.hasNext()) {
             Map.Entry<String, Object> entry = entryIterator.next();

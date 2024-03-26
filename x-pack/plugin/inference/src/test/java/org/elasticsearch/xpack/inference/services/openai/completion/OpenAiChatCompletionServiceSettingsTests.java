@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
 import java.io.IOException;
 import java.net.URI;
@@ -40,7 +41,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
                     modelId,
                     ServiceFields.URL,
                     url,
-                    OpenAiChatCompletionServiceSettings.ORGANIZATION,
+                    OpenAiServiceFields.ORGANIZATION,
                     org,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens
@@ -61,7 +62,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
                 Map.of(
                     ServiceFields.MODEL_ID,
                     modelId,
-                    OpenAiChatCompletionServiceSettings.ORGANIZATION,
+                    OpenAiServiceFields.ORGANIZATION,
                     organization,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens
@@ -109,7 +110,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenAiChatCompletionServiceSettings.fromMap(
-                new HashMap<>(Map.of(OpenAiChatCompletionServiceSettings.ORGANIZATION, "", ServiceFields.MODEL_ID, "model"))
+                new HashMap<>(Map.of(OpenAiServiceFields.ORGANIZATION, "", ServiceFields.MODEL_ID, "model"))
             )
         );
 
@@ -118,7 +119,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
             containsString(
                 org.elasticsearch.common.Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    OpenAiChatCompletionServiceSettings.ORGANIZATION
+                    OpenAiServiceFields.ORGANIZATION
                 )
             )
         );

@@ -15,6 +15,13 @@ import static org.elasticsearch.core.Strings.format;
 
 public class XContentUtils {
 
+    /**
+     * Moves to the first valid token, which is non-null.
+     * Does not move, if the parser is already positioned at a valid token.
+     *
+     * @param parser parser to move
+     * @throws IOException if underlying parser methods throw
+     */
     public static void moveToFirstToken(XContentParser parser) throws IOException {
         if (parser.currentToken() == null) {
             parser.nextToken();

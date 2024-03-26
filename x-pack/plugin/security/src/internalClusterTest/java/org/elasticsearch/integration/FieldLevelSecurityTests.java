@@ -2356,8 +2356,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     public void testSearchDifferentFieldsVisible() {
-        String firstName = "partial1*" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        String secondName = "partial2*" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String firstName = "partial1" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        String secondName = "partial2" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indexPartial(firstName, secondName);
         SearchResponse response = client().filterWithHeader(
             Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_different_fields", USERS_PASSWD))

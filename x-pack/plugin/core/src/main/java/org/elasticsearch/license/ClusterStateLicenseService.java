@@ -246,7 +246,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
                     int maxCompatibleLicenseVersion = LicenseUtils.getMaxCompatibleLicenseVersion();
-                    if (maxCompatibleLicenseVersion >= newLicense.version() == false) {
+                    if (maxCompatibleLicenseVersion > newLicense.version()) {
                         throw new IllegalStateException(
                             LoggerMessageFormat.format(
                                 "The provided license is of version [{}] but this node is only compatible with version [{}] "

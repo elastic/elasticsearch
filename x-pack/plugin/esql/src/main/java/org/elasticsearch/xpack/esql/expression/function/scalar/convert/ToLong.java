@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
@@ -84,16 +83,7 @@ public class ToLong extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class })
     static long fromKeyword(BytesRef in) {
-        String asString = in.utf8ToString();
-        try {
-            return stringToLong(asString);
-        } catch (InvalidArgumentException iae) {
-            try {
-                return fromDouble(stringToDouble(asString));
-            } catch (Exception e) {
-                throw iae;
-            }
-        }
+        return stringToLong(in.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })

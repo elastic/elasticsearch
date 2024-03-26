@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToInt;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
@@ -82,18 +81,9 @@ public class ToInteger extends AbstractConvertFunction {
         return bool ? 1 : 0;
     }
 
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class, NumberFormatException.class })
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class })
     static int fromKeyword(BytesRef in) {
-        String asString = in.utf8ToString();
-        try {
-            return stringToInt(asString);
-        } catch (NumberFormatException nfe) {
-            try {
-                return fromDouble(stringToDouble(asString));
-            } catch (Exception e) {
-                throw nfe;
-            }
-        }
+        return stringToInt(in.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })

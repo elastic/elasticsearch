@@ -243,11 +243,11 @@ required_feature: esql.mv_warn
 
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
 warning:Line 1:79: evaluation of [to_integer(str1)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:79: java.lang.NumberFormatException: For input string: \"2147483647.2\"
+warning:Line 1:79: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [2147483647.2]
 warning:Line 1:102: evaluation of [to_integer(str2)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:102: java.lang.NumberFormatException: For input string: \"2147483648\"
+warning:Line 1:102: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [2147483648]
 warning:Line 1:126: evaluation of [to_integer(non)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:126: java.lang.NumberFormatException: For input string: \"no number\"
+warning:Line 1:126: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [no number]
 
 str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |noi:integer
 2147483647.2   |2147483648     |no number      |null           |null           |null

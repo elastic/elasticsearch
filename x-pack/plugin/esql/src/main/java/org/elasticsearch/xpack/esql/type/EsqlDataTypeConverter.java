@@ -35,6 +35,7 @@ import java.time.temporal.TemporalAmount;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToUnsignedLong;
@@ -255,11 +256,27 @@ public class EsqlDataTypeConverter {
     }
 
     public static int stringToInt(String field) {
-        return Integer.parseInt(field);
+        try {
+            return Integer.parseInt(field);
+        } catch (NumberFormatException nfe) {
+            try {
+                return safeToInt(stringToDouble(field));
+            } catch (Exception e) {
+                throw new InvalidArgumentException(nfe, "Cannot parse number [{}]", field);
+            }
+        }
     }
 
     public static long stringToLong(String field) {
-        return StringUtils.parseLong(field);
+        try {
+            return StringUtils.parseLong(field);
+        } catch (InvalidArgumentException iae) {
+            try {
+                return safeDoubleToLong(stringToDouble(field));
+            } catch (Exception e) {
+                throw new InvalidArgumentException(iae, "Cannot parse number [{}]", field);
+            }
+        }
     }
 
     public static double stringToDouble(String field) {

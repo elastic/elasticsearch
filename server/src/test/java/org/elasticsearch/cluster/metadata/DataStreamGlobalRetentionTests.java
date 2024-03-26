@@ -18,7 +18,7 @@ import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 
 import java.util.List;
 
-public class DataStreamGlobalRetentionSerializationTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
+public class DataStreamGlobalRetentionTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
 
     @Override
     protected ClusterState.Custom makeTestChanges(ClusterState.Custom testInstance) {

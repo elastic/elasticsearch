@@ -59,6 +59,15 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
         }, TimeSeriesRoutingHashFieldMapper.encode(hash)));
     }
 
+    private static ParsedDocument parseDocument(String id, DocumentMapper docMapper, CheckedConsumer<XContentBuilder, IOException> f)
+        throws IOException {
+        // Add the @timestamp field required by DataStreamTimestampFieldMapper for all time series indices
+        return docMapper.parse(source(id, b -> {
+            f.accept(b);
+            b.field("@timestamp", "2021-10-01");
+        }, null));
+    }
+
     private static int getRoutingHash(ParsedDocument document) {
         BytesRef value = document.rootDoc().getBinaryValue(TimeSeriesRoutingHashFieldMapper.NAME);
         return TimeSeriesRoutingHashFieldMapper.decode(Uid.decodeId(value.bytes));
@@ -74,6 +83,17 @@ public class TimeSeriesRoutingHashFieldMapperTests extends MetadataMapperTestCas
         ParsedDocument doc = parseDocument(hash, docMapper, b -> b.field("a", "value"));
         assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
         assertEquals(hash, getRoutingHash(doc));
+    }
+
+    public void testRetrievedFromIdInTimeSeriesMode() throws Exception {
+        DocumentMapper docMapper = createMapper(mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+
+        int hash = randomInt();
+        ParsedDocument doc = parseDocument(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, docMapper, b -> b.field("a", "value"));
+        assertThat(doc.rootDoc().getField("a").binaryValue(), equalTo(new BytesRef("value")));
+        assertEquals(0, getRoutingHash(doc));
     }
 
     public void testDisabledInStandardMode() throws Exception {

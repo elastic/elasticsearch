@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
@@ -84,7 +83,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
-        FieldInferenceMetadata fieldInferenceMetadata = randomFieldInferenceMetadata(true);
+        Map<String, InferenceFieldMetadata> dynamicFields = randomDynamicFields();
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
@@ -110,7 +109,7 @@ public class IndexMetadataTests extends ESTestCase {
             .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
-            .fieldInferenceMetadata(fieldInferenceMetadata)
+            .putInferenceFields(dynamicFields)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -145,7 +144,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getStats(), fromXContentMeta.getStats());
         assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
         assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
-        assertEquals(metadata.getFieldInferenceMetadata(), fromXContentMeta.getFieldInferenceMetadata());
+        assertEquals(metadata.getInferenceFields(), fromXContentMeta.getInferenceFields());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -169,7 +168,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getStats(), deserialized.getStats());
             assertEquals(metadata.getForecastedWriteLoad(), deserialized.getForecastedWriteLoad());
             assertEquals(metadata.getForecastedShardSizeInBytes(), deserialized.getForecastedShardSizeInBytes());
-            assertEquals(metadata.getFieldInferenceMetadata(), deserialized.getFieldInferenceMetadata());
+            assertEquals(metadata.getInferenceFields(), deserialized.getInferenceFields());
         }
     }
 
@@ -553,35 +552,32 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
-    public void testFieldInferenceMetadata() {
+    public void testDynamicFieldMetadata() {
         Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
         IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
-        assertSame(idxMeta1.getFieldInferenceMetadata(), FieldInferenceMetadata.EMPTY);
+        assertSame(idxMeta1.getInferenceFields(), Map.of());
 
-        FieldInferenceMetadata fieldInferenceMetadata = randomFieldInferenceMetadata(false);
-        IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).fieldInferenceMetadata(fieldInferenceMetadata).build();
-        assertThat(idxMeta2.getFieldInferenceMetadata(), equalTo(fieldInferenceMetadata));
+        Map<String, InferenceFieldMetadata> dynamicFields = randomDynamicFields();
+        IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).putInferenceFields(dynamicFields).build();
+        assertThat(idxMeta2.getInferenceFields(), equalTo(dynamicFields));
     }
 
     private static Settings indexSettingsWithDataTier(String dataTier) {
         return indexSettings(IndexVersion.current(), 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
     }
 
-    public static FieldInferenceMetadata randomFieldInferenceMetadata(boolean allowNull) {
-        if (randomBoolean() && allowNull) {
-            return null;
+    public static Map<String, InferenceFieldMetadata> randomDynamicFields() {
+        Map<String, InferenceFieldMetadata> map = new HashMap<>();
+        int numFields = randomIntBetween(0, 5);
+        for (int i = 0; i < numFields; i++) {
+            String field = randomAlphaOfLengthBetween(5, 10);
+            map.put(field, randomDynamicFieldMetadata(field));
         }
-
-        Map<String, FieldInferenceMetadata.FieldInferenceOptions> fieldInferenceMap = randomMap(
-            0,
-            10,
-            () -> new Tuple<>(randomIdentifier(), randomFieldInference())
-        );
-        return new FieldInferenceMetadata(fieldInferenceMap);
+        return map;
     }
 
-    private static FieldInferenceMetadata.FieldInferenceOptions randomFieldInference() {
-        return new FieldInferenceMetadata.FieldInferenceOptions(randomIdentifier(), randomSet(0, 5, ESTestCase::randomIdentifier));
+    private static InferenceFieldMetadata randomDynamicFieldMetadata(String name) {
+        return new InferenceFieldMetadata(name, randomIdentifier(), randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new));
     }
 
     private IndexMetadataStats randomIndexStats(int numberOfShards) {

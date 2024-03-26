@@ -201,10 +201,10 @@ public class MetadataMappingService {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                DocumentMapper mapper = mapperService.documentMapper();
-                if (mapper != null) {
-                    indexMetadataBuilder.putMapping(new MappingMetadata(mapper));
-                    indexMetadataBuilder.fieldInferenceMetadata(new FieldInferenceMetadata(mapper.mappers()));
+                DocumentMapper docMapper = mapperService.documentMapper();
+                if (docMapper != null) {
+                    indexMetadataBuilder.putMapping(new MappingMetadata(docMapper));
+                    indexMetadataBuilder.putInferenceFields(docMapper.mappers().inferenceFields());
                 }
                 if (updatedMapping) {
                     indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion());

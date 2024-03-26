@@ -66,3 +66,25 @@ setup:
           id: doc_1
           body:
             dense_field: "you know, for testing"
+
+---
+"Inference section contains unreferenced fields":
+  - do:
+      catch: /Field \[unknown_field\] is not registered as a \[semantic_text\] field type/
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          non_inference_field: "you know, for testing"
+          _inference:
+              unknown_field:
+                inference_id: dense-inference-id
+                model_settings:
+                  task_type: text_embedding
+                chunks:
+                  - text: "inference test"
+                    inference: [ 0.1, 0.2, 0.3, 0.4, 0.5 ]
+                  - text: "another inference test"
+                    inference: [ -0.1, -0.2, -0.3, -0.4, -0.5 ]
+
+

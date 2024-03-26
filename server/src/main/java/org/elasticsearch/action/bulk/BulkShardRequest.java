@@ -15,7 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 
 public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
@@ -34,7 +35,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     private final BulkItemRequest[] items;
 
-    private transient FieldInferenceMetadata fieldsInferenceMetadataMap = null;
+    private transient Map<String, InferenceFieldMetadata> fieldInferenceMap = null;
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -51,24 +52,24 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
      * Public for test
      * Set the transient metadata indicating that this request requires running inference before proceeding.
      */
-    public void setFieldInferenceMetadata(FieldInferenceMetadata fieldsInferenceMetadata) {
-        this.fieldsInferenceMetadataMap = fieldsInferenceMetadata;
+    public void setFieldInferenceMap(Map<String, InferenceFieldMetadata> fieldInferenceMap) {
+        this.fieldInferenceMap = fieldInferenceMap;
     }
 
     /**
      * Consumes the inference metadata to execute inference on the bulk items just once.
      */
-    public FieldInferenceMetadata consumeFieldInferenceMetadata() {
-        FieldInferenceMetadata ret = fieldsInferenceMetadataMap;
-        fieldsInferenceMetadataMap = null;
+    public Map<String, InferenceFieldMetadata> consumeFieldInferenceMetadata() {
+        Map<String, InferenceFieldMetadata> ret = fieldInferenceMap;
+        fieldInferenceMap = null;
         return ret;
     }
 
     /**
      * Public for test
      */
-    public FieldInferenceMetadata getFieldsInferenceMetadataMap() {
-        return fieldsInferenceMetadataMap;
+    public Map<String, InferenceFieldMetadata> getFieldInferenceMap() {
+        return fieldInferenceMap;
     }
 
     public long totalSizeInBytes() {

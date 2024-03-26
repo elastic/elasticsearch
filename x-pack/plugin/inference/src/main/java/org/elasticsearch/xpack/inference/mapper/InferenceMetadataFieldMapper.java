@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -117,7 +118,7 @@ import java.util.stream.Collectors;
  * </pre>
  */
 public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
-    public static final String NAME = "_inference";
+    public static final String NAME = InferenceFieldMapper.NAME;
     public static final String CONTENT_TYPE = "_inference";
 
     public static final String INFERENCE_ID = "inference_id";
@@ -183,7 +184,7 @@ public class InferenceMetadataFieldMapper extends MetadataFieldMapper {
         XContentLocation xContentLocation
     ) {
         final String fullFieldName = semanticFieldContext.mapper.fieldType().name();
-        final String inferenceId = semanticFieldContext.mapper.fieldType().getInferenceId();
+        final String inferenceId = semanticFieldContext.mapper.getInferenceId();
         if (newInferenceId.equals(inferenceId) == false) {
             throw new DocumentParsingException(
                 xContentLocation,

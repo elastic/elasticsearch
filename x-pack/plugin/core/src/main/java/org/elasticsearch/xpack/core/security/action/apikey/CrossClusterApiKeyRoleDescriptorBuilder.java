@@ -18,14 +18,18 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class CrossClusterApiKeyRoleDescriptorBuilder {
 
-    public static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search" };
+    public static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search", "monitor_enrich" };
     public static final String[] CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_replication" };
-    public static final String[] CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search", "cross_cluster_replication" };
+    public static final String[] CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES = Stream.concat(
+        Arrays.stream(CCS_CLUSTER_PRIVILEGE_NAMES),
+        Arrays.stream(CCR_CLUSTER_PRIVILEGE_NAMES)
+    ).toArray(String[]::new);
     public static final String[] CCS_INDICES_PRIVILEGE_NAMES = { "read", "read_cross_cluster", "view_index_metadata" };
     public static final String[] CCR_INDICES_PRIVILEGE_NAMES = { "cross_cluster_replication", "cross_cluster_replication_internal" };
     public static final String ROLE_DESCRIPTOR_NAME = "cross_cluster";

@@ -187,7 +187,7 @@ public final class ResponseValueUtils {
                     }
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
-                    case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToVersion(value.toString()));
+                    case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToVersion(new BytesRef(value.toString())));
                     case "_source" -> {
                         @SuppressWarnings("unchecked")
                         Map<String, ?> o = (Map<String, ?>) value;

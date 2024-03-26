@@ -175,10 +175,10 @@ public class EsqlDataTypeConverter {
     /**
      * The following conversions are used by DateExtract.
      */
-    private static ChronoField stringToChrono(Object value) {
+    private static ChronoField stringToChrono(Object field) {
         ChronoField chronoField = null;
         try {
-            BytesRef br = BytesRefs.toBytesRef(value);
+            BytesRef br = BytesRefs.toBytesRef(field);
             chronoField = ChronoField.valueOf(br.utf8ToString().toUpperCase(Locale.ROOT));
         } catch (Exception e) {
             return null;
@@ -212,10 +212,6 @@ public class EsqlDataTypeConverter {
 
     public static BytesRef stringToVersion(BytesRef field) {
         return new Version(field.utf8ToString()).toBytesRef();
-    }
-
-    public static BytesRef stringToVersion(String field) {
-        return new Version(field).toBytesRef();
     }
 
     public static String versionToString(BytesRef field) {
@@ -270,8 +266,8 @@ public class EsqlDataTypeConverter {
         return StringUtils.parseDouble(field);
     }
 
-    public static BytesRef unsignedLongToString(long field) {
-        return new BytesRef(unsignedLongAsNumber(field).toString());
+    public static BytesRef unsignedLongToString(long number) {
+        return new BytesRef(unsignedLongAsNumber(number).toString());
     }
 
     public static long stringToUnsignedLong(String field) {
@@ -285,16 +281,16 @@ public class EsqlDataTypeConverter {
     /**
      * The following conversion are between unsignedLong and other numeric data types.
      */
-    public static double unsignedLongToDouble(long field) {
-        return NumericUtils.unsignedLongAsNumber(field).doubleValue();
+    public static double unsignedLongToDouble(long number) {
+        return NumericUtils.unsignedLongAsNumber(number).doubleValue();
     }
 
-    public static long doubleToUnsignedLong(double field) {
-        return NumericUtils.asLongUnsigned(safeToUnsignedLong(field));
+    public static long doubleToUnsignedLong(double number) {
+        return NumericUtils.asLongUnsigned(safeToUnsignedLong(number));
     }
 
-    public static int unsignedLongToInt(Long field) {
-        Number n = NumericUtils.unsignedLongAsNumber(field);
+    public static int unsignedLongToInt(long number) {
+        Number n = NumericUtils.unsignedLongAsNumber(number);
         int i = n.intValue();
         if (i != n.longValue()) {
             throw new InvalidArgumentException("[{}] out of [integer] range", n);
@@ -302,16 +298,16 @@ public class EsqlDataTypeConverter {
         return i;
     }
 
-    public static long intToUnsignedLong(int field) {
-        return longToUnsignedLong(field, false);
+    public static long intToUnsignedLong(int number) {
+        return longToUnsignedLong(number, false);
     }
 
-    public static long unsignedLongToLong(long field) {
-        return DataTypeConverter.safeToLong(unsignedLongAsNumber(field));
+    public static long unsignedLongToLong(long number) {
+        return DataTypeConverter.safeToLong(unsignedLongAsNumber(number));
     }
 
-    public static long longToUnsignedLong(long field, boolean allowNegative) {
-        return allowNegative == false ? NumericUtils.asLongUnsigned(safeToUnsignedLong(field)) : NumericUtils.asLongUnsigned(field);
+    public static long longToUnsignedLong(long number, boolean allowNegative) {
+        return allowNegative == false ? NumericUtils.asLongUnsigned(safeToUnsignedLong(number)) : NumericUtils.asLongUnsigned(number);
     }
 
     public static long bigIntegerToUnsignedLong(BigInteger field) {
@@ -319,17 +315,17 @@ public class EsqlDataTypeConverter {
         return NumericUtils.asLongUnsigned(unsignedLong);
     }
 
-    public static BigInteger unsignedLongToBigInteger(long field) {
-        return NumericUtils.unsignedLongAsBigInteger(field);
+    public static BigInteger unsignedLongToBigInteger(long number) {
+        return NumericUtils.unsignedLongAsBigInteger(number);
     }
 
-    public static boolean unsignedLongToBoolean(long field) {
-        Number n = NumericUtils.unsignedLongAsNumber(field);
+    public static boolean unsignedLongToBoolean(long number) {
+        Number n = NumericUtils.unsignedLongAsNumber(number);
         return n instanceof BigInteger || n.longValue() != 0;
     }
 
-    public static long booleanToUnsignedLong(boolean field) {
-        return field ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
+    public static long booleanToUnsignedLong(boolean number) {
+        return number ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
     }
 
     public enum EsqlConverter implements Converter {

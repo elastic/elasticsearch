@@ -59,7 +59,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
@@ -198,7 +197,7 @@ public final class EsqlExpressionTranslators {
                 // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
                 // encoded) representation of the version as it'll do the encoding itself.
                 if (value instanceof BytesRef bytesRef) {
-                    value = versionToString(stringToVersion(bytesRef));
+                    value = versionToString(bytesRef);
                 } else if (value instanceof Version version) {
                     value = versionToString(version);
                 }

@@ -237,119 +237,6 @@ public class ProfileServiceTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    @SuppressWarnings("unchecked")
-    public void testProfileSearchForApiKeyOwnerWithoutDomain() throws Exception {
-        String realmName = "realmName_" + randomAlphaOfLength(8);
-        String realmType = "realmType_" + randomAlphaOfLength(8);
-        String username = "username_" + randomAlphaOfLength(8);
-        List<ApiKey> apiKeys = List.of(createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), username, realmName, realmType));
-        realmRefLookup = realmIdentifier -> {
-            assertThat(realmIdentifier.getName(), is(realmName));
-            assertThat(realmIdentifier.getType(), is(realmType));
-            return new Authentication.RealmRef(realmName, realmType, "nodeName_" + randomAlphaOfLength(8));
-        };
-        MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[1];
-        responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
-        MultiSearchResponse emptyMultiSearchResponse = new MultiSearchResponse(responseItems, randomNonNegativeLong());
-        try {
-            doAnswer(invocation -> {
-                assertThat(
-                    threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                    equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
-                );
-                MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
-                assertThat(multiSearchRequest.requests().get(0).source().query(), instanceOf(BoolQueryBuilder.class));
-                assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(), iterableWithSize(3));
-                assertThat(
-                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(),
-                    containsInAnyOrder(
-                        new TermQueryBuilder("user_profile.user.username.keyword", username),
-                        new TermQueryBuilder("user_profile.user.realm.type", realmType),
-                        new TermQueryBuilder("user_profile.user.realm.name", realmName)
-                    )
-                );
-                var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
-                listener.onResponse(emptyMultiSearchResponse);
-                return null;
-            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
-            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
-
-            PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
-            profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
-            Collection<String> profileUids = listener.get();
-            assertThat(profileUids, iterableWithSize(1));
-            assertThat(profileUids.iterator().next(), nullValue());
-        } finally {
-            emptyMultiSearchResponse.decRef();
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testProfileSearchForApiKeyOwnerWithDomain() throws Exception {
-        String realmName = "realmName_" + randomAlphaOfLength(8);
-        String realmType = "realmType_" + randomAlphaOfLength(8);
-        String username = "username_" + randomAlphaOfLength(8);
-        int domainSize = randomIntBetween(1, 3);
-        Set<RealmConfig.RealmIdentifier> domain = new HashSet<>(domainSize + 1);
-        domain.add(new RealmConfig.RealmIdentifier(realmType, realmName));
-        for (int i = 0; i < domainSize; i++) {
-            domain.add(new RealmConfig.RealmIdentifier("realmTypeFromDomain_" + i, "realmNameFromDomain_" + i));
-        }
-        RealmDomain realmDomain = new RealmDomain("domainName_ " + randomAlphaOfLength(8), domain);
-        List<ApiKey> apiKeys = List.of(createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), username, realmName, realmType));
-        realmRefLookup = realmIdentifier -> {
-            assertThat(realmIdentifier.getName(), is(realmName));
-            assertThat(realmIdentifier.getType(), is(realmType));
-            return new Authentication.RealmRef(realmName, realmType, "nodeName_" + randomAlphaOfLength(8), realmDomain);
-        };
-        MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[1];
-        responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
-        MultiSearchResponse emptyMultiSearchResponse = new MultiSearchResponse(responseItems, randomNonNegativeLong());
-        try {
-            doAnswer(invocation -> {
-                assertThat(
-                    threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
-                    equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
-                );
-                MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
-                assertThat(multiSearchRequest.requests().get(0).source().query(), instanceOf(BoolQueryBuilder.class));
-                assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(), iterableWithSize(1));
-                assertThat(
-                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(),
-                    contains(new TermQueryBuilder("user_profile.user.username.keyword", username))
-                );
-                assertThat(
-                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).should(),
-                    iterableWithSize(domain.size())
-                );
-                assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).minimumShouldMatch(), is("1"));
-                for (RealmConfig.RealmIdentifier domainRealmIdentifier : domain) {
-                    BoolQueryBuilder realmDomainBoolQueryBuilder = new BoolQueryBuilder();
-                    realmDomainBoolQueryBuilder.filter()
-                        .add(new TermQueryBuilder("user_profile.user.realm.type", domainRealmIdentifier.getType()));
-                    realmDomainBoolQueryBuilder.filter()
-                        .add(new TermQueryBuilder("user_profile.user.realm.name", domainRealmIdentifier.getName()));
-                    assertThat(
-                        ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).should(),
-                        hasItem(realmDomainBoolQueryBuilder)
-                    );
-                }
-                var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
-                listener.onResponse(emptyMultiSearchResponse);
-                return null;
-            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
-            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
-
-            PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
-            profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
-            Collection<String> profileUids = listener.get();
-            assertThat(profileUids, iterableWithSize(1));
-            assertThat(profileUids.iterator().next(), nullValue());
-        } finally {
-            emptyMultiSearchResponse.decRef();
-        }
-    }
-
     public void testGetProfilesByUids() {
         final List<SampleDocumentParameter> sampleDocumentParameters = randomList(
             1,
@@ -1192,6 +1079,119 @@ public class ProfileServiceTests extends ESTestCase {
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         profileService.usageStats(future);
         assertThat(future.actionGet(), equalTo(Map.of("total", 0L, "enabled", 0L, "recent", 0L)));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileSearchForApiKeyOwnerWithoutDomain() throws Exception {
+        String realmName = "realmName_" + randomAlphaOfLength(8);
+        String realmType = "realmType_" + randomAlphaOfLength(8);
+        String username = "username_" + randomAlphaOfLength(8);
+        List<ApiKey> apiKeys = List.of(createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), username, realmName, realmType));
+        realmRefLookup = realmIdentifier -> {
+            assertThat(realmIdentifier.getName(), is(realmName));
+            assertThat(realmIdentifier.getType(), is(realmType));
+            return new Authentication.RealmRef(realmName, realmType, "nodeName_" + randomAlphaOfLength(8));
+        };
+        MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[1];
+        responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+        MultiSearchResponse emptyMultiSearchResponse = new MultiSearchResponse(responseItems, randomNonNegativeLong());
+        try {
+            doAnswer(invocation -> {
+                assertThat(
+                    threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                    equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                );
+                MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                assertThat(multiSearchRequest.requests().get(0).source().query(), instanceOf(BoolQueryBuilder.class));
+                assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(), iterableWithSize(3));
+                assertThat(
+                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(),
+                    containsInAnyOrder(
+                        new TermQueryBuilder("user_profile.user.username.keyword", username),
+                        new TermQueryBuilder("user_profile.user.realm.type", realmType),
+                        new TermQueryBuilder("user_profile.user.realm.name", realmName)
+                    )
+                );
+                var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(emptyMultiSearchResponse);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+
+            PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+            profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
+            Collection<String> profileUids = listener.get();
+            assertThat(profileUids, iterableWithSize(1));
+            assertThat(profileUids.iterator().next(), nullValue());
+        } finally {
+            emptyMultiSearchResponse.decRef();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileSearchForApiKeyOwnerWithDomain() throws Exception {
+        String realmName = "realmName_" + randomAlphaOfLength(8);
+        String realmType = "realmType_" + randomAlphaOfLength(8);
+        String username = "username_" + randomAlphaOfLength(8);
+        int domainSize = randomIntBetween(1, 3);
+        Set<RealmConfig.RealmIdentifier> domain = new HashSet<>(domainSize + 1);
+        domain.add(new RealmConfig.RealmIdentifier(realmType, realmName));
+        for (int i = 0; i < domainSize; i++) {
+            domain.add(new RealmConfig.RealmIdentifier("realmTypeFromDomain_" + i, "realmNameFromDomain_" + i));
+        }
+        RealmDomain realmDomain = new RealmDomain("domainName_ " + randomAlphaOfLength(8), domain);
+        List<ApiKey> apiKeys = List.of(createApiKeyForOwner("keyId_" + randomAlphaOfLength(8), username, realmName, realmType));
+        realmRefLookup = realmIdentifier -> {
+            assertThat(realmIdentifier.getName(), is(realmName));
+            assertThat(realmIdentifier.getType(), is(realmType));
+            return new Authentication.RealmRef(realmName, realmType, "nodeName_" + randomAlphaOfLength(8), realmDomain);
+        };
+        MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[1];
+        responseItems[0] = new MultiSearchResponse.Item(new TestEmptySearchResponse(), null);
+        MultiSearchResponse emptyMultiSearchResponse = new MultiSearchResponse(responseItems, randomNonNegativeLong());
+        try {
+            doAnswer(invocation -> {
+                assertThat(
+                    threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME),
+                    equalTo(useProfileOrigin ? SECURITY_PROFILE_ORIGIN : SECURITY_ORIGIN)
+                );
+                MultiSearchRequest multiSearchRequest = (MultiSearchRequest) invocation.getArguments()[1];
+                assertThat(multiSearchRequest.requests().get(0).source().query(), instanceOf(BoolQueryBuilder.class));
+                assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(), iterableWithSize(1));
+                assertThat(
+                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).filter(),
+                    contains(new TermQueryBuilder("user_profile.user.username.keyword", username))
+                );
+                assertThat(
+                    ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).should(),
+                    iterableWithSize(domain.size())
+                );
+                assertThat(((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).minimumShouldMatch(), is("1"));
+                for (RealmConfig.RealmIdentifier domainRealmIdentifier : domain) {
+                    BoolQueryBuilder realmDomainBoolQueryBuilder = new BoolQueryBuilder();
+                    realmDomainBoolQueryBuilder.filter()
+                        .add(new TermQueryBuilder("user_profile.user.realm.type", domainRealmIdentifier.getType()));
+                    realmDomainBoolQueryBuilder.filter()
+                        .add(new TermQueryBuilder("user_profile.user.realm.name", domainRealmIdentifier.getName()));
+                    assertThat(
+                        ((BoolQueryBuilder) multiSearchRequest.requests().get(0).source().query()).should(),
+                        hasItem(realmDomainBoolQueryBuilder)
+                    );
+                }
+                var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(emptyMultiSearchResponse);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+
+            PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+            profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
+            Collection<String> profileUids = listener.get();
+            assertThat(profileUids, iterableWithSize(1));
+            assertThat(profileUids.iterator().next(), nullValue());
+        } finally {
+            emptyMultiSearchResponse.decRef();
+        }
     }
 
     record SampleDocumentParameter(String uid, String username, List<String> roles, long lastSynchronized) {}

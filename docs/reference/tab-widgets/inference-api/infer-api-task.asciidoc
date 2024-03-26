@@ -13,7 +13,8 @@ PUT _inference/text_embedding/cohere_embeddings <1>
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The task type is `text_embedding` in the path.
+<1> The task type is `text_embedding` in the path and the `inference_id` which 
+is the unique identifier of the {infer} endpoint is `cohere_embeddings`.
 <2> The API key of your Cohere account. You can find your API keys in your
 Cohere dashboard under the
 https://dashboard.cohere.com/api-keys[API keys section]. You need to provide
@@ -46,7 +47,8 @@ PUT _inference/text_embedding/openai_embeddings <1>
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-<1> The task type is `text_embedding` in the path.
+<1> The task type is `text_embedding` in the path and the `inference_id` which 
+is the unique identifier of the {infer} endpoint is `openai_embeddings`.
 <2> The API key of your OpenAI account. You can find your OpenAI API keys in
 your OpenAI account under the
 https://platform.openai.com/api-keys[API keys section]. You need to provide

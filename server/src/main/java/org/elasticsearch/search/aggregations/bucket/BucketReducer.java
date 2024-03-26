@@ -15,32 +15,40 @@ import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 /**
- *  Class for reducing a list of {@link MultiBucketsAggregation.Bucket} to a single
- *  {@link InternalAggregations} and the number of documents.
+ *  Class for reducing a list of {@link B} to a single {@link InternalAggregations}
+ *  and the number of documents.
  */
-public final class MultiBucketAggregatorsReducer implements Releasable {
+public final class BucketReducer<B extends MultiBucketsAggregation.Bucket> implements Releasable {
 
     private final AggregatorsReducer aggregatorsReducer;
+    private final B proto;
     private long count = 0;
 
-    public MultiBucketAggregatorsReducer(AggregationReduceContext context, int size) {
+    public BucketReducer(B proto, AggregationReduceContext context, int size) {
         this.aggregatorsReducer = new AggregatorsReducer(context, size);
+        this.proto = proto;
     }
 
     /**
-     * Adds a {@link MultiBucketsAggregation.Bucket} for reduction.
+     * Adds a {@link B} for reduction.
      */
-    public void accept(MultiBucketsAggregation.Bucket bucket) {
+    public void accept(B bucket) {
         count += bucket.getDocCount();
         aggregatorsReducer.accept(bucket.getAggregations());
     }
 
     /**
+     * returns the bucket prototype.
+     */
+    public B getProto() {
+        return proto;
+    }
+
+    /**
      * returns the reduced {@link InternalAggregations}.
      */
-    public InternalAggregations get() {
+    public InternalAggregations getAggregations() {
         return aggregatorsReducer.get();
-
     }
 
     /**

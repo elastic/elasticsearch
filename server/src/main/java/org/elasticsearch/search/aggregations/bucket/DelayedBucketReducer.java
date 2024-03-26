@@ -16,38 +16,49 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- *  Class for reducing a list of {@link MultiBucketsAggregation.Bucket} to a single
- *  {@link InternalAggregations} and the number of documents in a delayable fashion.
+ *  Class for reducing a list of {@link B} to a single {@link InternalAggregations}
+ *  and the number of documents in a delayable fashion.
  *
- *  This class can be reused by calling {@link #reset()}.
+ *  This class can be reused by calling {@link #reset(B)}.
  *
- * @see MultiBucketAggregatorsReducer
+ * @see BucketReducer
  */
-public final class DelayedMultiBucketAggregatorsReducer {
+public final class DelayedBucketReducer<B extends MultiBucketsAggregation.Bucket> {
 
     private final AggregationReduceContext context;
+    // changes at reset time
+    private B proto;
     // the maximum size of this array is the number of shards to be reduced. We currently do it in a batches of 256
-    // if we expect bigger batches, we might consider to use ObjectArray.
+    // by default. if we expect bigger batches, we might consider to use ObjectArray.
     private final List<InternalAggregations> internalAggregations;
     private long count = 0;
 
-    public DelayedMultiBucketAggregatorsReducer(AggregationReduceContext context) {
+    public DelayedBucketReducer(B proto, AggregationReduceContext context) {
+        this.proto = proto;
         this.context = context;
         this.internalAggregations = new ArrayList<>();
     }
 
     /**
-     * Adds a {@link MultiBucketsAggregation.Bucket} for reduction.
+     * Adds a {@link B} for reduction.
      */
-    public void accept(MultiBucketsAggregation.Bucket bucket) {
+    public void accept(B bucket) {
         count += bucket.getDocCount();
         internalAggregations.add(bucket.getAggregations());
     }
 
     /**
+     * returns the bucket prototype.
+     */
+    public B getProto() {
+        return proto;
+    }
+
+    /**
      * Reset the content of this reducer.
      */
-    public void reset() {
+    public void reset(B proto) {
+        this.proto = proto;
         count = 0L;
         internalAggregations.clear();
     }
@@ -55,7 +66,7 @@ public final class DelayedMultiBucketAggregatorsReducer {
     /**
      * returns the reduced {@link InternalAggregations}.
      */
-    public InternalAggregations get() {
+    public InternalAggregations getAggregations() {
         try (AggregatorsReducer aggregatorsReducer = new AggregatorsReducer(context, internalAggregations.size())) {
             for (InternalAggregations agg : internalAggregations) {
                 aggregatorsReducer.accept(agg);

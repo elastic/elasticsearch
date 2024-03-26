@@ -61,7 +61,6 @@ sourceSets.main.java {
 tasks.named("test").configure {
   if (BuildParams.isCi() == false) {
     systemProperty 'generateDocs', true
-    systemProperty 'examples.dir', "${projectDir}/qa/testFixtures/src/main/resources/"
     doFirst {
       project.delete(
         files("${projectDir}/build/testrun/test/temp/esql/functions")
@@ -71,6 +70,22 @@ tasks.named("test").configure {
       List signatures = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list().findAll {it.endsWith("svg")}
       List types = file("${projectDir}/build/testrun/test/temp/esql/functions/types").list().findAll {it.endsWith("asciidoc")}
       int count = signatures == null ? 0 : signatures.size()
+      Closure readExample = line -> {
+        line.replaceAll(/read-example::([^\[]+)\[tag=([^\]]+)\]/, {
+          String file = it[1]
+          String tag = it[2]
+          String allExamples = new File("${projectDir}/qa/testFixtures/src/main/resources/${file}").text
+          int start = allExamples.indexOf("tag::${tag}[]")
+          int end = allExamples.indexOf("end::${tag}[]", start)
+          if (start < 0 || end < 0) {
+              throw new IllegalAccessException("can't find example ${file}::${tag}")
+          }
+          // Slice out the newlines
+          start = allExamples.indexOf('\n', start) + 1
+          end = allExamples.lastIndexOf('\n', end)
+          return allExamples.substring(start, end)
+        })
+      }
       if (count == 0) {
         logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
       } else if (count == 1) {
@@ -80,8 +95,9 @@ tasks.named("test").configure {
           into "${rootDir}/docs/reference/esql/functions"
           include '**/*.asciidoc', '**/*.svg', '**/*.md'
           preserve {
-            include '/*.asciidoc', '**/*.asciidoc', '**/*.svg', 'README.md'
+            include '/*.asciidoc', '**/*.asciidoc', '**/*.md', '**/*.svg', 'README.md'
           }
+          filter readExample
         }
       } else {
         project.sync {
@@ -91,6 +107,7 @@ tasks.named("test").configure {
           preserve {
             include '/*.asciidoc', 'README.md'
           }
+          filter readExample
         }
       }
     }

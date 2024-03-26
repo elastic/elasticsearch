@@ -1107,7 +1107,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             renderDescription(description.description(), info.note());
             boolean hasExamples = renderExamples(info);
             renderFullLayout(name, hasExamples);
-            renderKibanaInlineDocs(name, description.description(), info);
+            renderKibanaInlineDocs(name, info);
             return;
         }
         LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function '" + name + "' isn't registered");
@@ -1222,7 +1222,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("layout", rendered, "asciidoc");
     }
 
-    private static void renderKibanaInlineDocs(String name, String description, FunctionInfo info) throws IOException {
+    private static void renderKibanaInlineDocs(String name, FunctionInfo info) throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append("""
             <!--
@@ -1231,23 +1231,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
             """);
         builder.append("### ").append(name.toUpperCase(Locale.ROOT)).append("\n");
-        builder.append(description).append("\n\n");
+        builder.append(info.description()).append("\n\n");
 
         if (info.examples().length > 0) {
             Example example = info.examples()[0];
             builder.append("```\n");
-            String allExamples = Files.readString(PathUtils.get(System.getProperty("examples.dir"), example.file() + ".csv-spec"));
-            String tag = "tag::" + example.tag() + "[]";
-            int start = allExamples.indexOf(tag);
-            int end = allExamples.indexOf("end::" + example.tag() + "[]", start);
-            if (start < 0 || end < 0) {
-                fail("can't find example " + example);
-            }
-            // Slice out the newlines
-            start = allExamples.indexOf('\n', start) + 1;
-            end = allExamples.lastIndexOf('\n', end);
-            builder.append(allExamples.substring(start, end));
-            builder.append("\n```\n");
+            builder.append("read-example::").append(example.file()).append(".csv-spec[tag=").append(example.tag()).append("]\n");
+            builder.append("```\n");
+        }
+        if (Strings.isNullOrEmpty(info.note()) == false) {
+            builder.append("Note: ").append(info.note()).append("\n");
         }
         String rendered = builder.toString();
         LogManager.getLogger(getTestClass()).info("Writing kibana inline docs for [{}]:\n{}", functionName(), rendered);

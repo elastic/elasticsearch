@@ -11,18 +11,15 @@ package org.elasticsearch.nativeaccess.jdk;
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
 import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 
 class JdkCloseableByteBuffer implements CloseableByteBuffer {
     private final Arena arena;
-    final MemorySegment segment;
     private final ByteBuffer bufferView;
 
     JdkCloseableByteBuffer(int len) {
         this.arena = Arena.ofShared();
-        this.segment = arena.allocate(len);
-        this.bufferView = segment.asByteBuffer();
+        this.bufferView = this.arena.allocate(len).asByteBuffer();
     }
 
     @Override

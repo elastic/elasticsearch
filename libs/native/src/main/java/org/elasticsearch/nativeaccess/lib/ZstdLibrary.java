@@ -8,17 +8,17 @@
 
 package org.elasticsearch.nativeaccess.lib;
 
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import java.nio.ByteBuffer;
 
 public non-sealed interface ZstdLibrary extends NativeLibrary {
 
     long compressBound(int scrLen);
 
-    long compress(CloseableByteBuffer dst, CloseableByteBuffer src, int compressionLevel);
+    long compress(ByteBuffer dst, ByteBuffer src, int compressionLevel);
 
     boolean isError(long code);
 
     String getErrorName(long code);
 
-    long decompress(CloseableByteBuffer dst, CloseableByteBuffer src);
+    long decompress(ByteBuffer dst, ByteBuffer src);
 }

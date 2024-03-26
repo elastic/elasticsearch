@@ -15,7 +15,7 @@ import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import java.nio.ByteBuffer;
 
 class JnaCloseableByteBuffer implements CloseableByteBuffer {
-    final Memory memory;
+    private final Memory memory;
     private final ByteBuffer bufferView;
 
     JnaCloseableByteBuffer(int len) {

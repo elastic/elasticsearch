@@ -25,14 +25,4 @@ They intersect if they have any point in common, including their interior points
 In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅
 
 include::types/st_intersects.asciidoc[]
-
-*Example*
-
-[source.merge.styled,esql]
-----
-include::{esql-specs}/spatial.csv-spec[tag=st_intersects-airports]
-----
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/spatial.csv-spec[tag=st_intersects-airports-results]
-|===
+include::examples/st_intersects.asciidoc[]

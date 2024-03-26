@@ -21,14 +21,4 @@ include::description/st_within.asciidoc[]
 This is the inverse of the `<<esql-st_contains,ST_CONTAINS>>` function.
 
 include::types/st_within.asciidoc[]
-
-*Example*
-
-[source.merge.styled,esql]
-----
-include::{esql-specs}/spatial_shapes.csv-spec[tag=st_within-airport_city_boundaries]
-----
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/spatial_shapes.csv-spec[tag=st_within-airport_city_boundaries-results]
-|===
+include::examples/st_within.asciidoc[]

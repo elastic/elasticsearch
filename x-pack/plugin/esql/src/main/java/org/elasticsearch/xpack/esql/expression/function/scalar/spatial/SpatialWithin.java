@@ -69,7 +69,7 @@ public class SpatialWithin extends SpatialRelatesFunction implements SurrogateEx
         description = "Returns whether the first geometry is within the second geometry.",
         note = "The second parameter must also have the same coordinate system as the first. "
             + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
-        examples = @Example(file = "spatial", tag = "st_within-airport_city_boundaries")
+        examples = @Example(file = "spatial_shapes", tag = "st_within-airport_city_boundaries")
     )
     public SpatialWithin(
         Source source,

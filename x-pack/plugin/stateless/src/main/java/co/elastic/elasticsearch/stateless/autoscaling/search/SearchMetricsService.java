@@ -40,11 +40,15 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+
+import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.SEARCH_POWER_SETTING;
 
 /**
  * This service is responsible for receiving raw shard sizes notification from the search nodes
@@ -81,6 +85,7 @@ public class SearchMetricsService implements ClusterStateListener {
 
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
     private volatile TimeValue staleMetricsCheckInterval;
+    private volatile int searchPowerSetting;
 
     public static SearchMetricsService create(
         ClusterSettings clusterSettings,
@@ -88,16 +93,12 @@ public class SearchMetricsService implements ClusterStateListener {
         ClusterService clusterService,
         MemoryMetricsService memoryMetricsService
     ) {
-        var service = new SearchMetricsService(clusterSettings, threadPool, memoryMetricsService);
+        var service = new SearchMetricsService(clusterSettings, threadPool::relativeTimeInNanos, memoryMetricsService);
         clusterService.addListener(service);
         return service;
     }
 
-    public SearchMetricsService(ClusterSettings clusterSettings, ThreadPool threadPool, MemoryMetricsService memoryMetricsService) {
-        this(clusterSettings, threadPool::relativeTimeInNanos, memoryMetricsService);
-    }
-
-    public SearchMetricsService(
+    SearchMetricsService(
         ClusterSettings clusterSettings,
         LongSupplier relativeTimeInNanosSupplier,
         MemoryMetricsService memoryMetricsService
@@ -106,9 +107,14 @@ public class SearchMetricsService implements ClusterStateListener {
         this.memoryMetricsService = memoryMetricsService;
         clusterSettings.initializeAndWatch(ACCURATE_METRICS_WINDOW_SETTING, value -> this.metricTimeoutNanos = value.nanos());
         clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> this.staleMetricsCheckInterval = value);
+        clusterSettings.initializeAndWatch(SEARCH_POWER_SETTING, this::updateSearchPower);
     }
 
-    public void processShardSizesRequest(PublishShardSizesRequest request) {
+    void updateSearchPower(int sp) {
+        this.searchPowerSetting = sp;
+    }
+
+    void processShardSizesRequest(PublishShardSizesRequest request) {
         var currentTimestampNanos = relativeTimeInNanos();
         logger.debug("Received shard sizes {}", request.getShardSizes());
         var nodeMetrics = this.nodeMetrics.computeIfAbsent(request.getNodeId(), unused -> new NodeMetrics());
@@ -283,5 +289,48 @@ public class SearchMetricsService implements ClusterStateListener {
 
     ConcurrentMap<ShardId, ShardMetrics> getShardMetrics() {
         return shardMetrics;
+    }
+
+    Map<String, Integer> getNumberOfReplicaChanges() {
+        Map<String, Integer> numReplicaChanges = new HashMap<>();
+        for (Map.Entry<Index, IndexShardsSettings> entry : indices.entrySet()) {
+            Index index = entry.getKey();
+            IndexShardsSettings settings = entry.getValue();
+            boolean isWithinBoostWindow = false;
+            for (int i = 0; i < settings.shards; i++) {
+                ShardMetrics shardMetrics = this.shardMetrics.get(new ShardId(index, i));
+                if (shardMetrics == null) {
+                    // move to the next index if shard metrics for the current index are not found: they could have been removed
+                    // because the index has been removed, or because it has now zero replicas.
+                    continue;
+                }
+                if (shardMetrics.shardSize.interactiveSizeInBytes() > 0) {
+                    // one shard has interactive data -> its index is within the boost window
+                    isWithinBoostWindow = true;
+                    break;
+                }
+            }
+            if (isWithinBoostWindow) {
+                if (searchPowerSetting >= 250) {
+                    if (settings.replicas != 2) {
+                        numReplicaChanges.put(index.getName(), 2);
+                    }
+                } else if (searchPowerSetting >= 100) {
+                    // TODO assign replicas based on index ranking, for now it's always 1, same as < 100
+                    if (settings.replicas != 1) {
+                        numReplicaChanges.put(index.getName(), 1);
+                    }
+                } else if (searchPowerSetting < 100) {
+                    if (settings.replicas != 1) {
+                        numReplicaChanges.put(index.getName(), 1);
+                    }
+                }
+            } else {
+                if (settings.replicas != 1) {
+                    numReplicaChanges.put(index.getName(), 1);
+                }
+            }
+        }
+        return numReplicaChanges;
     }
 }

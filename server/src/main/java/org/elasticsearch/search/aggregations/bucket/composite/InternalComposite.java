@@ -12,6 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
+import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -20,6 +22,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.DelayedBucketReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -201,56 +204,29 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final ObjectArrayPriorityQueue<BucketIterator> pq = new ObjectArrayPriorityQueue<>(size, reduceContext.bigArrays()) {
-                @Override
-                protected boolean lessThan(BucketIterator a, BucketIterator b) {
-                    return a.compareTo(b) < 0;
-                }
-            };
+            final BucketsQueue queue = new BucketsQueue(reduceContext);
             boolean earlyTerminated = false;
 
             @Override
             public void accept(InternalAggregation aggregation) {
                 InternalComposite sortedAgg = (InternalComposite) aggregation;
                 earlyTerminated |= sortedAgg.earlyTerminated;
-                BucketIterator it = new BucketIterator(sortedAgg.buckets);
-                if (it.next() != null) {
-                    pq.add(it);
+                for (InternalBucket bucket : sortedAgg.getBuckets()) {
+                    if (queue.add(bucket) == false) {
+                        // if the bucket is not competitive, we can break
+                        // because incoming buckets are sorted
+                        break;
+                    }
                 }
             }
 
             @Override
             public InternalAggregation get() {
-                InternalBucket lastBucket = null;
-                List<InternalBucket> buckets = new ArrayList<>();
-                List<InternalBucket> result = new ArrayList<>();
-                while (pq.size() > 0) {
-                    BucketIterator bucketIt = pq.top();
-                    if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
-                        InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-                        buckets.clear();
-                        result.add(reduceBucket);
-                        if (result.size() >= getSize()) {
-                            break;
-                        }
-                    }
-                    lastBucket = bucketIt.current;
-                    buckets.add(bucketIt.current);
-                    if (bucketIt.next() != null) {
-                        pq.updateTop();
-                    } else {
-                        pq.pop();
-                    }
-                }
-                if (buckets.size() > 0) {
-                    InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-                    result.add(reduceBucket);
-                }
-
+                final List<InternalBucket> result = queue.get();
                 List<DocValueFormat> reducedFormats = formats;
                 CompositeKey lastKey = null;
-                if (result.size() > 0) {
-                    lastBucket = result.get(result.size() - 1);
+                if (result.isEmpty() == false) {
+                    InternalBucket lastBucket = result.get(result.size() - 1);
                     /* Attach the formats from the last bucket to the reduced composite
                      * so that we can properly format the after key. */
                     reducedFormats = lastBucket.formats;
@@ -275,9 +251,80 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
 
             @Override
             public void close() {
-                Releasables.close(pq);
+                Releasables.close(queue);
             }
         };
+    }
+
+    private class BucketsQueue implements Releasable {
+        private final ObjectObjectPagedHashMap<Object, DelayedBucketReducer<InternalBucket>> bucketReducers;
+        private final ObjectArrayPriorityQueue<InternalBucket> queue;
+        private final AggregationReduceContext reduceContext;
+
+        private BucketsQueue(AggregationReduceContext reduceContext) {
+            this.reduceContext = reduceContext;
+            bucketReducers = new ObjectObjectPagedHashMap<>(getSize(), reduceContext.bigArrays());
+            queue = new ObjectArrayPriorityQueue<>(getSize(), reduceContext.bigArrays()) {
+                @Override
+                protected boolean lessThan(InternalBucket a, InternalBucket b) {
+                    return b.compareKey(a) < 0;
+                }
+            };
+        }
+
+        /** adds a bucket to the queue. Return false if the bucket is not competitive, otherwise true.*/
+        boolean add(InternalBucket bucket) {
+            DelayedBucketReducer<InternalBucket> delayed = bucketReducers.get(bucket.key);
+            if (delayed == null) {
+                final InternalBucket out = queue.insertWithOverflow(bucket);
+                if (out == null) {
+                    // bucket is added
+                    delayed = new DelayedBucketReducer<>(bucket, reduceContext);
+                } else if (out == bucket) {
+                    // bucket is not competitive
+                    return false;
+                } else {
+                    // bucket replaces existing bucket
+                    delayed = bucketReducers.remove(out.key);
+                    assert delayed != null;
+                    delayed.reset(bucket);
+                }
+                bucketReducers.put(bucket.key, delayed);
+            }
+            delayed.accept(bucket);
+            return true;
+        }
+
+        /** Return the list of reduced buckets */
+        List<InternalBucket> get() {
+            final int bucketsSize = (int) bucketReducers.size();
+            final InternalBucket[] result = new InternalBucket[bucketsSize];
+            for (int i = bucketsSize - 1; i >= 0; i--) {
+                final InternalBucket bucket = queue.pop();
+                assert bucket != null;
+                /* Use the formats from the bucket because they'll be right to format
+                 * the key. The formats on the InternalComposite doing the reducing are
+                 * just whatever formats make sense for *its* index. This can be real
+                 * trouble when the index doing the reducing is unmapped. */
+                final var reducedFormats = bucket.formats;
+                final DelayedBucketReducer<InternalBucket> reducer = Objects.requireNonNull(bucketReducers.get(bucket.key));
+                result[i] = new InternalBucket(
+                    sourceNames,
+                    reducedFormats,
+                    bucket.key,
+                    reverseMuls,
+                    missingOrders,
+                    reducer.getDocCount(),
+                    reducer.getAggregations()
+                );
+            }
+            return List.of(result);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(bucketReducers, queue);
+        }
     }
 
     @Override
@@ -294,22 +341,6 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             earlyTerminated,
             metadata
         );
-    }
-
-    private InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
-        assert buckets.isEmpty() == false;
-        long docCount = 0;
-        for (InternalBucket bucket : buckets) {
-            docCount += bucket.docCount;
-        }
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        /* Use the formats from the bucket because they'll be right to format
-         * the key. The formats on the InternalComposite doing the reducing are
-         * just whatever formats make sense for *its* index. This can be real
-         * trouble when the index doing the reducing is unmapped. */
-        final var reducedFormats = buckets.get(0).formats;
-        return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, missingOrders, docCount, aggs);
     }
 
     @Override
@@ -329,24 +360,6 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), size, buckets, afterKey, Arrays.hashCode(reverseMuls), Arrays.hashCode(missingOrders));
-    }
-
-    private static class BucketIterator implements Comparable<BucketIterator> {
-        final Iterator<InternalBucket> it;
-        InternalBucket current;
-
-        private BucketIterator(List<InternalBucket> buckets) {
-            this.it = buckets.iterator();
-        }
-
-        @Override
-        public int compareTo(BucketIterator other) {
-            return current.compareKey(other.current);
-        }
-
-        InternalBucket next() {
-            return current = it.hasNext() ? it.next() : null;
-        }
     }
 
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket

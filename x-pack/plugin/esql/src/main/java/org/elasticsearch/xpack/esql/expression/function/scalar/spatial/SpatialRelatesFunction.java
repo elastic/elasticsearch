@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
-import java.awt.geom.Point2D;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
@@ -295,20 +294,16 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         protected boolean pointRelatesGeometry(long encoded, Component2D component2D) {
             // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
             Point point = spatialCoordinateType.longAsPoint(encoded);
-            if (queryRelation == CONTAINS) {
-                if (component2D instanceof Point2D point2D) {
-                    return point2D.getX() == point.getX() && point2D.getY() == point.getY();
-                }
-                // Points cannot contain anything other than points
-                return false;
-            } else {
-                return geometryRelatesPoint(component2D, point);
-            }
+            return pointRelatesGeometry(point, component2D);
         }
 
-        private boolean geometryRelatesPoint(Component2D component2D, Point point) {
-            boolean contains = component2D.contains(point.getX(), point.getY());
-            return queryRelation == DISJOINT ? contains == false : contains;
+        private boolean pointRelatesGeometry(Point point, Component2D component2D) {
+            if (queryRelation == CONTAINS) {
+                return component2D.withinPoint(point.getX(), point.getY()) == Component2D.WithinRelation.CANDIDATE;
+            } else {
+                boolean contains = component2D.contains(point.getX(), point.getY());
+                return queryRelation == DISJOINT ? contains == false : contains;
+            }
         }
     }
 }

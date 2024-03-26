@@ -654,15 +654,14 @@ contains:boolean
 false
 ;
 
-pointContainedInLiteralPolygon
+pointContainsLiteralPolygon
 required_feature: esql.st_contains_within
 
 FROM airports
-| WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+| WHERE ST_CONTAINS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
 ;
 
 abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
-HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
 ;
 
 pointContainedInLiteralPolygon
@@ -687,7 +686,7 @@ abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  
 XXX             |  Atlantis      |  POINT(0 0)              |  Atlantis         |  POINT(0 0)          |  Atlantis Int'l  |  1            |  mid
 ;
 
-airportCityLocationPointIntersectionCentroid
+airportCityLocationPointContainsCentroid
 required_feature: esql.st_contains_within
 
 FROM airports_mp

@@ -13,6 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -63,6 +64,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     protected abstract MappedFieldType loopFieldType();
 
     protected abstract String typeName();
+
+    protected static <T extends IndexableField> void addDocument(RandomIndexWriter iw, Iterable<T> indexableFields) throws IOException {
+        iw.addDocument(indexableFields);
+        if (randomBoolean()) {
+            iw.flush();
+        }
+    }
 
     public final void testMinimalSerializesToItself() throws IOException {
         XContentBuilder orig = JsonXContent.contentBuilder().startObject();

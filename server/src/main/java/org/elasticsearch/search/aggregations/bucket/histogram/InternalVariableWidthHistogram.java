@@ -20,7 +20,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -492,7 +492,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
                     long key = NumericUtils.doubleToSortableLong(bucket.centroid());
                     ReducerAndExtraInfo reducer = bucketsReducer.get(key);
                     if (reducer == null) {
-                        reducer = new ReducerAndExtraInfo(new MultiBucketAggregatorsReducer(reduceContext, size));
+                        reducer = new ReducerAndExtraInfo(new BucketReducer<>(bucket, reduceContext, size));
                         bucketsReducer.put(key, reducer);
                         reduceContext.consumeBucketsAndMaybeBreak(1);
                     }
@@ -506,10 +506,12 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             @Override
             public InternalAggregation get() {
                 final List<Bucket> reducedBuckets = new ArrayList<>((int) bucketsReducer.size());
-                bucketsReducer.iterator().forEachRemaining(entry -> {
+                bucketsReducer.forEach(entry -> {
                     final double centroid = entry.value.sum[0] / entry.value.reducer.getDocCount();
                     final Bucket.BucketBounds bounds = new Bucket.BucketBounds(entry.value.min[0], entry.value.max[0]);
-                    reducedBuckets.add(new Bucket(centroid, bounds, entry.value.reducer.getDocCount(), format, entry.value.reducer.get()));
+                    reducedBuckets.add(
+                        new Bucket(centroid, bounds, entry.value.reducer.getDocCount(), format, entry.value.reducer.getAggregations())
+                    );
                 });
                 reducedBuckets.sort(Comparator.comparing(Bucket::centroid));
                 mergeBucketsIfNeeded(reducedBuckets, targetNumBuckets, reduceContext);
@@ -523,14 +525,14 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
 
             @Override
             public void close() {
-                bucketsReducer.iterator().forEachRemaining(entry -> Releasables.close(entry.value.reducer));
+                bucketsReducer.forEach(entry -> Releasables.close(entry.value.reducer));
                 Releasables.close(bucketsReducer);
             }
         };
     }
 
-    private record ReducerAndExtraInfo(MultiBucketAggregatorsReducer reducer, double[] min, double[] max, double[] sum) {
-        private ReducerAndExtraInfo(MultiBucketAggregatorsReducer reducer) {
+    private record ReducerAndExtraInfo(BucketReducer<Bucket> reducer, double[] min, double[] max, double[] sum) {
+        private ReducerAndExtraInfo(BucketReducer<Bucket> reducer) {
             this(reducer, new double[] { Double.POSITIVE_INFINITY }, new double[] { Double.NEGATIVE_INFINITY }, new double[] { 0 });
         }
     }

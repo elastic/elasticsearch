@@ -72,6 +72,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -1312,7 +1313,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     );
 
     static {
-        BaseBroadcastResponse.declareBroadcastFields(BROADCAST_RESPONSE_PARSER);
+        AbstractBroadcastResponseTestCase.declareBroadcastFields(BROADCAST_RESPONSE_PARSER);
     }
 
     protected static BroadcastResponse refresh(RestClient client, String index) throws IOException {

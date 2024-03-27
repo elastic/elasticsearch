@@ -22,15 +22,15 @@ import static org.hamcrest.Matchers.is;
 public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
 
     public void testNodesCapabilities() throws IOException {
-        internalCluster().startNode();
+        internalCluster().startNodes(2);
 
-        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("1").get();
+        ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
         // check we support the capabilities API itself. Which we do.
         NodesCapabilitiesResponse response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities"))
             .actionGet();
-        assertThat(response.getNodes(), hasSize(1));
+        assertThat(response.getNodes(), hasSize(2));
         assertThat(response.isSupported(), is(true));
     }
 }

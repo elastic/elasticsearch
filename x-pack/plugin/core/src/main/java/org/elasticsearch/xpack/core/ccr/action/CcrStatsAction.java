@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -39,7 +40,9 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            timeout = in.readOptionalTimeValue();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.CCR_STATS_API_TIMEOUT_PARAM)) {
+                timeout = in.readOptionalTimeValue();
+            }
         }
 
         public Request() {}
@@ -52,7 +55,9 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalTimeValue(timeout);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.CCR_STATS_API_TIMEOUT_PARAM)) {
+                out.writeOptionalTimeValue(timeout);
+            }
         }
 
         public TimeValue getTimeout() {

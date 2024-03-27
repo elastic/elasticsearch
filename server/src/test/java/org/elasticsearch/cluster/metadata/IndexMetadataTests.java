@@ -83,7 +83,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
-        Map<String, InferenceFieldMetadata> dynamicFields = randomDynamicFields();
+        Map<String, InferenceFieldMetadata> dynamicFields = randomInferenceFields();
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
@@ -557,7 +557,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
         assertSame(idxMeta1.getInferenceFields(), Map.of());
 
-        Map<String, InferenceFieldMetadata> dynamicFields = randomDynamicFields();
+        Map<String, InferenceFieldMetadata> dynamicFields = randomInferenceFields();
         IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).putInferenceFields(dynamicFields).build();
         assertThat(idxMeta2.getInferenceFields(), equalTo(dynamicFields));
     }
@@ -566,17 +566,17 @@ public class IndexMetadataTests extends ESTestCase {
         return indexSettings(IndexVersion.current(), 1, 0).put(DataTier.TIER_PREFERENCE, dataTier).build();
     }
 
-    public static Map<String, InferenceFieldMetadata> randomDynamicFields() {
+    public static Map<String, InferenceFieldMetadata> randomInferenceFields() {
         Map<String, InferenceFieldMetadata> map = new HashMap<>();
         int numFields = randomIntBetween(0, 5);
         for (int i = 0; i < numFields; i++) {
             String field = randomAlphaOfLengthBetween(5, 10);
-            map.put(field, randomDynamicFieldMetadata(field));
+            map.put(field, randomInferenceFieldMetadata(field));
         }
         return map;
     }
 
-    private static InferenceFieldMetadata randomDynamicFieldMetadata(String name) {
+    private static InferenceFieldMetadata randomInferenceFieldMetadata(String name) {
         return new InferenceFieldMetadata(name, randomIdentifier(), randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new));
     }
 

@@ -1709,6 +1709,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(new MappingMetadata(in));
             }
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            var fields = in.readCollectionAsImmutableList(InferenceFieldMetadata::new);
+            fields.stream().forEach(f -> builder.putInferenceField(f));
+        }
         int inferenceFieldsSize = in.readVInt();
         for (int i = 0; i < inferenceFieldsSize; i++) {
             InferenceFieldMetadata fieldMd = new InferenceFieldMetadata(in);

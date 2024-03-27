@@ -183,7 +183,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             rolloverRequest.getRolloverTarget(),
             rolloverRequest.getNewIndexName(),
             rolloverRequest.getCreateIndexRequest(),
-            rolloverRequest.indicesOptions().failureStoreOptions()
+            rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
         );
         final String trialSourceIndexName = trialRolloverNames.sourceName();
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
@@ -453,7 +453,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
-                rolloverRequest.indicesOptions().failureStoreOptions()
+                rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
             );
 
             // Re-evaluate the conditions, now with our final source index name
@@ -504,7 +504,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     sourceIndexStats,
                     rolloverTask.autoShardingResult(),
-                    rolloverRequest.indicesOptions().failureStoreOptions()
+                    rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);

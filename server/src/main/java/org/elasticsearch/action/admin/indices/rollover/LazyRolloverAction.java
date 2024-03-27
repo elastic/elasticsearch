@@ -99,7 +99,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
-                rolloverRequest.indicesOptions().failureStoreOptions()
+                rolloverRequest.indicesOptions().failureStoreOptions().includeFailureIndices()
             );
             final String trialSourceIndexName = trialRolloverNames.sourceName();
             final String trialRolloverIndexName = trialRolloverNames.rolloverName();

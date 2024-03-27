@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
-import org.elasticsearch.action.support.IndicesOptions.FailureStoreOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -122,7 +121,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 false,
                 indexStats,
                 null,
-                FailureStoreOptions.DEFAULT
+                false
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -223,7 +222,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 false,
                 null,
                 null,
-                FailureStoreOptions.DEFAULT
+                false
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -317,7 +316,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 false,
                 null,
                 null,
-                FailureStoreOptions.DEFAULT
+                false
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -384,7 +383,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 false,
                 indexStats,
                 null,
-                FailureStoreOptions.DEFAULT
+                false
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -466,7 +465,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                     false,
                     indexStats,
                     null,
-                    FailureStoreOptions.DEFAULT
+                    false
                 )
             );
             assertThat(e.getMessage(), containsString("is overlapping with backing index"));

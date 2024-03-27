@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -331,7 +330,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             false,
             null,
             null,
-            IndicesOptions.FailureStoreOptions.DEFAULT
+            false
         );
     }
 

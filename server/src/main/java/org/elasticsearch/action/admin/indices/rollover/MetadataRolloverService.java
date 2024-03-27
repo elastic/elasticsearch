@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions.FailureStoreOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -123,9 +122,9 @@ public class MetadataRolloverService {
         boolean onlyValidate,
         @Nullable IndexMetadataStats sourceIndexStats,
         @Nullable AutoShardingResult autoShardingResult,
-        FailureStoreOptions failureStoreOptions
+        boolean rollOverFailureStore
     ) throws Exception {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, failureStoreOptions);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, rollOverFailureStore);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> rolloverAlias(
@@ -149,7 +148,7 @@ public class MetadataRolloverService {
                 onlyValidate,
                 sourceIndexStats,
                 autoShardingResult,
-                failureStoreOptions
+                rollOverFailureStore
             );
             default ->
                 // the validate method above prevents this case
@@ -169,14 +168,14 @@ public class MetadataRolloverService {
         String rolloverTarget,
         String newIndexName,
         CreateIndexRequest createIndexRequest,
-        FailureStoreOptions failureStoreOptions
+        boolean rollOverFailureStore
     ) {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, failureStoreOptions);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, rollOverFailureStore);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
             case DATA_STREAM -> {
-                if (failureStoreOptions.includeFailureIndices()) {
+                if (rollOverFailureStore) {
                     yield resolveDataStreamFailureStoreRolloverNames(currentState.metadata(), (DataStream) indexAbstraction);
                 }
                 yield resolveDataStreamRolloverNames(currentState.getMetadata(), (DataStream) indexAbstraction);
@@ -281,7 +280,7 @@ public class MetadataRolloverService {
         boolean onlyValidate,
         @Nullable IndexMetadataStats sourceIndexStats,
         @Nullable AutoShardingResult autoShardingResult,
-        FailureStoreOptions failureStoreOptions
+        boolean rollOverFailureStore
     ) throws Exception {
 
         if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
@@ -309,9 +308,8 @@ public class MetadataRolloverService {
             templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
-        final boolean isForFailureStore = failureStoreOptions.includeFailureIndices();
-        final Index originalWriteIndex = isForFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
-        final Tuple<String, Long> nextIndexAndGeneration = isForFailureStore
+        final Index originalWriteIndex = rollOverFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        final Tuple<String, Long> nextIndexAndGeneration = rollOverFailureStore
             ? dataStream.nextFailureStoreWriteIndexAndGeneration(currentState.metadata())
             : dataStream.nextWriteIndexAndGeneration(currentState.metadata());
         final String newWriteIndexName = nextIndexAndGeneration.v1();
@@ -322,7 +320,7 @@ public class MetadataRolloverService {
         }
 
         ClusterState newState;
-        if (isForFailureStore) {
+        if (rollOverFailureStore) {
             newState = MetadataCreateDataStreamService.createFailureStoreIndex(
                 createIndexService,
                 "rollover_failure_store",
@@ -614,7 +612,7 @@ public class MetadataRolloverService {
         String rolloverTarget,
         String newIndexName,
         CreateIndexRequest request,
-        FailureStoreOptions failureStoreOptions
+        boolean rollOverFailureStore
     ) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(rolloverTarget);
         if (indexAbstraction == null) {
@@ -646,7 +644,7 @@ public class MetadataRolloverService {
                 );
             }
             var dataStream = (DataStream) indexAbstraction;
-            if (failureStoreOptions.includeFailureIndices() && dataStream.isFailureStore() == false) {
+            if (rollOverFailureStore && dataStream.isFailureStore() == false) {
                 throw new IllegalArgumentException(
                     "unable to roll over failure store because [" + indexAbstraction.getName() + "] does not have the failure store enabled"
                 );

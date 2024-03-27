@@ -5,7 +5,7 @@
 preview::[]
 
 In this tutorial, we are going to go over the data stream lifecycle retention, define it, go over how it can be configured and how
-it can be applied. Keep in mind, the following options apply only to data streams that have are managed by the data stream lifecycle.
+it can be applied. Keep in mind, the following options apply only to data streams that are managed by the data stream lifecycle.
 
 
 ////
@@ -71,20 +71,20 @@ The result should look like this:
 ==== What is data stream retention?
 
 We define retention as the least amount of time the data of a data stream are going to be kept in {es}. After this time period
-has passed, {es} is allowed to remove this data to free up space and/or manage costs.
+has passed, {es} is allowed to remove these data to free up space and/or manage costs.
 
 NOTE: Retention does not define the period that the data will be removed, but the minimum time period they will be kept.
 
 We define 4 different types of retention:
 
 * The data stream retention, or `data_retention`, which is the retention configured on the data stream level. It can be
-set via an <<index-templates,index template>> for future data streams or via the <<data-streams-put-lifecycle, set data
+set via an <<index-templates,index template>> for future data streams or via the <<data-streams-put-lifecycle, PUT data
 stream lifecycle API>> for an existing data stream. When the data stream retention is not set, it implies that the data
-needs to be kept forever.
+need to be kept forever.
 * The global default retention, or `default_retention`, which is a retention configured on a project level and will be
 applied to all data streams managed by data stream lifecycle that do not have `data_retention` configured. Effectively,
 it ensures that there will be no data streams keeping their data forever. This can be set via the
-<<data-streams-put-global-retention, set global retention API>>.
+<<data-streams-put-global-retention, PUT global retention API>>.
 * The global max retention, or `max_retention`, which is a retention configured on a project level and will be applied to
 all data streams managed by data stream lifecycle. Effectively, it ensures that there will be no data streams whose retention
 will exceed this time period. This can be set via the <<data-streams-put-global-retention, PUT global retention API>>.
@@ -180,5 +180,5 @@ applicable to rolled over backing indices and it is either the time since the ba
 optionally configured in the <<index-data-stream-lifecycle-origination-date,`index.lifecycle.origination_date`>> setting.
 
 IMPORTANT: We use the `generation_time` instead of the creation time because this ensures that all data in the backing
-index have passed the retention period. As a result, the retention period is not the exact time data gets deleted, but
+index have passed the retention period. As a result, the retention period is not the exact time data get deleted, but
 the minimum time data will be stored.

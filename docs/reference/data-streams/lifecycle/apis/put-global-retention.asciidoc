@@ -1,7 +1,7 @@
 [[data-streams-put-global-retention]]
-=== Updates the global retention of data streams
+=== Update the global retention of data streams
 ++++
-<titleabbrev>Updates Data Stream Global Retention</titleabbrev>
+<titleabbrev>Update Data Stream Global Retention</titleabbrev>
 ++++
 
 preview::[]
@@ -41,7 +41,7 @@ defined on the data stream level.
 
 `max_retention`::
 (Optional, string)
-The max retention that will apply to all data stream managed by data stream lifecycle. The max retention will override the
+The max retention that will apply to all data streams managed by data stream lifecycle. The max retention will override the
 retention of a data stream which retention exceeds the max retention.
 
 [[put-global-retention-api-response-body]]

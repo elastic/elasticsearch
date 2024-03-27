@@ -16,8 +16,8 @@ To achieve that, it supports:
 * Automatic <<index-rollover,rollover>>, which chunks your incoming data in smaller pieces to facilitate better performance
 and backwards incompatible mapping changes.
 * Configurable retention, which allows you to configure the time period for which your data is guaranteed to be stored.
-{es} is allowed at a later time to delete data older than this time period. Retention can be configured on data stream level
-or on a project level, read more about the different options in this <<tutorial-manage-data-stream-retention,tutorial>>.
+{es} is allowed at a later time to delete data older than this time period. Retention can be configured on the data stream level
+or on a project level. Read more about the different options in this <<tutorial-manage-data-stream-retention,tutorial>>.
 
 A data stream lifecycle also supports downsampling the data stream backing indices.
 See <<data-streams-put-lifecycle-downsampling-example, the downsampling example>> for 

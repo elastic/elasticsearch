@@ -131,7 +131,7 @@ public class UpdateDataStreamGlobalRetentionService {
     }
 
     /**
-     * A base class for health metadata cluster state update tasks.
+     * A base class for the task updating the global retention in the cluster state.
      */
     record UpsertGlobalDataStreamMetadataTask(
         @Nullable DataStreamGlobalRetention globalRetention,

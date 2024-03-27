@@ -1,7 +1,7 @@
 [[data-streams-delete-global-retention]]
-=== Deletes the global retention of data streams
+=== Delete the global retention of data streams
 ++++
-<titleabbrev>Deletes Data Stream Global Retention</titleabbrev>
+<titleabbrev>Delete Data Stream Global Retention</titleabbrev>
 ++++
 
 preview::[]

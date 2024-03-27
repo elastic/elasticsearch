@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.retry.AlwaysRetryingResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -53,12 +54,12 @@ public class HuggingFaceActionTests extends ESTestCase {
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderThrows() {
         var sender = mock(Sender.class);
-        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), null, any(), any());
+        doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(URL, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(null, List.of("abc"), listener);
+        action.execute(new EmbeddingInputs(List.of("abc")), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -74,12 +75,12 @@ public class HuggingFaceActionTests extends ESTestCase {
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
-        }).when(sender).send(any(), null, any(), any());
+        }).when(sender).send(any(), any(), any());
 
         var action = createAction(URL, sender, "inferenceEntityId");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(null, List.of("abc"), listener);
+        action.execute(new EmbeddingInputs(List.of("abc")), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -91,12 +92,12 @@ public class HuggingFaceActionTests extends ESTestCase {
 
     public void testExecute_ThrowsException() {
         var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), null, any(), any());
+        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any());
 
         var action = createAction(URL, sender, "inferenceEntityId");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(null, List.of("abc"), listener);
+        action.execute(new EmbeddingInputs(List.of("abc")), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

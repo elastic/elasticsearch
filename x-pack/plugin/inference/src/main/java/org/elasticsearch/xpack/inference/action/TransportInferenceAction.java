@@ -88,7 +88,6 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         InferenceService service,
         ActionListener<InferenceAction.Response> listener
     ) {
-        System.out.println("\n\nreqeust Query: \n\n" + request.getQuery());
         service.infer(
             model,
             request.getQuery(),

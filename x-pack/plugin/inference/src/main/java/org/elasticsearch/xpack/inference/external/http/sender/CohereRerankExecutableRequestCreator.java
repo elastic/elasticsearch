@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.cohere.CohereResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.cohere.CohereRerankRequest;
-import org.elasticsearch.xpack.inference.external.response.cohere.CohereEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereRankedResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 

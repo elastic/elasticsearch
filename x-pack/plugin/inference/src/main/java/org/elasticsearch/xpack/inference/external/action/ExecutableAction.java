@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.inference.external.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
-
-import java.util.List;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 
 /**
  * Defines an inference request to a 3rd party service. The success or failure response is communicated through the provided listener.
  */
 public interface ExecutableAction {
-    void execute(@Nullable String query, List<String> input, ActionListener<InferenceServiceResults> listener);
+    void execute(InferenceInputs inferenceInputs, ActionListener<InferenceServiceResults> listener);
 }

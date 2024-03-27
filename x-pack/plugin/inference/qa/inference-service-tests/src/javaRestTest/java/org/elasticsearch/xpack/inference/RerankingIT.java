@@ -29,7 +29,7 @@ public class RerankingIT extends InferenceBaseRestTest {
               "service": "cohere",
               "service_settings": {
                 "model_id": "rerank-english-v2.0",
-                "api_key": "8TNPBvpBO7oN97009HQHzQbBhNrxmREbcJrZCwkK"
+                "api_key": "8TNPBvpBO7oN97009HQHzQbBhNrxmREbcJrZCwkK" // TODO remove key
               }
             }
             """);

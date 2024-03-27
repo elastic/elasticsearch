@@ -134,7 +134,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         public String getQuery() {
-            System.out.println("\n\nQuery: \n\n" + query);
             return query;
         }
 

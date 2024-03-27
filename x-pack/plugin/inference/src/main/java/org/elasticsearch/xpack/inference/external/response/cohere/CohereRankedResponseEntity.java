@@ -61,12 +61,10 @@ public class CohereRankedResponseEntity {
                     case "index":
                         parser.nextToken();
                         index = parser.intValue();
-                        System.out.println("index: " + index);
                         break;
                     case "relevance_score":
                         parser.nextToken();
                         relevanceScore = parser.floatValue();
-                        System.out.println("relevance_score: " + relevanceScore);
                         break;
                     default:
                         XContentParserUtils.throwUnknownField(parser.currentName(), parser);

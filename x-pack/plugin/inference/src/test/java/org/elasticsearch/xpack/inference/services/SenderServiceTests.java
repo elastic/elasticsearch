@@ -106,6 +106,17 @@ public class SenderServiceTests extends ESTestCase {
         @Override
         protected void doInfer(
             Model model,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+
+        }
+
+        @Override
+        protected void doInfer(
+            Model model,
             @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,

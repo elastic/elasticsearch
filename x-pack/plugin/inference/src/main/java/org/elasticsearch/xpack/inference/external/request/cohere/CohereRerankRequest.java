@@ -42,8 +42,8 @@ public class CohereRerankRequest implements Request {
         Objects.requireNonNull(model);
 
         this.account = Objects.requireNonNull(account);
-        this.query = Objects.requireNonNull(query);
         this.input = Objects.requireNonNull(input);
+        this.query = Objects.requireNonNull(query);
         uri = buildUri(this.account.url(), "Cohere", CohereRerankRequest::buildDefaultUri);
         taskSettings = model.getTaskSettings();
         this.model = model.getServiceSettings().getCommonSettings().getModelId();

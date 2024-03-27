@@ -52,8 +52,11 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     ) {
         init();
-
-        doInfer(model, query, input, taskSettings, inputType, listener);
+        if (query != null) {
+            doInfer(model, query, input, taskSettings, inputType, listener);
+        } else {
+            doInfer(model, input, taskSettings, inputType, listener);
+        }
     }
 
     @Override
@@ -72,7 +75,15 @@ public abstract class SenderService implements InferenceService {
 
     protected abstract void doInfer(
         Model model,
-        @Nullable String query,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    protected abstract void doInfer(
+        Model model,
+        String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,

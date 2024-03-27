@@ -12,8 +12,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public interface RequestExecutor {
@@ -29,8 +29,7 @@ public interface RequestExecutor {
 
     void execute(
         ExecutableRequestCreator requestCreator,
-        @Nullable String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );

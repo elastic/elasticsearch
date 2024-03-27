@@ -24,6 +24,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -174,7 +175,6 @@ public class OpenAiService extends SenderService {
     @Override
     public void doInfer(
         Model model,
-        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
@@ -189,7 +189,19 @@ public class OpenAiService extends SenderService {
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
         var action = openAiModel.accept(actionCreator, taskSettings);
-        action.execute(null, input, listener);
+        action.execute(new EmbeddingInputs(input), listener);
+    }
+
+    @Override
+    protected void doInfer(
+        Model model,
+        String query,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throw new UnsupportedOperationException("OpenAI service does not support inference with query input");
     }
 
     @Override

@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -102,7 +103,6 @@ public abstract class HuggingFaceBaseService extends SenderService {
     @Override
     public void doInfer(
         Model model,
-        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
@@ -117,7 +117,19 @@ public abstract class HuggingFaceBaseService extends SenderService {
         var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
 
         var action = huggingFaceModel.accept(actionCreator);
-        action.execute(null, input, listener);
+        action.execute(new EmbeddingInputs(input), listener);
+    }
+
+    @Override
+    protected void doInfer(
+        Model model,
+        String query,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throw new UnsupportedOperationException("Hugging Face service does not support inference with query input");
     }
 
     @Override

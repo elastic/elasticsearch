@@ -9,14 +9,13 @@ package org.elasticsearch.xpack.inference.external.action.cohere;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.CohereEmbeddingsExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -39,13 +38,13 @@ public class CohereEmbeddingsAction implements ExecutableAction {
     }
 
     @Override
-    public void execute(@Nullable String query, List<String> input, ActionListener<InferenceServiceResults> listener) {
+    public void execute(InferenceInputs inferenceInputs, ActionListener<InferenceServiceResults> listener) {
         try {
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(
                 failedToSendRequestErrorMessage,
                 listener
             );
-            sender.send(requestCreator, null, input, wrappedListener);
+            sender.send(requestCreator, inferenceInputs, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

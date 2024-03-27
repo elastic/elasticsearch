@@ -258,8 +258,7 @@ class RequestExecutorService implements RequestExecutor {
      * Execute the request at some point in the future.
      *
      * @param requestCreator the http request to send
-     * @param query the query to send in the request
-     * @param input the text to perform inference on
+     * @param inferenceInputs the inputs to send in the request
      * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
      *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
      *                If null, then the request will wait forever
@@ -267,15 +266,13 @@ class RequestExecutorService implements RequestExecutor {
      */
     public void execute(
         ExecutableRequestCreator requestCreator,
-        @Nullable String query,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         var task = new RequestTask(
             requestCreator,
-            query,
-            input,
+            inferenceInputs,
             timeout,
             threadPool,
             // TODO when multi-tenancy (as well as batching) is implemented we need to be very careful that we preserve

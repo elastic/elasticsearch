@@ -23,7 +23,9 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.RerankInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -168,7 +170,7 @@ public class CohereService extends SenderService {
     @Override
     public void doInfer(
         Model model,
-        @Nullable String query,
+        String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
@@ -183,7 +185,27 @@ public class CohereService extends SenderService {
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(query, input, listener);
+        action.execute(new RerankInputs(query, input), listener);
+    }
+
+    @Override
+    public void doInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof CohereModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        CohereModel cohereModel = (CohereModel) model;
+        var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
+
+        var action = cohereModel.accept(actionCreator, taskSettings, inputType);
+        action.execute(new EmbeddingInputs(input), listener);
     }
 
     @Override

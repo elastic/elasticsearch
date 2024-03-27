@@ -67,14 +67,21 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
+    /**
+     * List of names that identify Java thread pools that are created in {@link ThreadPool#ThreadPool}.
+     */
     public static class Names {
         /**
+         * Specifies that the task being scheduled should run on the calling thread, not actually a different thread pool.
          * Often used for quick operations not worth the costs of switching to another thread. Also used to avoid the cost of re-queuing
-         * work while leveraging the interface for ease of coding. This should not be used on Netty transport threads if the task may not
-         * always complete quickly.
+         * work while leveraging the same interface for ease of coding. This should not be used on Netty transport threads if the task may
+         * not always complete quickly.
          */
         public static final String SAME = "same";
-        /** All the tasks that do not fit into the other categories. Try to avoid this if possible. */
+        /**
+         * All the tasks that do not fit into the other categories should use this thread pool. Try to pick one of the other more specific
+         * thread pools if possible.
+         */
         public static final String GENERIC = "generic";
         /**
          * Important management tasks that keep the cluster from falling apart.

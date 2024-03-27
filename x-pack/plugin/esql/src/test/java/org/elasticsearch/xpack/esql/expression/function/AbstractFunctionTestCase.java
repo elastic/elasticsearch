@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -181,11 +182,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     protected abstract Expression build(Source source, List<Expression> args);
 
-    protected Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
+    /**
+     * Build an {@link Expression} where all inputs are field references,
+     * <strong>except</strong> those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
+     */
+    protected final Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsFields());
     }
 
-    protected Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
+    /**
+     * Build an {@link Expression} where all inputs are anonymous functions
+     * that make a copy of the values from a field <strong>except</strong>
+     * those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
+     */
+    protected final Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
         return build(testCase.getSource(), testCase.getDataAsDeepCopiedFields());
     }
 
@@ -255,7 +265,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
         expression = new FoldNull().rule(expression);
-        assertThat(expression.dataType(), equalTo(testCase.expectedType));
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         logger.info("Result type: " + expression.dataType());
 
         Object result;
@@ -278,7 +288,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private Object toJavaObjectUnsignedLongAware(Block block, int position) {
         Object result;
         result = toJavaObject(block, position);
-        if (result != null && testCase.expectedType == DataTypes.UNSIGNED_LONG) {
+        if (result != null && testCase.expectedType() == DataTypes.UNSIGNED_LONG) {
             assertThat(result, instanceOf(Long.class));
             result = NumericUtils.unsignedLongAsBigInteger((Long) result);
         }
@@ -524,7 +534,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         var factory = evaluator(buildFieldExpression(testCase));
         try (ExpressionEvaluator ev = factory.get(driverContext())) {
-            assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
+            assertThat(ev.toString(), testCase.evaluatorToString());
         }
     }
 
@@ -532,7 +542,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         var factory = evaluator(buildFieldExpression(testCase));
-        assertThat(factory.toString(), equalTo(testCase.evaluatorToString));
+        assertThat(factory.toString(), testCase.evaluatorToString());
     }
 
     public final void testFold() {
@@ -544,12 +554,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         assertFalse(expression.typeResolved().unresolved());
         Expression nullOptimized = new FoldNull().rule(expression);
-        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType));
+        assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());
         if (testCase.foldingExceptionClass() == null) {
             Object result = nullOptimized.fold();
             // Decode unsigned longs into BigIntegers
-            if (testCase.expectedType == DataTypes.UNSIGNED_LONG && result != null) {
+            if (testCase.expectedType() == DataTypes.UNSIGNED_LONG && result != null) {
                 result = NumericUtils.unsignedLongAsBigInteger((Long) result);
             }
             assertThat(result, testCase.getMatcher());
@@ -670,11 +680,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     }).toList();
                     return new TestCaseSupplier.TestCase(
                         data,
-                        oc.evaluatorToString,
-                        oc.expectedType,
+                        oc.evaluatorToString(),
+                        oc.expectedType(),
                         nullValue(),
                         null,
-                        oc.getExpectedTypeError()
+                        oc.getExpectedTypeError(),
+                        null,
+                        null
                     );
                 }));
 
@@ -691,11 +703,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 .toList();
                             return new TestCaseSupplier.TestCase(
                                 data,
-                                "LiteralsEvaluator[lit=null]",
-                                entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType,
+                                equalTo("LiteralsEvaluator[lit=null]"),
+                                entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType(),
                                 nullValue(),
                                 null,
-                                oc.getExpectedTypeError()
+                                oc.getExpectedTypeError(),
+                                null,
+                                null
                             );
                         }));
                     }
@@ -882,6 +896,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         ),
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
+        Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
@@ -1047,7 +1062,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * <p>
      * After each test method we add the signature it operated on via
      * {@link #trackSignature}. Once the test class is done we render
-     * all the unique signatures to a temp file with {@link #renderTypesTable}.
+     * all the unique signatures to a temp file with {@link #renderTypes}.
      * We use a temp file because that's all we're allowed to write to.
      * Gradle will move the files into the docs after this is done.
      * </p>
@@ -1067,32 +1082,41 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (testCase.getData().stream().anyMatch(t -> t.type() == DataTypes.NULL)) {
             return;
         }
-        signatures.putIfAbsent(testCase.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), testCase.expectedType);
+        signatures.putIfAbsent(testCase.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), testCase.expectedType());
     }
 
     @AfterClass
-    public static void renderTypesTable() throws IOException {
+    public static void renderDocs() throws IOException {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
         String name = functionName();
         if (binaryOperator(name) != null) {
-            renderTypesTable(List.of("lhs", "rhs"));
+            renderTypes(List.of("lhs", "rhs"));
             return;
         }
         if (unaryOperator(name) != null) {
-            renderTypesTable(List.of("v"));
+            renderTypes(List.of("v"));
             return;
         }
         FunctionDefinition definition = definition(name);
         if (definition != null) {
-            renderTypesTable(EsqlFunctionRegistry.description(definition).argNames());
+            EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
+            renderTypes(description.argNames());
+            renderParametersList(description.argNames(), description.argDescriptions());
+            FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
+            renderDescription(description.description(), info.note());
+            boolean hasExamples = renderExamples(info);
+            renderFullLayout(name, hasExamples);
             return;
         }
         LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function '" + name + "' isn't registered");
     }
 
-    private static void renderTypesTable(List<String> argNames) throws IOException {
+    private static final String DOCS_WARNING =
+        "// This is generated by ESQL's AbstractFunctionTestCase. Do no edit it. See ../README.md for how to regenerate it.\n\n";
+
+    private static void renderTypes(List<String> argNames) throws IOException {
         StringBuilder header = new StringBuilder();
         for (String arg : argNames) {
             header.append(arg).append(" | ");
@@ -1113,12 +1137,89 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         Collections.sort(table);
 
-        String rendered = """
+        String rendered = DOCS_WARNING + """
+            *Supported types*
+
             [%header.monospaced.styled,format=dsv,separator=|]
             |===
             """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n|===\n";
         LogManager.getLogger(getTestClass()).info("Writing function types for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("types", rendered, "asciidoc");
+    }
+
+    private static void renderParametersList(List<String> argNames, List<String> argDescriptions) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        builder.append("*Parameters*\n");
+        for (int a = 0; a < argNames.size(); a++) {
+            builder.append("\n`").append(argNames.get(a)).append("`::\n").append(argDescriptions.get(a)).append('\n');
+        }
+        String rendered = builder.toString();
+        LogManager.getLogger(getTestClass()).info("Writing parameters for [{}]:\n{}", functionName(), rendered);
+        writeToTempDir("parameters", rendered, "asciidoc");
+    }
+
+    private static void renderDescription(String description, String note) throws IOException {
+        String rendered = DOCS_WARNING + """
+            *Description*
+
+            """ + description + "\n";
+        if (Strings.isNullOrEmpty(note) == false) {
+            rendered += "\nNOTE: " + note + "\n";
+        }
+        LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", functionName(), rendered);
+        writeToTempDir("description", rendered, "asciidoc");
+    }
+
+    private static boolean renderExamples(FunctionInfo info) throws IOException {
+        if (info == null || info.examples().length == 0) {
+            return false;
+        }
+        StringBuilder builder = new StringBuilder();
+        builder.append(DOCS_WARNING);
+        if (info.examples().length == 1) {
+            builder.append("*Example*\n\n");
+        } else {
+            builder.append("*Examples*\n\n");
+        }
+        for (Example example : info.examples()) {
+            builder.append("""
+                [source.merge.styled,esql]
+                ----
+                include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$]
+                ----
+                [%header.monospaced.styled,format=dsv,separator=|]
+                |===
+                include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$-result]
+                |===
+                """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()));
+        }
+        builder.append('\n');
+        String rendered = builder.toString();
+        LogManager.getLogger(getTestClass()).info("Writing examples for [{}]:\n{}", functionName(), rendered);
+        writeToTempDir("examples", rendered, "asciidoc");
+        return true;
+    }
+
+    private static void renderFullLayout(String name, boolean hasExamples) throws IOException {
+        String rendered = DOCS_WARNING + """
+            [discrete]
+            [[esql-$NAME$]]
+            === `$UPPER_NAME$`
+
+            *Syntax*
+
+            [.text-center]
+            image::esql/functions/signature/$NAME$.svg[Embedded,opts=inline]
+
+            include::../parameters/$NAME$.asciidoc[]
+            include::../description/$NAME$.asciidoc[]
+            include::../types/$NAME$.asciidoc[]
+            """.replace("$NAME$", name).replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT));
+        if (hasExamples) {
+            rendered += "include::../examples/" + name + ".asciidoc[]\n";
+        }
+        LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", functionName(), rendered);
+        writeToTempDir("layout", rendered, "asciidoc");
     }
 
     private static String functionName() {

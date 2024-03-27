@@ -54,7 +54,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     implements
         Supplier<TestCaseSupplier.TestCase> {
 
-    private static Logger logger = LogManager.getLogger(TestCaseSupplier.class);
+    private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
     /**
      * Build a test case without types.
      *
@@ -212,6 +212,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 }
             }
         }
+    }
+
+    public static TestCaseSupplier testCaseSupplier(
+        TypedDataSupplier lhsSupplier,
+        TypedDataSupplier rhsSupplier,
+        BiFunction<DataType, DataType, String> evaluatorToString,
+        DataType expectedType,
+        BinaryOperator<Object> expectedValue
+    ) {
+        return testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expectedValue, List.of());
     }
 
     private static TestCaseSupplier testCaseSupplier(
@@ -938,31 +948,53 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> geoPointCases() {
-        return List.of(new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint()), EsqlDataTypes.GEO_POINT));
+    public static List<TypedDataSupplier> geoPointCases() {
+        return geoPointCases(ESTestCase::randomBoolean);
     }
 
-    private static List<TypedDataSupplier> cartesianPointCases() {
+    public static List<TypedDataSupplier> cartesianPointCases() {
+        return cartesianPointCases(ESTestCase::randomBoolean);
+    }
+
+    public static List<TypedDataSupplier> geoShapeCases() {
+        return geoShapeCases(ESTestCase::randomBoolean);
+    }
+
+    public static List<TypedDataSupplier> cartesianShapeCases() {
+        return cartesianShapeCases(ESTestCase::randomBoolean);
+    }
+
+    public static List<TypedDataSupplier> geoPointCases(Supplier<Boolean> hasAlt) {
         return List.of(
-            new TypedDataSupplier("<cartesian_point>", () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), EsqlDataTypes.CARTESIAN_POINT)
+            new TypedDataSupplier("<geo_point>", () -> GEO.asWkb(GeometryTestUtils.randomPoint(hasAlt.get())), EsqlDataTypes.GEO_POINT)
         );
     }
 
-    private static List<TypedDataSupplier> geoShapeCases() {
+    public static List<TypedDataSupplier> cartesianPointCases(Supplier<Boolean> hasAlt) {
+        return List.of(
+            new TypedDataSupplier(
+                "<cartesian_point>",
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(hasAlt.get())),
+                EsqlDataTypes.CARTESIAN_POINT
+            )
+        );
+    }
+
+    public static List<TypedDataSupplier> geoShapeCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
                 "<geo_shape>",
-                () -> GEO.asWkb(GeometryTestUtils.randomGeometry(ESTestCase.randomBoolean())),
+                () -> GEO.asWkb(GeometryTestUtils.randomGeometryWithoutCircle(0, hasAlt.get())),
                 EsqlDataTypes.GEO_SHAPE
             )
         );
     }
 
-    private static List<TypedDataSupplier> cartesianShapeCases() {
+    public static List<TypedDataSupplier> cartesianShapeCases(Supplier<Boolean> hasAlt) {
         return List.of(
             new TypedDataSupplier(
                 "<cartesian_shape>",
-                () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(ESTestCase.randomBoolean())),
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(hasAlt.get())),
                 EsqlDataTypes.CARTESIAN_SHAPE
             )
         );
@@ -1098,51 +1130,57 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         /**
          * The {@link Source} this test case should be run with
          */
-        private Source source;
+        private final Source source;
         /**
          * The parameter values and types to pass into the function for this test run
          */
-        private List<TypedData> data;
+        private final List<TypedData> data;
 
         /**
          * The expected toString output for the evaluator this function invocation should generate
          */
-        String evaluatorToString;
+        private final Matcher<String> evaluatorToString;
         /**
          * The expected output type for the case being tested
          */
-        DataType expectedType;
+        private final DataType expectedType;
         /**
          * A matcher to validate the output of the function run on the given input data
          */
-        private Matcher<Object> matcher;
+        private final Matcher<Object> matcher;
 
         /**
          * Warnings this test is expected to produce
          */
-        private String[] expectedWarnings;
-
-        private Class<? extends Throwable> foldingExceptionClass;
-        private String foldingExceptionMessage;
+        private final String[] expectedWarnings;
 
         private final String expectedTypeError;
         private final boolean allTypesAreRepresentable;
 
+        private final Class<? extends Throwable> foldingExceptionClass;
+        private final String foldingExceptionMessage;
+
         public TestCase(List<TypedData> data, String evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
-            this(data, evaluatorToString, expectedType, matcher, null, null);
+            this(data, equalTo(evaluatorToString), expectedType, matcher);
+        }
+
+        public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<Object> matcher) {
+            this(data, evaluatorToString, expectedType, matcher, null, null, null, null);
         }
 
         public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
-            return new TestCase(data, null, null, null, null, expectedTypeError);
+            return new TestCase(data, null, null, null, null, expectedTypeError, null, null);
         }
 
         TestCase(
             List<TypedData> data,
-            String evaluatorToString,
+            Matcher<String> evaluatorToString,
             DataType expectedType,
             Matcher<Object> matcher,
             String[] expectedWarnings,
-            String expectedTypeError
+            String expectedTypeError,
+            Class<? extends Throwable> foldingExceptionClass,
+            String foldingExceptionMessage
         ) {
             this.source = Source.EMPTY;
             this.data = data;
@@ -1152,6 +1190,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.expectedWarnings = expectedWarnings;
             this.expectedTypeError = expectedTypeError;
             this.allTypesAreRepresentable = data.stream().allMatch(d -> EsqlDataTypes.isRepresentable(d.type));
+            this.foldingExceptionClass = foldingExceptionClass;
+            this.foldingExceptionMessage = foldingExceptionMessage;
         }
 
         public Source getSource() {
@@ -1163,15 +1203,15 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public List<Expression> getDataAsFields() {
-            return data.stream().map(t -> AbstractFunctionTestCase.field(t.name(), t.type())).collect(Collectors.toList());
+            return data.stream().map(TypedData::asField).collect(Collectors.toList());
         }
 
         public List<Expression> getDataAsDeepCopiedFields() {
-            return data.stream().map(t -> AbstractFunctionTestCase.deepCopyOfField(t.name(), t.type())).collect(Collectors.toList());
+            return data.stream().map(TypedData::asDeepCopyOfField).collect(Collectors.toList());
         }
 
         public List<Expression> getDataAsLiterals() {
-            return data.stream().map(t -> new Literal(Source.synthetic(t.name()), t.data(), t.type())).collect(Collectors.toList());
+            return data.stream().map(TypedData::asLiteral).collect(Collectors.toList());
         }
 
         public List<Object> getDataValues() {
@@ -1210,13 +1250,28 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             } else {
                 newWarnings = new String[] { warning };
             }
-            return new TestCase(data, evaluatorToString, expectedType, matcher, newWarnings, expectedTypeError);
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                newWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage
+            );
         }
 
-        public <T extends Throwable> TestCase withFoldingException(Class<T> clazz, String message) {
-            foldingExceptionClass = clazz;
-            foldingExceptionMessage = message;
-            return this;
+        public TestCase withFoldingException(Class<? extends Throwable> clazz, String message) {
+            return new TestCase(data, evaluatorToString, expectedType, matcher, expectedWarnings, expectedTypeError, clazz, message);
+        }
+
+        public DataType expectedType() {
+            return expectedType;
+        }
+
+        public Matcher<String> evaluatorToString() {
+            return evaluatorToString;
         }
     }
 
@@ -1233,16 +1288,53 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     /**
      * Holds a data value and the intended parse type of that value
-     * @param data - value to test against
-     * @param type - type of the value, for building expressions
-     * @param name - a name for the value, used for generating test case names
      */
-    public record TypedData(Object data, DataType type, String name) {
-
+    public static class TypedData {
         public static final TypedData NULL = new TypedData(null, DataTypes.NULL, "<null>");
 
+        private final Object data;
+        private final DataType type;
+        private final String name;
+        private final boolean forceLiteral;
+
+        /**
+         * @param data value to test against
+         * @param type type of the value, for building expressions
+         * @param name a name for the value, used for generating test case names
+         * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
+         */
+        private TypedData(Object data, DataType type, String name, boolean forceLiteral) {
+            this.data = data;
+            this.type = type;
+            this.name = name;
+            this.forceLiteral = forceLiteral;
+        }
+
+        /**
+         * @param data value to test against
+         * @param type type of the value, for building expressions
+         * @param name a name for the value, used for generating test case names
+         */
+        public TypedData(Object data, DataType type, String name) {
+            this(data, type, name, false);
+        }
+
+        /**
+         * Build a value, guessing the type via reflection.
+         * @param data value to test against
+         * @param name a name for the value, used for generating test case names
+         */
         public TypedData(Object data, String name) {
             this(data, EsqlDataTypes.fromJava(data), name);
+        }
+
+        /**
+         * Return a {@link TypedData} that always returns a {@link Literal} from
+         * {@link #asField} and {@link #asDeepCopyOfField}. Use this for things that
+         * must be constants.
+         */
+        public TypedData forceLiteral() {
+            return new TypedData(data, type, name, true);
         }
 
         @Override
@@ -1251,6 +1343,54 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 return type.toString() + "(" + NumericUtils.unsignedLongAsBigInteger(longData).toString() + ")";
             }
             return type.toString() + "(" + (data == null ? "null" : data.toString()) + ")";
+        }
+
+        /**
+         * Convert this into reference to a field.
+         */
+        public Expression asField() {
+            if (forceLiteral) {
+                return asLiteral();
+            }
+            return AbstractFunctionTestCase.field(name, type);
+        }
+
+        /**
+         * Convert this into an anonymous function that performs a copy of the values loaded from a field.
+         */
+        public Expression asDeepCopyOfField() {
+            if (forceLiteral) {
+                return asLiteral();
+            }
+            return AbstractFunctionTestCase.deepCopyOfField(name, type);
+        }
+
+        /**
+         * Convert this into a {@link Literal}.
+         */
+        public Literal asLiteral() {
+            return new Literal(Source.synthetic(name), data, type);
+        }
+
+        /**
+         * Value to test against.
+         */
+        public Object data() {
+            return data;
+        }
+
+        /**
+         * Type of the value. For building {@link Expression}s.
+         */
+        public DataType type() {
+            return type;
+        }
+
+        /**
+         * A name for the value. Used to generate test names.
+         */
+        public String name() {
+            return name;
         }
     }
 }

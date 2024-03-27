@@ -4,6 +4,7 @@ setup:
       version: " - 8.10.99"
       reason: "ESQL is available in 8.11+"
       features: allowed_warnings_regex
+
   - do:
       indices.create:
         index: test
@@ -119,6 +120,82 @@ setup:
 
   - length: { values: 1 }
   - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+
+---
+"IN on text":
+  - skip:
+      version: " - 8.13.99"
+      reason: "IN on text fixed in v 8.14"
+      features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag IN ("abc", "baz") | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz"] }
+
+---
+"IN on text and itself":
+  - skip:
+      version: " - 8.13.99"
+      reason: "IN on text fixed in v 8.14"
+      features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag IN ("abc", tag) | keep emp_no, name, job, tag | sort emp_no'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar"] }
+  - match: { values.1: [ 20, "John", "Payroll Specialist", "baz"] }
+
+---
+"NOT IN on text":
+  - skip:
+      version: " - 8.13.99"
+      reason: "IN on text fixed in v 8.14"
+      features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag NOT IN ("abc", "baz") | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar"] }
 
 ---
 "eval and filter text":
@@ -289,6 +366,26 @@ setup:
   - match: { values.0: [ "Jenny - IT Director"] }
   - match: { values.1: [ "John - Payroll Specialist"] }
 
+---
+"split text":
+  - skip:
+      version: " - 8.13.99"
+      reason: "functions fixed for text in v 8.14"
+      features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort emp_no | eval split = split(tag, " ") | keep split'
+
+  - match: { columns.0.name: "split" }
+  - match: { columns.0.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ ["foo", "bar"] ] }
+  - match: { values.1: [ "baz"] }
+
 
 ---
 "stats text with raw":
@@ -441,3 +538,38 @@ setup:
   - length: { values: 2 }
   - match: { values.0.0: "IT Director" }
   - match: { values.1.0: "Payroll Specialist" }
+
+---
+values:
+  - requires:
+      cluster_features: esql.value_agg
+      reason: "values is available in 8.14+"
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS job = VALUES(job) | LIMIT 1'
+  - match: { columns.0.name: "job" }
+  - match: { columns.0.type: "text" }
+  - length: { values: 1 }
+  - match: { values.0: [ [ "IT Director", "Payroll Specialist" ] ] }
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 30, "name": "Stuff", "job": "Other", "tag": "baz" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS job = VALUES(job) BY tag | SORT tag | LIMIT 10'
+  - match: { columns.0.name: "job" }
+  - match: { columns.0.type: "text" }
+  - match: { columns.1.name: "tag" }
+  - match: { columns.1.type: "text" }
+  - length: { values: 2 }
+  - match: { values.0: [ [ "Payroll Specialist", "Other" ], "baz" ] }
+  - match: { values.1: [ "IT Director", "foo bar" ] }

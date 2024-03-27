@@ -18,30 +18,39 @@ refer to
 
 You can create {transform} rules under **{stack-manage-app} > {rules-ui}**.
 
-On the *Create rule* window, give a name to the rule and optionally provide 
+. On the *Create rule* window, give a name to the rule and optionally provide 
 tags. Select the {transform} health rule type:
-
++
+--
 [role="screenshot"]
 image::images/transform-rule.png["Creating a transform health rule",500]
 // NOTE: This is screenshot is automatically generated. Do not edit it directly.
+--
 
-Select the {transform} or {transforms} to include. You can also use a special 
+. Select the {transform} or {transforms} to include. You can also use a special 
 character (`*`) to apply the rule to all your {transforms}. {transforms-cap} 
 created after the rule are automatically included.
 
-The following health checks are available and enabled by default:
-
+. The following health checks are available and enabled by default:
++
+--
 _{transform-cap} is not started_:: 
-  Notifies if the corresponding {transforms} is not started or it does not index 
-  any data. The notification message recommends the necessary actions to solve 
-  the error.
+  Get alerts when a {transform} is not started or is not indexing any data.
+  The notification message recommends the necessary actions to solve the error.
 
-_Errors in {transform} messages_:: 
-  Notifies if {transform} messages contain errors.
+_Unhealthy {transform}_:: 
+  Get alerts when a {transform} has an unhealthy status.
+  The notification message contains status details and related issues.
 
 [role="screenshot"]
 image::images/transform-check-config.png["Selecting health check",500]
 // NOTE: This is screenshot is automatically generated. Do not edit it directly.
+--
+
+. Set the check interval, which defines how often to evaluate the rule conditions.
+
+. In the advanced options, you can change the number of consecutive runs that
+must meet the rule conditions before an alert occurs. The default value is 1.
 
 As the last step in the rule creation process, define its actions.
   

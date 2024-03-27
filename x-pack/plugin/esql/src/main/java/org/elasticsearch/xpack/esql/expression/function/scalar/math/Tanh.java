@@ -25,7 +25,7 @@ public class Tanh extends AbstractTrigonometricFunction {
     public Tanh(
         Source source,
         @Param(
-            name = "n",
+            name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
             description = "The number to return the hyperbolic tangent of"
         ) Expression n

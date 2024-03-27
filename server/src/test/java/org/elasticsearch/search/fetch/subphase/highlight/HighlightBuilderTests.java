@@ -317,7 +317,11 @@ public class HighlightBuilderTests extends ESTestCase {
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
+                    name,
+                    createDefaultIndexAnalyzers(),
+                    idxSettings.getMode().isSyntheticSourceEnabled()
+                );
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };
@@ -610,8 +614,8 @@ public class HighlightBuilderTests extends ESTestCase {
     private static void setRandomCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         if (randomBoolean()) {
             // need to set this together, otherwise parsing will complain
-            highlightBuilder.preTags(randomStringArray(0, 3));
-            highlightBuilder.postTags(randomStringArray(0, 3));
+            highlightBuilder.preTags(randomStringArray(1, 3));
+            highlightBuilder.postTags(randomStringArray(1, 3));
         }
         if (randomBoolean()) {
             highlightBuilder.fragmentSize(randomIntBetween(0, 100));

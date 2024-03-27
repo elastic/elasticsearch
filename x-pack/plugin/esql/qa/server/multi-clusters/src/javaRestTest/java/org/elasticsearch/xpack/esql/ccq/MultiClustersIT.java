@@ -172,9 +172,7 @@ public class MultiClustersIT extends ESRestTestCase {
             assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
         }
         {
-            Map<String, Object> result = run(
-                "FROM *:test-remote-index OPTIONS \"preference\"=\"_shards:999\" | STATS c = COUNT(*)"
-            );
+            Map<String, Object> result = run("FROM *:test-remote-index OPTIONS \"preference\"=\"_shards:999\" | STATS c = COUNT(*)");
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(0)); // shard with id 999 above (non-existent) yields count 0
             assertMap(result, matchesMap().entry("columns", columns).entry("values", values));

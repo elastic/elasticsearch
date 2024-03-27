@@ -632,10 +632,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testFromOptionsEmptyIndicesOptionName() {
-        expectError(
-            FROM + " options \"\"=\"true\"",
-            "line 1:20: invalid options provided: unknown option named []"
-        );
+        expectError(FROM + " options \"\"=\"true\"", "line 1:20: invalid options provided: unknown option named []");
     }
 
     public void testFromOptionsEmptyIndicesOptionValue() {
@@ -649,10 +646,7 @@ public class StatementParserTests extends ESTestCase {
             "line 1:20: invalid options provided: Could not convert [ignore_unavailable] to boolean. "
                 + "Failed to parse value [TRUE] as only [true] or [false] are allowed."
         );
-        expectError(
-            FROM + " options \"preference\"=\"\"",
-            "line 1:20: invalid options provided: no Preference for []"
-        );
+        expectError(FROM + " options \"preference\"=\"\"", "line 1:20: invalid options provided: no Preference for []");
     }
 
     public void testFromOptionsSuggestedOptionName() {

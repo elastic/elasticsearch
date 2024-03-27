@@ -160,7 +160,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert (pendingCompoundCommits.isEmpty() && primaryTermAndGeneration.generation() == reference.getGeneration())
             || (pendingCompoundCommits.isEmpty() == false && primaryTermAndGeneration.generation() < reference.getGeneration());
         assert pendingCompoundCommits.isEmpty() || pendingCompoundCommits.last().getGeneration() < reference.getGeneration();
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.FLUSH, ThreadPool.Names.REFRESH, Stateless.SHARD_WRITE_THREAD_POOL);
 
         // bail early if VBCC is already frozen to avoid doing any work
         if (isFrozen()) {
@@ -288,6 +287,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return shardId;
     }
 
+    public long getPrimaryTerm() {
+        return primaryTermAndGeneration.primaryTerm();
+    }
+
     public long getGeneration() {
         return primaryTermAndGeneration.generation();
     }
@@ -296,8 +299,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return pendingCompoundCommits.stream().mapToLong(PendingCompoundCommit::getSizeInBytes).sum();
     }
 
-    public Set<String> getInternalFiles() {
-        return internalLocations.keySet();
+    public Map<String, BlobLocation> getInternalLocations() {
+        return internalLocations;
     }
 
     @Override

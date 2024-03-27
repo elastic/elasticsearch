@@ -20,8 +20,9 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -30,7 +31,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToLong extends AbstractConvertFunction {
 
@@ -81,18 +81,9 @@ public class ToLong extends AbstractConvertFunction {
         return bool ? 1L : 0L;
     }
 
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { NumberFormatException.class })
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { InvalidArgumentException.class })
     static long fromKeyword(BytesRef in) {
-        String asString = in.utf8ToString();
-        try {
-            return Long.parseLong(asString);
-        } catch (NumberFormatException nfe) {
-            try {
-                return fromDouble(Double.parseDouble(asString));
-            } catch (Exception e) {
-                throw nfe;
-            }
-        }
+        return stringToLong(in.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class })
@@ -102,7 +93,7 @@ public class ToLong extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class })
     static long fromUnsignedLong(long ul) {
-        return safeToLong(unsignedLongAsNumber(ul));
+        return unsignedLongToLong(ul);
     }
 
     @ConvertEvaluator(extraName = "FromInt")

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -51,11 +52,14 @@ import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,6 +79,7 @@ public class EsqlSession {
     private final String sessionId;
     private final EsqlConfiguration configuration;
     private final IndexResolver indexResolver;
+    private final EsqlIndexResolver esqlIndexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
 
     private final PreAnalyzer preAnalyzer;
@@ -89,6 +94,7 @@ public class EsqlSession {
         String sessionId,
         EsqlConfiguration configuration,
         IndexResolver indexResolver,
+        EsqlIndexResolver esqlIndexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
         FunctionRegistry functionRegistry,
@@ -99,6 +105,7 @@ public class EsqlSession {
         this.sessionId = sessionId;
         this.configuration = configuration;
         this.indexResolver = indexResolver;
+        this.esqlIndexResolver = esqlIndexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
@@ -201,18 +208,11 @@ public class EsqlSession {
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
 
-            indexResolver.resolveAsMergedMapping(
-                table.index(),
-                fieldNames,
-                false,
-                Map.of(),
-                listener,
-                EsqlSession::specificValidity,
-                IndexResolver.PRESERVE_PROPERTIES,
-                // TODO no matter what metadata fields are asked in a query, the "allowedMetadataFields" is always _index, does it make
-                // sense to reflect the actual list of metadata fields instead?
-                IndexResolver.INDEX_METADATA_FIELD
-            );
+            if (Assertions.ENABLED) {
+                resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, listener);
+            } else {
+                esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
+            }
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -221,6 +221,136 @@ public class EsqlSession {
                 listener.onFailure(ex);
             }
         }
+    }
+
+    /**
+     * Resolves the mapping against both the new, fast {@link #esqlIndexResolver}
+     * and the older, known correct {@link #indexResolver}. We then assert that they
+     * produce the same output.
+     */
+    private void resolveMergedMappingAgainstBothResolvers(
+        String indexWildcard,
+        Set<String> fieldNames,
+        ActionListener<IndexResolution> listener
+    ) {
+        indexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, false, Map.of(), new ActionListener<>() {
+            @Override
+            public void onResponse(IndexResolution fromQl) {
+                esqlIndexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, new ActionListener<>() {
+                    @Override
+                    public void onResponse(IndexResolution fromEsql) {
+                        if (fromQl.isValid() == false) {
+                            if (fromEsql.isValid()) {
+                                throw new IllegalArgumentException(
+                                    "ql and esql didn't make the same resolution: validity differs " + fromQl + " != " + fromEsql
+                                );
+                            }
+                        } else {
+                            assertSameMappings("", fromQl.get().mapping(), fromEsql.get().mapping());
+                            if (fromQl.get().concreteIndices().equals(fromEsql.get().concreteIndices()) == false) {
+                                throw new IllegalArgumentException(
+                                    "ql and esql didn't make the same resolution: concrete indices differ "
+                                        + fromQl.get().concreteIndices()
+                                        + " != "
+                                        + fromEsql.get().concreteIndices()
+                                );
+                            }
+                        }
+                        listener.onResponse(fromEsql);
+                    }
+
+                    private void assertSameMappings(String prefix, Map<String, EsField> fromQl, Map<String, EsField> fromEsql) {
+                        List<String> qlFields = new ArrayList<>();
+                        qlFields.addAll(fromQl.keySet());
+                        Collections.sort(qlFields);
+
+                        List<String> esqlFields = new ArrayList<>();
+                        esqlFields.addAll(fromEsql.keySet());
+                        Collections.sort(esqlFields);
+                        if (qlFields.equals(esqlFields) == false) {
+                            throw new IllegalArgumentException(
+                                prefix + ": ql and esql didn't make the same resolution: fields differ \n" + qlFields + " !=\n" + esqlFields
+                            );
+                        }
+
+                        for (int f = 0; f < qlFields.size(); f++) {
+                            String name = qlFields.get(f);
+                            EsField qlField = fromQl.get(name);
+                            EsField esqlField = fromEsql.get(name);
+
+                            if (qlField.getProperties().isEmpty() == false || esqlField.getProperties().isEmpty() == false) {
+                                assertSameMappings(
+                                    prefix.equals("") ? name : prefix + "." + name,
+                                    qlField.getProperties(),
+                                    esqlField.getProperties()
+                                );
+                            }
+
+                            /*
+                             * Check that the field itself is the same, skipping isAlias because
+                             * we don't actually use it in ESQL and the EsqlIndexResolver doesn't
+                             * produce exactly the same result.
+                             */
+                            if (qlField.getDataType().equals(DataTypes.UNSUPPORTED) == false
+                                && qlField.getName().equals(esqlField.getName()) == false
+                            // QL uses full paths for unsupported fields. ESQL does not. This particular difference is fine.
+                            ) {
+                                throw new IllegalArgumentException(
+                                    prefix
+                                        + "."
+                                        + name
+                                        + ": ql and esql didn't make the same resolution: names differ ["
+                                        + qlField.getName()
+                                        + "] != ["
+                                        + esqlField.getName()
+                                        + "]"
+                                );
+                            }
+                            if (qlField.getDataType() != esqlField.getDataType()) {
+                                throw new IllegalArgumentException(
+                                    prefix
+                                        + "."
+                                        + name
+                                        + ": ql and esql didn't make the same resolution: types differ ["
+                                        + qlField.getDataType()
+                                        + "] != ["
+                                        + esqlField.getDataType()
+                                        + "]"
+                                );
+                            }
+                            if (qlField.isAggregatable() != esqlField.isAggregatable()) {
+                                throw new IllegalArgumentException(
+                                    prefix
+                                        + "."
+                                        + name
+                                        + ": ql and esql didn't make the same resolution: aggregability differ ["
+                                        + qlField.isAggregatable()
+                                        + "] != ["
+                                        + esqlField.isAggregatable()
+                                        + "]"
+                                );
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        },
+            EsqlSession::specificValidity,
+            IndexResolver.PRESERVE_PROPERTIES,
+            // TODO no matter what metadata fields are asked in a query, the "allowedMetadataFields" is always _index, does it make
+            // sense to reflect the actual list of metadata fields instead?
+            IndexResolver.INDEX_METADATA_FIELD
+        );
     }
 
     static Set<String> fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields) {

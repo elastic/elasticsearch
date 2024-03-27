@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -53,7 +52,6 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 import java.util.Map;
@@ -188,7 +186,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             .startObject("mappings")
             .startObject("_doc")
             .startObject("_meta")
-            .field(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, Version.CURRENT.toString())
+            .field("rollup-version", "") // empty string to remain backwards compatible
             .startObject("_rollup")
             .field(config.getId(), config)
             .endObject()
@@ -254,14 +252,6 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             }
 
             Map<String, Object> rollupMeta = (Map<String, Object>) ((Map<String, Object>) m).get(RollupField.ROLLUP_META);
-
-            String stringVersion = (String) ((Map<String, Object>) m).get(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD);
-            if (stringVersion == null) {
-                listener.onFailure(
-                    new IllegalStateException("Could not determine version of existing rollup metadata for index [" + indexName + "]")
-                );
-                return;
-            }
 
             if (rollupMeta.get(job.getConfig().getId()) != null) {
                 String msg = "Cannot create rollup job ["

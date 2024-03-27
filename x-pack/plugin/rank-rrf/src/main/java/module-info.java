@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.xpack.rank.rrf.RRFFeatures;
+
 module org.elasticsearch.rank.rrf {
     requires org.apache.lucene.core;
     requires org.elasticsearch.base;
@@ -13,4 +15,6 @@ module org.elasticsearch.rank.rrf {
     requires org.elasticsearch.xcore;
 
     exports org.elasticsearch.xpack.rank.rrf;
+
+    provides org.elasticsearch.features.FeatureSpecification with RRFFeatures;
 }

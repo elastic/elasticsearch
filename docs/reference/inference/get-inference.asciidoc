@@ -18,17 +18,18 @@ own model, use the <<ml-df-trained-models-apis>>.
 
 `GET /_inference/_all`
 
-`GET /_inference/<model_id>`
+`GET /_inference/<inference_id>`
 
 `GET /_inference/<task_type>/_all`
 
-`GET /_inference/<task_type>/<model_id>`
+`GET /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[get-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+* Requires the `monitor_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` and `inference_user` roles grant this privilege)
 
 [discrete]
 [[get-inference-api-desc]]
@@ -46,9 +47,9 @@ and a wildcard expression,
 [[get-inference-api-path-params]]
 ==== {api-path-parms-title}
 
-`<model_id>`::
+`<inference_id>`::
 (Optional, string)
-The unique identifier of the {infer} model.
+The unique identifier of the {infer} endpoint.
 
 
 `<task_type>`::
@@ -76,7 +77,7 @@ The API returns the following response:
 [source,console-result]
 ------------------------------------------------------------
 {
-  "model_id": "my-elser-model",
+  "inference_id": "my-elser-model",
   "task_type": "sparse_embedding",
   "service": "elser",
   "service_settings": {

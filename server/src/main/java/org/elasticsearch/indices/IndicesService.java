@@ -85,6 +85,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -127,6 +128,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.store.CompositeIndexFoldersDeletionListener;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -167,7 +169,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -736,7 +737,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            loadSlowLogFieldProvider()
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -812,7 +814,8 @@ public class IndicesService extends AbstractLifecycleComponent
             directoryFactories,
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
-            recoveryStateFactories
+            recoveryStateFactories,
+            loadSlowLogFieldProvider()
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
@@ -1390,6 +1393,31 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
+    // pkg-private for testing
+    SlowLogFieldProvider loadSlowLogFieldProvider() {
+        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
+        return new SlowLogFieldProvider() {
+            @Override
+            public void init(IndexSettings indexSettings) {
+                slowLogFieldProviders.forEach(provider -> provider.init(indexSettings));
+            }
+
+            @Override
+            public Map<String, String> indexSlowLogFields() {
+                return slowLogFieldProviders.stream()
+                    .flatMap(provider -> provider.indexSlowLogFields().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
+
+            @Override
+            public Map<String, String> searchSlowLogFields() {
+                return slowLogFieldProviders.stream()
+                    .flatMap(provider -> provider.searchSlowLogFields().entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
+        };
+    }
+
     /**
      * Checks if all pending deletes have completed. Used by tests to ensure we don't check directory contents
      * while deletion still ongoing. * The reason is that, on Windows, browsing the directory contents can interfere
@@ -1728,7 +1756,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * {@link org.elasticsearch.plugins.MapperPlugin#getFieldFilter()}, only fields that match all the registered filters will be
      * returned by get mappings, get index, get field mappings and field capabilities API.
      */
-    public Function<String, Predicate<String>> getFieldFilter() {
+    public Function<String, FieldPredicate> getFieldFilter() {
         return mapperRegistry.getFieldFilter();
     }
 

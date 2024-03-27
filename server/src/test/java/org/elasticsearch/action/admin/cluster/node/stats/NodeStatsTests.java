@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
@@ -1043,6 +1044,13 @@ public class NodeStatsTests extends ESTestCase {
         RepositoriesStats repositoriesStats = new RepositoriesStats(
             Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
         );
+        NodeAllocationStats nodeAllocationStats = new NodeAllocationStats(
+            randomIntBetween(0, 10000),
+            randomIntBetween(0, 1000),
+            randomDoubleBetween(0, 8, true),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
 
         return new NodeStats(
             node,
@@ -1062,7 +1070,8 @@ public class NodeStatsTests extends ESTestCase {
             adaptiveSelectionStats,
             scriptCacheStats,
             indexingPressureStats,
-            repositoriesStats
+            repositoriesStats,
+            nodeAllocationStats
         );
     }
 

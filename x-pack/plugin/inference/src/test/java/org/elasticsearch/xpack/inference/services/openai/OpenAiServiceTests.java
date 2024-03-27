@@ -29,10 +29,12 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 import org.hamcrest.MatcherAssert;
@@ -111,6 +113,41 @@ public class OpenAiServiceTests extends ESTestCase {
                     getServiceSettingsMap("model", "url", "org"),
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
+                ),
+                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnOpenAiChatCompletionsModel() throws IOException {
+        var url = "url";
+        var organization = "org";
+        var model = "model";
+        var user = "user";
+        var secret = "secret";
+
+        try (var service = createOpenAiService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
+                assertThat(m, instanceOf(OpenAiChatCompletionModel.class));
+
+                var completionsModel = (OpenAiChatCompletionModel) m;
+
+                assertThat(completionsModel.getServiceSettings().uri().toString(), is(url));
+                assertThat(completionsModel.getServiceSettings().organizationId(), is(organization));
+                assertThat(completionsModel.getServiceSettings().modelId(), is(model));
+                assertThat(completionsModel.getTaskSettings().user(), is(user));
+                assertThat(completionsModel.getSecretSettings().apiKey().toString(), is(secret));
+
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.COMPLETION,
+                getRequestConfigMap(
+                    getServiceSettingsMap(model, url, organization),
+                    getTaskSettingsMap(user),
+                    getSecretSettingsMap(secret)
                 ),
                 Set.of(),
                 modelVerificationListener
@@ -237,6 +274,33 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
+                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnOpenAiChatCompletionsModelWithoutUserWithoutUserUrlOrganization() throws IOException {
+        var model = "model";
+        var secret = "secret";
+
+        try (var service = createOpenAiService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
+                assertThat(m, instanceOf(OpenAiChatCompletionModel.class));
+
+                var completionsModel = (OpenAiChatCompletionModel) m;
+                assertNull(completionsModel.getServiceSettings().uri());
+                assertNull(completionsModel.getServiceSettings().organizationId());
+                assertThat(completionsModel.getServiceSettings().modelId(), is(model));
+                assertNull(completionsModel.getTaskSettings().user());
+                assertThat(completionsModel.getSecretSettings().apiKey().toString(), is(secret));
+
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.COMPLETION,
+                getRequestConfigMap(getServiceSettingsMap(model, null, null), getTaskSettingsMap(null), getSecretSettingsMap(secret)),
                 Set.of(),
                 modelVerificationListener
             );
@@ -604,7 +668,7 @@ public class OpenAiServiceTests extends ESTestCase {
     public void testInfer_ThrowsErrorWhenModelIsNotOpenAiModel() throws IOException {
         var sender = mock(Sender.class);
 
-        var factory = mock(HttpRequestSenderFactory.class);
+        var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender(anyString())).thenReturn(sender);
 
         var mockModel = getInvalidModel("model_id", "service_name");
@@ -629,7 +693,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testInfer_SendsRequest() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -677,7 +741,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -718,7 +782,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testCheckModelConfig_ThrowsIfEmbeddingSizeDoesNotMatchValueSetByUser() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -769,7 +833,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
     public void testCheckModelConfig_ReturnsModelWithDimensionsSetTo2_AndDocProductSet_IfDimensionsSetByUser_ButSetToNull()
         throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -827,7 +891,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
     public void testCheckModelConfig_ReturnsModelWithSameDimensions_AndDocProductSet_IfDimensionsSetByUser_AndTheyMatchReturnedSize()
         throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -886,7 +950,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testCheckModelConfig_ReturnsNewModelReference_AndDoesNotSendDimensionsField_WhenNotSetByUser() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -952,7 +1016,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     public void testInfer_UnauthorisedResponse() throws IOException {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
@@ -1007,7 +1071,7 @@ public class OpenAiServiceTests extends ESTestCase {
     }
 
     private OpenAiService createOpenAiService() {
-        return new OpenAiService(mock(HttpRequestSenderFactory.class), createWithEmptySettings(threadPool));
+        return new OpenAiService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }
 
     private Map<String, Object> getRequestConfigMap(

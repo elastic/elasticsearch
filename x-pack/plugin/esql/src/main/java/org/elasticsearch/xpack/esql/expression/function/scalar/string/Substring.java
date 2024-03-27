@@ -41,7 +41,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
     )
     public Substring(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }) Expression str,
+        @Param(name = "string", type = { "keyword", "text" }) Expression str,
         @Param(name = "start", type = { "integer" }) Expression start,
         @Param(optional = true, name = "length", type = { "integer" }) Expression length
     ) {

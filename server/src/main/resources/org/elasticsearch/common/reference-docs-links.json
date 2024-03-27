@@ -31,5 +31,6 @@
   "BOOTSTRAP_CHECK_TOKEN_SSL": "bootstrap-checks-xpack.html#_token_ssl_check",
   "BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP": "security-minimal-setup.html",
   "CONTACT_SUPPORT": "troubleshooting.html#troubleshooting-contact-support",
-  "UNASSIGNED_SHARDS": "red-yellow-cluster-status.html"
+  "UNASSIGNED_SHARDS": "red-yellow-cluster-status.html",
+  "EXECUTABLE_JNA_TMPDIR": "executable-jna-tmpdir.html"
 }

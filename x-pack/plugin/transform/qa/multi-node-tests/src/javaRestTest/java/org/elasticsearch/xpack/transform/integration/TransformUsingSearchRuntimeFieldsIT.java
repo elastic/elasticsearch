@@ -28,12 +28,12 @@ import org.junit.Before;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
+import static java.util.Map.entry;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,39 +49,31 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
     private static final int NUM_USERS = 28;
 
     private static Map<String, Object> createRuntimeMappings() {
-        return new HashMap<>() {
-            {
-                put("user-upper", new HashMap<>() {
-                    {
-                        put("type", "keyword");
-                        put(
-                            "script",
-                            singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUpperCase())}")
-                        );
-                    }
-                });
-                put("stars", new HashMap<>() {
-                    {
-                        put("type", "long");
-                    }
-                });
-                put("stars-x2", new HashMap<>() {
-                    {
-                        put("type", "long");
-                        put("script", singletonMap("source", "if (params._source.stars != null) {emit(2 * params._source.stars)}"));
-                    }
-                });
-                put("timestamp-5m", new HashMap<>() {
-                    {
-                        put("type", "date");
-                        put(
-                            "script",
-                            singletonMap("source", "emit(doc['timestamp'].value.toInstant().minus(5, ChronoUnit.MINUTES).toEpochMilli())")
-                        );
-                    }
-                });
-            }
-        };
+        return Map.ofEntries(
+            entry(
+                "user-upper",
+                Map.of(
+                    "type",
+                    "keyword",
+                    "script",
+                    Map.of("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUpperCase())}")
+                )
+            ),
+            entry("stars", Map.of("type", "long")),
+            entry(
+                "stars-x2",
+                Map.of("type", "long", "script", Map.of("source", "if (params._source.stars != null) {emit(2 * params._source.stars)}"))
+            ),
+            entry(
+                "timestamp-5m",
+                Map.of(
+                    "type",
+                    "date",
+                    "script",
+                    Map.of("source", "emit(doc['timestamp'].value.toInstant().minus(5, ChronoUnit.MINUTES).toEpochMilli())")
+                )
+            )
+        );
     }
 
     @Before
@@ -114,17 +106,15 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
 
         var previewResponse = previewTransform(Strings.toString(config), RequestOptions.DEFAULT);
         // Verify preview mappings
-        Map<String, Object> expectedMappingProperties = new HashMap<>() {
-            {
-                put("by-user", singletonMap("type", "keyword"));
-                put("review_score", singletonMap("type", "double"));
-                put("review_score_max", singletonMap("type", "long"));
-                put("review_score_rt_avg", singletonMap("type", "double"));
-                put("review_score_rt_max", singletonMap("type", "long"));
-                put("timestamp", singletonMap("type", "date"));
-                put("timestamp_rt", singletonMap("type", "date"));
-            }
-        };
+        Map<String, Object> expectedMappingProperties = Map.ofEntries(
+            entry("by-user", Map.of("type", "keyword")),
+            entry("review_score", Map.of("type", "double")),
+            entry("review_score_max", Map.of("type", "long")),
+            entry("review_score_rt_avg", Map.of("type", "double")),
+            entry("review_score_rt_max", Map.of("type", "long")),
+            entry("timestamp", Map.of("type", "date")),
+            entry("timestamp_rt", Map.of("type", "date"))
+        );
         var generatedMappings = (Map<String, Object>) XContentMapValues.extractValue("generated_dest_index.mappings", previewResponse);
         assertThat(generatedMappings, allOf(hasKey("_meta"), hasEntry("properties", expectedMappingProperties)));
         // Verify preview contents
@@ -167,20 +157,16 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
     public void testPivotTransform_BadRuntimeFieldScript() throws Exception {
         String destIndexName = "reviews-by-user-pivot";
         String transformId = "transform-with-st-rt-fields-pivot";
-        Map<String, Object> runtimeMappings = new HashMap<>() {
-            {
-                put("user-upper", new HashMap<>() {
-                    {
-                        put("type", "keyword");
-                        // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
-                        put(
-                            "script",
-                            singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}")
-                        );
-                    }
-                });
-            }
-        };
+        Map<String, Object> runtimeMappings = Map.of(
+            "user-upper",
+            Map.of(
+                "type",
+                "keyword",
+                // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
+                "script",
+                Map.of("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}")
+            )
+        );
 
         Map<String, SingleGroupSource> groups = singletonMap("by-user", new TermsGroupSource("user-upper", null, false));
         AggregatorFactories.Builder aggs = AggregatorFactories.builder()
@@ -273,20 +259,16 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformRestTestCase {
     public void testLatestTransform_BadRuntimeFieldScript() throws Exception {
         String destIndexName = "reviews-by-user-latest";
         String transformId = "transform-with-st-rt-fields-latest";
-        Map<String, Object> runtimeMappings = new HashMap<>() {
-            {
-                put("user-upper", new HashMap<>() {
-                    {
-                        put("type", "keyword");
-                        // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
-                        put(
-                            "script",
-                            singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}")
-                        );
-                    }
-                });
-            }
-        };
+        Map<String, Object> runtimeMappings = Map.of(
+            "user-upper",
+            Map.of(
+                "type",
+                "keyword",
+                // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
+                "script",
+                Map.of("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}")
+            )
+        );
 
         SourceConfig sourceConfig = new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, QueryConfig.matchAll(), runtimeMappings);
         TransformConfig configWithRuntimeFields = createTransformConfigBuilder(transformId, destIndexName, QueryConfig.matchAll(), "dummy")

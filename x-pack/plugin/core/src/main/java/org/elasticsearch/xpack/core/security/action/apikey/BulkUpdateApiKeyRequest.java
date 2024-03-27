@@ -49,4 +49,5 @@ public final class BulkUpdateApiKeyRequest extends BaseBulkUpdateApiKeyRequest {
     public ApiKey.Type getType() {
         return ApiKey.Type.REST;
     }
+
 }

@@ -185,8 +185,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertException("from test_alias | where _size is not null | limit 1", "Unknown column [_size]");
         assertException(
             "from test_alias | where message.hash is not null | limit 1",
-            "Cannot use field [message.hash] due to ambiguities",
-            "incompatible types: [integer] in [index2], [murmur3] in [index1]"
+            "Cannot use field [message.hash] with unsupported type [murmur3]"
         );
         assertException(
             "from index1 | where message.hash is not null | limit 1",

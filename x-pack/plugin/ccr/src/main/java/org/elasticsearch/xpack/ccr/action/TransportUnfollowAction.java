@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
@@ -123,7 +124,11 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
 
                 final RemoteClusterClient remoteClient;
                 try {
-                    remoteClient = client.getRemoteClusterClient(remoteClusterName, remoteClientResponseExecutor);
+                    remoteClient = client.getRemoteClusterClient(
+                        remoteClusterName,
+                        remoteClientResponseExecutor,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                    );
                 } catch (Exception e) {
                     onLeaseRemovalFailure(indexMetadata.getIndex(), retentionLeaseId, e);
                     return;

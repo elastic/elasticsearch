@@ -32,6 +32,23 @@ setup:
   - match: { status: created }
 
 ---
+"Update Connector Index Name - detach index":
+  - do:
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name: null
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { index_name: null }
+
+---
 "Update Connector Index Name - 404 when connector doesn't exist":
   - do:
       catch: "missing"

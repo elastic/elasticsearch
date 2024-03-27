@@ -294,14 +294,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void waitUntilCheckpoint(String id, long checkpoint, TimeValue waitTime) throws Exception {
-        assertBusy(
-            () -> assertEquals(
-                checkpoint,
-                ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", getBasicTransformStats(id))).longValue()
-            ),
-            waitTime.getMillis(),
-            TimeUnit.MILLISECONDS
-        );
+        assertBusy(() -> assertEquals(checkpoint, getCheckpoint(id)), waitTime.getMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    protected long getCheckpoint(String id) throws IOException {
+        return getCheckpoint(getBasicTransformStats(id));
+    }
+
+    protected long getCheckpoint(Map<String, Object> stats) {
+        return ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", stats)).longValue();
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(

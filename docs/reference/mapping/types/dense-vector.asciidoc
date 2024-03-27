@@ -232,7 +232,6 @@ expense of slower indexing speed.
 +
 ^*^ This parameter can only be specified when `index` is `true`.
 +
-+
 .Properties of `index_options`
 [%collapsible%open]
 ====

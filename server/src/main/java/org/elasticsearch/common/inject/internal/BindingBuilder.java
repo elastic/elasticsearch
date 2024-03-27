@@ -60,7 +60,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T> implements Anno
         Set<InjectionPoint> injectionPoints;
         if (instance != null) {
             try {
-                injectionPoints = InjectionPoint.forInstanceMethodsAndFields(instance.getClass());
+                injectionPoints = InjectionPoint.forInstanceMethods(instance.getClass());
             } catch (ConfigurationException e) {
                 for (Message message : e.getErrorMessages()) {
                     binder.addError(message);
@@ -84,7 +84,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T> implements Anno
         // lookup the injection points, adding any errors to the binder's errors list
         Set<InjectionPoint> injectionPoints;
         try {
-            injectionPoints = InjectionPoint.forInstanceMethodsAndFields(provider.getClass());
+            injectionPoints = InjectionPoint.forInstanceMethods(provider.getClass());
         } catch (ConfigurationException e) {
             for (Message message : e.getErrorMessages()) {
                 binder.addError(message);

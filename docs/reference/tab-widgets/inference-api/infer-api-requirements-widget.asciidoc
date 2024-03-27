@@ -1,0 +1,39 @@
+++++
+<div class="tabs" data-tab-group="model">
+  <div role="tablist" aria-label="model">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-requirements-cohere-tab"
+            id="infer-api-requirements-cohere">
+      Cohere
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="infer-api-requirements-openai-tab"
+            id="infer-api-requirements-openai">
+      OpenAI
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-cohere-tab"
+       aria-labelledby="infer-api-requirements-cohere">
+++++
+
+include::infer-api-requirements.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-openai-tab"
+       aria-labelledby="infer-api-requirements-openai"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=openai]
+
+++++
+  </div>
+</div>
+++++

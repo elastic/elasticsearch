@@ -10,43 +10,44 @@ package org.elasticsearch.compute.data;
 /**
  * A Block view of a Vector.
  */
-abstract class AbstractVectorBlock extends AbstractBlock {
-
-    AbstractVectorBlock(int positionCount, BlockFactory blockFactory) {
-        super(positionCount, blockFactory);
-    }
+abstract class AbstractVectorBlock extends AbstractNonThreadSafeRefCounted implements Block {
 
     @Override
-    public int getFirstValueIndex(int position) {
+    public final int getFirstValueIndex(int position) {
         return position;
     }
 
-    public int getValueCount(int position) {
+    @Override
+    public final int getTotalValueCount() {
+        return getPositionCount();
+    }
+
+    public final int getValueCount(int position) {
         return 1;
     }
 
     @Override
-    public boolean isNull(int position) {
+    public final boolean isNull(int position) {
         return false;
     }
 
     @Override
-    public int nullValuesCount() {
+    public final int nullValuesCount() {
         return 0;
     }
 
     @Override
-    public boolean mayHaveNulls() {
+    public final boolean mayHaveNulls() {
         return false;
     }
 
     @Override
-    public boolean areAllValuesNull() {
+    public final boolean areAllValuesNull() {
         return false;
     }
 
     @Override
-    public boolean mayHaveMultivaluedFields() {
+    public final boolean mayHaveMultivaluedFields() {
         return false;
     }
 

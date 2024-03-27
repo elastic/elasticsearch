@@ -30,13 +30,13 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
      * E.g. "2024.04.🎉" will be interpreted as {@link EsqlVersion#PARTY_POPPER}, but so will "2024.04" and "2024.04foobar".
      */
     public String versionStringNoEmoji() {
-        return this == NIGHTLY ? "nightly" : String.format("%d.%02d", year, month);
+        return this == NIGHTLY ? "nightly" : Strings.format("%d.%02d", year, month);
     }
 
     public static EsqlVersion parse(String versionString) {
         EsqlVersion parsed = null;
         if (Strings.hasText(versionString)) {
-            versionString = versionString.toLowerCase();
+            versionString = Strings.toLowercaseAscii(versionString);
             for (EsqlVersion version : EsqlVersion.values()) {
                 if (versionString.startsWith(version.versionStringNoEmoji())) {
                     return version;

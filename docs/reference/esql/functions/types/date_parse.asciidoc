@@ -7,5 +7,4 @@
 datePattern | dateString | result
 keyword | keyword | datetime
 keyword | text | datetime
-text | text | datetime
 |===

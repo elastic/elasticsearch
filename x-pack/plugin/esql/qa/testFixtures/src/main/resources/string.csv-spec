@@ -1160,11 +1160,3 @@ required_feature: esql.agg_values
                                                                                              null | null
 // end::values-grouped-result[]
 ;
-
-
-splitBasedOnField
-from employees | where emp_no == 10001 | eval split = split("fooMbar", gender) | keep gender, split;
-
-gender:keyword | split:keyword 
-M              | [foo, bar]
-;

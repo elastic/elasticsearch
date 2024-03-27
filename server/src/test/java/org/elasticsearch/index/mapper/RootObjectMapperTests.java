@@ -391,6 +391,100 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
     }
 
+    public void testPassThroughObjectNestedWithDuplicateNames() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("resource").field("type", "object");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("attributes").field("type", "passthrough");
+                    {
+                        b.startObject("properties");
+                        b.startObject("dim").field("type", "keyword").endObject();
+                        b.startObject("more.attributes.another.dimA").field("type", "keyword").endObject();
+                        b.startObject("more.attributes.another.dimB").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("attributes").field("type", "passthrough");
+            {
+                b.startObject("properties");
+                b.startObject("another.dim").field("type", "keyword").endObject();
+                b.startObject("more.attributes.another.dimC").field("type", "keyword").endObject();
+                b.startObject("more.attributes.another.dimD").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("resource.attributes.dim"), instanceOf(KeywordFieldMapper.class));
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimA"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("resource.attributes.more.attributes.another.dimA"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimB"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("resource.attributes.more.attributes.another.dimB"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+
+        assertThat(mapperService.mappingLookup().objectMappers().get("another").getMapper("dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimC"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("attributes.more.attributes.another.dimC"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimD"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("attributes.more.attributes.another.dimD"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+    }
+
+    public void testPassThroughObjectNestedWithConflictingNames() throws IOException {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("resource").field("type", "object");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("attributes").field("type", "passthrough");
+                    {
+                        b.startObject("properties");
+                        b.startObject("dim").field("type", "keyword").endObject();
+                        b.startObject("resource.attributes.another.dim").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Conflicting objects created during alias generation for pass-through field: [resource]",
+            e.getMessage()
+        );
+    }
+
     public void testAliasMappersCreatesAlias() throws Exception {
         var context = MapperBuilderContext.root(false, false);
         Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
@@ -445,6 +539,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         var context = MapperBuilderContext.root(false, false);
         Map<String, Mapper> aliases = new HashMap<>();
         var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
+        var objectIntermediatesFullPath = new HashMap<String, ObjectMapper.Builder>(1);
         new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
             Map.of(
                 "labels",
@@ -457,8 +552,10 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     Explicit.EXPLICIT_FALSE
                 )
             ),
+            Map.of(),
             aliases,
             objectIntermediates,
+            objectIntermediatesFullPath,
             context,
             1_000_000
         );

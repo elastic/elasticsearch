@@ -49,7 +49,7 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
 
   public static RateDoubleGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, long unitInMillis) {
-    return new RateDoubleGroupingAggregatorFunction(channels, RateDoubleAggregator.initGrouping(driverContext.bigArrays(), unitInMillis), driverContext, unitInMillis);
+    return new RateDoubleGroupingAggregatorFunction(channels, RateDoubleAggregator.initGrouping(driverContext, unitInMillis), driverContext, unitInMillis);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

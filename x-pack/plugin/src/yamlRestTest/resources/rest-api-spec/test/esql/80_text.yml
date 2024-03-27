@@ -366,6 +366,26 @@ setup:
   - match: { values.0: [ "Jenny - IT Director"] }
   - match: { values.1: [ "John - Payroll Specialist"] }
 
+---
+"split text":
+  - skip:
+      version: " - 8.13.99"
+      reason: "functions fixed for text in v 8.14"
+      features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort emp_no | eval split = split(tag, " ") | keep split'
+
+  - match: { columns.0.name: "split" }
+  - match: { columns.0.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ ["foo", "bar"] ] }
+  - match: { values.1: [ "baz"] }
+
 
 ---
 "stats text with raw":

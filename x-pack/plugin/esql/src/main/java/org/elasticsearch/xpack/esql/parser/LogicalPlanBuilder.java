@@ -64,6 +64,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
@@ -250,7 +251,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
-        int limit = Integer.parseInt(ctx.INTEGER_LITERAL().getText());
+        int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
         return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
     }
 

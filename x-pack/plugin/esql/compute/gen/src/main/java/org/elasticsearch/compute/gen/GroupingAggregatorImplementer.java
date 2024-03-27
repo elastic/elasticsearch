@@ -100,7 +100,7 @@ public class GroupingAggregatorImplementer {
         this.createParameters = init.getParameters()
             .stream()
             .map(Parameter::from)
-            .filter(f -> false == f.type().equals(BIG_ARRAYS))
+            .filter(f -> false == f.type().equals(BIG_ARRAYS) && false == f.type().equals(DRIVER_CONTEXT))
             .collect(Collectors.toList());
 
         this.implementation = ClassName.get(

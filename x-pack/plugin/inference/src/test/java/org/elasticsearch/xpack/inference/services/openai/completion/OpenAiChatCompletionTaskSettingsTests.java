@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -27,14 +28,14 @@ public class OpenAiChatCompletionTaskSettingsTests extends AbstractWireSerializi
     public void testFromMap_WithUser() {
         assertEquals(
             new OpenAiChatCompletionTaskSettings("user"),
-            OpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiChatCompletionTaskSettings.USER, "user")))
+            OpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")))
         );
     }
 
     public void testFromMap_UserIsEmptyString() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> OpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiChatCompletionTaskSettings.USER, "")))
+            () -> OpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "")))
         );
 
         assertThat(
@@ -49,7 +50,7 @@ public class OpenAiChatCompletionTaskSettingsTests extends AbstractWireSerializi
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
-        var taskSettings = OpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiChatCompletionTaskSettings.USER, "user")));
+        var taskSettings = OpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
 
         var overriddenTaskSettings = OpenAiChatCompletionTaskSettings.of(
             taskSettings,
@@ -59,11 +60,9 @@ public class OpenAiChatCompletionTaskSettingsTests extends AbstractWireSerializi
     }
 
     public void testOverrideWith_UsesOverriddenSettings() {
-        var taskSettings = OpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiChatCompletionTaskSettings.USER, "user")));
+        var taskSettings = OpenAiChatCompletionTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
 
-        var requestTaskSettings = OpenAiChatCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiChatCompletionTaskSettings.USER, "user2"))
-        );
+        var requestTaskSettings = OpenAiChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user2")));
 
         var overriddenTaskSettings = OpenAiChatCompletionTaskSettings.of(taskSettings, requestTaskSettings);
         assertThat(overriddenTaskSettings, is(new OpenAiChatCompletionTaskSettings("user2")));

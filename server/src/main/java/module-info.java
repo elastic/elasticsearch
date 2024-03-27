@@ -408,6 +408,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.features.FeatureSpecification;
+    uses org.elasticsearch.common.logging.LoggingDataProvider;
 
     provides org.elasticsearch.features.FeatureSpecification
         with
@@ -433,6 +434,10 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
+
+    provides org.apache.logging.log4j.core.util.ContextDataProvider
+        with
+            org.elasticsearch.common.logging.DynamicContextDataProvider;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
         to

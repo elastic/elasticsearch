@@ -124,20 +124,19 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
         }
     }
 
-    static final ConstructingObjectParser<Item, Void> KEY_INFO_PARSER;
     static final ConstructingObjectParser<GetApiKeyResponse, Void> RESPONSE_PARSER;
     static {
         int nFieldsForParsingApiKeyInfo = 13; // this must be changed whenever ApiKey#initializeParser is changed for the number of parsers
-        KEY_INFO_PARSER = new ConstructingObjectParser<>(
+        ConstructingObjectParser<Item, Void> keyInfoParser = new ConstructingObjectParser<>(
             "api_key_with_profile_uid",
             true,
             args -> new Item(new ApiKey(args), (String) args[nFieldsForParsingApiKeyInfo])
         );
-        int nParsedFields = ApiKey.initializeParser(KEY_INFO_PARSER);
+        int nParsedFields = ApiKey.initializeParser(keyInfoParser);
         if (nFieldsForParsingApiKeyInfo != nParsedFields) {
             throw new IllegalStateException("Unexpected fields for parsing API Keys");
         }
-        KEY_INFO_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("profile_uid"));
+        keyInfoParser.declareStringOrNull(optionalConstructorArg(), new ParseField("profile_uid"));
         RESPONSE_PARSER = new ConstructingObjectParser<>("get_api_key_response", args -> {
             if (args[0] == null) {
                 return GetApiKeyResponse.EMPTY;
@@ -147,7 +146,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
                 return new GetApiKeyResponse(apiKeysWithProfileUids);
             }
         });
-        RESPONSE_PARSER.declareObjectArray(optionalConstructorArg(), KEY_INFO_PARSER, new ParseField("api_keys"));
+        RESPONSE_PARSER.declareObjectArray(optionalConstructorArg(), keyInfoParser, new ParseField("api_keys"));
     }
 
     public static GetApiKeyResponse fromXContent(XContentParser parser) throws IOException {

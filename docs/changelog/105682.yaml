@@ -1,5 +1,26 @@
 pr: 105682
-summary: "Introduce global retention in data stream lifecycle."
+summary: Introduce global retention in data stream lifecycle.
 area: Data streams
 type: feature
 issues: []
+highlight:
+  title: "[DSL] Introduce data stream global retention - Part 3"
+  body: |-
+    In this PR we introduce the API that will expose the global retention
+    configuration and will allow users to take advantage of it.
+
+    These APIs are protected by the dedicated introduced privileges:
+
+    -  `manage_data_stream_global_retention` or higher, which allows all operations on the global retention configuration
+    -  `monitor_data_stream_retention` or higher, which allows the retrieval of the global retention configuration
+
+    This PR is not delivering the complete feature since the global
+    retention is not used yet.
+
+    Relevant documentation: - [Retention
+    Tutorial](https://elasticsearch_bk_105682.docs-preview.app.elstc.co/guide/en/elasticsearch/reference/master/tutorial-manage-data-stream-retention.html)
+    - [Data stream lifecycle
+    page](https://elasticsearch_bk_105682.docs-preview.app.elstc.co/guide/en/elasticsearch/reference/master/data-stream-lifecycle.html)
+    - [Global retention
+    APIs](https://elasticsearch_bk_105682.docs-preview.app.elstc.co/guide/en/elasticsearch/reference/master/data-stream-apis.html)
+  notable: true

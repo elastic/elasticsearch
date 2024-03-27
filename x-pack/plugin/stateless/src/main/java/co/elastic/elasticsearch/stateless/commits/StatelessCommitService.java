@@ -46,7 +46,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
@@ -267,7 +266,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var generation = reference.getGeneration();
 
             ShardCommitState commitState = getSafe(shardsCommitsStates, reference.getShardId());
-            if (commitState.recoveredGeneration == reference.getGeneration()) {
+            if (commitState.recoveredGeneration == generation) {
                 logger.debug("{} skipping upload of recovered commit [{}]", shardId, generation);
                 IOUtils.closeWhileHandlingException(reference);
                 return;
@@ -285,13 +284,32 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            logger.debug("{} uploading commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
-            var blobReference = commitState.createBlobReference(
-                reference.getPrimaryTerm(),
-                generation,
-                reference.getCommitFiles(),
-                reference.getAdditionalFiles()
-            );
+            // TODO: we can also check whether we need upload before appending to avoid creating VBCC just above the cache region size
+
+            final var virtualBcc = commitState.appendCommit(reference);
+
+            if (commitState.shouldUploadVirtualBcc(virtualBcc) == false) {
+                assert false : "must always upload till BCC is in full motion";
+                return;
+            }
+
+            final boolean frozenByThisThread = virtualBcc.freeze();
+            assert frozenByThisThread;
+            // TODO return earlier if not the VBCC is concurrently frozen by a different thread
+
+            logger.debug("{} uploading batch compound commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
+            // TODO: Ensure blobLocations are always updated before appending the next CC.
+            // Appending new CC requires blobLocations to be available for all previous CCs. This is easily guaranteed today
+            // because appending and updating of blobLocations (part of createBlobReference) are performed in a single thread.
+            // This will need extra care when we introduce concurrent freeze and appending.
+            var blobReference = commitState.createBlobReference(virtualBcc);
+
+            // Reset the current VBCC since we are uploading it. The next commit will trigger a new VBCC to be created.
+            if (commitState.resetCurrentVirtualBcc(virtualBcc) == false) {
+                final String message = "set the current VBCC to null should always succeed until concurrent freeze is in place";
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
 
             // The CommitUpload listener is called after releasing the reference to the Lucene commit,
             // it's possible that due to a slow upload the commit is deleted in the meanwhile, therefore
@@ -310,8 +328,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                 logger.debug(
                                     () -> format(
                                         "%s failed to upload commit [%s] to object store because shard has invalid state %s",
-                                        reference.getShardId(),
-                                        reference.getGeneration(),
+                                        virtualBcc.getShardId(),
+                                        virtualBcc.getGeneration(),
                                         state
                                     ),
                                     e
@@ -320,8 +338,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                 logger.warn(
                                     () -> format(
                                         "%s failed to upload commit [%s] to object store for unexpected reason",
-                                        reference.getShardId(),
-                                        reference.getGeneration()
+                                        virtualBcc.getShardId(),
+                                        virtualBcc.getGeneration()
                                     ),
                                     e
                                 );
@@ -338,11 +356,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         }
                     }),
                     () -> {
-                        IOUtils.closeWhileHandlingException(reference);
+                        IOUtils.closeWhileHandlingException(virtualBcc);
                         blobReference.decRef();
                     }
                 ),
-                reference,
+                virtualBcc,
                 TimeValue.timeValueMillis(50)
             );
             commitUpload.run();
@@ -369,20 +387,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public class CommitUpload extends RetryableAction<BatchedCompoundCommit> {
 
-        private final StatelessCommitRef reference;
+        private final VirtualBatchedCompoundCommit virtualBcc;
         private final ShardCommitState shardCommitState;
         private final ShardId shardId;
         private final long generation;
         private final long startNanos;
         private final AtomicLong uploadedFileCount = new AtomicLong();
         private final AtomicLong uploadedFileBytes = new AtomicLong();
-        private final AtomicReference<Map<String, Long>> commitFilesToLength = new AtomicReference<>();
         private int uploadTryNumber = 0;
 
         public CommitUpload(
             ShardCommitState shardCommitState,
             ActionListener<BatchedCompoundCommit> listener,
-            StatelessCommitRef reference,
+            VirtualBatchedCompoundCommit virtualBcc,
             TimeValue initialDelay
         ) {
             super(
@@ -395,35 +412,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL)
             );
             this.shardCommitState = shardCommitState;
-            this.reference = reference;
-            this.shardId = reference.getShardId();
-            this.generation = reference.getGeneration();
+            this.virtualBcc = virtualBcc;
+            this.shardId = virtualBcc.getShardId();
+            this.generation = virtualBcc.getGeneration();
             this.startNanos = threadPool.relativeTimeInNanos();
+            assert virtualBcc.isFrozen();
+            assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
         }
 
         @Override
         public void tryAction(ActionListener<BatchedCompoundCommit> listener) {
             ++uploadTryNumber;
-            try {
-                // Only do this once across multiple retries since file lengths should not change
-                if (this.commitFilesToLength.get() == null) {
-                    final Collection<String> commitFileNames = reference.getCommitFiles();
-                    Map<String, Long> mutableCommitFiles = Maps.newHashMapWithExpectedSize(commitFileNames.size());
-                    for (String fileName : commitFileNames) {
-                        mutableCommitFiles.put(fileName, reference.getDirectory().fileLength(fileName));
-                    }
-                    this.commitFilesToLength.set(Collections.unmodifiableMap(mutableCommitFiles));
-                }
-            } catch (AlreadyClosedException e) {
-                logger.trace(() -> format("%s exception while reading file sizes to upload [%s] to object store", shardId, generation), e);
-                listener.onFailure(e);
-                return;
-            } catch (Exception e) {
-                logger.info(() -> format("%s exception while reading file sizes to upload [%s] to object store", shardId, generation), e);
-                assert e instanceof IOException;
-                listener.onFailure(e);
-                return;
-            }
 
             // When a shard is in the process of relocating, we mark a max generation to attempt to upload. If this generation is greater
             // then we fail this upload attempt. If the relocation hand-off fails then the state will be set back to RUNNING and the next
@@ -488,31 +487,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private void uploadStatelessCommitFile(ActionListener<BatchedCompoundCommit> listener) {
-            VirtualBatchedCompoundCommit virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
-                shardId,
-                ephemeralNodeIdSupplier.get(),
-                reference.getPrimaryTerm(),
-                reference.getGeneration(),
-                fileName -> getBlobLocation(shardId, fileName)
-            );
-            if (virtualBatchedCompoundCommit.appendCommit(reference) == false) {
-                // TODO: handle potential append failure due to frozen VBCC by another thread
-                assert false : "appendCommit must be successful for singleton BCC";
-                throw new IllegalStateException("appendCommit must be successful for singleton BCC");
-            }
-            virtualBatchedCompoundCommit.freeze();
-
             objectStoreService.uploadBatchedCompoundCommitFile(
-                reference.getPrimaryTerm(),
-                reference.getDirectory(),
+                virtualBcc.getPrimaryTerm(),
+                // TODO: The Directory is used to get the blobContainer which can be obtained by using
+                // objectStoreService, shardId and primary term. So there is no need to depend on StatelessCommitRef which gets
+                // awkward when there are multiple of them.
+                // For now we sill use StatelessCommitRef since VBCC can only have a single CC
+                virtualBcc.getPendingCompoundCommits().get(0).getCommitReference().getDirectory(),
                 startNanos,
-                virtualBatchedCompoundCommit,
+                virtualBcc,
                 listener.delegateFailure((l, commit) -> {
-                    for (String internalFile : virtualBatchedCompoundCommit.getInternalFiles()) {
+                    for (Map.Entry<String, BlobLocation> entry : virtualBcc.getInternalLocations().entrySet()) {
                         uploadedFileCount.getAndIncrement();
-                        uploadedFileBytes.getAndAdd(commitFilesToLength.get().get(internalFile));
+                        uploadedFileBytes.getAndAdd(entry.getValue().fileLength());
                         // TODO: Adapt to BCC reference handling
-                        shardCommitState.markFileUploaded(internalFile, virtualBatchedCompoundCommit.getBlobLocation(internalFile));
                     }
                     // TODO: remove the following assertion when BCC can contain multiple CCs
                     assert commit.compoundCommits().size() == 1;
@@ -635,6 +623,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private volatile long recoveredGeneration = -1;
         private volatile long recoveredPrimaryTerm = -1;
         private volatile StatelessCompoundCommit latestUploadedCommit = null; // having the highest generation ever uploaded
+        // The VBCC to append new CCs
+        private final AtomicReference<VirtualBatchedCompoundCommit> currentVirtualBccRef = new AtomicReference<>();
 
         /**
          * The highest generation number that we have received from a commit notification response from search shards.
@@ -654,27 +644,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private ShardCommitState(ShardId shardId, long allocationPrimaryTerm) {
             this.shardId = shardId;
             this.allocationPrimaryTerm = allocationPrimaryTerm;
-        }
-
-        public void markFileUploaded(String fileName, BlobLocation blobLocation) {
-            assert isDeleted == false : "shard " + shardId + " is deleted when trying to mark uploaded file " + blobLocation;
-            blobLocations.compute(fileName, (ignored, commitAndBlobLocation) -> {
-                assert commitAndBlobLocation != null : fileName;
-                assert assertBlobLocations(fileName, commitAndBlobLocation, blobLocation);
-                return new CommitAndBlobLocation(commitAndBlobLocation.blobReference, blobLocation);
-            });
-        }
-
-        private boolean assertBlobLocations(String fileName, CommitAndBlobLocation current, BlobLocation uploaded) {
-            if (current.blobLocation != null) {
-                assert isGenerationalFile(fileName) : fileName + ':' + current;
-                assert current.blobLocation.compoundFileGeneration() < uploaded.compoundFileGeneration()
-                    : fileName + ':' + current + " vs " + uploaded;
-                return true;
-            }
-            assert current.blobReference().getPrimaryTermAndGeneration().generation() == uploaded.compoundFileGeneration()
-                : fileName + ':' + current + " vs " + uploaded;
-            return true;
         }
 
         private void markCommitRecovered(StatelessCompoundCommit recoveredCommit, Set<BlobFile> nonRecoveredBlobs) {
@@ -802,13 +771,66 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        private BlobReference createBlobReference(
-            long primaryTerm,
-            long generation,
-            Collection<String> commitFiles,
-            Set<String> additionalFiles
-        ) {
+        /**
+         * Add the given {@link StatelessCommitRef} to the current VBCC. If the current VBCC is null, a new
+         * one will be created with the {@link StatelessCommitRef}'s generation and set to be the current
+         * before appending.
+         * @param reference The reference to be added
+         * @return The VBCC that the given {@link StatelessCommitRef} has been added into.
+         */
+        private VirtualBatchedCompoundCommit appendCommit(StatelessCommitRef reference) {
+            final var primaryTerm = reference.getPrimaryTerm();
+            final var generation = reference.getGeneration();
+            final var virtualBcc = currentVirtualBccRef.get();
+            if (virtualBcc == null) {
+                final var newVirtualBcc = new VirtualBatchedCompoundCommit(
+                    shardId,
+                    ephemeralNodeIdSupplier.get(),
+                    primaryTerm,
+                    generation,
+                    fileName -> getBlobLocation(shardId, fileName)
+                );
+                final boolean created = currentVirtualBccRef.compareAndSet(null, newVirtualBcc);
+                assert created : "there should not be any concurrent VBCC creation";
+                logger.debug("rolled over VBCC from [null] to primary term [{}] and generation [{}]", primaryTerm, generation);
+                final boolean appended = newVirtualBcc.appendCommit(reference); // cannot be frozen since it is new
+                assert appended;
+                return newVirtualBcc;
+            } else {
+                final String message = "the current VBCC should always begin as null till concurrent freeze is in place";
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
+        }
+
+        /**
+         * Set the current VBCC to null if it matches the specified VBCC
+         * @param virtualBcc The VBCC to compare (caller thinks it is the current VBCC)
+         * @return {@code true} if current VBCC is successful to null. Otherwise {@code false}.
+         */
+        private boolean resetCurrentVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
+            return currentVirtualBccRef.compareAndSet(virtualBcc, null);
+        }
+
+        // TODO: expand for more criteria such as size, time interval
+        private boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
+            assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
+            return virtualBcc.getPendingCompoundCommits().isEmpty() == false;
+        }
+
+        private BlobReference createBlobReference(VirtualBatchedCompoundCommit virtualBcc) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to add commit data";
+            final long primaryTerm = virtualBcc.getPrimaryTerm();
+            final long generation = virtualBcc.getGeneration();
+            assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
+            final var commitFiles = virtualBcc.getPendingCompoundCommits()
+                .stream()
+                .flatMap(pc -> pc.getCommitReference().getCommitFiles().stream())
+                .collect(Collectors.toUnmodifiableSet());
+            final var additionalFiles = virtualBcc.getPendingCompoundCommits()
+                .stream()
+                .flatMap(pc -> pc.getCommitReference().getAdditionalFiles().stream())
+                .collect(Collectors.toUnmodifiableSet());
 
             // if there are external files the new instance must reference the corresponding commit blob instances
             Set<BlobReference> references = commitFiles.stream()
@@ -842,9 +864,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             // add pending blob locations for new files
-            additionalFiles.forEach(fileName -> {
-                var previous = blobLocations.put(fileName, new CommitAndBlobLocation(blobReference, null));
-                assert previous == null || isGenerationalFile(fileName) : fileName + ':' + previous + ':' + blobReference;
+            // Use getInternalLocations() to include copied generational files. We want to update their blobLocations.
+            virtualBcc.getInternalLocations().keySet().forEach(fileName -> {
+                final BlobLocation blobLocation = virtualBcc.getBlobLocation(fileName);
+                blobLocations.compute(fileName, (ignored, existing) -> {
+                    if (existing == null) {
+                        return new CommitAndBlobLocation(blobReference, blobLocation);
+                    } else {
+                        // For copied generational files, we update its blobLocation but keep the original blobReference unchanged
+                        // TODO: This behaviour may be changed in future. See also https://elasticco.atlassian.net/browse/ES-7654
+                        assert isGenerationalFile(fileName)
+                            && existing.blobLocation.compoundFileGeneration() < blobLocation.compoundFileGeneration()
+                            : fileName + ':' + existing + ':' + blobLocation;
+                        return new CommitAndBlobLocation(existing.blobReference, blobLocation);
+                    }
+                });
             });
 
             return blobReference;
@@ -1343,6 +1377,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         private class BlobReference extends AbstractRefCounted {
             private final PrimaryTermAndGeneration primaryTermAndGeneration;
+            // TODO: The internalFiles should include copied generational files once ES-7654 is resolved
             private final Set<String> internalFiles;
             private final Collection<BlobReference> references;
             private final AtomicBoolean deleted = new AtomicBoolean();
@@ -1647,7 +1682,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         });
     }
 
-    private record CommitAndBlobLocation(ShardCommitState.BlobReference blobReference, @Nullable BlobLocation blobLocation) {
+    private record CommitAndBlobLocation(ShardCommitState.BlobReference blobReference, BlobLocation blobLocation) {
+        public CommitAndBlobLocation {
+            assert blobReference != null && blobLocation != null : blobReference + ":" + blobLocation;
+        }
+
         @Override
         public String toString() {
             return "CommitAndBlobLocation [blobReference=" + blobReference + ", blobLocation=" + blobLocation + ']';

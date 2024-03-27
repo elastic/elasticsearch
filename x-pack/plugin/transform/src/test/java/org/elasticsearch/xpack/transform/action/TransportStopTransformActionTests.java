@@ -93,7 +93,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
         assertThat(ex.status(), equalTo(CONFLICT));
         assertThat(
             ex.getMessage(),
-            equalTo(TransformMessages.getMessage(TransformMessages.CANNOT_STOP_FAILED_TRANSFORM, "failed-task", "task has failed"))
+            equalTo(TransformMessages.getMessage(TransformMessages.CANNOT_STOP_SINGLE_FAILED_TRANSFORM, "failed-task", "task has failed"))
         );
     }
 

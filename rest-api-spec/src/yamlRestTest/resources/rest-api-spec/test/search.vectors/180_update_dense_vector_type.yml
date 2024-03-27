@@ -127,3 +127,514 @@
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.1._id: "2" }
   - match: { hits.hits.2._id: "11" }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                m: 3
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {"_id": "21"}}'
+          - '{"embedding": [1, 1, 2, 1]}'
+          - '{"index": {"_id": "22"}}'
+          - '{"embedding": [1, 1, 3, 1]}'
+          - '{"index": {"_id": "23"}}'
+          - '{"embedding": [1, 1, 4, 1]}'
+          - '{"index": {"_id": "24"}}'
+          - '{"embedding": [1, 1, 6, 1]}'
+          - '{"index": {"_id": "25"}}'
+          - '{"embedding": [1, 1, 7, 1]}'
+          - '{"index": {"_id": "26"}}'
+          - '{"embedding": [1, 1, 8, 1]}'
+          - '{"index": {"_id": "27"}}'
+          - '{"embedding": [1, 1, 9, 1]}'
+          - '{"index": {"_id": "28"}}'
+          - '{"embedding": [1, 1, 10, 1]}'
+          - '{"index": {"_id": "29"}}'
+          - '{"embedding": [1, 1, 11, 1]}'
+          - '{"index": {"_id": "30"}}'
+          - '{"embedding": [1, 1, 12, 1]}'
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 4
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 30
+
+  - match: { hits.total.value: 30 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "21" }
+  - match: { hits.hits.3._id: "11" }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {"_id": "31"}}'
+          - '{"embedding": [1, 1, 1, 2]}'
+          - '{"index": {"_id": "32"}}'
+          - '{"embedding": [1, 1, 1, 3]}'
+          - '{"index": {"_id": "33"}}'
+          - '{"embedding": [1, 1, 1, 4]}'
+          - '{"index": {"_id": "34"}}'
+          - '{"embedding": [1, 1, 1, 5]}'
+          - '{"index": {"_id": "35"}}'
+          - '{"embedding": [1, 1, 1, 6]}'
+          - '{"index": {"_id": "36"}}'
+          - '{"embedding": [1, 1, 1, 7]}'
+          - '{"index": {"_id": "37"}}'
+          - '{"embedding": [1, 1, 1, 8]}'
+          - '{"index": {"_id": "38"}}'
+          - '{"embedding": [1, 1, 1, 9]}'
+          - '{"index": {"_id": "39"}}'
+          - '{"embedding": [1, 1, 1, 10]}'
+          - '{"index": {"_id": "40"}}'
+          - '{"embedding": [1, 1, 1, 11]}'
+  - do:
+      search:
+        index: test_index
+        body:
+          size: 5
+          query:
+            knn:
+              field: embedding
+              query_vector: [ 1, 1, 1, 1 ]
+              num_candidates: 40
+
+  - match: { hits.total.value: 40 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "21" }
+  - match: { hits.hits.3._id: "31" }
+  - match: { hits.hits.4._id: "11" }
+
+---
+"Disallowed dense vector update path hnsw --> flat":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+---
+"Disallowed dense vector update path hnsw --> int8_flat":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+---
+"Disallowed dense vector update path int8_hnsw --> flat":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+---
+"Disallowed dense vector update path int8_hnsw --> int8_flat":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+---
+"Disallowed dense vector update path int8_flat --> flat":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: flat
+
+---
+"Disallowed dense vector update on same type but different other index_options, hnsw":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                m: 4
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                ef_construction: 200
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                ef_construction: 200
+                m: 4
+
+---
+"Disallowed dense vector update on same type but different other index_options, int8_hnsw":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                m: 4
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                confidence_interval: 0.3
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
+                m: 4
+                confidence_interval: 0.3
+
+---
+"Disallowed dense vector update on same type but different other index_options, int8_flat":
+  - skip:
+      version: " - 8.13.99"
+      reason: "introduced after 8.13"
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_flat
+                confidence_interval: 0.3

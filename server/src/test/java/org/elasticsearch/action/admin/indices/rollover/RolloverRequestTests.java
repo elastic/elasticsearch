@@ -176,7 +176,12 @@ public class RolloverRequestTests extends ESTestCase {
                 .build()
         );
         originalRequest.lazy(randomBoolean());
-        originalRequest.setFailureStoreOptions(new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean()));
+        originalRequest.setIndicesOptions(
+            IndicesOptions.builder(originalRequest.indicesOptions())
+                .failureStoreOptions(new IndicesOptions.FailureStoreOptions(randomBoolean(), randomBoolean()))
+                .build()
+        );
+
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
@@ -256,7 +261,11 @@ public class RolloverRequestTests extends ESTestCase {
 
         {
             RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
-            rolloverRequest.setFailureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true));
+            rolloverRequest.setIndicesOptions(
+                IndicesOptions.builder(rolloverRequest.indicesOptions())
+                    .failureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true))
+                    .build()
+            );
             ActionRequestValidationException validationException = rolloverRequest.validate();
             assertNotNull(validationException);
             assertEquals(1, validationException.validationErrors().size());

@@ -55,7 +55,11 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
         if (DataStream.isFailureStoreEnabled()) {
             boolean failureStore = request.paramAsBoolean("failure_store", false);
-            rolloverIndexRequest.setFailureStoreOptions(new IndicesOptions.FailureStoreOptions(failureStore == false, failureStore));
+            rolloverIndexRequest.setIndicesOptions(
+                IndicesOptions.builder(rolloverIndexRequest.indicesOptions())
+                    .failureStoreOptions(new IndicesOptions.FailureStoreOptions(failureStore == false, failureStore))
+                    .build()
+            );
         }
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));

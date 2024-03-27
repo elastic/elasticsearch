@@ -24,8 +24,6 @@ rely on that. If you need the minimum value use <<esql-mv_min>> instead of
 `MV_FIRST`. `MV_MIN` has optimizations for sorted values so there isn't a
 performance benefit to `MV_FIRST`.
 
-*Supported types*
-
 include::types/mv_first.asciidoc[]
 
 *Example*

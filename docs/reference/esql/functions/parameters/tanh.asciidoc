@@ -1,0 +1,4 @@
+*Parameters*
+
+`number`::
+The number to return the hyperbolic tangent of

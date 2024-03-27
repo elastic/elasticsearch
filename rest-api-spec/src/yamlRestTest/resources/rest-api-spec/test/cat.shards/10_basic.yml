@@ -1,7 +1,7 @@
 ---
 "Help":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["cat_shards_dataset_size"]
       reason:  dataset size was added in 8.11.0
   - do:
       cat.shards:
@@ -90,8 +90,8 @@
                $/
 ---
 "Test cat shards output":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: [ "cat_shards_dataset_size" ]
       reason:  dataset size was added in 8.11.0
 
   - do:
@@ -187,8 +187,8 @@
 
 ---
 "Test cat shards sort":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: [ "cat_shards_dataset_size" ]
       reason:  dataset size was added in 8.11.0
 
   - do:
@@ -240,8 +240,8 @@
 
 ---
 "Test cat shards with hidden indices":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["cat_shards_fix_hidden_indices"]
       reason:  hidden indices were misreported in versions before 8.3.0
 
   - do:

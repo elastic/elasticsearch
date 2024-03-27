@@ -9,8 +9,12 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -121,11 +125,36 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    void waitForNoInitializingShards(Client client, TimeValue timeout, String... indices) {
+        ClusterHealthResponse resp = client.admin()
+            .cluster()
+            .prepareHealth(indices)
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setWaitForNoInitializingShards(true)
+            .setTimeout(timeout)
+            .get();
+        assertFalse(Strings.toString(resp, true, true), resp.isTimedOut());
+    }
+
     public void testProfile() {
         assumeTrue("pragmas only enabled on snapshot builds", Build.current().isSnapshot());
-        final int localOnlyProfiles;
         // uses shard partitioning as segments can be merged during these queries
         var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), DataPartitioning.SHARD).build());
+        // Use single replicas for the target indices, to make sure we hit the same set of target nodes
+        client(LOCAL_CLUSTER).admin()
+            .indices()
+            .prepareUpdateSettings("logs-1")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
+            .get();
+        waitForNoInitializingShards(client(LOCAL_CLUSTER), TimeValue.timeValueSeconds(30), "logs-1");
+        client(REMOTE_CLUSTER).admin()
+            .indices()
+            .prepareUpdateSettings("logs-2")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
+            .get();
+        waitForNoInitializingShards(client(REMOTE_CLUSTER), TimeValue.timeValueSeconds(30), "logs-2");
+        final int localOnlyProfiles;
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.query("FROM logs* | stats sum(v)");

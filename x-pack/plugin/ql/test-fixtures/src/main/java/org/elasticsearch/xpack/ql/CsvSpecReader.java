@@ -30,6 +30,7 @@ public final class CsvSpecReader {
         private final StringBuilder earlySchema = new StringBuilder();
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
+        private final List<String> requiredFeatures = new ArrayList<>();
         private CsvTestCase testCase;
 
         private CsvSpecParser() {}
@@ -41,6 +42,8 @@ public final class CsvSpecReader {
                 if (line.startsWith(SCHEMA_PREFIX)) {
                     assertThat("Early schema already declared " + earlySchema, earlySchema.length(), is(0));
                     earlySchema.append(line.substring(SCHEMA_PREFIX.length()).trim());
+                } else if (line.toLowerCase(Locale.ROOT).startsWith("required_feature:")) {
+                    requiredFeatures.add(line.substring("required_feature:".length()).trim());
                 } else {
                     if (line.endsWith(";")) {
                         // pick up the query
@@ -48,6 +51,8 @@ public final class CsvSpecReader {
                         query.append(line.substring(0, line.length() - 1).trim());
                         testCase.query = query.toString();
                         testCase.earlySchema = earlySchema.toString();
+                        testCase.requiredFeatures = List.copyOf(requiredFeatures);
+                        requiredFeatures.clear();
                         earlySchema.setLength(0);
                         query.setLength(0);
                     }
@@ -61,9 +66,10 @@ public final class CsvSpecReader {
             // read the results
             else {
                 // read data
-                if (line.toLowerCase(Locale.ROOT).startsWith("warning:")) {
+                String lower = line.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("warning:")) {
                     testCase.expectedWarnings.add(line.substring("warning:".length()).trim());
-                } else if (line.toLowerCase(Locale.ROOT).startsWith("ignoreorder:")) {
+                } else if (lower.startsWith("ignoreorder:")) {
                     testCase.ignoreOrder = Boolean.parseBoolean(line.substring("ignoreOrder:".length()).trim());
                 } else if (line.startsWith(";")) {
                     testCase.expectedResults = data.toString();
@@ -88,6 +94,7 @@ public final class CsvSpecReader {
         public String expectedResults;
         private final List<String> expectedWarnings = new ArrayList<>();
         public boolean ignoreOrder;
+        public List<String> requiredFeatures = List.of();
 
         // The emulated-specific warnings must always trail the non-emulated ones, if these are present. Otherwise, the closing bracket
         // would need to be changed to a less common sequence (like `]#` maybe).

@@ -340,6 +340,7 @@ public class Constants {
         "cluster:monitor/nodes/info",
         "cluster:monitor/nodes/stats",
         "cluster:monitor/nodes/usage",
+        "cluster:monitor/allocation/stats",
         "cluster:monitor/profiling/status/get",
         "cluster:monitor/remote/info",
         "cluster:monitor/settings",

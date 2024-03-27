@@ -15,11 +15,15 @@ setup:
                 dims: 5
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
               another_vector:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
 
   - do:
       index:
@@ -371,6 +375,8 @@ setup:
                 dims: 5
                 index: true
                 similarity: max_inner_product
+                index_options:
+                  type: hnsw
 
   - do:
       index:

@@ -13,26 +13,36 @@ setup:
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
               normalized_vector:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
               end_normalized:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
               first_normalized:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
               middle_normalized:
                 type: dense_vector
                 dims: 5
                 index: true
                 similarity: cosine
+                index_options:
+                  type: hnsw
 
 
   - do:

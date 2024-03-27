@@ -19,6 +19,8 @@ setup:
                 dims: 4
                 index : true
                 similarity : l2_norm
+                index_options:
+                  type: hnsw
               my_name:
                 type: keyword
                 store: true

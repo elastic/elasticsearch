@@ -92,13 +92,21 @@ final class FieldTypeLookup {
             }
         }
 
+        Map<String, PassThroughObjectMapper> passThroughFieldAliases = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             for (PassThroughObjectMapper mapper : passThroughMappers) {
                 if (fieldName.startsWith(mapper.name())) {
-                    String name = fieldName.substring(mapper.name().length() + 1);
-                    // Check if there's an existing field or alias for the same field.
-                    if (fullNameToFieldType.containsKey(name)) {
+                    String name = fieldMapper.simpleName();
+                    // Check for conflict between PassThroughObjectMapper subfields.
+                    PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, mapper);
+                    if (conflict != null) {
+                        if (mapper.supersededBy().contains(conflict.name())) {
+                            passThroughFieldAliases.put(name, conflict);
+                            continue;
+                        }
+                    } else if (fullNameToFieldType.containsKey(name)) {
+                        // There's an existing field or alias for the same field.
                         continue;
                     }
                     MappedFieldType fieldType = fieldMapper.fieldType();

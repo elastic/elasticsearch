@@ -14,10 +14,14 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 
 /**
  * Mapper for pass-through objects.
@@ -28,11 +32,15 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class PassThroughObjectMapper extends ObjectMapper {
     public static final String CONTENT_TYPE = "passthrough";
+    public static final String SUPERSEDED_BY_PARAM = "superseded_by";
 
     public static class Builder extends ObjectMapper.Builder {
 
         // Controls whether subfields are configured as time-series dimensions.
         protected Explicit<Boolean> timeSeriesDimensionSubFields = Explicit.IMPLICIT_FALSE;
+
+        // Controls which pass-through fields take precedence in case of conflicting aliases.
+        protected Set<String> supersededBy = Set.of();
 
         public Builder(String name) {
             // Subobjects are not currently supported.
@@ -61,7 +69,8 @@ public class PassThroughObjectMapper extends ObjectMapper {
                 enabled,
                 dynamic,
                 buildMappers(context.createChildContext(name(), timeSeriesDimensionSubFields.value(), dynamic)),
-                timeSeriesDimensionSubFields
+                timeSeriesDimensionSubFields,
+                supersededBy
             );
         }
     }
@@ -69,26 +78,42 @@ public class PassThroughObjectMapper extends ObjectMapper {
     // If set, its subfields are marked as time-series dimensions (for the types supporting this).
     private final Explicit<Boolean> timeSeriesDimensionSubFields;
 
+    private final Set<String> supersededBy;
+
     PassThroughObjectMapper(
         String name,
         String fullPath,
         Explicit<Boolean> enabled,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
-        Explicit<Boolean> timeSeriesDimensionSubFields
+        Explicit<Boolean> timeSeriesDimensionSubFields,
+        Set<String> supersededBy
     ) {
         // Subobjects are not currently supported.
         super(name, fullPath, enabled, Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
+        this.supersededBy = supersededBy;
     }
 
     @Override
     PassThroughObjectMapper withoutMappers() {
-        return new PassThroughObjectMapper(simpleName(), fullPath(), enabled, dynamic, Map.of(), timeSeriesDimensionSubFields);
+        return new PassThroughObjectMapper(
+            simpleName(),
+            fullPath(),
+            enabled,
+            dynamic,
+            Map.of(),
+            timeSeriesDimensionSubFields,
+            supersededBy
+        );
     }
 
     public boolean containsDimensions() {
         return timeSeriesDimensionSubFields.value();
+    }
+
+    public Set<String> supersededBy() {
+        return supersededBy;
     }
 
     @Override
@@ -97,6 +122,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         builder.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
+        builder.supersededBy = supersededBy;
         return builder;
     }
 
@@ -108,13 +134,17 @@ public class PassThroughObjectMapper extends ObjectMapper {
             ? mergeWithObject.timeSeriesDimensionSubFields
             : this.timeSeriesDimensionSubFields;
 
+        Set<String> mergedSupersededBy = new TreeSet<>(supersededBy);
+        mergedSupersededBy.addAll(mergeWithObject.supersededBy);
+
         return new PassThroughObjectMapper(
             simpleName(),
             fullPath(),
             mergeResult.enabled(),
             mergeResult.dynamic(),
             mergeResult.mappers(),
-            containsDimensions
+            containsDimensions,
+            mergedSupersededBy
         );
     }
 
@@ -124,6 +154,9 @@ public class PassThroughObjectMapper extends ObjectMapper {
         builder.field("type", CONTENT_TYPE);
         if (timeSeriesDimensionSubFields.explicit()) {
             builder.field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, timeSeriesDimensionSubFields.value());
+        }
+        if (supersededBy.isEmpty() == false) {
+            builder.field(SUPERSEDED_BY_PARAM, supersededBy);
         }
         if (dynamic != null) {
             builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
@@ -152,6 +185,11 @@ public class PassThroughObjectMapper extends ObjectMapper {
                     nodeBooleanValue(fieldNode, name + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM)
                 );
                 node.remove(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM);
+            }
+            fieldNode = node.get(SUPERSEDED_BY_PARAM);
+            if (fieldNode != null) {
+                builder.supersededBy = new TreeSet<>(Arrays.asList(nodeStringArrayValue(fieldNode)));
+                node.remove(SUPERSEDED_BY_PARAM);
             }
         }
     }

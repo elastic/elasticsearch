@@ -354,6 +354,7 @@ dynamic templates - conflicting aliases:
                   type: passthrough
                   dynamic: true
                   time_series_dimension: true
+                  superseded_by: attributes
               dynamic_templates:
                 - counter_metric:
                     mapping:
@@ -391,7 +392,7 @@ dynamic templates - conflicting aliases:
             filterA:
               filter:
                 term:
-                  dim: "C"
+                  dim: A
               aggs:
                 tsids:
                   terms:
@@ -410,7 +411,7 @@ dynamic templates - conflicting aliases:
             filterA:
               filter:
                 term:
-                  attributes.dim: A
+                  resource_attributes.dim: C
               aggs:
                 tsids:
                   terms:

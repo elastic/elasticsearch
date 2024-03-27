@@ -30,7 +30,7 @@ import java.util.Map;
 public class DownsampleMetrics extends AbstractLifecycleComponent {
 
     public static final String LATENCY_SHARD = "es.tsdb.downsample.latency.shard.histogram";
-    public static final String LATENCY_MASTER = "es.tsdb.downsample.latency.master.histogram";
+    public static final String LATENCY_TOTAL = "es.tsdb.downsample.latency.total.histogram";
 
     private final MeterRegistry meterRegistry;
 
@@ -42,7 +42,7 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
     protected void doStart() {
         // Register all metrics to track.
         meterRegistry.registerLongHistogram(LATENCY_SHARD, "Downsampling action latency per shard", "ms");
-        meterRegistry.registerLongHistogram(LATENCY_MASTER, "Downsampling latency on master side", "ms");
+        meterRegistry.registerLongHistogram(LATENCY_TOTAL, "Downsampling latency end-to-end", "ms");
     }
 
     @Override
@@ -74,7 +74,7 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
         meterRegistry.getLongHistogram(LATENCY_SHARD).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
     }
 
-    void recordLatencyMaster(long durationInMilliSeconds, ActionStatus status) {
-        meterRegistry.getLongHistogram(LATENCY_MASTER).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
+    void recordLatencyTotal(long durationInMilliSeconds, ActionStatus status) {
+        meterRegistry.getLongHistogram(LATENCY_TOTAL).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
     }
 }

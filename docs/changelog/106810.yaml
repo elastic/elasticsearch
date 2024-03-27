@@ -1,0 +1,5 @@
+pr: 106810
+summary: "ES|QL: Improve support for TEXT fields in functions"
+area: ES|QL
+type: bug
+issues: []

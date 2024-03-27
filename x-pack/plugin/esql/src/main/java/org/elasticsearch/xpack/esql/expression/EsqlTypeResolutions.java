@@ -27,6 +27,15 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public class EsqlTypeResolutions {
 
+    public static Expression.TypeResolution isStringAndExact(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        Expression.TypeResolution resolution = TypeResolutions.isString(e, operationName, paramOrd);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return isExact(e, operationName, paramOrd);
+    }
+
     public static Expression.TypeResolution isExact(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         if (e instanceof FieldAttribute fa) {
             if (DataTypes.isString(fa.dataType())) {

@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -79,7 +80,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     modelId,
                     ServiceFields.URL,
                     url,
-                    OpenAiEmbeddingsServiceSettings.ORGANIZATION,
+                    OpenAiServiceFields.ORGANIZATION,
                     org,
                     ServiceFields.SIMILARITY,
                     similarity,
@@ -121,7 +122,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     modelId,
                     ServiceFields.URL,
                     url,
-                    OpenAiEmbeddingsServiceSettings.ORGANIZATION,
+                    OpenAiServiceFields.ORGANIZATION,
                     org,
                     ServiceFields.SIMILARITY,
                     similarity,
@@ -162,7 +163,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     modelId,
                     ServiceFields.URL,
                     url,
-                    OpenAiEmbeddingsServiceSettings.ORGANIZATION,
+                    OpenAiServiceFields.ORGANIZATION,
                     org,
                     ServiceFields.SIMILARITY,
                     similarity,
@@ -219,7 +220,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
         var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, "m", OpenAiEmbeddingsServiceSettings.ORGANIZATION, "org")),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, "m", OpenAiServiceFields.ORGANIZATION, "org")),
             ConfigurationParseContext.REQUEST
         );
         assertNull(serviceSettings.uri());
@@ -260,7 +261,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenAiEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(OpenAiEmbeddingsServiceSettings.ORGANIZATION, "", ServiceFields.MODEL_ID, "m")),
+                new HashMap<>(Map.of(OpenAiServiceFields.ORGANIZATION, "", ServiceFields.MODEL_ID, "m")),
                 ConfigurationParseContext.REQUEST
             )
         );
@@ -270,7 +271,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             containsString(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    OpenAiEmbeddingsServiceSettings.ORGANIZATION
+                    OpenAiServiceFields.ORGANIZATION
                 )
             )
         );
@@ -302,7 +303,13 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             )
         );
 
-        assertThat(thrownException.getMessage(), is("Validation Failed: 1: [service_settings] Unknown similarity measure [by_size];"));
+        assertThat(
+            thrownException.getMessage(),
+            is(
+                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
+                    + "must be one of [cosine, dot_product, l2_norm];"
+            )
+        );
     }
 
     public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
@@ -375,7 +382,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         }
 
         if (org != null) {
-            map.put(OpenAiEmbeddingsServiceSettings.ORGANIZATION, org);
+            map.put(OpenAiServiceFields.ORGANIZATION, org);
         }
         return map;
     }
@@ -395,7 +402,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         }
 
         if (org != null) {
-            map.put(OpenAiEmbeddingsServiceSettings.ORGANIZATION, org);
+            map.put(OpenAiServiceFields.ORGANIZATION, org);
         }
 
         if (dimensions != null) {

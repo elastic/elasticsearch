@@ -22,7 +22,6 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     BytesRefVectorBlock(BytesRefVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -37,7 +36,7 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 

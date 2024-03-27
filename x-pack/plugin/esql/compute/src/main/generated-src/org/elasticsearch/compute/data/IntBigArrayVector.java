@@ -8,8 +8,12 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.core.Releasable;
+
+import java.io.IOException;
 
 /**
  * Vector implementation that defers to an enclosed {@link IntArray}.
@@ -25,6 +29,26 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     public IntBigArrayVector(IntArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+    }
+
+    static IntBigArrayVector readArrayVector(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        IntArray values = blockFactory.bigArrays().newIntArray(positions, false);
+        boolean success = false;
+        try {
+            values.fillWith(in);
+            IntBigArrayVector vector = new IntBigArrayVector(values, positions, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - RamUsageEstimator.sizeOf(values));
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                values.close();
+            }
+        }
+    }
+
+    void writeArrayVector(int positions, StreamOutput out) throws IOException {
+        values.writeTo(out);
     }
 
     @Override

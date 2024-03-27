@@ -57,6 +57,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -399,6 +400,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
+     *
      * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
      *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
@@ -418,6 +420,115 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(query.limit().fold(), is(1000));
         var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
         assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expects
+     *
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[],[COUNT(gender{f}#7) AS count(gender)],FINAL,null]
+     *   \_ExchangeExec[[count{r}#15, seen{r}#16],true]
+     *     \_AggregateExec[[],[COUNT(gender{f}#7) AS count(gender)],PARTIAL,8]
+     *       \_FieldExtractExec[gender{f}#7]
+     *         \_EsQueryExec[test], query[{"exists":{"field":"gender","boost":1.0}}][_doc{f}#17], limit[], sort[] estimatedRowSize[54]
+     */
+    public void testIsNotNull_TextField_Pushdown() {
+        String textField = randomFrom("gender", "job");
+        var plan = plan(String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField));
+
+        var limit = as(plan, LimitExec.class);
+        var finalAgg = as(limit.child(), AggregateExec.class);
+        var exchange = as(finalAgg.child(), ExchangeExec.class);
+        var partialAgg = as(exchange.child(), AggregateExec.class);
+        var fieldExtract = as(partialAgg.child(), FieldExtractExec.class);
+        var query = as(fieldExtract.child(), EsQueryExec.class);
+        var expected = QueryBuilders.existsQuery(textField);
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * Expects
+     * LimitExec[1000[INTEGER]]
+     * \_ExchangeExec[[],false]
+     *   \_ProjectExec[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, job{f}#10, job.raw{f}#11, languages{f}#6, last_n
+     *     ame{f}#7, long_noidx{f}#12, salary{f}#8]]
+     *     \_FieldExtractExec[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     *       \_EsQueryExec[test], query[{"bool":{"must_not":[{"exists":{"field":"gender","boost":1.0}}],"boost":1.0}}]
+     *         [_doc{f}#13], limit[1000], sort[] estimatedRowSize[324]
+     */
+    public void testIsNull_TextField_Pushdown() {
+        String textField = randomFrom("gender", "job");
+        var plan = plan(String.format(Locale.ROOT, "from test | where %s is null", textField, textField));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var query = as(fieldExtract.child(), EsQueryExec.class);
+        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(textField));
+        assertThat(query.query().toString(), is(expected.toString()));
+    }
+
+    /**
+     * count(x) adds an implicit "exists(x)" filter in the pushed down query
+     * This test checks this "exists" doesn't clash with the "is null" pushdown on the text field.
+     * In this particular query, "exists(x)" and "x is null" cancel each other out.
+     *
+     * Expects
+     *
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[COUNT(job{f}#19) AS c],FINAL,8]
+     *   \_ExchangeExec[[count{r}#22, seen{r}#23],true]
+     *     \_LocalSourceExec[[count{r}#22, seen{r}#23],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]], BooleanVectorBlock
+     * [vector=ConstantBooleanVector[positions=1, value=true]]]]
+     */
+    public void testIsNull_TextField_Pushdown_WithCount() {
+        var plan = plan("""
+              from test
+              | eval filtered_job = job, count_job = job
+              | where filtered_job IS NULL
+              | stats c = COUNT(count_job)
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exg = as(agg.child(), ExchangeExec.class);
+        as(exg.child(), LocalSourceExec.class);
+    }
+
+    /**
+     * count(x) adds an implicit "exists(x)" filter in the pushed down query.
+     * This test checks this "exists" doesn't clash with the "is null" pushdown on the text field.
+     * In this particular query, "exists(x)" and "x is not null" go hand in hand and the query is pushed down to Lucene.
+     *
+     * Expects
+     *
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[COUNT(job{f}#19) AS c],FINAL,8]
+     *   \_ExchangeExec[[count{r}#22, seen{r}#23],true]
+     *     \_EsStatsQueryExec[test], stats[Stat[name=job, type=COUNT, query={
+     *   "exists" : {
+     *     "field" : "job",
+     *     "boost" : 1.0
+     *   }
+     * }]]], query[{"exists":{"field":"job","boost":1.0}}][count{r}#25, seen{r}#26], limit[],
+     */
+    public void testIsNotNull_TextField_Pushdown_WithCount() {
+        var plan = plan("""
+              from test
+              | eval filtered_job = job, count_job = job
+              | where filtered_job IS NOT NULL
+              | stats c = COUNT(count_job)
+            """, IS_SV_STATS);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exg = as(agg.child(), ExchangeExec.class);
+        var esStatsQuery = as(exg.child(), EsStatsQueryExec.class);
+        assertThat(esStatsQuery.limit(), is(nullValue()));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen"));
+        var stat = as(esStatsQuery.stats().get(0), Stat.class);
+        assertThat(stat.query(), is(QueryBuilders.existsQuery("job")));
     }
 
     /**

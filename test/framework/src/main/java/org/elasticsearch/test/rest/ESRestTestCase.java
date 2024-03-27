@@ -72,6 +72,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -355,16 +356,21 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected TestFeatureService createTestFeatureService(
+    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+        return List.of();
+    }
+
+    protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
         // Historical features information is unavailable when using legacy test plugins
         boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
 
-        final List<FeatureSpecification> featureSpecifications;
+        final List<FeatureSpecification> featureSpecifications = new ArrayList<>(createAdditionalFeatureSpecifications());
+        featureSpecifications.add(new RestTestLegacyFeatures());
         if (hasHistoricalFeaturesInformation) {
-            featureSpecifications = List.of(new RestTestLegacyFeatures(), new ESRestTestCaseHistoricalFeatures());
+            featureSpecifications.add(new ESRestTestCaseHistoricalFeatures());
         } else {
             logger.warn(
                 "This test is running on the legacy test framework; historical features from production code will not be available. "
@@ -372,7 +378,6 @@ public abstract class ESRestTestCase extends ESTestCase {
                     + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
                 RestTestLegacyFeatures.class.getCanonicalName()
             );
-            featureSpecifications = List.of(new RestTestLegacyFeatures());
         }
 
         return new ESRestTestFeatureService(
@@ -1104,8 +1109,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
         boolean includeHidden = clusterHasFeature(RestTestLegacyFeatures.HIDDEN_INDICES_SUPPORTED);
         try {
-            // remove all indices except ilm and slm history which can pop up after deleting all data streams but shouldn't interfere
-            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*"));
+            // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
+            final List<String> indexPatterns = new ArrayList<>(
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*")
+            );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
             }
@@ -1307,7 +1314,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     );
 
     static {
-        BaseBroadcastResponse.declareBroadcastFields(BROADCAST_RESPONSE_PARSER);
+        AbstractBroadcastResponseTestCase.declareBroadcastFields(BROADCAST_RESPONSE_PARSER);
     }
 
     protected static BroadcastResponse refresh(RestClient client, String index) throws IOException {

@@ -99,6 +99,7 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.operator.LimitOperator.Factory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
  * The local execution planner takes a plan (represented as PlanNode tree / digraph) as input and creates the corresponding
@@ -163,7 +164,6 @@ public class LocalExecutionPlanner {
             AggregateExec.class,
             a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
-
         PhysicalOperation physicalOperation = plan(node, context);
 
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
@@ -367,7 +367,7 @@ public class LocalExecutionPlanner {
 
         int limit;
         if (topNExec.limit() instanceof Literal literal) {
-            limit = Integer.parseInt(literal.value().toString());
+            limit = stringToInt(literal.value().toString());
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }
@@ -461,15 +461,17 @@ public class LocalExecutionPlanner {
         if (enrichIndex == null) {
             throw new EsqlIllegalArgumentException("No concrete enrich index for cluster [" + clusterAlias + "]");
         }
+        Layout.ChannelAndType input = source.layout.get(enrich.matchField().id());
         return source.with(
             new EnrichLookupOperator.Factory(
                 sessionId,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
-                source.layout.get(enrich.matchField().id()).channel(),
+                input.channel(),
                 enrichLookupService,
+                input.type(),
                 enrichIndex,
-                "match", // TODO: enrich should also resolve the match_type
+                enrich.matchType(),
                 enrich.policyMatchField(),
                 enrich.enrichFields()
             ),
@@ -716,6 +718,8 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
+                    System.currentTimeMillis(),
+                    System.nanoTime(),
                     driverContext,
                     physicalOperation::describe,
                     source,

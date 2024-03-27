@@ -66,7 +66,24 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private String[] indices;
 
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(false)
+                .allowEmptyExpressions(false)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder()
+                .allowClosedIndices(true)
+                .allowAliasToMultipleIndices(true)
+                .ignoreThrottled(false)
+                .allowFailureIndices(false)
+        )
+        .build();
 
     private String source;
     private String origin = "";

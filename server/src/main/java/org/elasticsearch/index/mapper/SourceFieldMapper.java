@@ -144,7 +144,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         private boolean isDefault() {
-            if (mode.get() != null) {
+            Mode m = mode.get();
+            if (m != null && (indexMode == IndexMode.TIME_SERIES && m == Mode.SYNTHETIC) == false) {
                 return false;
             }
             if (enabled.get().value() == false) {
@@ -169,8 +170,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
                 mode.get(),
                 enabled.get(),
-                includes.getValue().toArray(String[]::new),
-                excludes.getValue().toArray(String[]::new),
+                includes.getValue().toArray(Strings.EMPTY_ARRAY),
+                excludes.getValue().toArray(Strings.EMPTY_ARRAY),
                 indexMode
             );
             if (indexMode != null) {

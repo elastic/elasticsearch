@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.enrollment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
@@ -198,7 +197,7 @@ public class InternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         apiKeyRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client.execute(CreateApiKeyAction.INSTANCE, apiKeyRequest, ActionListener.wrap(createApiKeyResponse -> {
             final String apiKey = createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString();
-            final EnrollmentToken enrollmentToken = new EnrollmentToken(apiKey, fingerprint, Version.CURRENT.toString(), tokenAddresses);
+            final EnrollmentToken enrollmentToken = new EnrollmentToken(apiKey, fingerprint, tokenAddresses);
             consumer.accept(enrollmentToken);
         }, e -> {
             LOGGER.error("Failed to create enrollment token when generating API key", e);

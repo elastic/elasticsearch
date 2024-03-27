@@ -34,57 +34,43 @@ public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
     public static final ParseField CLEAR_JOB_FINISH_TIME = new ParseField("clear_job_finish_time");
 
-    // For internal updates
-    static final ConstructingObjectParser<Builder, Void> INTERNAL_PARSER = new ConstructingObjectParser<>(
-        "job_update",
-        args -> new Builder((String) args[0])
-    );
-
     // For parsing REST requests
-    public static final ConstructingObjectParser<Builder, Void> EXTERNAL_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
         "job_update",
         args -> new Builder((String) args[0])
     );
 
     static {
-        for (ConstructingObjectParser<Builder, Void> parser : Arrays.asList(INTERNAL_PARSER, EXTERNAL_PARSER)) {
-            parser.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
-            parser.declareStringArray(Builder::setGroups, Job.GROUPS);
-            parser.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
-            parser.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
-            parser.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.STRICT_PARSER, Job.MODEL_PLOT_CONFIG);
-            parser.declareObject(Builder::setAnalysisLimits, AnalysisLimits.STRICT_PARSER, Job.ANALYSIS_LIMITS);
-            parser.declareString(
-                (builder, val) -> builder.setBackgroundPersistInterval(
-                    TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())
-                ),
-                Job.BACKGROUND_PERSIST_INTERVAL
-            );
-            parser.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
-            parser.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
-            parser.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
-            parser.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
-            parser.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
-            parser.declareObject(
-                Builder::setPerPartitionCategorizationConfig,
-                PerPartitionCategorizationConfig.STRICT_PARSER,
-                AnalysisConfig.PER_PARTITION_CATEGORIZATION
-            );
-            parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
-            parser.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
-            parser.declareString(
-                (builder, val) -> builder.setModelPruneWindow(
-                    TimeValue.parseTimeValue(val, AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName())
-                ),
-                AnalysisConfig.MODEL_PRUNE_WINDOW
-            );
-        }
-        // These fields should not be set by a REST request
-        INTERNAL_PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
-        INTERNAL_PARSER.declareString(Builder::setModelSnapshotMinVersion, Job.MODEL_SNAPSHOT_MIN_VERSION);
-        INTERNAL_PARSER.declareString(Builder::setJobVersion, Job.JOB_VERSION);
-        INTERNAL_PARSER.declareBoolean(Builder::setClearFinishTime, CLEAR_JOB_FINISH_TIME);
-        INTERNAL_PARSER.declareObject(Builder::setBlocked, Blocked.STRICT_PARSER, Job.BLOCKED);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
+        PARSER.declareStringArray(Builder::setGroups, Job.GROUPS);
+        PARSER.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
+        PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
+        PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.STRICT_PARSER, Job.MODEL_PLOT_CONFIG);
+        PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.STRICT_PARSER, Job.ANALYSIS_LIMITS);
+        PARSER.declareString(
+            (builder, val) -> builder.setBackgroundPersistInterval(
+                TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())
+            ),
+            Job.BACKGROUND_PERSIST_INTERVAL
+        );
+        PARSER.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
+        PARSER.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
+        PARSER.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
+        PARSER.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
+        PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
+        PARSER.declareObject(
+            Builder::setPerPartitionCategorizationConfig,
+            PerPartitionCategorizationConfig.STRICT_PARSER,
+            AnalysisConfig.PER_PARTITION_CATEGORIZATION
+        );
+        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
+        PARSER.declareString(
+            (builder, val) -> builder.setModelPruneWindow(
+                TimeValue.parseTimeValue(val, AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName())
+            ),
+            AnalysisConfig.MODEL_PRUNE_WINDOW
+        );
     }
 
     private final String jobId;

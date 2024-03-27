@@ -232,7 +232,7 @@ empty start end times:
       reason: introduced in 8.1.0
 
   - do:
-      catch: /cannot parse empty date/
+      catch: /cannot parse empty date(time)?/
       indices.create:
         index: test_index
         body:

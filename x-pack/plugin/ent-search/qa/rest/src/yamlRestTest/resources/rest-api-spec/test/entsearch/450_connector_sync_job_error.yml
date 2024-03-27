@@ -13,7 +13,7 @@ setup:
           service_type: super-connector
 
 ---
-"Set an error for a connector sync job":
+"Set an error for a pending connector sync job - invalid state transition from pending to error":
   - do:
       connector_sync_job.post:
         body:
@@ -24,20 +24,11 @@ setup:
   - set: { id: id }
 
   - do:
+      catch: bad_request
       connector_sync_job.error:
         connector_sync_job_id: $id
         body:
           error: error
-
-  - match: { result: updated }
-
-  - do:
-      connector_sync_job.get:
-        connector_sync_job_id: $id
-
-  - match: { error: error }
-  - match: { status: error }
-
 
 ---
 "Set an error for a Connector Sync Job - Connector Sync Job does not exist":

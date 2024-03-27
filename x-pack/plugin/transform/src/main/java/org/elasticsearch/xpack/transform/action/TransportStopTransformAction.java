@@ -513,7 +513,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {
-                persistentTasksService.sendRemoveRequest(unassignedTaskId, groupedListener);
+                persistentTasksService.sendRemoveRequest(unassignedTaskId, null, groupedListener);
             }
 
         }, e -> {
@@ -525,7 +525,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             );
 
             for (String unassignedTaskId : transformNodeAssignments.getWaitingForAssignment()) {
-                persistentTasksService.sendRemoveRequest(unassignedTaskId, groupedListener);
+                persistentTasksService.sendRemoveRequest(unassignedTaskId, null, groupedListener);
             }
         });
         return doExecuteListener;

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.transform.TransformExtensionHolder;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
@@ -289,7 +290,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         }, listener::onFailure);
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
-            if (Boolean.FALSE.equals(settingsConfig.getDeduceMappings())) {
+            if (TransformEffectiveSettings.isDeduceMappingsDisabled(settingsConfig)) {
                 mappings.set(emptyMap());
             } else {
                 mappings.set(deducedMappings);

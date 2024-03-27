@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.prefix;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -19,14 +20,13 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -225,30 +225,40 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final Map<BytesRef, ReducerAndProto> buckets = new HashMap<>();
+            final ObjectObjectPagedHashMap<BytesRef, BucketReducer<Bucket>> buckets = new ObjectObjectPagedHashMap<>(
+                getBuckets().size(),
+                reduceContext.bigArrays()
+            );
 
             @Override
             public void accept(InternalAggregation aggregation) {
                 final InternalIpPrefix ipPrefix = (InternalIpPrefix) aggregation;
                 for (Bucket bucket : ipPrefix.getBuckets()) {
-                    ReducerAndProto reducerAndProto = buckets.computeIfAbsent(
-                        bucket.key,
-                        k -> new ReducerAndProto(new MultiBucketAggregatorsReducer(reduceContext, size), bucket)
-                    );
-                    reducerAndProto.reducer.accept(bucket);
+                    BucketReducer<Bucket> bucketReducer = buckets.get(bucket.key);
+                    if (bucketReducer == null) {
+                        bucketReducer = new BucketReducer<>(bucket, reduceContext, size);
+                        boolean success = false;
+                        try {
+                            buckets.put(bucket.key, bucketReducer);
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                Releasables.close(bucketReducer);
+                            }
+                        }
+                    }
+                    bucketReducer.accept(bucket);
                 }
             }
 
             @Override
             public InternalAggregation get() {
-                final List<Bucket> reducedBuckets = new ArrayList<>(buckets.size());
-                for (ReducerAndProto reducerAndProto : buckets.values()) {
-                    if (false == reduceContext.isFinalReduce() || reducerAndProto.reducer.getDocCount() >= minDocCount) {
-                        reducedBuckets.add(
-                            createBucket(reducerAndProto.proto, reducerAndProto.reducer.get(), reducerAndProto.reducer.getDocCount())
-                        );
+                final List<Bucket> reducedBuckets = new ArrayList<>(Math.toIntExact(buckets.size()));
+                buckets.forEach(entry -> {
+                    if (false == reduceContext.isFinalReduce() || entry.value.getDocCount() >= minDocCount) {
+                        reducedBuckets.add(createBucket(entry.value.getProto(), entry.value.getAggregations(), entry.value.getDocCount()));
                     }
-                }
+                });
                 reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
                 reducedBuckets.sort(Comparator.comparing(a -> a.key));
                 return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
@@ -256,14 +266,11 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
 
             @Override
             public void close() {
-                for (ReducerAndProto reducerAndProto : buckets.values()) {
-                    Releasables.close(reducerAndProto.reducer);
-                }
+                buckets.forEach(entry -> Releasables.close(entry.value));
+                Releasables.close(buckets);
             }
         };
     }
-
-    private record ReducerAndProto(MultiBucketAggregatorsReducer reducer, Bucket proto) {}
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

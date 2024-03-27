@@ -1,0 +1,7 @@
+*Parameters*
+
+`string`::
+values to join
+
+`delim`::
+delimiter

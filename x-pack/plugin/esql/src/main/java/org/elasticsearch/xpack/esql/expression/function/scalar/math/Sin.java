@@ -25,7 +25,7 @@ public class Sin extends AbstractTrigonometricFunction {
     @FunctionInfo(returnType = "double", description = "Returns the trigonometric sine of an angle")
     public Sin(
         Source source,
-        @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }, description = "An angle, in radians") Expression n
+        @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }, description = "An angle, in radians") Expression n
     ) {
         super(source, n);
     }

@@ -202,7 +202,16 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     )
                 );
             }
+        }
+        {
+            final var state = clusterStateWithIndexAndNodes("data_warm", DiscoveryNodes.builder().add(DATA_NODE).build(), null);
 
+            assertAllocationDecision(
+                state,
+                DATA_NODE,
+                Decision.Type.YES,
+                "index has a preference for tiers [data_warm] and node has tier [data]"
+            );
         }
     }
 

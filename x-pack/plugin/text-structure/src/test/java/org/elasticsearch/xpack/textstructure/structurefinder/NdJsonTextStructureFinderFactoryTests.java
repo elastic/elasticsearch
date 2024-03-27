@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
+import java.util.Arrays;
+import java.util.List;
+
 public class NdJsonTextStructureFinderFactoryTests extends TextStructureTestCase {
 
     private final TextStructureFinderFactory factory = new NdJsonTextStructureFinderFactory();
@@ -13,6 +16,21 @@ public class NdJsonTextStructureFinderFactoryTests extends TextStructureTestCase
     public void testCanCreateFromSampleGivenNdJson() {
 
         assertTrue(factory.canCreateFromSample(explanation, NDJSON_SAMPLE, 0.0));
+    }
+
+    public void testCanCreateFromMessages() {
+        List<String> messages = Arrays.asList(NDJSON_SAMPLE.split("\n"));
+        assertTrue(factory.canCreateFromMessages(explanation, messages, 0.0));
+    }
+
+    public void testCanCreateFromMessages_multipleJsonLinesPerMessage() {
+        List<String> messages = List.of(NDJSON_SAMPLE, NDJSON_SAMPLE, NDJSON_SAMPLE);
+        assertFalse(factory.canCreateFromMessages(explanation, messages, 0.0));
+    }
+
+    public void testCanCreateFromMessages_emptyMessages() {
+        List<String> messages = List.of("", "", "");
+        assertFalse(factory.canCreateFromMessages(explanation, messages, 0.0));
     }
 
     public void testCanCreateFromSampleGivenXml() {

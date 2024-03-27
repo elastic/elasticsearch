@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -134,7 +136,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         // If during re-assignment the source index was deleted, then we need to break out.
         // Returning NO_NODE_FOUND just keeps the persistent task until the source index appears again (which would never happen)
         // So let's return a node and then in the node operation we would just fail and stop this persistent task
-        var indexShardRouting = clusterState.routingTable().shardRoutingTable(params.shardId().getIndexName(), params.shardId().id());
+        var indexShardRouting = findShardRoutingTable(shardId, clusterState);
         if (indexShardRouting == null) {
             var node = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::canContainData);
             return new PersistentTasksCustomMetadata.Assignment(node.getId(), "a node to fail and stop this persistent task");
@@ -175,9 +177,18 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         );
     }
 
+    private static IndexShardRoutingTable findShardRoutingTable(ShardId shardId, ClusterState clusterState) {
+        var indexRoutingTable = clusterState.routingTable().index(shardId.getIndexName());
+        if (indexRoutingTable != null) {
+            return indexRoutingTable.shard(shardId.getId());
+        }
+        return null;
+    }
+
     static void realNodeOperation(
         Client client,
         IndicesService indicesService,
+        DownsampleMetrics downsampleMetrics,
         DownsampleShardTask task,
         DownsampleShardTaskParams params,
         BytesRef lastDownsampledTsid
@@ -199,6 +210,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         task,
                         client,
                         indicesService.indexServiceSafe(params.shardId().getIndex()),
+                        downsampleMetrics,
                         params.shardId(),
                         params.downsampleIndex(),
                         params.downsampleConfig(),
@@ -251,7 +263,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             super(NAME);
         }
 
-        public static class Request extends ActionRequest implements IndicesRequest {
+        public static class Request extends ActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
             private final DownsampleShardTask task;
             private final BytesRef lastDownsampleTsid;
@@ -282,23 +294,36 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             public void writeTo(StreamOutput out) {
                 throw new IllegalStateException("request should stay local");
             }
+
+            @Override
+            public Collection<ShardId> shards() {
+                return Collections.singletonList(task.shardId());
+            }
         }
 
         public static class TA extends TransportAction<Request, ActionResponse.Empty> {
 
             private final Client client;
             private final IndicesService indicesService;
+            private final DownsampleMetrics downsampleMetrics;
 
             @Inject
-            public TA(TransportService transportService, ActionFilters actionFilters, Client client, IndicesService indicesService) {
+            public TA(
+                TransportService transportService,
+                ActionFilters actionFilters,
+                Client client,
+                IndicesService indicesService,
+                DownsampleMetrics downsampleMetrics
+            ) {
                 super(NAME, actionFilters, transportService.getTaskManager());
                 this.client = client;
                 this.indicesService = indicesService;
+                this.downsampleMetrics = downsampleMetrics;
             }
 
             @Override
             protected void doExecute(Task t, Request request, ActionListener<ActionResponse.Empty> listener) {
-                realNodeOperation(client, indicesService, request.task, request.params, request.lastDownsampleTsid);
+                realNodeOperation(client, indicesService, downsampleMetrics, request.task, request.params, request.lastDownsampleTsid);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
         }

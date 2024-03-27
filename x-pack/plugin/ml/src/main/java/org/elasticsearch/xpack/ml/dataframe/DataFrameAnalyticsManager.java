@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetector;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.inference.InferenceRunner;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -171,9 +170,8 @@ public class DataFrameAnalyticsManager {
         }, task::setFailed);
 
         // Retrieve configuration
-        ActionListener<Boolean> statsIndexListener = ActionListener.wrap(
-            aBoolean -> configProvider.get(task.getParams().getId(), configListener),
-            configListener::onFailure
+        ActionListener<Boolean> statsIndexListener = configListener.delegateFailureAndWrap(
+            (l, aBoolean) -> configProvider.get(task.getParams().getId(), l)
         );
 
         // Make sure the stats index and alias exist
@@ -203,25 +201,22 @@ public class DataFrameAnalyticsManager {
         TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener
     ) {
-        ActionListener<Boolean> createIndexListener = ActionListener.wrap(
-            aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
-                MlStatsIndex.writeAlias(),
-                MlStatsIndex::wrappedMapping,
-                clientToUse,
-                clusterState,
-                masterNodeTimeout,
-                listener,
-                MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
-            ),
-            listener::onFailure
-        );
-
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(
             clientToUse,
             clusterState,
             expressionResolver,
             masterNodeTimeout,
-            createIndexListener
+            listener.delegateFailureAndWrap(
+                (l, aBoolean) -> ElasticsearchMappings.addDocMappingIfMissing(
+                    MlStatsIndex.writeAlias(),
+                    MlStatsIndex::wrappedMapping,
+                    clientToUse,
+                    clusterState,
+                    masterNodeTimeout,
+                    l,
+                    MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
+                )
+            )
         );
     }
 
@@ -306,25 +301,25 @@ public class DataFrameAnalyticsManager {
 
     private void buildInferenceStep(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, ActionListener<InferenceStep> listener) {
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
-
-        ActionListener<ExtractedFieldsDetector> extractedFieldsDetectorListener = ActionListener.wrap(extractedFieldsDetector -> {
-            ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
-            InferenceRunner inferenceRunner = new InferenceRunner(
-                settings,
-                parentTaskClient,
-                modelLoadingService,
-                resultsPersisterService,
-                task.getParentTaskId(),
-                config,
-                extractedFields,
-                task.getStatsHolder().getProgressTracker(),
-                task.getStatsHolder().getDataCountsTracker()
-            );
-            InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
-            listener.onResponse(inferenceStep);
-        }, listener::onFailure);
-
-        new ExtractedFieldsDetectorFactory(parentTaskClient).createFromDest(config, extractedFieldsDetectorListener);
+        new ExtractedFieldsDetectorFactory(parentTaskClient).createFromDest(
+            config,
+            listener.delegateFailureAndWrap((delegate, extractedFieldsDetector) -> {
+                ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
+                InferenceRunner inferenceRunner = new InferenceRunner(
+                    settings,
+                    parentTaskClient,
+                    modelLoadingService,
+                    resultsPersisterService,
+                    task.getParentTaskId(),
+                    config,
+                    extractedFields,
+                    task.getStatsHolder().getProgressTracker(),
+                    task.getStatsHolder().getDataCountsTracker()
+                );
+                InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
+                delegate.onResponse(inferenceStep);
+            })
+        );
     }
 
     public boolean isNodeShuttingDown() {

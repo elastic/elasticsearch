@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -31,6 +32,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 /**
@@ -70,11 +72,24 @@ public interface Repository extends LifecycleComponent {
     RepositoryMetadata getMetadata();
 
     /**
-     * Reads snapshot descriptions from the repository.
+     * Reads a collection of {@link SnapshotInfo} instances from the repository.
      *
-     * @param context get-snapshot-info-context
+     * @param snapshotIds    The IDs of the snapshots whose {@link SnapshotInfo} instances should be retrieved.
+     * @param abortOnFailure Whether to stop fetching further {@link SnapshotInfo} instances if a single fetch fails.
+     * @param isCancelled    Supplies whether the enclosing task is cancelled, which should stop fetching {@link SnapshotInfo} instances.
+     * @param consumer       A consumer for each {@link SnapshotInfo} retrieved. Called concurrently from multiple threads. If the consumer
+     *                       throws an exception and {@code abortOnFailure} is {@code true} then the fetching will stop.
+     * @param listener       If {@code abortOnFailure} is {@code true} and any operation fails then the failure is passed to this listener.
+     *                       Also completed exceptionally on cancellation. Otherwise, completed once all requested {@link SnapshotInfo}
+     *                       instances have been processed by the {@code consumer}.
      */
-    void getSnapshotInfo(GetSnapshotInfoContext context);
+    void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    );
 
     /**
      * Reads a single snapshot description from the repository
@@ -83,7 +98,7 @@ public interface Repository extends LifecycleComponent {
      * @param listener   listener to resolve with snapshot description (is resolved on the {@link ThreadPool.Names#SNAPSHOT_META} pool)
      */
     default void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
-        getSnapshotInfo(new GetSnapshotInfoContext(List.of(snapshotId), true, () -> false, (context, snapshotInfo) -> {
+        getSnapshotInfo(List.of(snapshotId), true, () -> false, snapshotInfo -> {
             assert Repository.assertSnapshotMetaThread();
             listener.onResponse(snapshotInfo);
         }, new ActionListener<>() {
@@ -96,7 +111,7 @@ public interface Repository extends LifecycleComponent {
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        }));
+        });
     }
 
     /**

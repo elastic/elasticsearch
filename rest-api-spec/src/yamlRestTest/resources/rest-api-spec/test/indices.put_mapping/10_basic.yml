@@ -96,7 +96,7 @@
 
   - do:
       node_selector:
-        version: " - 7.99.99"
+        version: "original"
       catch: bad_request
       indices.put_mapping:
         index: test_index

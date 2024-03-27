@@ -36,6 +36,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.Closeable;
@@ -139,9 +140,20 @@ class Netty4HttpClient implements Closeable {
             channelFuture = clientBootstrap.connect(remoteAddress);
             channelFuture.sync();
 
+            boolean needsFinalFlush = false;
             for (HttpRequest request : requests) {
-                channelFuture.channel().writeAndFlush(request);
+                if (ESTestCase.randomBoolean()) {
+                    channelFuture.channel().writeAndFlush(request);
+                    needsFinalFlush = false;
+                } else {
+                    channelFuture.channel().write(request);
+                    needsFinalFlush = true;
+                }
             }
+            if (needsFinalFlush) {
+                channelFuture.channel().flush();
+            }
+
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
                 fail("Failed to get all expected responses.");
             }
@@ -157,7 +169,7 @@ class Netty4HttpClient implements Closeable {
 
     @Override
     public void close() {
-        clientBootstrap.config().group().shutdownGracefully().awaitUninterruptibly();
+        clientBootstrap.config().group().shutdownGracefully(0L, 0L, TimeUnit.SECONDS).awaitUninterruptibly();
     }
 
     /**

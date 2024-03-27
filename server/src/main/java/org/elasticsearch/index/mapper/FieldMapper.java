@@ -450,13 +450,28 @@ public abstract class FieldMapper extends Mapper {
 
             private final Map<String, Function<MapperBuilderContext, FieldMapper>> mapperBuilders = new HashMap<>();
 
+            private boolean hasSyntheticSourceCompatibleKeywordField;
+
             public Builder add(FieldMapper.Builder builder) {
                 mapperBuilders.put(builder.name(), builder::build);
+
+                if (builder instanceof KeywordFieldMapper.Builder kwd) {
+                    if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
+                        hasSyntheticSourceCompatibleKeywordField = true;
+                    }
+                }
+
                 return this;
             }
 
             private void add(FieldMapper mapper) {
                 mapperBuilders.put(mapper.simpleName(), context -> mapper);
+
+                if (mapper instanceof KeywordFieldMapper kwd) {
+                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                        hasSyntheticSourceCompatibleKeywordField = true;
+                    }
+                }
             }
 
             private void update(FieldMapper toMerge, MapperMergeContext context) {
@@ -474,12 +489,16 @@ public abstract class FieldMapper extends Mapper {
                 return mapperBuilders.isEmpty() == false;
             }
 
+            public boolean hasSyntheticSourceCompatibleKeywordField() {
+                return hasSyntheticSourceCompatibleKeywordField;
+            }
+
             public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
                     FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
-                    context = context.createChildContext(mainFieldBuilder.name());
+                    context = context.createChildContext(mainFieldBuilder.name(), null);
                     int i = 0;
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
                         mappers[i++] = entry.getValue().apply(context);
@@ -1134,6 +1153,10 @@ public abstract class FieldMapper extends Mapper {
             return Parameter.boolParam("store", false, initializer, defaultValue);
         }
 
+        public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
+            return Parameter.boolParam("store", false, initializer, defaultValue);
+        }
+
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
         }
@@ -1230,7 +1253,7 @@ public abstract class FieldMapper extends Mapper {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.simpleName());
+            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.simpleName(), null);
             for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, childContext);
             }
@@ -1412,6 +1435,26 @@ public abstract class FieldMapper extends Mapper {
                 return false;
             }
             return DEPRECATED_PARAMS.contains(propName);
+        }
+    }
+
+    /**
+     * Creates mappers for fields that can act as time-series dimensions.
+     */
+    public abstract static class DimensionBuilder extends Builder {
+
+        private boolean inheritDimensionParameterFromParentObject = false;
+
+        public DimensionBuilder(String name) {
+            super(name);
+        }
+
+        void setInheritDimensionParameterFromParentObject() {
+            this.inheritDimensionParameterFromParentObject = true;
+        }
+
+        protected boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
+            return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
         }
     }
 

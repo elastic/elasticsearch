@@ -11,4 +11,6 @@ public class OpenAiServiceFields {
 
     public static final String USER = "user";
 
+    public static final String ORGANIZATION = "organization_id";
+
 }

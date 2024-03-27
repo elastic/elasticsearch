@@ -99,6 +99,7 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.operator.LimitOperator.Factory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
  * The local execution planner takes a plan (represented as PlanNode tree / digraph) as input and creates the corresponding
@@ -366,7 +367,7 @@ public class LocalExecutionPlanner {
 
         int limit;
         if (topNExec.limit() instanceof Literal literal) {
-            limit = Integer.parseInt(literal.value().toString());
+            limit = stringToInt(literal.value().toString());
         } else {
             throw new EsqlIllegalArgumentException("limit only supported with literal values");
         }

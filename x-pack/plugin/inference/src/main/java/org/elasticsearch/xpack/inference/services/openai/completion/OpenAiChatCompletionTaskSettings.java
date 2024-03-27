@@ -22,12 +22,11 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 public class OpenAiChatCompletionTaskSettings implements TaskSettings {
 
     public static final String NAME = "openai_completion_task_settings";
-
-    public static final String USER = "user";
 
     public static OpenAiChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

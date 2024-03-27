@@ -49,7 +49,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
 
   public static RateIntGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, long unitInMillis) {
-    return new RateIntGroupingAggregatorFunction(channels, RateIntAggregator.initGrouping(driverContext.bigArrays(), unitInMillis), driverContext, unitInMillis);
+    return new RateIntGroupingAggregatorFunction(channels, RateIntAggregator.initGrouping(driverContext, unitInMillis), driverContext, unitInMillis);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

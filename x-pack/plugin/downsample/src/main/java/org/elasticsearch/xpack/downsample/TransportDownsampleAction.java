@@ -470,6 +470,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     if (countDown.decrementAndGet() == 0) {
                         logger.info("All downsampling tasks completed [" + numberOfShards + "]");
                         updateTargetIndexSettingStep(request, listener, sourceIndexMetadata, downsampleIndexName, parentTask);
+                        downsampleMetrics.recordLatencyMaster(getDurationInMillis(), DownsampleMetrics.ActionStatus.SUCCESS);
                     }
                 }
 
@@ -477,7 +478,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 public void onFailure(Exception e) {
                     logger.error("error while waiting for downsampling persistent task", e);
                     if (errorReported.getAndSet(true) == false) {
-                        downsampleMetrics.recordLatencyMaster(getDurationInMillis(), DownsampleMetrics.ShardActionStatus.FAILED);
+                        downsampleMetrics.recordLatencyMaster(getDurationInMillis(), DownsampleMetrics.ActionStatus.FAILED);
                     }
                     listener.onFailure(e);
                 }
@@ -543,9 +544,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 updateSettingsReq,
                 new UpdateDownsampleIndexSettingsActionListener(listener, parentTask, downsampleIndexName, request.getWaitTimeout())
             );
-
-        // Record latency for downsampling operation.
-        downsampleMetrics.recordLatencyMaster(getDurationInMillis(), DownsampleMetrics.ShardActionStatus.SUCCESS);
     }
 
     private static DownsampleShardTaskParams createPersistentTaskParams(

@@ -51,7 +51,7 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
     @Override
     protected void doClose() throws IOException {}
 
-    enum ShardActionStatus {
+    enum ActionStatus {
 
         SUCCESS("success"),
         MISSING_DOCS("missing_docs"),
@@ -61,7 +61,7 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
 
         private final String message;
 
-        ShardActionStatus(String message) {
+        ActionStatus(String message) {
             this.message = message;
         }
 
@@ -70,11 +70,11 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
         }
     }
 
-    void recordLatencyShard(long durationInMilliSeconds, ShardActionStatus status) {
-        meterRegistry.getLongHistogram(LATENCY_SHARD).record(durationInMilliSeconds, Map.of(ShardActionStatus.NAME, status.getMessage()));
+    void recordLatencyShard(long durationInMilliSeconds, ActionStatus status) {
+        meterRegistry.getLongHistogram(LATENCY_SHARD).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
     }
 
-    void recordLatencyMaster(long durationInMilliSeconds, ShardActionStatus status) {
-        meterRegistry.getLongHistogram(LATENCY_MASTER).record(durationInMilliSeconds, Map.of(ShardActionStatus.NAME, status.getMessage()));
+    void recordLatencyMaster(long durationInMilliSeconds, ActionStatus status) {
+        meterRegistry.getLongHistogram(LATENCY_MASTER).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
     }
 }

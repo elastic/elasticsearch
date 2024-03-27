@@ -60,7 +60,10 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return (SemanticTextFieldMapper) in;
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, c.indexVersionCreated()),
+        notInMultiFields(CONTENT_TYPE)
+    );
 
     private final IndexVersion indexVersionCreated;
     private final SemanticTextModelSettings modelSettings;

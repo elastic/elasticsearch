@@ -30,7 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -153,7 +153,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     private BucketOrder reduceBuckets(
         List<InternalAggregation> aggregations,
         AggregationReduceContext reduceContext,
-        Function<DelayedBucket<B>, Boolean> sink
+        Consumer<DelayedBucket<B>> sink
     ) {
         /*
          * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
@@ -176,7 +176,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         List<InternalAggregation> aggregations,
         BucketOrder thisReduceOrder,
         AggregationReduceContext reduceContext,
-        Function<DelayedBucket<B>, Boolean> sink
+        Consumer<DelayedBucket<B>> sink
     ) {
         assert isKeyOrder(thisReduceOrder);
         final Comparator<Bucket> cmp = thisReduceOrder.comparator();
@@ -201,12 +201,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             assert lastBucket == null || cmp.compare(top.current(), lastBucket) >= 0;
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changed so bundle up the last key's worth of buckets
-                boolean shouldContinue = sink.apply(
-                    new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
-                );
-                if (false == shouldContinue) {
-                    return;
-                }
+                sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
                 sameTermBuckets = new ArrayList<>();
             }
             lastBucket = top.current();
@@ -226,14 +221,14 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
 
         if (sameTermBuckets.isEmpty() == false) {
-            sink.apply(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
         }
     }
 
     private void reduceLegacy(
         List<InternalAggregation> aggregations,
         AggregationReduceContext reduceContext,
-        Function<DelayedBucket<B>, Boolean> sink
+        Consumer<DelayedBucket<B>> sink
     ) {
         Map<Object, List<B>> bucketMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
@@ -246,12 +241,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             }
         }
         for (List<B> sameTermBuckets : bucketMap.values()) {
-            boolean shouldContinue = sink.apply(
-                new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
-            );
-            if (false == shouldContinue) {
-                return;
-            }
+            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
         }
     }
 
@@ -304,7 +294,6 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                 if (bucket.getDocCount() >= getMinDocCount()) {
                     top.add(bucket);
                 }
-                return true;
             });
             result = top.build();
         } else {
@@ -316,8 +305,11 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             boolean canPrune = isKeyOrder(getOrder()) && getMinDocCount() == 0;
             result = new ArrayList<>();
             thisReduceOrder = reduceBuckets(aggregations, reduceContext, bucket -> {
-                result.add(bucket.reduced());
-                return false == canPrune || result.size() < getRequiredSize();
+                if (canPrune == false || result.size() < getRequiredSize()) {
+                    result.add(bucket.reduced());
+                } else {
+                    otherDocCount[0] += bucket.getDocCount();
+                }
             });
         }
         for (B r : result) {

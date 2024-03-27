@@ -309,6 +309,7 @@ public class ClusterStateTests extends ESTestCase {
                                     "time": 1
                                   }
                                 },
+                                "mappings_updated_version" : %s,
                                 "system": false,
                                 "timestamp_range": {
                                   "shards": []
@@ -383,6 +384,7 @@ public class ClusterStateTests extends ESTestCase {
                     IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current(),
                     TransportVersion.current(),
+                    IndexVersion.current(),
                     IndexVersion.current(),
                     IndexVersion.current(),
                     allocationId,
@@ -572,6 +574,7 @@ public class ClusterStateTests extends ESTestCase {
                                 "time" : 1
                               }
                             },
+                            "mappings_updated_version" : %s,
                             "system" : false,
                             "timestamp_range" : {
                               "shards" : [ ]
@@ -650,6 +653,7 @@ public class ClusterStateTests extends ESTestCase {
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
+                IndexVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current(),
                 allocationId,
@@ -845,6 +849,7 @@ public class ClusterStateTests extends ESTestCase {
                                 "time" : 1
                               }
                             },
+                            "mappings_updated_version" : %s,
                             "system" : false,
                             "timestamp_range" : {
                               "shards" : [ ]
@@ -923,6 +928,7 @@ public class ClusterStateTests extends ESTestCase {
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
+                IndexVersion.current(),
                 IndexVersion.current(),
                 IndexVersion.current(),
                 allocationId,
@@ -1014,6 +1020,7 @@ public class ClusterStateTests extends ESTestCase {
                       "0" : [ ]
                     },
                     "rollover_info" : { },
+                    "mappings_updated_version" : %s,
                     "system" : false,
                     "timestamp_range" : {
                       "shards" : [ ]
@@ -1032,7 +1039,7 @@ public class ClusterStateTests extends ESTestCase {
                 "unassigned" : [ ],
                 "nodes" : { }
               }
-            }""", IndexVersion.current()), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testNodeFeaturesSorted() throws IOException {

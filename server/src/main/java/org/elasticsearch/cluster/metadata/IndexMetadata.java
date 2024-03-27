@@ -2401,6 +2401,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 rolloverInfo.toXContent(builder, params);
             }
             builder.endObject();
+
             builder.field(KEY_MAPPINGS_UPDATED_VERSION, indexMetadata.mappingsUpdatedVersion);
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
 

@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.core.IOUtils;
@@ -32,6 +33,8 @@ import java.util.Map;
 import static org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorTests.createTimeSeriesSourceOperator;
 import static org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorTests.writeTS;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
@@ -72,26 +75,51 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
         long[] t3 = { 2, 3, 5, 7, 8, 9, 10, 12, 14, 15, 18, 20, 22 };
         List<Pod> pods = List.of(new Pod("p1", t1, v1), new Pod("p2", t2, v2), new Pod("p3", t3, v3));
         long unit = between(1, 5);
-        Map<String, Double> actualRates = runRateTest(pods, TimeValue.timeValueMillis(unit));
+        Map<Group, Double> actualRates = runRateTest(pods, TimeValue.timeValueMillis(unit), TimeValue.ZERO);
         assertThat(
             actualRates,
             equalTo(
                 Map.of(
-                    "\u0001\u0003pods\u0002p1",
+                    new Group("\u0001\u0003pods\u0002p1", 112),
                     35.0 * unit / 111.0,
-                    "\u0001\u0003pods\u0002p2",
+                    new Group("\u0001\u0003pods\u0002p2", 14),
                     42.0 * unit / 13.0,
-                    "\u0001\u0003pods\u0002p3",
+                    new Group("\u0001\u0003pods\u0002p3", 22),
                     10.0 * unit / 20.0
                 )
             )
         );
     }
 
+    public void testRateWithInterval() {
+        long[] v1 = { 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3 };
+        long[] t1 = { 0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000, 110_000, 120_000 };
+
+        long[] v2 = { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 };
+        long[] t2 = { 0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000, 110_000, 120_000 };
+
+        long[] v3 = { 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192 };
+        long[] t3 = { 0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000, 110_000, 120_000 };
+        List<Pod> pods = List.of(new Pod("p1", t1, v1), new Pod("p2", t2, v2), new Pod("p3", t3, v3));
+        Map<Group, Double> actualRates = runRateTest(pods, TimeValue.timeValueMillis(1), TimeValue.timeValueMinutes(1));
+        assertMap(
+            actualRates,
+            matchesMap().entry(new Group("\u0001\u0003pods\u0002p1", 120_000), 0.0D)
+                .entry(new Group("\u0001\u0003pods\u0002p1", 60_000), 8.0E-5D)
+                .entry(new Group("\u0001\u0003pods\u0002p1", 0), 8.0E-5D)
+                .entry(new Group("\u0001\u0003pods\u0002p2", 120_000), 0.0D)
+                .entry(new Group("\u0001\u0003pods\u0002p2", 60_000), 0.0D)
+                .entry(new Group("\u0001\u0003pods\u0002p2", 0), 0.0D)
+                .entry(new Group("\u0001\u0003pods\u0002p3", 120_000), 0.0D)
+                .entry(new Group("\u0001\u0003pods\u0002p3", 60_000), 0.07936D)
+                .entry(new Group("\u0001\u0003pods\u0002p3", 0), 0.00124D)
+        );
+    }
+
     public void testRandomRate() {
         int numPods = between(1, 10);
         List<Pod> pods = new ArrayList<>();
-        Map<String, Double> expectedRates = new HashMap<>();
+        Map<Group, Double> expectedRates = new HashMap<>();
         TimeValue unit = TimeValue.timeValueSeconds(1);
         for (int p = 0; p < numPods; p++) {
             int numValues = between(2, 100);
@@ -106,12 +134,12 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
             Pod pod = new Pod("p" + p, times, values);
             pods.add(pod);
             if (numValues == 1) {
-                expectedRates.put("\u0001\u0003pods\u0002" + pod.name, null);
+                expectedRates.put(new Group("\u0001\u0003pods\u0002" + pod.name, times[times.length - 1]), null);
             } else {
-                expectedRates.put("\u0001\u0003pods\u0002" + pod.name, pod.expectedRate(unit));
+                expectedRates.put(new Group("\u0001\u0003pods\u0002" + pod.name, times[times.length - 1]), pod.expectedRate(unit));
             }
         }
-        Map<String, Double> actualRates = runRateTest(pods, unit);
+        Map<Group, Double> actualRates = runRateTest(pods, unit, TimeValue.ZERO);
         assertThat(actualRates, equalTo(expectedRates));
     }
 
@@ -133,7 +161,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
         }
     }
 
-    Map<String, Double> runRateTest(List<Pod> pods, TimeValue unit) {
+    Map<Group, Double> runRateTest(List<Pod> pods, TimeValue unit, TimeValue interval) {
         long unitInMillis = unit.millis();
         record Doc(String pod, long timestamp, long requests) {
 
@@ -167,19 +195,19 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
             AggregatorMode.INITIAL,
             1,
             2,
-            TimeValue.ZERO,
+            interval,
             aggregators,
             randomIntBetween(1, 1000)
         ).get(ctx);
 
         aggregators = List.of(
-            new RateLongAggregatorFunctionSupplier(List.of(1, 2, 3), unitInMillis).groupingAggregatorFactory(AggregatorMode.FINAL)
+            new RateLongAggregatorFunctionSupplier(List.of(2, 3, 4), unitInMillis).groupingAggregatorFactory(AggregatorMode.FINAL)
         );
         Operator finalHash = new TimeSeriesAggregationOperatorFactory(
             AggregatorMode.FINAL,
             0,
             1,
-            TimeValue.ZERO,
+            interval,
             aggregators,
             randomIntBetween(1, 1000)
         ).get(ctx);
@@ -194,16 +222,20 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
                 () -> {}
             )
         );
-        Map<String, Double> rates = new HashMap<>();
+        Map<Group, Double> rates = new HashMap<>();
         for (Page result : results) {
             BytesRefBlock keysBlock = result.getBlock(0);
-            DoubleBlock ratesBlock = result.getBlock(1);
+            LongBlock timestampIntervalsBock = result.getBlock(1);
+            DoubleBlock ratesBlock = result.getBlock(2);
             for (int i = 0; i < result.getPositionCount(); i++) {
-                rates.put(keysBlock.getBytesRef(i, new BytesRef()).utf8ToString(), ratesBlock.getDouble(i));
+                var key = new Group(keysBlock.getBytesRef(i, new BytesRef()).utf8ToString(), timestampIntervalsBock.getLong(i));
+                rates.put(key, ratesBlock.getDouble(i));
             }
             result.releaseBlocks();
         }
         return rates;
     }
+
+    record Group(String tsidHash, long timestampInterval) {}
 
 }

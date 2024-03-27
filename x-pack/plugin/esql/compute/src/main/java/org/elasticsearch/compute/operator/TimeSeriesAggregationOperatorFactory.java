@@ -43,7 +43,7 @@ public record TimeSeriesAggregationOperatorFactory(
     @Override
     public Operator get(DriverContext driverContext) {
         var rounding = timeSeriesPeriod.equals(TimeValue.ZERO) == false ? Rounding.builder(timeSeriesPeriod).build() : null;
-        BlockHash blockHash = new TimeSeriesBlockHash(tsHashChannel, timestampChannel, rounding, driverContext);
+        BlockHash blockHash = new TimeSeriesBlockHash(mode, tsHashChannel, timestampChannel, rounding, driverContext);
         return new HashAggregationOperator(aggregators, () -> blockHash, driverContext);
     }
 

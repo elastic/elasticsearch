@@ -325,7 +325,7 @@ setup:
                 fields:
                   semantic_multifield:
                     type: semantic_text
-                    model_id: dense-inference-id
+                    inference_id: dense-inference-id
   - do:
       index:
         index: test-multifield-index
@@ -354,7 +354,7 @@ setup:
             properties:
               inference_field:
                 type: semantic_text
-                model_id: dense-inference-id
+                inference_id: dense-inference-id
               source_field:
                 type: text
                 copy_to: inference_field

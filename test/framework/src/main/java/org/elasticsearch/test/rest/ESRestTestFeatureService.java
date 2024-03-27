@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -43,7 +44,9 @@ class ESRestTestFeatureService implements TestFeatureService {
     private final Set<String> allSupportedFeatures;
     private final Set<String> knownHistoricalFeatureNames;
 
-    ESRestTestFeatureService(List<FeatureSpecification> specs, Collection<Version> nodeVersions, Set<String> clusterStateFeatures) {
+    ESRestTestFeatureService(List<FeatureSpecification> featureSpecs, Collection<Version> nodeVersions, Set<String> clusterStateFeatures) {
+        List<FeatureSpecification> specs = new ArrayList<>(featureSpecs);
+        specs.add(new RestTestLegacyFeatures());
         if (MetadataHolder.HISTORICAL_FEATURES != null) {
             specs.add(MetadataHolder.HISTORICAL_FEATURES);
         }
@@ -59,14 +62,13 @@ class ESRestTestFeatureService implements TestFeatureService {
         );
     }
 
-    public static boolean isLegacyTestFramework() {
-        // Historical features information is unavailable when using legacy test plugins
-        return MetadataHolder.HISTORICAL_FEATURES == null;
+    public static boolean hasFeatureMetadata() {
+        return MetadataHolder.HISTORICAL_FEATURES != null;
     }
 
     @Override
     public boolean clusterHasFeature(String featureId) {
-        if (isLegacyTestFramework() == false
+        if (hasFeatureMetadata()
             && MetadataHolder.FEATURE_NAMES.contains(featureId) == false
             && knownHistoricalFeatureNames.contains(featureId) == false) {
             throw new IllegalArgumentException(
@@ -90,7 +92,12 @@ class ESRestTestFeatureService implements TestFeatureService {
     }
 
     private static class MetadataHolder {
-        private record HistoricalFeatureSpec(Map<NodeFeature, Version> historicalFeatures) implements FeatureSpecification {}
+        private record HistoricalFeatureSpec(Map<NodeFeature, Version> historicalFeatures) implements FeatureSpecification {
+            @Override
+            public Map<NodeFeature, Version> getHistoricalFeatures() {
+                return historicalFeatures;
+            }
+        }
 
         private static final FeatureSpecification HISTORICAL_FEATURES;
         private static final Set<String> FEATURE_NAMES;

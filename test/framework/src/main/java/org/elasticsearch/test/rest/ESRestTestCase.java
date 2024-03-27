@@ -361,9 +361,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
-        final List<FeatureSpecification> featureSpecifications = new ArrayList<>(createAdditionalFeatureSpecifications());
-        featureSpecifications.add(new RestTestLegacyFeatures());
-        if (ESRestTestFeatureService.isLegacyTestFramework()) {
+        // Historical features information is unavailable when using legacy test plugins
+        if (ESRestTestFeatureService.hasFeatureMetadata() == false) {
             logger.warn(
                 "This test is running on the legacy test framework; historical features from production code will not be available. "
                     + "You need to port the test to the new test plugins in order to use historical features from production code. "
@@ -372,7 +371,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             );
         }
         return new ESRestTestFeatureService(
-            featureSpecifications,
+            createAdditionalFeatureSpecifications(),
             semanticNodeVersions,
             ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
         );

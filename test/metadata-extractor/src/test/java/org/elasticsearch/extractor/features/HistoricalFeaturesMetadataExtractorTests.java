@@ -27,9 +27,9 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
@@ -57,14 +57,11 @@ public class HistoricalFeaturesMetadataExtractorTests extends ESTestCase {
             assertThat(parsedMap, hasKey("feature_names"));
             @SuppressWarnings("unchecked")
             Map<String, Object> historicalFeaturesMap = (Map<String, Object>) (parsedMap.get("historical_features"));
-            for (Map.Entry<NodeFeature, Version> entry : nodeFeatureVersionMap.entrySet()) {
-                assertThat(historicalFeaturesMap, hasEntry(entry.getKey().id(), entry.getValue().toString()));
-            }
+            nodeFeatureVersionMap.forEach((key, value) -> assertThat(historicalFeaturesMap, hasEntry(key.id(), value.toString())));
+
             @SuppressWarnings("unchecked")
             Collection<String> featureNamesList = (Collection<String>) (parsedMap.get("feature_names"));
-            for (var entry : featureNamesList) {
-                assertThat(featureNamesList, hasItem(entry));
-            }
+            assertThat(featureNamesList, containsInAnyOrder(featureNamesSet.toArray()));
         }
     }
 }

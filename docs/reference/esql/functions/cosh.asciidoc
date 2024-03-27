@@ -16,8 +16,6 @@ Numeric expression. If `null`, the function returns `null`.
 
 Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine].
 
-*Supported types*
-
 include::types/cosh.asciidoc[]
 
 *Example*

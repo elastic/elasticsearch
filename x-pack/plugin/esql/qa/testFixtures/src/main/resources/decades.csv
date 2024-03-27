@@ -1,0 +1,14 @@
+date_range:date_range,   decade:integer, description:keyword
+{"gte": "1900-01-01"\, "lt":"1910-01-01"}, 1900, Edwardian Era
+{"gte": "1910-01-01"\, "lt":"1920-01-01"}, 1910, Ragtime Era
+{"gte": "1920-01-01"\, "lt":"1930-01-01"}, 1920, Roaring Twenties
+{"gte": "1930-01-01"\, "lt":"1940-01-01"}, 1930, Dirty Thirties
+{"gte": "1940-01-01"\, "lt":"1950-01-01"}, 1940, Fabulous Forties
+{"gte": "1950-01-01"\, "lt":"1960-01-01"}, 1950, Nifty Fifties
+{"gte": "1960-01-01"\, "lt":"1970-01-01"}, 1960, Swinging Sixties
+{"gte": "1970-01-01"\, "lt":"1980-01-01"}, 1970, Groovy Seventies
+{"gte": "1980-01-01"\, "lt":"1990-01-01"}, 1980, Radical Eighties
+{"gte": "1990-01-01"\, "lt":"2000-01-01"}, 1990, Nineties Nostalgia
+{"gte": "2000-01-01"\, "lt":"2010-01-01"}, 2000, Innovation Explosion Decade
+{"gte": "2010-01-01"\, "lt":"2020-01-01"}, 2010, Renaissance Decade
+{"gte": "2020-01-01"\, "lt":"2030-01-01"}, 2020, Empowerment Era

@@ -15,13 +15,28 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 class JavaTimeDateTimeParser implements DateTimeParser {
+
+    static UnaryOperator<JavaTimeDateTimeParser> createRoundUpParserGenerator(Consumer<DateTimeFormatterBuilder> modifyBuilder) {
+        return p -> {
+            var builder = new DateTimeFormatterBuilder();
+            builder.append(p.formatter);
+            modifyBuilder.accept(builder);
+            return new JavaTimeDateTimeParser(builder.toFormatter(p.getLocale()));
+        };
+    }
 
     private final DateTimeFormatter formatter;
 
     JavaTimeDateTimeParser(DateTimeFormatter formatter) {
         this.formatter = formatter;
+    }
+
+    DateTimeFormatter formatter() {
+        return formatter;
     }
 
     @Override
@@ -35,11 +50,6 @@ class JavaTimeDateTimeParser implements DateTimeParser {
     }
 
     @Override
-    public String getFormatString() {
-        return formatter.toString();
-    }
-
-    @Override
     public DateTimeParser withZone(ZoneId zone) {
         return new JavaTimeDateTimeParser(formatter.withZone(zone));
     }
@@ -47,11 +57,6 @@ class JavaTimeDateTimeParser implements DateTimeParser {
     @Override
     public DateTimeParser withLocale(Locale locale) {
         return new JavaTimeDateTimeParser(formatter.withLocale(locale));
-    }
-
-    @Override
-    public void applyToBuilder(DateTimeFormatterBuilder builder) {
-        builder.append(formatter);
     }
 
     @Override

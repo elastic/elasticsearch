@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -64,6 +64,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
@@ -250,7 +251,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
-        int limit = Integer.parseInt(ctx.INTEGER_LITERAL().getText());
+        int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
         return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
     }
 
@@ -315,8 +316,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public LogicalPlan visitShowFunctions(EsqlBaseParser.ShowFunctionsContext ctx) {
-        return new ShowFunctions(source(ctx));
+    public LogicalPlan visitMetaFunctions(EsqlBaseParser.MetaFunctionsContext ctx) {
+        return new MetaFunctions(source(ctx));
     }
 
     @Override

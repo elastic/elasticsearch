@@ -24,8 +24,6 @@ rely on that. If you need the maximum value use <<esql-mv_max>> instead of
 `MV_LAST`. `MV_MAX` has optimizations for sorted values so there isn't a
 performance benefit to `MV_LAST`.
 
-*Supported types*
-
 include::types/mv_last.asciidoc[]
 
 *Example*

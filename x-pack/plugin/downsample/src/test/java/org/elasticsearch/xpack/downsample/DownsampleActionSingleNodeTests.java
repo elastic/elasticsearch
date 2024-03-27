@@ -764,6 +764,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         indexer.execute();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106834")
     public void testDownsampleStats() throws IOException {
         final PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         final DownsampleConfig config = new DownsampleConfig(randomInterval());

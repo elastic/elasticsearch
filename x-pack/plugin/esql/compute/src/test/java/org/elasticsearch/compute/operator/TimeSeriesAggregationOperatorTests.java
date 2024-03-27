@@ -258,19 +258,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
         List<Pod> pods = List.of(new Pod("p1", t1, v1), new Pod("p2", t2, v2), new Pod("p3", t3, v3));
         long unit = between(1, 5);
         Map<String, Double> actualRates = runRateTestOrdinalBased(pods, TimeValue.timeValueMillis(unit));
-        assertThat(
-            actualRates,
-            equalTo(
-                Map.of(
-                    "p1",
-                    35.0 * unit / 111.0,
-                    "p2",
-                    42.0 * unit / 13.0,
-                    "p3",
-                    10.0 * unit / 20.0
-                )
-            )
-        );
+        assertThat(actualRates, equalTo(Map.of("p1", 35.0 * unit / 111.0, "p2", 42.0 * unit / 13.0, "p3", 10.0 * unit / 20.0)));
     }
 
     // TODO: in a follow up add support for ordinal based time series grouping operator

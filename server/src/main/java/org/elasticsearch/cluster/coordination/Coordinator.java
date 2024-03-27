@@ -147,7 +147,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final MasterServiceTaskQueue<NodeLeftExecutor.Task> nodeLeftQueue;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     private final NoMasterBlockService noMasterBlockService;
-    public final Object mutex = new Object(); // public to allow tests to call methods that assert that the mutex is held
+    final Object mutex = new Object(); // package-private to allow tests to call methods that assert that the mutex is held
     private final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
     private volatile ClusterState applierState; // the state that should be exposed to the cluster state applier
 

@@ -364,6 +364,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return addedNodes;
         }
 
+        public static void becomeCandidate(ClusterNode node, String reason) {
+            synchronized (node.coordinator.mutex) {
+                node.coordinator.becomeCandidate(reason);
+            }
+        }
+
         public int size() {
             return clusterNodes.size();
         }

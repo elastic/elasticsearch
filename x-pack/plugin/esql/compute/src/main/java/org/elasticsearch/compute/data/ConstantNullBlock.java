@@ -97,7 +97,7 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public Block expand() {
+    public ConstantNullBlock expand() {
         incRef();
         return this;
     }

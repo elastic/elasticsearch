@@ -39,6 +39,9 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     BooleanBlock filter(int... positions);
 
     @Override
+    BooleanBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "BooleanBlock";
     }

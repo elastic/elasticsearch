@@ -95,4 +95,10 @@ $endif$
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }
+
+    @Override
+    public final $Type$VectorBlock expand() {
+        incRef();
+        return this;
+    }
 }

@@ -87,4 +87,10 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }
+
+    @Override
+    public final BooleanVectorBlock expand() {
+        incRef();
+        return this;
+    }
 }

@@ -88,4 +88,10 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }
+
+    @Override
+    public final BytesRefVectorBlock expand() {
+        incRef();
+        return this;
+    }
 }

@@ -74,7 +74,7 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
                                 builder.appendOrd(docValues.ordValue());
                             }
                         }
-                        try (BytesRefBlock build = builder.build()) {
+                        try (BytesRefBlock build = randomBoolean() ? builder.buildOrdinal() : builder.buildRegularBlock()) {
                             for (int i = 0; i < build.getPositionCount(); i++) {
                                 counts.merge(build.getBytesRef(i, new BytesRef()).utf8ToString(), 1, (lhs, rhs) -> lhs + rhs);
                             }

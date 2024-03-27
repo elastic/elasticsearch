@@ -129,22 +129,17 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             for (int i = 0; i < firstGenerationMeta.getNumberOfShards(); i++) {
                 // the shard stats will yield a write load of 75.0 which will make the auto sharding service recommend an optimal number
                 // of 5 shards
-                shards.add(getShardStats(firstGenerationMeta, i, 75, assignedShardNodeId));
+                shards.add(
+                    getShardStats(
+                        firstGenerationMeta,
+                        i,
+                        (long) Math.ceil(75.0 / firstGenerationMeta.getNumberOfShards()),
+                        assignedShardNodeId
+                    )
+                );
             }
 
-            for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
-                MockTransportService.getInstance(node.getName())
-                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                        TransportIndicesStatsAction instance = internalCluster().getInstance(
-                            TransportIndicesStatsAction.class,
-                            node.getName()
-                        );
-                        channel.sendResponse(
-                            instance.new NodeResponse(node.getId(), firstGenerationMeta.getNumberOfShards(), shards, List.of())
-                        );
-                    });
-            }
-
+            mockStatsForIndex(clusterStateBeforeRollover, assignedShardNodeId, firstGenerationMeta, shards);
             assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
 
             ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
@@ -180,21 +175,16 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             for (int i = 0; i < secondGenerationMeta.getNumberOfShards(); i++) {
                 // the shard stats will yield a write load of 100.0 which will make the auto sharding service recommend an optimal number of
                 // 7 shards
-                shards.add(getShardStats(secondGenerationMeta, i, 100, assignedShardNodeId));
+                shards.add(
+                    getShardStats(
+                        secondGenerationMeta,
+                        i,
+                        (long) Math.ceil(100.0 / secondGenerationMeta.getNumberOfShards()),
+                        assignedShardNodeId
+                    )
+                );
             }
-
-            for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
-                MockTransportService.getInstance(node.getName())
-                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                        TransportIndicesStatsAction instance = internalCluster().getInstance(
-                            TransportIndicesStatsAction.class,
-                            node.getName()
-                        );
-                        channel.sendResponse(
-                            instance.new NodeResponse(node.getId(), secondGenerationMeta.getNumberOfShards(), shards, List.of())
-                        );
-                    });
-            }
+            mockStatsForIndex(clusterStateBeforeRollover, assignedShardNodeId, secondGenerationMeta, shards);
 
             RolloverResponse response = indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet();
             assertAcked(response);
@@ -232,21 +222,11 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                 for (int i = 0; i < thirdGenIndex.getNumberOfShards(); i++) {
                     // the shard stats will yield a write load of 100.0 which will make the auto sharding service recommend an optimal
                     // number of 7 shards
-                    shards.add(getShardStats(thirdGenIndex, i, 100, assignedShardNodeId));
+                    shards.add(
+                        getShardStats(thirdGenIndex, i, (long) Math.ceil(100.0 / thirdGenIndex.getNumberOfShards()), assignedShardNodeId)
+                    );
                 }
-
-                for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
-                    MockTransportService.getInstance(node.getName())
-                        .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                            TransportIndicesStatsAction instance = internalCluster().getInstance(
-                                TransportIndicesStatsAction.class,
-                                node.getName()
-                            );
-                            channel.sendResponse(
-                                instance.new NodeResponse(node.getId(), thirdGenIndex.getNumberOfShards(), shards, List.of())
-                            );
-                        });
-                }
+                mockStatsForIndex(clusterStateBeforeRollover, assignedShardNodeId, thirdGenIndex, shards);
 
                 RolloverRequest request = new RolloverRequest(dataStreamName, null);
                 request.setConditions(RolloverConditions.newBuilder().addMaxIndexDocsCondition(1_000_000L).build());
@@ -309,22 +289,10 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             for (int i = 0; i < firstGenerationMeta.getNumberOfShards(); i++) {
                 // the shard stats will yield a write load of 2.0 which will make the auto sharding service recommend an optimal number
                 // of 2 shards
-                shards.add(getShardStats(firstGenerationMeta, i, 2, assignedShardNodeId));
+                shards.add(getShardStats(firstGenerationMeta, i, i < 2 ? 1 : 0, assignedShardNodeId));
             }
 
-            for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
-                MockTransportService.getInstance(node.getName())
-                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                        TransportIndicesStatsAction instance = internalCluster().getInstance(
-                            TransportIndicesStatsAction.class,
-                            node.getName()
-                        );
-                        channel.sendResponse(
-                            instance.new NodeResponse(node.getId(), firstGenerationMeta.getNumberOfShards(), shards, List.of())
-                        );
-                    });
-            }
-
+            mockStatsForIndex(clusterStateBeforeRollover, assignedShardNodeId, firstGenerationMeta, shards);
             assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
 
             ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
@@ -356,23 +324,11 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     .index(dataStreamBeforeRollover.getIndices().get(1));
                 List<ShardStats> shards = new ArrayList<>(secondGenerationIndex.getNumberOfShards());
                 for (int i = 0; i < secondGenerationIndex.getNumberOfShards(); i++) {
-                    // the shard stats will yield a write load of 2.0 which will make the auto sharding service recommend an optimal
-                    // number of 2 shards
-                    shards.add(getShardStats(secondGenerationIndex, i, 2, assignedShardNodeId));
+                    // the shard stats will yield a write load of 2.0 which will make the auto sharding service recommend an
+                    // optimal number of 2 shards
+                    shards.add(getShardStats(secondGenerationIndex, i, i < 2 ? 1 : 0, assignedShardNodeId));
                 }
-
-                for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
-                    MockTransportService.getInstance(node.getName())
-                        .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                            TransportIndicesStatsAction instance = internalCluster().getInstance(
-                                TransportIndicesStatsAction.class,
-                                node.getName()
-                            );
-                            channel.sendResponse(
-                                instance.new NodeResponse(node.getId(), secondGenerationIndex.getNumberOfShards(), shards, List.of())
-                            );
-                        });
-                }
+                mockStatsForIndex(clusterStateBeforeRollover, assignedShardNodeId, secondGenerationIndex, shards);
 
                 RolloverRequest request = new RolloverRequest(dataStreamName, null);
                 // adding condition that does NOT match
@@ -438,6 +394,11 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             IndexMetadata firstGenerationMeta = clusterStateBeforeRollover.getMetadata().index(firstGenerationIndex);
 
             List<ShardStats> shards = new ArrayList<>(firstGenerationMeta.getNumberOfShards());
+            String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
+                .index(dataStreamBeforeRollover.getWriteIndex())
+                .shard(0)
+                .primaryShard()
+                .currentNodeId();
             for (int i = 0; i < firstGenerationMeta.getNumberOfShards(); i++) {
                 // the shard stats will yield a write load of 75.0 which will make the auto sharding service recommend an optimal number
                 // of 5 shards
@@ -445,29 +406,13 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                     getShardStats(
                         firstGenerationMeta,
                         i,
-                        75,
-                        clusterStateBeforeRollover.routingTable()
-                            .index(dataStreamBeforeRollover.getWriteIndex())
-                            .shard(0)
-                            .primaryShard()
-                            .currentNodeId()
+                        (long) Math.ceil(75.0 / firstGenerationMeta.getNumberOfShards()),
+                        assignedShardNodeId
                     )
                 );
             }
 
-            for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
-                MockTransportService.getInstance(node.getName())
-                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                        TransportIndicesStatsAction instance = internalCluster().getInstance(
-                            TransportIndicesStatsAction.class,
-                            node.getName()
-                        );
-                        channel.sendResponse(
-                            instance.new NodeResponse(node.getId(), firstGenerationMeta.getNumberOfShards(), shards, List.of())
-                        );
-                    });
-            }
-
+            mockStatsForIndex(clusterStateBeforeRollover, assignedShardNodeId, firstGenerationMeta, shards);
             assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
 
             ClusterState clusterStateAfterRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
@@ -491,37 +436,22 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
                 ClusterState clusterStateBeforeRollover = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
                 DataStream dataStreamBeforeRollover = clusterStateBeforeRollover.getMetadata().dataStreams().get(dataStreamName);
 
+                String assignedShardNodeId = clusterStateBeforeRollover.routingTable()
+                    .index(dataStreamBeforeRollover.getWriteIndex())
+                    .shard(0)
+                    .primaryShard()
+                    .currentNodeId();
                 IndexMetadata secondGenIndex = clusterStateBeforeRollover.metadata().index(dataStreamBeforeRollover.getIndices().get(1));
                 List<ShardStats> shards = new ArrayList<>(secondGenIndex.getNumberOfShards());
                 for (int i = 0; i < secondGenIndex.getNumberOfShards(); i++) {
                     // the shard stats will yield a write load of 100.0 which will make the auto sharding service recommend an optimal
                     // number of 7 shards
                     shards.add(
-                        getShardStats(
-                            secondGenIndex,
-                            i,
-                            100,
-                            clusterStateBeforeRollover.routingTable()
-                                .index(dataStreamBeforeRollover.getWriteIndex())
-                                .shard(i)
-                                .primaryShard()
-                                .currentNodeId()
-                        )
+                        getShardStats(secondGenIndex, i, (long) Math.ceil(100.0 / secondGenIndex.getNumberOfShards()), assignedShardNodeId)
                     );
                 }
 
-                for (DiscoveryNode node : clusterStateBeforeRollover.nodes().getAllNodes()) {
-                    MockTransportService.getInstance(node.getName())
-                        .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
-                            TransportIndicesStatsAction instance = internalCluster().getInstance(
-                                TransportIndicesStatsAction.class,
-                                node.getName()
-                            );
-                            channel.sendResponse(
-                                instance.new NodeResponse(node.getId(), secondGenIndex.getNumberOfShards(), shards, List.of())
-                            );
-                        });
-                }
+                mockStatsForIndex(clusterStateBeforeRollover, assignedShardNodeId, secondGenIndex, shards);
 
                 RolloverRequest request = new RolloverRequest(dataStreamName, null);
                 request.lazy(true);
@@ -612,4 +542,33 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         }
     }
 
+    private static void mockStatsForIndex(
+        ClusterState clusterState,
+        String assignedShardNodeId,
+        IndexMetadata indexMetadata,
+        List<ShardStats> shards
+    ) {
+        for (DiscoveryNode node : clusterState.nodes().getAllNodes()) {
+            // one node returns the stats for all our shards, the other nodes don't return any stats
+            if (node.getId().equals(assignedShardNodeId)) {
+                MockTransportService.getInstance(node.getName())
+                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                        TransportIndicesStatsAction instance = internalCluster().getInstance(
+                            TransportIndicesStatsAction.class,
+                            node.getName()
+                        );
+                        channel.sendResponse(instance.new NodeResponse(node.getId(), indexMetadata.getNumberOfShards(), shards, List.of()));
+                    });
+            } else {
+                MockTransportService.getInstance(node.getName())
+                    .addRequestHandlingBehavior(IndicesStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                        TransportIndicesStatsAction instance = internalCluster().getInstance(
+                            TransportIndicesStatsAction.class,
+                            node.getName()
+                        );
+                        channel.sendResponse(instance.new NodeResponse(node.getId(), 0, List.of(), List.of()));
+                    });
+            }
+        }
+    }
 }

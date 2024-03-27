@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
 public class Div extends EsqlArithmeticOperation implements BinaryComparisonInversible {
 
@@ -73,7 +73,7 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
 
     @Evaluator(extraName = "UnsignedLongs", warnExceptions = { ArithmeticException.class })
     static long processUnsignedLongs(long lhs, long rhs) {
-        return asLongUnsigned(Long.divideUnsigned(asLongUnsigned(lhs), asLongUnsigned(rhs)));
+        return longToUnsignedLong(Long.divideUnsigned(longToUnsignedLong(lhs, true), longToUnsignedLong(rhs, true)), true);
     }
 
     @Evaluator(extraName = "Doubles")

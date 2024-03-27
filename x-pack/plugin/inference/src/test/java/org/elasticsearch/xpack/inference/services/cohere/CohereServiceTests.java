@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -354,7 +355,7 @@ public class CohereServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createCohereService()) {
             var persistedConfig = getPersistedConfigMap(
-                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", CohereEmbeddingType.INT8),
+                CohereEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model", DenseVectorFieldMapper.ElementType.BYTE),
                 getTaskSettingsMap(InputType.SEARCH, CohereTruncation.NONE),
                 getSecretSettingsMap("secret")
             );
@@ -372,7 +373,7 @@ public class CohereServiceTests extends ESTestCase {
             var embeddingsModel = (CohereEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.INT8));
+            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.BYTE));
             MatcherAssert.assertThat(
                 embeddingsModel.getTaskSettings(),
                 is(new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE))
@@ -685,7 +686,10 @@ public class CohereServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document", "embedding_types", List.of("float")))
+            );
         }
     }
 
@@ -968,7 +972,10 @@ public class CohereServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document", "embedding_types", List.of("float")))
+            );
         }
     }
 
@@ -1035,7 +1042,10 @@ public class CohereServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("texts", List.of("abc"), "model", "model", "input_type", "search_document", "embedding_types", List.of("float")))
+            );
         }
     }
 
@@ -1095,7 +1105,10 @@ public class CohereServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "model", "model")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("texts", List.of("abc"), "model", "model", "embedding_types", List.of("float")))
+            );
         }
     }
 

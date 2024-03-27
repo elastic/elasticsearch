@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.TransformExtension;
@@ -203,6 +204,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 
+        // <7> log the start result
         ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(
             response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId),
             failure -> {
@@ -348,21 +350,18 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         });
 
         // <2> Get the transform config
-        ActionListener<Void> templateCheckListener = ActionListener.wrap(
-            aVoid -> transformServices.getConfigManager().getTransformConfiguration(transformId, getTransformConfigListener),
-            error -> {
-                Throwable cause = ExceptionsHelper.unwrapCause(error);
-                String msg = "Failed to create internal index mappings";
-                markAsFailed(buildTask, error, msg + "[" + cause + "]");
-            }
-        );
+        var templateCheckListener = getTransformConfig(buildTask, params, getTransformConfigListener);
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
         TransformInternalIndex.createLatestVersionedIndexIfRequired(
             clusterService,
             parentTaskClient,
             transformExtension.getTransformInternalIndexAdditionalSettings(),
-            templateCheckListener
+            templateCheckListener.delegateResponse((l, e) -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                String msg = "Failed to create internal index mappings";
+                markAsFailed(buildTask, e, msg + "[" + cause + "]");
+            })
         );
     }
 
@@ -399,6 +398,64 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         } catch (InterruptedException e) {
             logger.error("Timeout waiting for task [" + task.getTransformId() + "] to be marked as failed in cluster state", e);
         }
+    }
+
+    private ActionListener<Void> getTransformConfig(
+        TransformTask task,
+        TransformTaskParams params,
+        ActionListener<TransformConfig> listener
+    ) {
+        return ActionListener.running(() -> {
+            var transformId = params.getId();
+            // if this call fails for the first time, we are going to retry it indefinitely
+            // register the retry using the TransformScheduler, when the call eventually succeeds, deregister it before returning
+            var scheduler = transformServices.getScheduler();
+            scheduler.registerTransform(
+                params,
+                new TransformRetryableStartUpListener<>(
+                    transformId,
+                    l -> transformServices.getConfigManager().getTransformConfiguration(transformId, l),
+                    ActionListener.runBefore(listener, () -> scheduler.deregisterTransform(transformId)),
+                    retryListener(task),
+                    () -> true, // because we can't determine if this is an unattended transform yet, retry indefinitely
+                    task.getContext()
+                )
+            );
+        });
+    }
+
+    /**
+     * This listener is always called after the first execution of a {@link TransformRetryableStartUpListener}.
+     *
+     * When the result is true, then the first call has failed and will retry. Save the state as Started and unblock the network thread,
+     * notifying the user with a 200 OK (acknowledged).
+     *
+     * When the result is false, then the first call has succeeded, and no further action is required for this listener.
+     */
+    private ActionListener<Boolean> retryListener(TransformTask task) {
+        return ActionListener.wrap(isRetrying -> {
+            if (isRetrying) {
+                var oldState = task.getState();
+                var newState = new TransformState(
+                    TransformTaskState.STARTED,
+                    oldState.getIndexerState(),
+                    oldState.getPosition(),
+                    oldState.getCheckpoint(),
+                    "Retrying transform start.",
+                    oldState.getProgress(),
+                    oldState.getNode(),
+                    oldState.shouldStopAtNextCheckpoint(),
+                    oldState.getAuthState()
+                );
+                task.persistStateToClusterState(
+                    newState,
+                    ActionListener.wrap(
+                        rr -> logger.debug("[{}] marked as retrying in TransformState.", task.getTransformId()),
+                        ee -> logger.atWarn().withThrowable(ee).log("[{}] failed to persist state.", task.getTransformId())
+                    )
+                );
+            }
+        }, e -> markAsFailed(task, e, "Failed to initiate retries for Transform."));
     }
 
     private void startTask(

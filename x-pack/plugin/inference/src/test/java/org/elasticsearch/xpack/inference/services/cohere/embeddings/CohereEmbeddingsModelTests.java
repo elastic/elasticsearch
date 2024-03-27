@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.hamcrest.MatcherAssert;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
@@ -218,7 +219,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             "service",
             new CohereEmbeddingsServiceSettings(
                 new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model),
-                embeddingType
+                Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))

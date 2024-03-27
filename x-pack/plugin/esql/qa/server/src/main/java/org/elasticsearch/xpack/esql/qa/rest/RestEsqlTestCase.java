@@ -217,34 +217,61 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("Unknown index [doesNotExist]"));
     }
 
-    public void useKnownIndexWithUnknownIndex() throws IOException {
-        useKnownIndexWithOther("noSuchIndex", "\"ignore_unavailable\"=\"true\"");
+    public void testUseKnownIndexWithUnknownIndex() throws IOException {
+        // to ignore a concrete non-existent index, we need to opt in (which is not the default)
+        useKnownIndexWithOther("noSuchIndex", "ignore_unavailable");
     }
 
-    public void useKnownIndexWithUnknownPattern() throws IOException {
-        useKnownIndexWithOther("noSuchPattern*", "\"allow_no_indices\"=\"true\"");
+    public void testUseKnownIndexWithUnknownPattern() throws IOException {
+        // to not ignore a non-existing index, we need to opt in (which is the default)
+        useKnownIndexWithOther("noSuchPattern*", "allow_no_indices");
     }
 
-    private void useKnownIndexWithOther(String other, String options) throws IOException {
+    private void useKnownIndexWithOther(String other, String option) throws IOException {
         final int count = randomIntBetween(1, 10);
         bulkLoadTestData(count);
 
-        CheckedFunction<String, RequestObjectBuilder, IOException> builder = o -> {
+        CheckedFunction<Boolean, RequestObjectBuilder, IOException> builder = o -> {
             String q = fromIndex() + ',' + other;
-            if (Strings.hasText(o)) {
-                q += " OPTIONS " + o;
-            }
+            q += " OPTIONS \"" + option + "\"=\"" + o + "\"";
             q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
             return builder().query(q);
         };
 
-        // test failure without the given option
-        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(null)));
+        // test failure
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(false)));
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("no such index [" + other + "]"));
 
-        // test success with the given option
-        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder.apply(options), "txt", null));
+        // test success
+        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder.apply(true), "txt", null));
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/106805
+    public void testUseUnknownIndexOnly() {
+        useUnknownIndex("ignore_unavailable");
+        useUnknownIndex("allow_no_indices");
+    }
+
+    private void useUnknownIndex(String option) {
+        CheckedFunction<Boolean, RequestObjectBuilder, IOException> builder = o -> {
+            String q = "FROM doesnotexist OPTIONS \"" + option + "\"=\"" + o + "\"";
+            q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
+            return builder().query(q);
+        };
+
+        // test failure 404 from resolver
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(false)));
+        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("index_not_found_exception"));
+        assertThat(e.getMessage(), containsString("no such index [doesnotexist]"));
+
+        // test failure 400 from verifier
+        e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(true)));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("verification_exception"));
+        assertThat(e.getMessage(), containsString("Unknown index [doesnotexist]"));
+
     }
 
     public void testSearchPreference() throws IOException {

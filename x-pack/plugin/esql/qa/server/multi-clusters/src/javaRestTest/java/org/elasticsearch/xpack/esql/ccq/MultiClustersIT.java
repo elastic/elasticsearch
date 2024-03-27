@@ -152,6 +152,35 @@ public class MultiClustersIT extends ESRestTestCase {
         }
     }
 
+    public void testCountWithOptions() throws Exception {
+        {
+            Map<String, Object> result = run(
+                "FROM test-local-index,*:test-remote-index,doesnotexist "
+                    + "OPTIONS \"ignore_unavailable\"=\"true\",\"preference\"=\"_local\" | STATS c = COUNT(*)"
+            );
+            var columns = List.of(Map.of("name", "c", "type", "long"));
+            var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
+            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        }
+        {
+            Map<String, Object> result = run(
+                "FROM *:test-remote-index,doesnotexit OPTIONS \"ignore_unavailable\"=\"true\",\"preference\"=\"_local\" "
+                    + "| STATS c = COUNT(*)"
+            );
+            var columns = List.of(Map.of("name", "c", "type", "long"));
+            var values = List.of(List.of(remoteDocs.size()));
+            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        }
+        {
+            Map<String, Object> result = run(
+                "FROM *:test-remote-index OPTIONS \"preference\"=\"_shards:999\" | STATS c = COUNT(*)"
+            );
+            var columns = List.of(Map.of("name", "c", "type", "long"));
+            var values = List.of(List.of(0)); // shard with id 999 above (non-existent) yields count 0
+            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
+        }
+    }
+
     public void testUngroupedAggs() throws Exception {
         {
             Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data)");

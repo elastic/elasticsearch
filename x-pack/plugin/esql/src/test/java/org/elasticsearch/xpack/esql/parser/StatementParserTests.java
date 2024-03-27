@@ -641,11 +641,13 @@ public class StatementParserTests extends ESTestCase {
     public void testFromOptionsEmptyIndicesOptionValue() {
         expectError(
             FROM + " options \"allow_no_indices\"=\"\"",
-            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean"
+            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean. "
+                + "Failed to parse value [] as only [true] or [false] are allowed."
         );
         expectError(
-            FROM + " options \"ignore_unavailable\"=\"\"",
-            "line 1:20: invalid options provided: Could not convert [ignore_unavailable] to boolean"
+            FROM + " options \"ignore_unavailable\"=\"TRUE\"",
+            "line 1:20: invalid options provided: Could not convert [ignore_unavailable] to boolean. "
+                + "Failed to parse value [TRUE] as only [true] or [false] are allowed."
         );
         expectError(
             FROM + " options \"preference\"=\"\"",

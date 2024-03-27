@@ -207,11 +207,14 @@ public class EsqlSession {
         } else if (preAnalysis.indices.size() == 1) {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
-            var indicesOptions = IndexResolver.FIELD_CAPS_INDICES_OPTIONS;
-            if (tableInfo.esSourceOptions() != null) {
-                indicesOptions = tableInfo.esSourceOptions().indicesOptions(indicesOptions);
-            }
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
+
+            var indicesOptions = IndexResolver.FIELD_CAPS_INDICES_OPTIONS;
+            assert preAnalysis.esSourceOptions.size() == 1 : "Unexpected source options count: " + preAnalysis.esSourceOptions.size();
+            var esSourceOptions = preAnalysis.esSourceOptions.get(0);
+            if (esSourceOptions != null) {
+                indicesOptions = esSourceOptions.indicesOptions(indicesOptions);
+            }
 
             if (Assertions.ENABLED) {
                 resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, indicesOptions, listener);

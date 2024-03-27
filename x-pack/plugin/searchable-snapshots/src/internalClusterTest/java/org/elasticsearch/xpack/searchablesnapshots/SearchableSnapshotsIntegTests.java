@@ -677,11 +677,19 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("properties")
+
                         .startObject(DataStream.TIMESTAMP_FIELD_NAME)
                         .field("type", dateType)
                         .field("index", indexed)
                         .field("format", "strict_date_optional_time_nanos")
                         .endObject()
+
+                        .startObject(IndexMetadata.EVENT_INGESTED_FIELD_NAME)
+                        .field("type", dateType)
+                        .field("index", indexed)
+                        .field("format", "strict_date_optional_time_nanos")
+                        .endObject()
+
                         .endObject()
                         .endObject()
                 )
@@ -695,6 +703,15 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             indexRequestBuilders.add(
                 prepareIndex(indexName).setSource(
                     DataStream.TIMESTAMP_FIELD_NAME,
+                    String.format(
+                        Locale.ROOT,
+                        "2020-11-26T%02d:%02d:%02d.%09dZ",
+                        between(0, 23),
+                        between(0, 59),
+                        between(0, 59),
+                        randomLongBetween(0, 999999999L)
+                    ),
+                    IndexMetadata.EVENT_INGESTED_FIELD_NAME,
                     String.format(
                         Locale.ROOT,
                         "2020-11-26T%02d:%02d:%02d.%09dZ",
@@ -723,32 +740,54 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
         ensureGreen(indexName);
 
-        final IndexLongFieldRange timestampRange = clusterAdmin().prepareState()
+        final IndexMetadata indexMetadata = clusterAdmin().prepareState()
             .clear()
             .setMetadata(true)
             .setIndices(indexName)
             .get()
             .getState()
             .metadata()
-            .index(indexName)
-            .getTimestampRange();
+            .index(indexName);
 
+        final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         assertTrue(timestampRange.isComplete());
+
+        final IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+        assertTrue(eventIngestedRange.isComplete());  /// MP TODO: sometimes fails
 
         if (indexed) {
             assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+            assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
             if (docCount == 0) {
                 assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
+                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
             } else {
                 assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-                DateFieldMapper.Resolution resolution = dateType.equals("date")
+                DateFieldMapper.Resolution timestampResolution = dateType.equals("date")
                     ? DateFieldMapper.Resolution.MILLISECONDS
                     : DateFieldMapper.Resolution.NANOSECONDS;
-                assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
-                assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+                assertThat(
+                    timestampRange.getMin(),
+                    greaterThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
+                );
+                assertThat(timestampRange.getMin(), lessThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+
+                assertThat(eventIngestedRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+                DateFieldMapper.Resolution eventIngestedResolution = dateType.equals("date")
+                    ? DateFieldMapper.Resolution.MILLISECONDS
+                    : DateFieldMapper.Resolution.NANOSECONDS;
+                assertThat(
+                    eventIngestedRange.getMin(),
+                    greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
+                );
+                assertThat(
+                    eventIngestedRange.getMin(),
+                    lessThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
+                );
             }
         } else {
             assertThat(timestampRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+            assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
         }
     }
 

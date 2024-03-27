@@ -391,17 +391,24 @@ public class ShardStateActionTests extends ESTestCase {
                 expectedRequests++;
                 shardStateAction.clearRemoteShardRequestDeduplicator();
             }
-            shardStateAction.shardStarted(startedShard, primaryTerm, "started", ShardLongFieldRange.EMPTY, new ActionListener<>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    latch.countDown();
-                }
+            shardStateAction.shardStarted(
+                startedShard,
+                primaryTerm,
+                "started",
+                ShardLongFieldRange.EMPTY,
+                ShardLongFieldRange.EMPTY,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        latch.countDown();
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    latch.countDown();
+                    @Override
+                    public void onFailure(Exception e) {
+                        latch.countDown();
+                    }
                 }
-            });
+            );
         }
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(expectedRequests));
@@ -482,7 +489,14 @@ public class ShardStateActionTests extends ESTestCase {
         final ShardRouting shardRouting = getRandomShardRouting(index);
         final long primaryTerm = clusterService.state().metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
         final TestListener listener = new TestListener();
-        shardStateAction.shardStarted(shardRouting, primaryTerm, "testShardStarted", ShardLongFieldRange.UNKNOWN, listener);
+        shardStateAction.shardStarted(
+            shardRouting,
+            primaryTerm,
+            "testShardStarted",
+            ShardLongFieldRange.UNKNOWN,
+            ShardLongFieldRange.UNKNOWN,
+            listener
+        );
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests[0].request(), instanceOf(ShardStateAction.StartedShardEntry.class));
@@ -578,7 +592,8 @@ public class ShardStateActionTests extends ESTestCase {
 
         final TransportVersion version = randomFrom(randomCompatibleVersion(random()));
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
-        final StartedShardEntry startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange);
+        final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
+        var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);
         try (StreamInput in = serialize(startedShardEntry, version).streamInput()) {
             in.setTransportVersion(version);
             final StartedShardEntry deserialized = new StartedShardEntry(in);

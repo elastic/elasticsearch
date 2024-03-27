@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -27,15 +28,30 @@ import java.util.function.LongSupplier;
  * don't hold queried data. See IndexMetadata#getTimestampRange() for more details
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
-    private final IndexLongFieldRange indexLongFieldRange;
-    private final DateFieldMapper.DateFieldType timestampFieldType;
+    private final DateFieldRange atTimestampInfo; // Refers to '@timestamp' field
+    private final DateFieldRange eventIngestedInfo; // Refers to 'event.ingested' field
 
+    /**
+     * TODO DOCUMENT ME
+     * @param fieldType
+     * @param fieldRange
+     */
+    public record DateFieldRange(DateFieldMapper.DateFieldType fieldType, IndexLongFieldRange fieldRange) {}
+
+    /**
+     * TODO DOCUMENT ME
+     * @param parserConfig
+     * @param client
+     * @param nowInMillis
+     * @param atTimestampRange
+     * @param eventIngestedRange
+     */
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        IndexLongFieldRange indexLongFieldRange,
-        DateFieldMapper.DateFieldType timestampFieldType
+        DateFieldRange atTimestampRange,
+        DateFieldRange eventIngestedRange
     ) {
         super(
             parserConfig,
@@ -53,29 +69,60 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null,
             null
         );
-        this.indexLongFieldRange = indexLongFieldRange;
-        this.timestampFieldType = timestampFieldType;
+        this.atTimestampInfo = atTimestampRange;
+        this.eventIngestedInfo = eventIngestedRange;
     }
 
-    long getMinTimestamp() {
-        return indexLongFieldRange.getMin();
-    }
-
-    long getMaxTimestamp() {
-        return indexLongFieldRange.getMax();
-    }
-
-    boolean hasTimestampData() {
-        return indexLongFieldRange.isComplete() && indexLongFieldRange != IndexLongFieldRange.EMPTY;
-    }
-
-    @Nullable
-    public MappedFieldType getFieldType(String fieldName) {
-        if (fieldName.equals(timestampFieldType.name()) == false) {
-            return null;
+    long getMinTimestamp(String fieldName) {
+        /// MP TODO: are there static final entries for these field names somewhere?
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+            return atTimestampInfo.fieldRange().getMin();
+        } else if (fieldName.equals("event.ingested")) {
+            return eventIngestedInfo.fieldRange.getMin();
+        } else {
+            throw new IllegalArgumentException(
+                "Only event.ingested or @timestamp are supported for min/max coordinator rewrites, but got: " + fieldName
+            );
         }
+    }
 
-        return timestampFieldType;
+    long getMaxTimestamp(String fieldName) {
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+            return atTimestampInfo.fieldRange().getMax();
+        } else if (fieldName.equals("event.ingested")) { /// MP TODO: is there a static final entry for this field name somewhere?
+
+            return eventIngestedInfo.fieldRange.getMax();
+        } else {
+            throw new IllegalArgumentException(
+                "Only event.ingested or @timestamp are supported for min/max coordinator rewrites, but got: " + fieldName
+            );
+        }
+    }
+
+    boolean hasTimestampData(String fieldName) {
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+            return atTimestampInfo.fieldRange().isComplete() && atTimestampInfo.fieldRange() != IndexLongFieldRange.EMPTY;
+        } else if (fieldName.equals("event.ingested")) {
+            return eventIngestedInfo.fieldRange().isComplete() && eventIngestedInfo.fieldRange() != IndexLongFieldRange.EMPTY;
+        } else {
+            throw new IllegalArgumentException(
+                "Only event.ingested or @timestamp are supported for min/max coordinator rewrites, but got: " + fieldName
+            );
+        }
+    }
+
+    @Nullable  /// MP TODO: why is this nullable? can we remove this?
+    public MappedFieldType getFieldType(String fieldName) {
+        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
+            return atTimestampInfo.fieldType();
+        } else if (fieldName.equals("event.ingested")) {
+            return eventIngestedInfo.fieldType();
+        } else {
+            return null; // MP TODO: do we want to throw exception here too?
+            // throw new IllegalArgumentException("Only event.ingested or @timestamp are supported for min/max coordinator rewrites, but
+            // got: "
+            // + fieldName);
+        }
     }
 
     @Override

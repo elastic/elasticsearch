@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -32,30 +33,45 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
             if (shardRouting.currentNodeId() == null) {
                 if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     // restoring from a snapshot - check that the node can handle the version
-                    return isIndexVersionCompatible((SnapshotRecoverySource) shardRouting.recoverySource(), node, allocation);
+                    return isSnapshotIndexVersionCompatible((SnapshotRecoverySource) shardRouting.recoverySource(), node, allocation);
                 } else {
                     // existing or fresh primary on the node
                     return allocation.decision(Decision.YES, NAME, "the primary shard is new or already existed on the node");
                 }
             } else {
-                // relocating primary, only migrate to newer host
-                return isIndexVersionCompatibleRelocatePrimary(allocation.routingNodes(), shardRouting.currentNodeId(), node, allocation);
+                return isShardIndexVersionCompatible(shardRouting, node, allocation);
             }
         } else {
-            final ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
-            // check that active primary has a newer version so that peer recovery works
-            if (primary != null) {
-                return isIndexVersionCompatibleAllocatingReplica(allocation.routingNodes(), primary.currentNodeId(), node, allocation);
-            } else {
-                // ReplicaAfterPrimaryActiveAllocationDecider should prevent this case from occurring
-                return allocation.decision(Decision.YES, NAME, "no active primary shard yet");
-            }
+            // replica - just check the index mappings version & segment updated version
+            return isShardIndexVersionCompatible(shardRouting, node, allocation);
         }
     }
 
     @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return canAllocate(shardRouting, node, allocation);
+    }
+
+    private static Decision isShardIndexVersionCompatible(ShardRouting routing, RoutingNode target, RoutingAllocation allocation) {
+        IndexMetadata metadata = allocation.getClusterState().getMetadata().index(routing.index());
+        if (metadata.getMappingsUpdatedVersion().after(target.node().getMaxIndexVersion())) {
+            return allocation.decision(
+                Decision.NO,
+                NAME,
+                "cannot allocate an index shard with index mappings updated by index version [%s] " +
+                    "to a node with max supported index version [%s]",
+                metadata.getMappingsUpdatedVersion().toReleaseVersion(),
+                target.node().getMaxIndexVersion().toReleaseVersion()
+            );
+        }
+
+        return allocation.decision(
+            Decision.YES,
+            NAME,
+            "can allocate an index shard with index mappings updated by index version [%s] to a node with max supported index version [%s]",
+            metadata.getMappingsUpdatedVersion().toReleaseVersion(),
+            target.node().getMaxIndexVersion().toReleaseVersion()
+        );
     }
 
     private static Decision isIndexVersionCompatibleRelocatePrimary(
@@ -84,41 +100,10 @@ public class IndexVersionAllocationDecider extends AllocationDecider {
         }
     }
 
-    private static Decision isIndexVersionCompatibleAllocatingReplica(
-        final RoutingNodes routingNodes,
-        final String sourceNodeId,
-        final RoutingNode target,
-        final RoutingAllocation allocation
-    ) {
-        final RoutingNode source = routingNodes.node(sourceNodeId);
-        if (target.node().getMaxIndexVersion().onOrAfter(source.node().getMaxIndexVersion())) {
-            /* we can allocate if we can recover from a node that is younger or on the same version
-             * if the primary is already running on a newer version that won't work due to possible
-             * differences in the lucene index format etc.*/
-            return allocation.decision(
-                Decision.YES,
-                NAME,
-                "can allocate replica shard to a node with max index version [%s]"
-                    + " since this is equal-or-newer than the primary max index version [%s]",
-                target.node().getMaxIndexVersion().toReleaseVersion(),
-                source.node().getMaxIndexVersion().toReleaseVersion()
-            );
-        } else {
-            return allocation.decision(
-                Decision.NO,
-                NAME,
-                "cannot allocate replica shard to a node with max index version [%s]"
-                    + " since this is older than the primary max index version [%s]",
-                target.node().getMaxIndexVersion().toReleaseVersion(),
-                source.node().getMaxIndexVersion().toReleaseVersion()
-            );
-        }
-    }
-
-    private static Decision isIndexVersionCompatible(
+    private static Decision isSnapshotIndexVersionCompatible(
         SnapshotRecoverySource recoverySource,
-        final RoutingNode target,
-        final RoutingAllocation allocation
+        RoutingNode target,
+        RoutingAllocation allocation
     ) {
         if (target.node().getMaxIndexVersion().onOrAfter(recoverySource.version())) {
             /* we can allocate if we can restore from a snapshot that is older or on the same version */

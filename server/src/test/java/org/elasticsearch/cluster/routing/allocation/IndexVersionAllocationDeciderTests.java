@@ -586,9 +586,9 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(
             decision.getExplanation(),
             is(
-                "can relocate primary shard from a node with max index version ["
+                "can allocate an index shard with index mappings updated by index version ["
                     + oldNode.node().getMaxIndexVersion().toReleaseVersion()
-                    + "] to a node with equal-or-newer max index version ["
+                    + "] to a node with max supported index version ["
                     + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )

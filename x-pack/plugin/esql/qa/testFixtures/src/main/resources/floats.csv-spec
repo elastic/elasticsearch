@@ -261,7 +261,7 @@ emp_no:integer | salary_change:double    | a1:double
 
 autoBucket
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00.000Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00.000Z")
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
 | SORT hire_date, height
 | KEEP hire_date, height, bh

@@ -113,7 +113,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveFunctions(),
             new RemoveDuplicateProjections()
         );
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
         rules = List.of(resolution, finish);
     }
 

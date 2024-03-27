@@ -647,7 +647,7 @@ emp_no:integer | salary_change.long:long | a1:long
 autoBucket
 // tag::auto_bucket[]
 FROM employees
-| WHERE hire_date >= TO_DATETIME("1985-01-01T00:00:00.000Z") AND hire_date < TO_DATETIME("1986-01-01T00:00:00.000Z")
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
 | SORT hire_date, salary
 | KEEP hire_date, salary, bs

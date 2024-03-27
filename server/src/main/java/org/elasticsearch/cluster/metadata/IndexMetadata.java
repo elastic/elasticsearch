@@ -1713,11 +1713,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             var fields = in.readCollectionAsImmutableList(InferenceFieldMetadata::new);
             fields.stream().forEach(f -> builder.putInferenceField(f));
         }
-        int inferenceFieldsSize = in.readVInt();
-        for (int i = 0; i < inferenceFieldsSize; i++) {
-            InferenceFieldMetadata fieldMd = new InferenceFieldMetadata(in);
-            builder.putInferenceField(fieldMd);
-        }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
             AliasMetadata aliasMd = new AliasMetadata(in);

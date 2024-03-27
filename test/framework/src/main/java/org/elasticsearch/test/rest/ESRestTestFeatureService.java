@@ -59,7 +59,7 @@ class ESRestTestFeatureService implements TestFeatureService {
         );
     }
 
-    public boolean isLegacyTestFramework() {
+    public static boolean isLegacyTestFramework() {
         // Historical features information is unavailable when using legacy test plugins
         return MetadataHolder.HISTORICAL_FEATURES == null;
     }

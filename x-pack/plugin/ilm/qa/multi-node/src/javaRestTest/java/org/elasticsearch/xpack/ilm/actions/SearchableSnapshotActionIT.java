@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ilm.actions;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
@@ -342,6 +344,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @Repeat(iterations = 100)
     public void testRestoredIndexManagedByLocalPolicySkipsIllegalActions() throws Exception {
         // let's create a data stream, rollover it and convert the first generation backing index into a searchable snapshot
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());

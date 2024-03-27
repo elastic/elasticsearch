@@ -19,7 +19,7 @@ import org.junit.rules.TemporaryFolder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -61,7 +61,7 @@ public class HistoricalFeaturesMetadataExtractorTests extends ESTestCase {
                 assertThat(historicalFeaturesMap, hasEntry(entry.getKey().id(), entry.getValue().toString()));
             }
             @SuppressWarnings("unchecked")
-            ArrayList<String> featureNamesList = (ArrayList<String>) (parsedMap.get("feature_names"));
+            Collection<String> featureNamesList = (Collection<String>) (parsedMap.get("feature_names"));
             for (var entry : featureNamesList) {
                 assertThat(featureNamesList, hasItem(entry));
             }

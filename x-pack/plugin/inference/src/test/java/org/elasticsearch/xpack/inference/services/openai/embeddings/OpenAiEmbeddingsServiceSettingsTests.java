@@ -303,7 +303,13 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             )
         );
 
-        assertThat(thrownException.getMessage(), is("Validation Failed: 1: [service_settings] Unknown similarity measure [by_size];"));
+        assertThat(
+            thrownException.getMessage(),
+            is(
+                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
+                    + "must be one of [cosine, dot_product, l2_norm];"
+            )
+        );
     }
 
     public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {

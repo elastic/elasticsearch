@@ -12,7 +12,7 @@ import org.apache.lucene.store.IndexInput;
 
 import java.util.Optional;
 
-public class VectorScorerFactoryImpl implements VectorScorerFactory {
+class VectorScorerFactoryImpl implements VectorScorerFactory {
 
     static final VectorScorerFactoryImpl INSTANCE = null;
 

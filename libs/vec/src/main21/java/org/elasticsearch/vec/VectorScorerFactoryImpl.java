@@ -17,7 +17,7 @@ import org.elasticsearch.vec.internal.MaximumInnerProduct;
 
 import java.util.Optional;
 
-public class VectorScorerFactoryImpl implements VectorScorerFactory {
+class VectorScorerFactoryImpl implements VectorScorerFactory {
 
     static final VectorScorerFactoryImpl INSTANCE;
 

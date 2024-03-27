@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOpti
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 
 /**
  * Defines the service settings for interacting with OpenAI's chat completion models.
@@ -38,8 +39,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTy
 public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
 
     public static final String NAME = "openai_completion_service_settings";
-
-    static final String ORGANIZATION = "organization_id";
 
     public static OpenAiChatCompletionServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

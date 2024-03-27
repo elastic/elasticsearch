@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 /**
  * Defines the task settings for the openai service.
@@ -33,7 +34,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class OpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "openai_embeddings_task_settings";
-    public static final String USER = "user";
 
     public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();

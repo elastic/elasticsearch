@@ -74,7 +74,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                         "model_settings": {
                             "task_type": "SPARSE_EMBEDDING"
                         },
-                        "results": [
+                        "chunks": [
                             {
                                 "inference": {
                                     "feature_0": 1.0
@@ -98,7 +98,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                             "dimensions": %d,
                             "similarity": "cosine"
                         },
-                        "results": [
+                        "chunks": [
                             {
                                 "inference": [ 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ],
                                 "text": "feature_0"

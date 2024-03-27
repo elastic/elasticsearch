@@ -11,23 +11,16 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The allowable types, languages and their corresponding contexts.  When serialized there is a top level <code>types_allowed</code> list,
@@ -68,10 +61,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * </code>
  */
 public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
-    private static final ParseField TYPES_ALLOWED = new ParseField("types_allowed");
-    private static final ParseField LANGUAGE_CONTEXTS = new ParseField("language_contexts");
-    private static final ParseField LANGUAGE = new ParseField("language");
-    private static final ParseField CONTEXTS = new ParseField("contexts");
+    public static final ParseField TYPES_ALLOWED = new ParseField("types_allowed");
+    public static final ParseField LANGUAGE_CONTEXTS = new ParseField("language_contexts");
+    public static final ParseField LANGUAGE = new ParseField("language");
+    public static final ParseField CONTEXTS = new ParseField("contexts");
 
     public final Set<String> typesAllowed;
     public final Map<String, Set<String>> languageContexts;
@@ -84,31 +77,6 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     public ScriptLanguagesInfo(StreamInput in) throws IOException {
         typesAllowed = in.readCollectionAsImmutableSet(StreamInput::readString);
         languageContexts = in.readImmutableMap(sin -> sin.readCollectionAsImmutableSet(StreamInput::readString));
-    }
-
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ScriptLanguagesInfo, Void> PARSER = new ConstructingObjectParser<>(
-        "script_languages_info",
-        true,
-        (a) -> new ScriptLanguagesInfo(
-            new HashSet<>((List<String>) a[0]),
-            ((List<Tuple<String, Set<String>>>) a[1]).stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2))
-        )
-    );
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Tuple<String, Set<String>>, Void> LANGUAGE_CONTEXT_PARSER =
-        new ConstructingObjectParser<>("language_contexts", true, (m, name) -> new Tuple<>((String) m[0], Set.copyOf((List<String>) m[1])));
-
-    static {
-        PARSER.declareStringArray(constructorArg(), TYPES_ALLOWED);
-        PARSER.declareObjectArray(constructorArg(), LANGUAGE_CONTEXT_PARSER, LANGUAGE_CONTEXTS);
-        LANGUAGE_CONTEXT_PARSER.declareString(constructorArg(), LANGUAGE);
-        LANGUAGE_CONTEXT_PARSER.declareStringArray(constructorArg(), CONTEXTS);
-    }
-
-    public static ScriptLanguagesInfo fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 
     @Override

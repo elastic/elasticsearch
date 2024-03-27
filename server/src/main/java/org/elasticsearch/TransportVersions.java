@@ -152,6 +152,7 @@ public class TransportVersions {
     public static final TransportVersion KNN_QUERY_VECTOR_BUILDER = def(8_612_00_0);
     public static final TransportVersion USE_DATA_STREAM_GLOBAL_RETENTION = def(8_613_00_0);
     public static final TransportVersion ML_COMPLETION_INFERENCE_SERVICE_ADDED = def(8_614_00_0);
+    public static final TransportVersion ML_INFERENCE_EMBEDDING_BYTE_ADDED = def(8_615_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

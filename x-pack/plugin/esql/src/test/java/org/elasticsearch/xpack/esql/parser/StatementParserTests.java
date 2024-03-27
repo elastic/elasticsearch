@@ -298,7 +298,7 @@ public class StatementParserTests extends ESTestCase {
             """ };
 
         for (String query : queries) {
-            expectVerificationError(query, "Remove grouping key [a] as is already included in the STATS output");
+            expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
     }
 

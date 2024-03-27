@@ -28,8 +28,8 @@ PUT _ingest/pipeline/cohere_embeddings
   ]
 }
 --------------------------------------------------
-<1> The name of the inference configuration you created by using the
-<<put-inference-api>>.
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
 <2> Configuration object that defines the `input_field` for the {infer} process
 and the `output_field` that will contain the {infer} results.
 
@@ -55,8 +55,8 @@ PUT _ingest/pipeline/openai_embeddings
   ]
 }
 --------------------------------------------------
-<1> The name of the inference configuration you created by using the
-<<put-inference-api>>.
+<1> The name of the inference endpoint you created by using the
+<<put-inference-api>>, it's referred to as `inference_id` in that step.
 <2> Configuration object that defines the `input_field` for the {infer} process
 and the `output_field` that will contain the {infer} results.
 

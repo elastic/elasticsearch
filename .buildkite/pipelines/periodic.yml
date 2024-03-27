@@ -692,6 +692,16 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 7.17.19
+      - label: 7.17.20 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.20#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 7.17.20
       - label: 8.0.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.0.0#bwcTest
         timeout_in_minutes: 300
@@ -1152,16 +1162,6 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.12.2
-      - label: 8.12.3 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.12.3#bwcTest
-        timeout_in_minutes: 300
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2004
-          machineType: n1-standard-32
-          buildDirectory: /dev/shm/bk
-        env:
-          BWC_VERSION: 8.12.3
       - label: 8.13.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.13.0#bwcTest
         timeout_in_minutes: 300
@@ -1172,6 +1172,16 @@ steps:
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: 8.13.0
+      - label: 8.13.1 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.13.1#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.13.1
       - label: 8.14.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.14.0#bwcTest
         timeout_in_minutes: 300
@@ -1246,7 +1256,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk17
-            BWC_VERSION: ["7.17.19", "8.12.3", "8.13.0", "8.14.0"]
+            BWC_VERSION: ["7.17.20", "8.13.1", "8.14.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -1290,7 +1300,7 @@ steps:
               - openjdk17
               - openjdk21
               - openjdk22
-            BWC_VERSION: ["7.17.19", "8.12.3", "8.13.0", "8.14.0"]
+            BWC_VERSION: ["7.17.20", "8.13.1", "8.14.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

@@ -86,10 +86,7 @@ public class VerifierTests extends ESTestCase {
         // no agg function
         assertEquals("1:19: expected an aggregate function but found [5]", error("from test | stats 5 by emp_no"));
         // don't allow naked group
-        assertEquals(
-            "1:19: grouping key [emp_no] already specified in the STATS BY clause",
-            error("from test | stats emp_no BY emp_no")
-        );
+        assertEquals("1:19: grouping key [emp_no] already specified in the STATS BY clause", error("from test | stats emp_no BY emp_no"));
         // don't allow naked group - even when it's an expression
         assertEquals(
             "1:19: grouping key [languages + emp_no] already specified in the STATS BY clause",

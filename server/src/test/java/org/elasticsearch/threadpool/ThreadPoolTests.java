@@ -475,17 +475,14 @@ public class ThreadPoolTests extends ESTestCase {
         final var future = new PlainActionFuture<Void>();
         final var latch = new CountDownLatch(1);
         try {
+            blockExecution(threadPool.executor(name), latch);
             threadPool.scheduleWithFixedDelay(
-                ActionRunnable.wrap(future, ignored -> Thread.yield()),
+                ActionRunnable.wrap(future, ignored -> fail("should not execute")),
                 TimeValue.timeValueMillis(between(1, 100)),
                 threadPool.executor(name)
             );
 
-            while (future.isDone() == false) {
-                // might not block all threads the first time round if the scheduled runnable is running, so must keep trying
-                blockExecution(threadPool.executor(name), latch);
-            }
-            expectThrows(EsRejectedExecutionException.class, () -> FutureUtils.get(future));
+            expectThrows(EsRejectedExecutionException.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS));
         } finally {
             latch.countDown();
             assertTrue(terminate(threadPool));

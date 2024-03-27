@@ -394,7 +394,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * requestSize, NUM_CANDS_LIMIT))
             : numCands;
         if (fieldType == null) {
-            return new MatchNoDocsQuery();
+            throw new IllegalArgumentException("field [" + fieldName + "] does not exist in the mapping");
         }
 
         if (fieldType instanceof DenseVectorFieldType == false) {

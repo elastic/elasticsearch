@@ -37,9 +37,9 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNotNull(names);
         assertThat(names, hasSize(0));
 
-        Map<String, String> fieldsForModels = lookup.getInferenceIdsForFields();
-        assertNotNull(fieldsForModels);
-        assertTrue(fieldsForModels.isEmpty());
+        Map<String, String> inferenceForFields = lookup.getInferenceIdsForFields();
+        assertNotNull(inferenceForFields);
+        assertTrue(inferenceForFields.isEmpty());
     }
 
     public void testAddNewField() {
@@ -48,9 +48,9 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup.get("foo"));
 
-        Map<String, String> fieldsForModels = lookup.getInferenceIdsForFields();
-        assertNotNull(fieldsForModels);
-        assertTrue(fieldsForModels.isEmpty());
+        Map<String, String> inferenceForFields = lookup.getInferenceIdsForFields();
+        assertNotNull(inferenceForFields);
+        assertTrue(inferenceForFields.isEmpty());
     }
 
     public void testAddFieldAlias() {

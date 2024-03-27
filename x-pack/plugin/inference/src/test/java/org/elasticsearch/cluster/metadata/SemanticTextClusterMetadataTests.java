@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
 
@@ -33,13 +36,13 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             "test",
             client().admin().indices().prepareCreate("test").setMapping("field", "type=semantic_text,inference_id=test_model")
         );
-        assertEquals(
+        assertThat(
             indexService.getMetadata().getFieldInferenceMetadata().getFieldInferenceOptions().get("field").inferenceId(),
-            "test_model"
+            equalTo("test_model")
         );
     }
 
-    public void testAddSemanticTextField() throws Exception {
+    public void testSingleSourceSemanticTextField() throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
@@ -53,10 +56,51 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        assertEquals(
-            resultingState.metadata().index("test").getFieldInferenceMetadata().getFieldInferenceOptions().get("field").inferenceId(),
-            "test_model"
+        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = resultingState.metadata()
+            .index("test")
+            .getFieldInferenceMetadata()
+            .getFieldInferenceOptions()
+            .get("field");
+        assertThat(fieldInferenceOptions.inferenceId(), equalTo("test_model"));
+        assertThat(fieldInferenceOptions.sourceFields(), equalTo(Set.of("field")));
+    }
+
+    public void testCopyToSemanticTextField() throws Exception {
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
+        final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
+        final MetadataMappingService.PutMappingExecutor putMappingExecutor = mappingService.new PutMappingExecutor();
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
+            {
+              "properties": {
+                "semantic": {
+                  "type": "semantic_text",
+                  "inference_id": "test_model"
+                },
+                "copy_origin_1": {
+                  "type": "text",
+                  "copy_to": "semantic"
+                },
+                "copy_origin_2": {
+                  "type": "text",
+                  "copy_to": "semantic"
+                }
+              }
+            }
+            """);
+        request.indices(new Index[] { indexService.index() });
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterService.state(),
+            putMappingExecutor,
+            singleTask(request)
         );
+        IndexMetadata indexMetadata = resultingState.metadata().index("test");
+        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
+            .getFieldInferenceOptions()
+            .get("semantic");
+        assertThat(fieldInferenceOptions.inferenceId(), equalTo("test_model"));
+        assertThat(fieldInferenceOptions.sourceFields(), equalTo(Set.of("semantic", "copy_origin_1", "copy_origin_2")));
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

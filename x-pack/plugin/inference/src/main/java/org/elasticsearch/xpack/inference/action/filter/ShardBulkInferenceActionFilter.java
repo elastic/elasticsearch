@@ -297,41 +297,47 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
                 boolean hasInput = false;
                 for (var entry : fieldInferenceMetadata.getFieldInferenceOptions().entrySet()) {
-                    String field = entry.getKey();
                     String inferenceId = entry.getValue().inferenceId();
-                    var value = XContentMapValues.extractValue(field, docMap);
-                    if (value == null) {
-                        continue;
-                    }
-                    if (inferenceResults.get(item.id()) == null) {
-                        inferenceResults.set(
-                            item.id(),
-                            new FieldInferenceResponseAccumulator(
+                    String fieldName = entry.getKey();
+                    for (var sourceField : entry.getValue().sourceFields()) {
+
+                        var value = XContentMapValues.extractValue(sourceField, docMap);
+                        if (value == null) {
+                            continue;
+                        }
+                        if (inferenceResults.get(item.id()) == null) {
+                            inferenceResults.set(
                                 item.id(),
-                                Collections.synchronizedList(new ArrayList<>()),
-                                Collections.synchronizedList(new ArrayList<>())
-                            )
-                        );
+                                new FieldInferenceResponseAccumulator(
+                                    item.id(),
+                                    Collections.synchronizedList(new ArrayList<>()),
+                                    Collections.synchronizedList(new ArrayList<>())
+                                )
+                            );
+                        }
+                        if (value instanceof String valueStr) {
+                            List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(
+                                inferenceId,
+                                k -> new ArrayList<>()
+                            );
+                            fieldRequests.add(new FieldInferenceRequest(item.id(), fieldName, valueStr));
+                            hasInput = true;
+                        } else {
+                            inferenceResults.get(item.id()).failures.add(
+                                new ElasticsearchStatusException(
+                                    "Invalid format for field [{}], expected [String] got [{}]",
+                                    RestStatus.BAD_REQUEST,
+                                    fieldName,
+                                    value.getClass().getSimpleName()
+                                )
+                            );
+                        }
                     }
-                    if (value instanceof String valueStr) {
-                        List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
-                        fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
-                        hasInput = true;
-                    } else {
-                        inferenceResults.get(item.id()).failures.add(
-                            new ElasticsearchStatusException(
-                                "Invalid format for field [{}], expected [String] got [{}]",
-                                RestStatus.BAD_REQUEST,
-                                field,
-                                value.getClass().getSimpleName()
-                            )
-                        );
-                    }
-                }
-                if (hasInput == false) {
-                    // remove the existing _inference field (if present) since none of the content require inference.
-                    if (docMap.remove(InferenceMetadataFieldMapper.NAME) != null) {
-                        indexRequest.source(docMap);
+                    if (hasInput == false) {
+                        // remove the existing _inference field (if present) since none of the content require inference.
+                        if (docMap.remove(InferenceMetadataFieldMapper.NAME) != null) {
+                            indexRequest.source(docMap);
+                        }
                     }
                 }
             }

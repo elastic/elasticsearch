@@ -310,3 +310,38 @@ setup:
         id: doc_1
         body:
           non_inference_field: "non inference test"
+
+---
+"semantic_text copy_to calculate inference for source fields":
+  - do:
+      indices.create:
+        index: test-copy-to-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              source_field:
+                type: text
+                copy_to: inference_field
+
+  - do:
+      index:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          source_field: "copy_to inference test"
+          inference_field: "inference test"
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match:  { _source.inference_field: "inference test" }
+  - length: {_source._inference.inference_field.chunks: 2}
+  - exists: _source._inference.inference_field.chunks.0.inference
+  - exists: _source._inference.inference_field.chunks.0.text
+  - exists: _source._inference.inference_field.chunks.1.inference
+  - exists: _source._inference.inference_field.chunks.1.text

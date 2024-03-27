@@ -123,11 +123,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         FieldInferenceMetadata inferenceFields = new FieldInferenceMetadata(
             Map.of(
                 "field1",
-                new FieldInferenceMetadata.FieldInferenceOptions(model.getInferenceEntityId(), Set.of()),
+                new FieldInferenceMetadata.FieldInferenceOptions(model.getInferenceEntityId(), Set.of("field1")),
                 "field2",
-                new FieldInferenceMetadata.FieldInferenceOptions("inference_0", Set.of()),
+                new FieldInferenceMetadata.FieldInferenceOptions("inference_0", Set.of("field2")),
                 "field3",
-                new FieldInferenceMetadata.FieldInferenceOptions("inference_0", Set.of())
+                new FieldInferenceMetadata.FieldInferenceOptions("inference_0", Set.of("field3"))
             )
         );
         BulkItemRequest[] items = new BulkItemRequest[10];
@@ -154,7 +154,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         for (int i = 0; i < numInferenceFields; i++) {
             String field = randomAlphaOfLengthBetween(5, 10);
             String inferenceId = randomFrom(inferenceModelMap.keySet());
-            inferenceFieldsMap.put(field, new FieldInferenceMetadata.FieldInferenceOptions(inferenceId, Set.of()));
+            inferenceFieldsMap.put(field, new FieldInferenceMetadata.FieldInferenceOptions(inferenceId, Set.of(field)));
         }
         FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(inferenceFieldsMap);
 

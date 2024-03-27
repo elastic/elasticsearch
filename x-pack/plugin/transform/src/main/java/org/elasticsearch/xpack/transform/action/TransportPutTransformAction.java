@@ -168,7 +168,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         var config = request.getConfig();
         transformConfigManager.putTransformConfiguration(config, listener.delegateFailureAndWrap((l, unused) -> {
             var transformId = config.getId();
-            logger.debug("[{}] created transform", transformId);
+            logger.info("[{}] created transform", transformId);
             auditor.info(transformId, "Created transform.");
 
             var validationFunc = FunctionFactory.create(config);

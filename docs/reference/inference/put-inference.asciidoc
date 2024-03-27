@@ -33,7 +33,7 @@ or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 [[put-inference-api-desc]]
 ==== {api-description-title}
 
-The create {infer} API enables you to create and configure an {infer} model to
+The create {infer} API enables you to create and configure a {ml} model to
 perform a specific {infer} task.
 
 The following services are available through the {infer} API:
@@ -50,9 +50,9 @@ The following services are available through the {infer} API:
 ==== {api-path-parms-title}
 
 
-`<model_id>`::
+`<inference_id>`::
 (Required, string)
-The unique identifier of the model.
+The unique identifier of the {infer} endpoint.
 
 `<task_type>`::
 (Required, string)
@@ -246,7 +246,7 @@ This section contains example API calls for every service type.
 [[inference-example-cohere]]
 ===== Cohere service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `cohere_embeddings` to perform a `text_embedding` task type.
 
 [source,console]
@@ -268,7 +268,7 @@ PUT _inference/text_embedding/cohere-embeddings
 [[inference-example-e5]]
 ===== E5 via the elasticsearch service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `my-e5-model` to perform a `text_embedding` task type.
 
 [source,console]
@@ -293,7 +293,7 @@ further details, refer to the {ml-docs}/ml-nlp-e5.html[E5 model documentation].
 [[inference-example-elser]]
 ===== ELSER service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `my-elser-model` to perform a `sparse_embedding` task type.
 
 [source,console]
@@ -315,7 +315,7 @@ Example response:
 [source,console-result]
 ------------------------------------------------------------
 {
-  "model_id": "my-elser-model",
+  "inference_id": "my-elser-model",
   "task_type": "sparse_embedding",
   "service": "elser",
   "service_settings": {
@@ -332,7 +332,7 @@ Example response:
 [[inference-example-hugging-face]]
 ===== Hugging Face service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `hugging-face_embeddings` to perform a `text_embedding` task type.
 
 [source,console]
@@ -362,7 +362,7 @@ after the endpoint initialization has been finished.
 [[inference-example-eland]]
 ===== Models uploaded by Eland via the elasticsearch service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `my-msmarco-minilm-model` to perform a `text_embedding` task type.
 
 [source,console]
@@ -387,7 +387,7 @@ been
 [[inference-example-openai]]
 ===== OpenAI service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `openai_embeddings` to perform a `text_embedding` task type.
 
 [source,console]

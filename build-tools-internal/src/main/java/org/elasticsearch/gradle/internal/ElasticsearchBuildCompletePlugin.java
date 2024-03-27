@@ -148,7 +148,8 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                     ProcessBuilder pb = new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath);
                     // If we don't switch to the build directory first, the uploaded file will have a `build/` prefix
                     // Buildkite will flip the `/` to a `\` at upload time on Windows, which will make the search command below fail
-                    // So, if you change this such that the artifact will have a slash/directory in it, you'll need to update the logic below as well
+                    // So, if you change this such that the artifact will have a slash/directory in it, you'll need to update the logic
+                    // below as well
                     pb.directory(new File("./build"));
                     pb.start().waitFor();
 

@@ -143,14 +143,11 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                 }
                 iterator.consume();
                 shard = blockFactory.newConstantIntBlockWith(iterator.slice.shardContext().index(), currentPagePos);
-                boolean singleSegmentNonDecreasing;
                 if (iterator.slice.numLeaves() == 1) {
-                    singleSegmentNonDecreasing = true;
                     int segmentOrd = iterator.slice.getLeaf(0).leafReaderContext().ord;
                     leaf = blockFactory.newConstantIntBlockWith(segmentOrd, currentPagePos).asVector();
                 } else {
                     // Due to the multi segment nature of time series source operator singleSegmentNonDecreasing must be false
-                    singleSegmentNonDecreasing = false;
                     leaf = segmentsBuilder.build();
                     segmentsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                 }
@@ -161,10 +158,9 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                 timestampIntervalBuilder = blockFactory.newLongVectorBuilder(Math.min(remainingDocs, maxPageSize));
                 tsids = tsOrdBuilder.build();
                 tsOrdBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
-
                 page = new Page(
                     currentPagePos,
-                    new DocVector(shard.asVector(), leaf, docs, singleSegmentNonDecreasing).asBlock(),
+                    new DocVector(shard.asVector(), leaf, docs, leaf.isConstant()).asBlock(),
                     tsids.asBlock(),
                     timestampIntervals.asBlock()
                 );

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MOD;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
 public class Mod extends EsqlArithmeticOperation {
 
@@ -52,7 +52,7 @@ public class Mod extends EsqlArithmeticOperation {
 
     @Evaluator(extraName = "UnsignedLongs", warnExceptions = { ArithmeticException.class })
     static long processUnsignedLongs(long lhs, long rhs) {
-        return asLongUnsigned(Long.remainderUnsigned(asLongUnsigned(lhs), asLongUnsigned(rhs)));
+        return longToUnsignedLong(Long.remainderUnsigned(longToUnsignedLong(lhs, true), longToUnsignedLong(rhs, true)), true);
     }
 
     @Evaluator(extraName = "Doubles")

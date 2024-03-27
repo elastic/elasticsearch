@@ -43,14 +43,17 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
+import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.junit.After;
 
@@ -285,17 +288,6 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             return docs.size();
         });
         var ctx = driverContext();
-        HashAggregationOperator initialHash = new HashAggregationOperator(
-            List.of(new RateLongAggregatorFunctionSupplier(List.of(4, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)),
-            () -> BlockHash.build(
-                List.of(new HashAggregationOperator.GroupSpec(3, ElementType.BYTES_REF)),
-                ctx.blockFactory(),
-                randomIntBetween(1, 1000),
-                randomBoolean()
-            ),
-            ctx
-        );
-
         HashAggregationOperator finalHash = new HashAggregationOperator(
             List.of(new RateLongAggregatorFunctionSupplier(List.of(1, 2, 3), unitInMillis).groupingAggregatorFactory(AggregatorMode.FINAL)),
             () -> BlockHash.build(
@@ -309,20 +301,62 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         var requestsField = new NumberFieldMapper.NumberFieldType("requests", NumberFieldMapper.NumberType.LONG);
         var podField = new KeywordFieldMapper.KeywordFieldType("pod");
-        OperatorTestCase.runDriver(
-            new Driver(
-                ctx,
-                sourceOperatorFactory.get(ctx),
+        if (randomBoolean()) {
+            HashAggregationOperator initialHash = new HashAggregationOperator(
                 List.of(
-                    ValuesSourceReaderOperatorTests.factory(reader, podField, ElementType.BYTES_REF).get(ctx),
-                    ValuesSourceReaderOperatorTests.factory(reader, requestsField, ElementType.LONG).get(ctx),
-                    initialHash,
-                    finalHash
+                    new RateLongAggregatorFunctionSupplier(List.of(4, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
                 ),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
-            )
-        );
+                () -> BlockHash.build(
+                    List.of(new HashAggregationOperator.GroupSpec(3, ElementType.BYTES_REF)),
+                    ctx.blockFactory(),
+                    randomIntBetween(1, 1000),
+                    randomBoolean()
+                ),
+                ctx
+            );
+            OperatorTestCase.runDriver(
+                new Driver(
+                    ctx,
+                    sourceOperatorFactory.get(ctx),
+                    List.of(
+                        ValuesSourceReaderOperatorTests.factory(reader, podField, ElementType.BYTES_REF).get(ctx),
+                        ValuesSourceReaderOperatorTests.factory(reader, requestsField, ElementType.LONG).get(ctx),
+                        initialHash,
+                        finalHash
+                    ),
+                    new TestResultPageSinkOperator(results::add),
+                    () -> {}
+                )
+            );
+        } else {
+            var blockLoader = new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader("pod");
+            var shardContext = new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE);
+            var ordinalGrouping = new OrdinalsGroupingOperator(
+                shardIdx -> blockLoader,
+                List.of(shardContext),
+                ElementType.BYTES_REF,
+                0,
+                "pod",
+                List.of(
+                    new RateLongAggregatorFunctionSupplier(List.of(3, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
+                ),
+                randomIntBetween(1, 1000),
+                ctx
+            );
+            OperatorTestCase.runDriver(
+                new Driver(
+                    ctx,
+                    sourceOperatorFactory.get(ctx),
+                    List.of(
+                        ValuesSourceReaderOperatorTests.factory(reader, requestsField, ElementType.LONG).get(ctx),
+                        ordinalGrouping,
+                        finalHash
+                    ),
+                    new TestResultPageSinkOperator(results::add),
+                    () -> {}
+                )
+            );
+        }
         Map<String, Double> rates = new HashMap<>();
         for (Page result : results) {
             BytesRefBlock keysBlock = result.getBlock(0);

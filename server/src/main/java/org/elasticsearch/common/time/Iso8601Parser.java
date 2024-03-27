@@ -138,6 +138,11 @@ class Iso8601Parser {
         }
     }
 
+    /**
+     * Index {@code i} is the multiplicand to get the number of nanos from the fractional second with {@code i=9-d} digits.
+     */
+    private static final int[] NANO_MULTIPLICANDS = new int[] { 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000 };
+
     private Result parse(CharSequence str, @Nullable ZoneId defaultTimezone) {
         int len = str.length();
 
@@ -335,10 +340,8 @@ class Iso8601Parser {
 
         if (pos == 20) return Result.error(20);   // didn't find a number at all
 
-        // multiply it by the remainder of the nano digits missed off the end
-        for (int pow10 = 29 - pos; pow10 > 0; pow10--) {
-            nanos *= 10;
-        }
+        // multiply it by the correct multiplicand to get the nanos
+        nanos *= NANO_MULTIPLICANDS[29 - pos];
 
         if (len == pos) {
             return new Result(withZoneOffset(years, months, days, hours, minutes, seconds, nanos, defaultTimezone));

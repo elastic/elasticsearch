@@ -1034,7 +1034,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    // visible for testing
+    // package-visible for testing
     Mode getMode() {
         synchronized (mutex) {
             return mode;

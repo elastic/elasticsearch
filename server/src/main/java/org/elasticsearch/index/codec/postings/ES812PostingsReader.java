@@ -36,11 +36,13 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.ForUtil;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat.IntBlockTermState;
 
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.index.codec.ForUtil.BLOCK_SIZE;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.DOC_CODEC;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.MAX_SKIP_LEVELS;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.PAY_CODEC;
@@ -48,7 +50,6 @@ import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.POS_COD
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.TERMS_CODEC;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.VERSION_CURRENT;
 import static org.elasticsearch.index.codec.postings.ES812PostingsFormat.VERSION_START;
-import static org.elasticsearch.index.codec.postings.ForUtil.BLOCK_SIZE;
 
 /**
  * Concrete class that reads docId(maybe frq,pos,offset,payloads) list with postings format.

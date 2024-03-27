@@ -23,12 +23,13 @@ import org.elasticsearch.xpack.ql.util.NumericUtils;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Log10 extends UnaryScalarFunction {
     @FunctionInfo(returnType = "double", description = "Returns the log base 10.")
-    public Log10(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
+    public Log10(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
         super(source, n);
     }
 
@@ -74,7 +75,7 @@ public class Log10 extends UnaryScalarFunction {
         if (val == NumericUtils.ZERO_AS_UNSIGNED_LONG) {
             throw new ArithmeticException("Log of non-positive number");
         }
-        return Math.log10(NumericUtils.unsignedLongToDouble(val));
+        return Math.log10(unsignedLongToDouble(val));
     }
 
     @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)

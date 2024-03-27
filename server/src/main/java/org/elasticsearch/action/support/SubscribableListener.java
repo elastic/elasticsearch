@@ -159,7 +159,12 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * (or after) the completion of this listener.
      * <p>
      * If the subscribed listener is not completed immediately then it will be completed on the thread, and in the {@link ThreadContext}, of
-     * the thread which completes this listener.
+     * the thread which completes this listener. In other words, if you want to ensure that {@code listener} is completed using a particular
+     * executor, then you must do both of:
+     * <ul>
+     * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
+     * <li>Invoke {@link #addListener} using that executor.</li>
+     * </ul>
      */
     public final void addListener(ActionListener<T> listener) {
         addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, null);
@@ -179,6 +184,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * @param executor      If not {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, and the subscribing listener is not completed immediately,
      *                      then it will be completed using the given executor. If the subscribing listener is completed immediately then
      *                      this completion happens on the subscribing thread.
+     *                      <p>
+     *                      In other words, if you want to ensure that {@code listener} is completed using a particular executor, then you
+     *                      must do both of:
+     *                      <ul>
+     *                      <li>Pass the desired executor in as {@code executor}, and</li>
+     *                      <li>Invoke {@link #addListener} using that executor.</li>
+     *                      </ul>
      * @param threadContext If not {@code null}, and the subscribing listener is not completed immediately, then it will be completed in
      *                      the given thread context. If {@code null}, and the subscribing listener is not completed immediately, then it
      *                      will be completed in the {@link ThreadContext} of the completing thread. If the subscribing listener is
@@ -405,7 +417,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * <p>
      * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
      * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
-     * listener is incomplete then {@code nextStep} is invoked on the completing thread and in its thread context.
+     * listener is incomplete then {@code nextStep} is invoked on the completing thread and in its thread context. In other words, if you
+     * want to ensure that {@code nextStep} is invoked using a particular executor, then you must do
+     * both of:
+     * <ul>
+     * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
+     * <li>Invoke {@link #andThen} using that executor.</li>
+     * </ul>
      */
     public <U> SubscribableListener<U> andThen(CheckedBiConsumer<ActionListener<U>, T, ? extends Exception> nextStep) {
         return andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, null, nextStep);
@@ -427,7 +445,12 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
      * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
      * listener is incomplete then {@code nextStep} is invoked using {@code executor}, in a thread context captured when {@link #andThen}
-     * was called.
+     * was called. In other words, if you want to ensure that {@code nextStep} is invoked using a particular executor, then you must do
+     * both of:
+     * <ul>
+     * <li>Pass the desired executor in as {@code executor}, and</li>
+     * <li>Invoke {@link #andThen} using that executor.</li>
+     * </ul>
      */
     public <U> SubscribableListener<U> andThen(
         Executor executor,

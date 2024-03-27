@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 
 public class ToCartesianShape extends AbstractConvertFunction {
 
@@ -37,7 +37,7 @@ public class ToCartesianShape extends AbstractConvertFunction {
     @FunctionInfo(returnType = "cartesian_shape", description = "Converts an input value to a shape value.")
     public ToCartesianShape(
         Source source,
-        @Param(name = "v", type = { "cartesian_point", "cartesian_shape", "keyword", "text" }) Expression field
+        @Param(name = "field", type = { "cartesian_point", "cartesian_shape", "keyword", "text" }) Expression field
     ) {
         super(source, field);
     }
@@ -64,6 +64,6 @@ public class ToCartesianShape extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return CARTESIAN.wktToWkb(in.utf8ToString());
+        return stringToSpatial(in.utf8ToString());
     }
 }

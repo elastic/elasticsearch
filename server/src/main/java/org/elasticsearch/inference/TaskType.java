@@ -21,6 +21,7 @@ import java.util.Objects;
 public enum TaskType implements Writeable {
     TEXT_EMBEDDING,
     SPARSE_EMBEDDING,
+    COMPLETION,
     ANY {
         @Override
         public boolean isAnyOrSame(TaskType other) {

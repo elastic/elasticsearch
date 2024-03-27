@@ -74,6 +74,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -290,6 +291,7 @@ import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenSt
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
@@ -581,6 +583,7 @@ public class Security extends Plugin
     private final SetOnce<Realms> realms = new SetOnce<>();
     private final SetOnce<Client> client = new SetOnce<>();
     private final SetOnce<List<ReloadableSecurityComponent>> reloadableComponents = new SetOnce<>();
+    private final SetOnce<AuthorizationDenialMessages> authorizationDenialMessages = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -1007,6 +1010,9 @@ public class Security extends Plugin
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
+        if (authorizationDenialMessages.get() == null) {
+            authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
+        }
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1021,7 +1027,8 @@ public class Security extends Plugin
             getLicenseState(),
             expressionResolver,
             operatorPrivilegesService.get(),
-            restrictedIndices
+            restrictedIndices,
+            authorizationDenialMessages.get()
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1941,29 +1948,29 @@ public class Security extends Plugin
     }
 
     @Override
-    public Function<String, Predicate<String>> getFieldFilter() {
+    public Function<String, FieldPredicate> getFieldFilter() {
         if (enabled) {
             return index -> {
                 XPackLicenseState licenseState = getLicenseState();
                 IndicesAccessControl indicesAccessControl = threadContext.get()
                     .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 if (indicesAccessControl == null) {
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    return FieldPredicate.ACCEPT_ALL;
                 }
                 assert indicesAccessControl.isGranted();
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    return FieldPredicate.ACCEPT_ALL;
                 }
                 FieldPermissions fieldPermissions = indexPermissions.getFieldPermissions();
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    return FieldPredicate.ACCEPT_ALL;
                 }
                 if (FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
                     // check license last, once we know FLS is actually used
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    return FieldPredicate.ACCEPT_ALL;
                 }
-                return fieldPermissions::grantsAccessTo;
+                return fieldPermissions.fieldPredicate();
             };
         }
         return MapperPlugin.super.getFieldFilter();
@@ -2098,6 +2105,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, createApiKeyRequestBuilderFactory, CreateApiKeyRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, hasPrivilegesRequestBuilderFactory, HasPrivilegesRequestBuilderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, authorizationDenialMessages, AuthorizationDenialMessages.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

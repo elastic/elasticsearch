@@ -150,7 +150,11 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SERIALIZE_BIG_ARRAY = def(8_610_00_0);
     public static final TransportVersion AUTO_SHARDING_ROLLOVER_CONDITION = def(8_611_00_0);
     public static final TransportVersion KNN_QUERY_VECTOR_BUILDER = def(8_612_00_0);
-    public static final TransportVersion SEMANTIC_TEXT_FIELD_ADDED = def(8_613_00_0);
+    public static final TransportVersion USE_DATA_STREAM_GLOBAL_RETENTION = def(8_613_00_0);
+    public static final TransportVersion ML_COMPLETION_INFERENCE_SERVICE_ADDED = def(8_614_00_0);
+    public static final TransportVersion ML_INFERENCE_EMBEDDING_BYTE_ADDED = def(8_615_00_0);
+    public static final TransportVersion ML_INFERENCE_L2_NORM_SIMILARITY_ADDED = def(8_616_00_0);
+    public static final TransportVersion SEMANTIC_TEXT_FIELD_ADDED = def(8_617_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

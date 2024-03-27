@@ -21,7 +21,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.UnsupportedValueSource;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -30,7 +29,6 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -39,12 +37,16 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
-import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
 
 /**
  * Collection of static utility methods for helping transform response data between pages and values.
@@ -127,16 +129,17 @@ public final class ResponseValueUtils {
             case "keyword", "text" -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case "ip" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
-                yield DocValueFormat.IP.format(val);
+                yield ipToString(val);
             }
             case "date" -> {
                 long longVal = ((LongBlock) block).getLong(offset);
-                yield UTC_DATE_TIME_FORMATTER.formatMillis(longVal);
+                yield dateTimeToString(longVal);
             }
             case "boolean" -> ((BooleanBlock) block).getBoolean(offset);
-            case "version" -> new Version(((BytesRefBlock) block).getBytesRef(offset, scratch)).toString();
-            case "geo_point", "geo_shape" -> GEO.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
-            case "cartesian_point", "cartesian_shape" -> CARTESIAN.wkbToWkt(((BytesRefBlock) block).getBytesRef(offset, scratch));
+            case "version" -> versionToString(((BytesRefBlock) block).getBytesRef(offset, scratch));
+            case "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" -> spatialToString(
+                ((BytesRefBlock) block).getBytesRef(offset, scratch)
+            );
             case "unsupported" -> UnsupportedValueSource.UNSUPPORTED_OUTPUT;
             case "_source" -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
@@ -168,21 +171,23 @@ public final class ResponseValueUtils {
                 var builder = results.get(c);
                 var value = row.get(c);
                 switch (dataTypes.get(c)) {
-                    case "unsigned_long" -> ((LongBlock.Builder) builder).appendLong(asLongUnsigned(((Number) value).longValue()));
+                    case "unsigned_long" -> ((LongBlock.Builder) builder).appendLong(
+                        longToUnsignedLong(((Number) value).longValue(), true)
+                    );
                     case "long" -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case "integer" -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case "double" -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
                     case "keyword", "text", "unsupported" -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                         new BytesRef(value.toString())
                     );
-                    case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(parseIP(value.toString()));
+                    case "ip" -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case "date" -> {
-                        long longVal = UTC_DATE_TIME_FORMATTER.parseMillis(value.toString());
+                        long longVal = dateTimeToLong(value.toString());
                         ((LongBlock.Builder) builder).appendLong(longVal);
                     }
                     case "boolean" -> ((BooleanBlock.Builder) builder).appendBoolean(((Boolean) value));
                     case "null" -> builder.appendNull();
-                    case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(new Version(value.toString()).toBytesRef());
+                    case "version" -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToVersion(new BytesRef(value.toString())));
                     case "_source" -> {
                         @SuppressWarnings("unchecked")
                         Map<String, ?> o = (Map<String, ?>) value;
@@ -195,14 +200,9 @@ public final class ResponseValueUtils {
                             throw new UncheckedIOException(e);
                         }
                     }
-                    case "geo_point", "geo_shape" -> {
+                    case "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" -> {
                         // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
-                        BytesRef wkb = GEO.wktToWkb(value.toString());
-                        ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
-                    }
-                    case "cartesian_point", "cartesian_shape" -> {
-                        // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
-                        BytesRef wkb = CARTESIAN.wktToWkb(value.toString());
+                        BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
                     default -> throw EsqlIllegalArgumentException.illegalDataType(dataTypes.get(c));

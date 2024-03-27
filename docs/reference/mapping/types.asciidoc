@@ -75,6 +75,7 @@ markup. Used for identifying named entities.
 <<completion-suggester,`completion`>>:: Used for auto-complete suggestions.
 <<search-as-you-type,`search_as_you_type`>>:: `text`-like type for
 as-you-type completion.
+<<semantic-text, `semantic_text`>>:: 
 <<token-count,`token_count`>>:: A count of tokens in a text.
 
 
@@ -177,6 +178,8 @@ include::types/rank-feature.asciidoc[]
 include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
+
+include::types/semantic-text.asciidoc[]
 
 include::types/shape.asciidoc[]
 

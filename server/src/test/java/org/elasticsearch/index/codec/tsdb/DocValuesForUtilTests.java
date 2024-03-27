@@ -23,6 +23,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 import java.util.Arrays;

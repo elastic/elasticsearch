@@ -79,8 +79,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
          */
         public static final String SAME = "same";
         /**
-         * All the tasks that do not fit into the other categories should use this thread pool. Try to pick one of the other more specific
-         * thread pools if possible.
+         * All the tasks that do not relate to the purpose of one of the other thread pools should use this thread pool. Try to pick one of
+         * the other more specific thread pools where possible.
          */
         public static final String GENERIC = "generic";
         /**

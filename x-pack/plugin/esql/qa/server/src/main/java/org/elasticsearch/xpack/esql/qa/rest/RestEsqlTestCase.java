@@ -117,6 +117,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private boolean isBuilt = false;
 
         private Boolean keepOnCompletion = null;
+        private String esqlVersion = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -125,6 +126,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         public RequestObjectBuilder(XContentType type) throws IOException {
             builder = XContentBuilder.builder(type, emptySet(), emptySet());
             builder.startObject();
+        }
+
+        public RequestObjectBuilder esqlVersion(String esqlVersion) throws IOException {
+            this.esqlVersion = esqlVersion;
+            builder.field("version", esqlVersion);
+            return this;
         }
 
         public RequestObjectBuilder query(String query) throws IOException {
@@ -156,6 +163,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             keepOnCompletion = value;
             builder.field("keep_on_completion", value);
             return this;
+        }
+
+        public String esqlVersion() {
+            return esqlVersion;
         }
 
         Boolean keepOnCompletion() {
@@ -402,7 +413,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         Request request = prepareRequest(SYNC);
         var query = fromIndex() + " | eval asInt = to_int(case(integer % 2 == 0, to_str(integer), keyword)) | limit 1000";
-        var mediaType = attachBody(new RequestObjectBuilder().query(query).build(), request);
+        var mediaType = attachBody(builder().query(query).build(), request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE);
@@ -442,7 +453,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(201, client().performRequest(request).getStatusLine().getStatusCode());
 
         var query = fromIndex() + "* metadata _index, _version, _id | sort _version";
-        Map<String, Object> result = runEsql(new RequestObjectBuilder().query(query));
+        Map<String, Object> result = runEsql(builder().query(query));
         var columns = List.of(
             Map.of("name", "a", "type", "long"),
             Map.of("name", "_index", "type", "keyword"),
@@ -458,25 +469,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testErrorMessageForEmptyParams() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[]"))
-        );
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder().query("row a = 1 | eval x = ?").params("[]")));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Not enough actual parameters 0"));
     }
 
     public void testErrorMessageForInvalidParams() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(new RequestObjectBuilder().query("row a = 1").params("[{\"x\":\"y\"}]"))
-        );
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder().query("row a = 1").params("[{\"x\":\"y\"}]")));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [value, type]"));
     }
 
     public void testErrorMessageForMissingTypeInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(new RequestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"value\": \"y\"}]"))
+            () -> runEsql(builder().query("row a = 1").params("[\"x\", 123, true, {\"value\": \"y\"}]"))
         );
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [type]"));
     }
@@ -484,7 +489,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testErrorMessageForMissingValueInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(new RequestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"type\": \"y\"}]"))
+            () -> runEsql(builder().query("row a = 1").params("[\"x\", 123, true, {\"type\": \"y\"}]"))
         );
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [value]"));
     }
@@ -492,7 +497,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testErrorMessageForInvalidTypeInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsqlSync(new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]"))
+            () -> runEsqlSync(builder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
@@ -529,7 +534,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private void assertExceptionForDateMath(String dateMathString, String errorSubstring) throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(new RequestObjectBuilder().query("row a = 1 | eval x = now() + (" + dateMathString + ")"))
+            () -> runEsql(builder().query("row a = 1 | eval x = now() + (" + dateMathString + ")"))
         );
 
         String responseMessage = EntityUtils.toString(re.getResponse().getEntity());
@@ -542,9 +547,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testErrorMessageForArrayValuesInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(
-                new RequestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"integer\", \"value\": [5, 6, 7]}]")
-            )
+            () -> runEsql(builder().query("row a = 1 | eval x = ?").params("[{\"type\": \"integer\", \"value\": [5, 6, 7]}]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
@@ -590,7 +593,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsqlSync(requestObject, NO_WARNINGS);
     }
 
-    static Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings, Mode mode) throws IOException {
+    protected Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings, Mode mode) throws IOException {
         if (mode == ASYNC) {
             return runEsqlAsync(requestObject, expectedWarnings);
         } else {
@@ -908,7 +911,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return "[" + value + ", " + value + "]";
     }
 
-    private static RequestObjectBuilder builder() throws IOException {
+    protected RequestObjectBuilder builder() throws IOException {
         return new RequestObjectBuilder();
     }
 

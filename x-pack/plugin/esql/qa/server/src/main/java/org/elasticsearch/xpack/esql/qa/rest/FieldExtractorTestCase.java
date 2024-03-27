@@ -45,7 +45,6 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 
@@ -1189,7 +1188,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     private record StoreAndDocValues(Boolean store, Boolean docValues) {}
 
-    private static class Test {
+    private class Test {
         private final String type;
         private final Map<String, Test> subFields = new TreeMap<>();
 
@@ -1415,6 +1414,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         private Map<String, Object> fetchAll() throws IOException {
             return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 10"));
         }
+    }
+
+    protected Map<String, Object> runEsqlSync(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        return RestEsqlTestCase.runEsqlSync(requestObject);
     }
 
     private static Map<String, Object> columnInfo(String name, String type) {

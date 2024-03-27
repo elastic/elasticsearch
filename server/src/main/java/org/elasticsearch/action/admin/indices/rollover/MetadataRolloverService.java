@@ -204,11 +204,8 @@ public class MetadataRolloverService {
     }
 
     private static NameResolution resolveDataStreamFailureStoreRolloverNames(Metadata metadata, DataStream dataStream) {
-        /*
-         * TODO: Do we need to check if this is null?
-         *  By this point, we have already validated that the data stream has to have a failure store.
-         *  (but Intellij is warning that `dataStream.getFailureStoreWriteIndex()` might be null)
-         */
+        assert dataStream.getFailureStoreWriteIndex() != null : "Unable to roll over failure store with no failure store indices";
+
         final IndexMetadata originalWriteIndex = metadata.index(dataStream.getFailureStoreWriteIndex());
         return new NameResolution(
             originalWriteIndex.getIndex().getName(),

@@ -351,8 +351,8 @@ public class GetApiKeyResponseTests extends ESTestCase {
         );
         List<String> profileUids = randomList(0, 5, () -> randomFrom(randomAlphaOfLength(4), null));
         if (apiKeys.size() != profileUids.size()) {
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new GetApiKeyResponse(apiKeys, profileUids));
-            assertThat(iae.getMessage(), containsString("Each api key info must be associated to a (nullable) owner profile uid"));
+            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> new GetApiKeyResponse(apiKeys, profileUids));
+            assertThat(ise.getMessage(), containsString("Each api key info must be associated to a (nullable) owner profile uid"));
         }
     }
 

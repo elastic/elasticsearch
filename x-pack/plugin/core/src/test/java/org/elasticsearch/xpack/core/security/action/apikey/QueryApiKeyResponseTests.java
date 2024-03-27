@@ -43,8 +43,8 @@ public class QueryApiKeyResponseTests extends ESTestCase {
         }
         List<String> profileUids = randomList(0, 5, () -> randomFrom(randomAlphaOfLength(4), null));
         if (apiKeys.size() != profileUids.size()) {
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
+            IllegalStateException iae = expectThrows(
+                IllegalStateException.class,
                 () -> new QueryApiKeyResponse(100, apiKeys, sortValues, profileUids, null)
             );
             assertThat(iae.getMessage(), containsString("Each api key info must be associated to a (nullable) owner profile uid"));
@@ -77,8 +77,8 @@ public class QueryApiKeyResponseTests extends ESTestCase {
         }
         List<Object[]> sortValues = randomList(0, 6, () -> new String[] { "dummy sort value" });
         if (apiKeys.size() != sortValues.size()) {
-            IllegalArgumentException iae = expectThrows(
-                IllegalArgumentException.class,
+            IllegalStateException iae = expectThrows(
+                IllegalStateException.class,
                 () -> new QueryApiKeyResponse(100, apiKeys, sortValues, profileUids, null)
             );
             assertThat(iae.getMessage(), containsString("Each api key info must be associated to a (nullable) sort value"));

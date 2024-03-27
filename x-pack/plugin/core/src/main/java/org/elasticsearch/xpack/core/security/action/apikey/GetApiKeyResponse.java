@@ -51,7 +51,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
             this.foundApiKeyInfoList = foundApiKeysInfos.stream().map(Item::new).toList();
         } else {
             if (foundApiKeysInfos.size() != ownerProfileUids.size()) {
-                throw new IllegalArgumentException("Each api key info must be associated to a (nullable) owner profile uid");
+                throw new IllegalStateException("Each api key info must be associated to a (nullable) owner profile uid");
             }
             int size = foundApiKeysInfos.size();
             this.foundApiKeyInfoList = new ArrayList<>(size);
@@ -59,7 +59,7 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
             Iterator<String> profileUidIterator = ownerProfileUids.iterator();
             while (apiKeyIterator.hasNext()) {
                 if (false == profileUidIterator.hasNext()) {
-                    throw new IllegalArgumentException("Each api key info must be associated to a (nullable) owner profile uid");
+                    throw new IllegalStateException("Each api key info must be associated to a (nullable) owner profile uid");
                 }
                 this.foundApiKeyInfoList.add(new Item(apiKeyIterator.next(), profileUidIterator.next()));
             }

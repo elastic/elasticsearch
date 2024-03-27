@@ -46,10 +46,10 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         Objects.requireNonNull(foundApiKeysInfos, "found_api_keys_infos must be provided");
         Objects.requireNonNull(sortValues, "sort_values must be provided");
         if (foundApiKeysInfos.size() != sortValues.size()) {
-            throw new IllegalArgumentException("Each api key info must be associated to a (nullable) sort value");
+            throw new IllegalStateException("Each api key info must be associated to a (nullable) sort value");
         }
         if (ownerProfileUids != null && foundApiKeysInfos.size() != ownerProfileUids.size()) {
-            throw new IllegalArgumentException("Each api key info must be associated to a (nullable) owner profile uid");
+            throw new IllegalStateException("Each api key info must be associated to a (nullable) owner profile uid");
         }
         int size = foundApiKeysInfos.size();
         this.foundApiKeyInfoList = new ArrayList<>(size);
@@ -58,10 +58,10 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
         Iterator<String> profileUidIterator = ownerProfileUids != null ? ownerProfileUids.iterator() : null;
         while (apiKeyIterator.hasNext()) {
             if (false == sortValueIterator.hasNext()) {
-                throw new IllegalArgumentException("Each api key info must be associated to a (nullable) sort value");
+                throw new IllegalStateException("Each api key info must be associated to a (nullable) sort value");
             }
             if (profileUidIterator != null && false == profileUidIterator.hasNext()) {
-                throw new IllegalArgumentException("Each api key info must be associated to a (nullable) owner profile uid");
+                throw new IllegalStateException("Each api key info must be associated to a (nullable) owner profile uid");
             }
             this.foundApiKeyInfoList.add(
                 new Item(apiKeyIterator.next(), sortValueIterator.next(), profileUidIterator != null ? profileUidIterator.next() : null)

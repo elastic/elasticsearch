@@ -6,7 +6,7 @@ Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 [[breaking-8.13.0]]
 [float]
 === Breaking changes
-There are no breaking changes in 8.13.
+There are no breaking changes in 8.13.0.
 
 [[notable-changes-8.13.0]]
 [float]

@@ -24,7 +24,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     PosixNativeAccess(String name, NativeLibraryProvider libraryProvider) {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
-        this.vectorDistance = Runtime.version().feature() >= 21
+        this.vectorDistance = isNativeVectorLibSupported()
             ? new VectorSimilarityFunctions(libraryProvider.getLibrary(VectorLibrary.class))
             : null;
     }
@@ -39,9 +39,9 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         return Optional.ofNullable(vectorDistance);
     }
 
-    // static boolean isNativeVectorLibSupported() { TODO: remove
-    // return Runtime.version().feature() >= 21 && isMacOrLinuxAarch64() && checkEnableSystemProperty();
-    // }
+    static boolean isNativeVectorLibSupported() {
+        return Runtime.version().feature() >= 21 && isMacOrLinuxAarch64() && checkEnableSystemProperty();
+    }
 
     /** Returns true iff the OS is Mac or Linux, and the architecture is aarch64. */
     static boolean isMacOrLinuxAarch64() {

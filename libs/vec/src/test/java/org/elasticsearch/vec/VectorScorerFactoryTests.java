@@ -70,8 +70,8 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     byte[] bytes = concat(vec1, oneFactor, vec2, oneFactor);
                     out.writeBytes(bytes, 0, bytes.length);
                 }
-                final IndexInput in = dir.openInput(fileName, IOContext.DEFAULT);
-                try (var scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, similarityType, in).get()) {
+                try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                    var scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, similarityType, in).get();
                     float expected = luceneScore(similarityType, vec1, vec2, 1, 1, 1);
                     assertThat(scorer.score(0, 1), equalTo(expected));
                 }
@@ -165,9 +165,8 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                         offsets[i] = off;
                     }
                 }
-                final IndexInput in = dir.openInput(fileName, IOContext.DEFAULT);
-
-                try (var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, similarityType, in).get()) {
+                try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, similarityType, in).get();
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
                     float expected = luceneScore(similarityType, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);

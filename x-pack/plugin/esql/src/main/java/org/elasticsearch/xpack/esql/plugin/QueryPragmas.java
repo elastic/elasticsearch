@@ -41,9 +41,6 @@ public final class QueryPragmas implements Writeable {
         DataPartitioning.SEGMENT
     );
 
-    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting("time_series", false);
-    public static final Setting<TimeValue> TIME_SERIES_PERIOD = Setting.timeSetting("time_series_period", TimeValue.ZERO);
-
     /**
      * Size of a page in entries with {@code 0} being a special value asking
      * to adaptively size based on the number of columns in the page.
@@ -129,14 +126,6 @@ public final class QueryPragmas implements Writeable {
 
     public boolean isEmpty() {
         return settings.isEmpty();
-    }
-
-    public boolean timeSeriesMode() {
-        return TIME_SERIES_MODE.get(settings);
-    }
-
-    public TimeValue timeSeriesPeriod() {
-        return TIME_SERIES_PERIOD.get(settings);
     }
 
     @Override

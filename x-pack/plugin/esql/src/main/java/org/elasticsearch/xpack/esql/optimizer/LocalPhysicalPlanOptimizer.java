@@ -431,8 +431,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     if (stat != null) {
                         List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
                             singletonList(agg),
-                            emptyList(),
-                            context.configuration().pragmas().timeSeriesMode()
+                            emptyList()
                         );
                         tuple.v1().addAll(intermediateAttributes);
                         tuple.v2().add(stat);

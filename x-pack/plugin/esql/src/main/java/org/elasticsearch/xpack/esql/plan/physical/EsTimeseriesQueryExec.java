@@ -26,14 +26,6 @@ public class EsTimeseriesQueryExec extends EsQueryExec {
     public static final EsField TSID_FIELD = new EsField("_tsid", DataTypes.KEYWORD, Map.of(), true);
     public static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataTypes.DATETIME, Map.of(), true);
 
-    public static boolean isTsidAttribute(Attribute attr) {
-        return "_tsid".equals(attr.name());
-    }
-
-    public static boolean isTimestampAttribute(Attribute attr) {
-        return "@timestamp".equals(attr.name());
-    }
-
     public EsTimeseriesQueryExec(Source source, EsIndex index, QueryBuilder query) {
         this(
             source,

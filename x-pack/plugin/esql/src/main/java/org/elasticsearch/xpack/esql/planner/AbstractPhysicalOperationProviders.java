@@ -16,11 +16,9 @@ import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.TimeSeriesAggregationOperatorFactory;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
@@ -28,11 +26,9 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -41,8 +37,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec.TIMESTAMP_FIELD;
-import static org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec.TSID_FIELD;
 
 public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
@@ -60,47 +54,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         var aggregates = aggregateExec.aggregates();
 
         var sourceLayout = source.layout;
-        AggregatorMode aggregatorMode = mode == AggregateExec.Mode.FINAL ? AggregatorMode.FINAL : AggregatorMode.INITIAL;
-        if (context.queryPragmas().timeSeriesMode() && aggregateExec.groupings().isEmpty()) {
-            // TODO: only use time series grouping aggregator if a time series aggregate function is used.
-            // (time series functions don't exist yet)
-            if (mode == AggregateExec.Mode.FINAL) {
-                layout.append(aggregates);
-            } else {
-                layout.append(aggregateMapper.mapNonGrouping(aggregates));
-            }
-
-            List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>();
-            aggregatesToFactory(
-                aggregates,
-                mode,
-                sourceLayout,
-                true,
-                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
-            );
-            var tsidAttr = aggregateExec.child()
-                .outputSet()
-                .stream()
-                .filter(EsTimeseriesQueryExec::isTsidAttribute)
-                .findFirst()
-                .orElse(null);
-            var timestampAttr = aggregateExec.child()
-                .outputSet()
-                .stream()
-                .filter(EsTimeseriesQueryExec::isTimestampAttribute)
-                .findFirst()
-                .orElse(null);
-            operatorFactory = new TimeSeriesAggregationOperatorFactory(
-                aggregatorMode,
-                sourceLayout.get(tsidAttr.id()).channel(),
-                sourceLayout.get(timestampAttr.id()).channel(),
-                context.queryPragmas().timeSeriesPeriod(),
-                aggregatorFactories,
-                context.pageSize(aggregateExec.estimatedRowSize())
-            );
-
-            return source.with(operatorFactory, layout.build());
-        }
 
         if (aggregateExec.groupings().isEmpty()) {
             // not grouping
@@ -218,11 +171,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      *
      * It's similar to the code above (groupingPhysicalOperation) but ignores the factory creation.
      */
-    public static List<Attribute> intermediateAttributes(
-        List<? extends NamedExpression> aggregates,
-        List<? extends Expression> groupings,
-        boolean timeSeriesMode
-    ) {
+    public static List<Attribute> intermediateAttributes(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
         var aggregateMapper = new AggregateMapper();
 
         List<Attribute> attrs = new ArrayList<>();
@@ -263,12 +212,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
             attrs.addAll(Expressions.asAttributes(aggregateMapper.mapGrouping(aggregates)));
         }
-
-        if (timeSeriesMode) {
-            attrs.add(new FieldAttribute(Source.EMPTY, TSID_FIELD.getName(), TSID_FIELD));
-            attrs.add(new FieldAttribute(Source.EMPTY, TIMESTAMP_FIELD.getName(), TIMESTAMP_FIELD));
-        }
-
         return attrs;
     }
 

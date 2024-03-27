@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
@@ -208,6 +209,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.Entry.of;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter.writerFromPlanWriter;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
@@ -414,6 +416,7 @@ public final class PlanNamedTypes {
             of(AggregateFunction.class, Percentile.class, PlanNamedTypes::writePercentile, PlanNamedTypes::readPercentile),
             of(AggregateFunction.class, SpatialCentroid.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             of(AggregateFunction.class, Sum.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
+            of(AggregateFunction.class, Values.class, PlanNamedTypes::writeAggFunction, PlanNamedTypes::readAggFunction),
             // Multivalue functions
             of(ScalarFunction.class, MvAvg.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
             of(ScalarFunction.class, MvCount.class, PlanNamedTypes::writeMvFunction, PlanNamedTypes::readMvFunction),
@@ -994,7 +997,7 @@ public final class PlanNamedTypes {
         out.writeNamed(EsField.class, fileAttribute.field());
         out.writeOptionalString(fileAttribute.qualifier());
         out.writeEnum(fileAttribute.nullable());
-        out.writeLong(Long.parseLong(fileAttribute.id().toString()));
+        out.writeLong(stringToLong(fileAttribute.id().toString()));
         out.writeBoolean(fileAttribute.synthetic());
     }
 
@@ -1016,7 +1019,7 @@ public final class PlanNamedTypes {
         out.writeString(referenceAttribute.dataType().typeName());
         out.writeOptionalString(referenceAttribute.qualifier());
         out.writeEnum(referenceAttribute.nullable());
-        out.writeLong(Long.parseLong(referenceAttribute.id().toString()));
+        out.writeLong(stringToLong(referenceAttribute.id().toString()));
         out.writeBoolean(referenceAttribute.synthetic());
     }
 
@@ -1039,7 +1042,7 @@ public final class PlanNamedTypes {
         out.writeString(metadataAttribute.dataType().typeName());
         out.writeOptionalString(metadataAttribute.qualifier());
         out.writeEnum(metadataAttribute.nullable());
-        out.writeLong(Long.parseLong(metadataAttribute.id().toString()));
+        out.writeLong(stringToLong(metadataAttribute.id().toString()));
         out.writeBoolean(metadataAttribute.synthetic());
         out.writeBoolean(metadataAttribute.searchable());
     }
@@ -1059,7 +1062,7 @@ public final class PlanNamedTypes {
         out.writeString(unsupportedAttribute.name());
         writeUnsupportedEsField(out, unsupportedAttribute.field());
         out.writeOptionalString(unsupportedAttribute.hasCustomMessage() ? unsupportedAttribute.unresolvedMessage() : null);
-        out.writeLong(Long.parseLong(unsupportedAttribute.id().toString()));
+        out.writeLong(stringToLong(unsupportedAttribute.id().toString()));
     }
 
     // -- EsFields
@@ -1670,7 +1673,8 @@ public final class PlanNamedTypes {
         entry(name(Max.class), Max::new),
         entry(name(Median.class), Median::new),
         entry(name(MedianAbsoluteDeviation.class), MedianAbsoluteDeviation::new),
-        entry(name(SpatialCentroid.class), SpatialCentroid::new)
+        entry(name(SpatialCentroid.class), SpatialCentroid::new),
+        entry(name(Values.class), Values::new)
     );
 
     static AggregateFunction readAggFunction(PlanStreamInput in, String name) throws IOException {
@@ -1732,7 +1736,7 @@ public final class PlanNamedTypes {
         out.writeString(alias.name());
         out.writeOptionalString(alias.qualifier());
         out.writeExpression(alias.child());
-        out.writeLong(Long.parseLong(alias.id().toString()));
+        out.writeLong(stringToLong(alias.id().toString()));
         out.writeBoolean(alias.synthetic());
     }
 

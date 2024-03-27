@@ -110,10 +110,13 @@ generates a consistent id:
           query:
             match_all: {}
           sort: ["@timestamp"]
+          _source: true
+          docvalue_fields: [_ts_routing_hash]
 
   - match: {hits.total.value: 9}
 
   - match: { hits.hits.0._id: cn4excfoxSs_KdA5AAABeRnRFAY }
+  - match: { hits.hits.0.fields._ts_routing_hash: [ cn4exQ ] }
   - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z }
   - match: { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
 

@@ -57,6 +57,11 @@ public class PrecompiledCharMapNormalizerTests extends ESTestCase {
         assertNormalization("😀", parsed, "😀");
     }
 
+    public void testCharThatNormalizesToLongText() throws IOException {
+        PrecompiledCharMapNormalizer.Config parsed = loadTestCharMap();
+        assertNormalization("ﷺ", parsed, "صلى الله عليه وسلم");
+    }
+
     private void assertNormalization(String input, PrecompiledCharMapNormalizer.Config config, String expected) throws IOException {
         PrecompiledCharMapNormalizer normalizer = new PrecompiledCharMapNormalizer(
             config.offsets(),

@@ -16,6 +16,23 @@ import java.util.Set;
 
 public class EsqlFeatures implements FeatureSpecification {
     /**
+     * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
+     * Added in #106095.
+     */
+    private static final NodeFeature MV_SORT = new NodeFeature("esql.mv_sort");
+
+    /**
+     * When we disabled some broken optimizations around {@code nullable}.
+     * Fixed in #105691.
+     */
+    private static final NodeFeature DISABLE_NULLABLE_OPTS = new NodeFeature("esql.disable_nullable_opts");
+
+    /**
+     * Introduction of {@code ST_X} and {@code ST_Y}. Added in #105768.
+     */
+    private static final NodeFeature ST_X_Y = new NodeFeature("esql.st_x_y");
+
+    /**
      * When we added the warnings for multivalued fields emitting {@code null}
      * when they touched multivalued fields. Added in #102417.
      */
@@ -43,9 +60,20 @@ public class EsqlFeatures implements FeatureSpecification {
     // */
     // private static final NodeFeature GEO_SHAPE_SUPPORT = new NodeFeature("esql.geo_shape");
 
+    /**
+     * The introduction of the {@code VALUES} agg.
+     */
+    private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
+
+    /**
+     * Does ESQL support async queries.
+     */
     public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query");
 
-    private static final NodeFeature MV_LOAD = new NodeFeature("esql.mv_load");
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(ASYNC_QUERY, AGG_VALUES, MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y);
+    }
 
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
@@ -57,10 +85,5 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(POW_DOUBLE, Version.V_8_12_0)
             // Map.entry(GEO_SHAPE_SUPPORT, Version.V_8_13_0)
         );
-    }
-
-    @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(ASYNC_QUERY);
     }
 }

@@ -24,8 +24,7 @@ public class DeleteRoleRequest extends ActionRequest {
 
     private String name;
     private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.IMMEDIATE;
-
-    private boolean restrictRequest;
+    private boolean restrictRequest = false;
 
     public DeleteRoleRequest() {}
 

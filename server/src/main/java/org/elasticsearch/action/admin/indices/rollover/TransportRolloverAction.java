@@ -253,6 +253,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     Double indexWriteLoad = indexStats.map(
                         stats -> Arrays.stream(stats.getShards())
                             .filter(shardStats -> shardStats.getStats().indexing != null)
+                            .filter(shardStats -> shardStats.getShardRouting().primary())
                             .map(shardStats -> shardStats.getStats().indexing.getTotal().getWriteLoad())
                             .reduce(0.0, Double::sum)
                     ).orElse(null);

@@ -27,7 +27,9 @@ public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealth = clusterAdmin().prepareHealth().setWaitForGreenStatus().setWaitForNodes("1").get();
         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
 
-        NodesCapabilitiesResponse response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest()).actionGet();
+        // check we support the capabilities API itself. Which we do.
+        NodesCapabilitiesResponse response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities"))
+            .actionGet();
         assertThat(response.getNodes(), hasSize(1));
         assertThat(response.isSupported(), is(true));
     }

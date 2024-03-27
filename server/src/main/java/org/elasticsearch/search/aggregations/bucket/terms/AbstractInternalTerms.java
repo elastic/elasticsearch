@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.TopBucketBuilder;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -40,7 +41,7 @@ import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.S
 /**
  * Base class for terms and multi_terms aggregation that handles common reduce logic
  */
-public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B>, B extends AbstractInternalTerms.AbstractTermsBucket>
+public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B>, B extends AbstractInternalTerms.AbstractTermsBucket<B>>
     extends InternalMultiBucketAggregation<A, B> {
 
     public AbstractInternalTerms(String name, Map<String, Object> metadata) {
@@ -52,7 +53,9 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         super(in);
     }
 
-    public abstract static class AbstractTermsBucket extends InternalMultiBucketAggregation.InternalBucket {
+    public abstract static class AbstractTermsBucket<B extends AbstractTermsBucket<B>> extends InternalMultiBucketAggregation.InternalBucket
+        implements
+            KeyComparable<B> {
 
         protected abstract void updateDocCountError(long docCountErrorDiff);
 
@@ -353,12 +356,12 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         Params params,
         Long docCountError,
         long otherDocCount,
-        List<? extends AbstractTermsBucket> buckets
+        List<? extends AbstractTermsBucket<?>> buckets
     ) throws IOException {
         builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);
         builder.field(SUM_OF_OTHER_DOC_COUNTS.getPreferredName(), otherDocCount);
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (AbstractTermsBucket bucket : buckets) {
+        for (AbstractTermsBucket<?> bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         builder.endArray();

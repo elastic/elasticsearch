@@ -7,6 +7,12 @@ preview::[]
 In this tutorial, we are going to go over the data stream lifecycle retention, define it, go over how it can be configured and how
 it can be applied. Keep in mind, the following options apply only to data streams that are managed by the data stream lifecycle.
 
+. <<what-is-retention>>
+. <<retention-configuration>>
+. <<effective-retention-calculation>>
+. <<effective-retention-application>>
+
+You can verify if a data steam is managed by the data stream lifecycle via the <<data-streams-get-lifecycle,get data stream lifecycle API>>:
 
 ////
 [source,console]
@@ -35,8 +41,6 @@ DELETE /_data_stream/_global_retention
 // TEARDOWN
 ////
 
-You can verify this using the <<data-streams-get-lifecycle,get data stream lifecycle API>>:
-
 [source,console]
 --------------------------------------------------
 GET _data_stream/my-data-stream/_lifecycle
@@ -60,11 +64,6 @@ The result should look like this:
 // TESTRESPONSE[skip:the result is for illustrating purposes only]
 <1> The name of your data stream.
 <2> Ensure that the lifecycle is enabled, meaning this should be `true`.
-
-. <<what-is-retention>>
-. <<retention-configuration>>
-. <<effective-retention-calculation>>
-. <<effective-retention-application>>
 
 [discrete]
 [[what-is-retention]]
@@ -96,9 +95,9 @@ calculated as it is described <<effective-retention-calculation,here>>.
 [[retention-configuration]]
 ==== How to configure retention?
 
-`data_retention`
-The data stream level retention can be configured in two ways:
-- For new data streams, it can be defined in the index template that would be applied during the data stream's creation.
+- By setting the `data_retention` on the data stream level. This retention can be configured in two ways:
++
+-- For new data streams, it can be defined in the index template that would be applied during the data stream's creation.
 You can use the <<indices-put-template,create index template API>>, for example:
 +
 [source,console]
@@ -118,7 +117,7 @@ PUT _index_template/template
   }
 }
 --------------------------------------------------
-- For an existing data stream, it can be set via the <<data-streams-put-lifecycle, PUT lifecycle API>>.
+-- For an existing data stream, it can be set via the <<data-streams-put-lifecycle, PUT lifecycle API>>.
 +
 [source,console]
 ----
@@ -130,10 +129,9 @@ PUT _data_stream/my-data-stream/_lifecycle
 // TEST[continued]
 <1> The retention period of this data stream is set to 30 days.
 
-`default_retention` & `max_retention`
-
-The `default_retention` & `max_retention` are set on a project level via the <<data-streams-put-global-retention, PUT global retention API>>.
-For example:
+- By setting the global retention via the `default_retention` and `max_retention` that are set on a project level. You
+can set them via the <<data-streams-put-global-retention, PUT global retention API>>. For example:
++
 [source,console]
 --------------------------------------------------
 PUT _data_stream/_global_retention
@@ -148,6 +146,7 @@ PUT _data_stream/_global_retention
 [[effective-retention-calculation]]
 ==== How is the effective retention calculated?
 The effective is calculated in the following way:
+
 - The `effective_retention` is the `default_retention`, when `default_retention` is defined and the data stream does not
 have `data_retention`.
 - The `effective_retention` is the `data_retention`, when `data_retention` is defined and if `max_retention` is defined,

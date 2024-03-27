@@ -8,31 +8,9 @@
 
 package org.elasticsearch.test.rest;
 
-import org.elasticsearch.Version;
-
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.NavigableMap;
 import java.util.Set;
-import java.util.function.Predicate;
 
 public interface TestFeatureService {
-
-    static Predicate<String> createHistoricalFeaturePredicate(
-        NavigableMap<Version, Set<String>> historicalFeatures,
-        Collection<Version> nodeVersions
-    ) {
-        var minNodeVersion = nodeVersions.stream().min(Comparator.naturalOrder());
-        return minNodeVersion.<Predicate<String>>map(
-            v -> featureId -> TestFeatureService.hasHistoricalFeature(historicalFeatures, v, featureId)
-        ).orElse(featureId -> true); // We can safely assume that new non-semantic versions (serverless) support all historical features
-    }
-
-    static boolean hasHistoricalFeature(NavigableMap<Version, Set<String>> historicalFeatures, Version version, String featureId) {
-        var features = historicalFeatures.floorEntry(version);
-        return features != null && features.getValue().contains(featureId);
-    }
-
     boolean clusterHasFeature(String featureId);
 
     Set<String> getAllSupportedFeatures();

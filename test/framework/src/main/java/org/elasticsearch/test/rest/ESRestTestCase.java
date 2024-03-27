@@ -60,7 +60,6 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureSpecification;
@@ -87,11 +86,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -123,6 +120,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
 import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
@@ -364,12 +362,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     ) {
         final List<FeatureSpecification> featureSpecifications = new ArrayList<>(createAdditionalFeatureSpecifications());
         featureSpecifications.add(new RestTestLegacyFeatures());
-
-        // Historical features information is unavailable when using legacy test plugins
-        boolean hasHistoricalFeaturesInformation = System.getProperty("tests.features.metadata.path") != null;
-        if (hasHistoricalFeaturesInformation) {
-            featureSpecifications.add(new ESRestTestCaseHistoricalFeatures());
-        } else {
+        ESRestTestFeatureService featureService = new ESRestTestFeatureService(
+            featureSpecifications,
+            semanticNodeVersions,
+            ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
+        );
+        if (featureService.isLegacyTestFramework()) {
             logger.warn(
                 "This test is running on the legacy test framework; historical features from production code will not be available. "
                     + "You need to port the test to the new test plugins in order to use historical features from production code. "
@@ -377,14 +375,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 RestTestLegacyFeatures.class.getCanonicalName()
             );
         }
-
-        return new ESRestTestFeatureService(
-            hasHistoricalFeaturesInformation,
-            ESRestTestCaseHistoricalFeatures.loadFeatureNames(System.getProperty("tests.features.metadata.path")),
-            featureSpecifications,
-            semanticNodeVersions,
-            ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
-        );
+        return featureService;
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -2410,71 +2401,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         } catch (IOException e) {
             // do nothing, ML is disabled
             return false;
-        }
-    }
-
-    private static class ESRestTestCaseHistoricalFeatures implements FeatureSpecification {
-        private static Map<NodeFeature, Version> historicalFeatures;
-
-        @Override
-        public Map<NodeFeature, Version> getHistoricalFeatures() {
-            if (historicalFeatures == null) {
-                String metadataPath = System.getProperty("tests.features.metadata.path");
-                if (metadataPath == null) {
-                    throw new UnsupportedOperationException(
-                        "Historical features information is unavailable when using legacy test plugins."
-                    );
-                }
-                historicalFeatures = Collections.unmodifiableMap(loadHistoricalFeatures(metadataPath));
-            }
-            return historicalFeatures;
-        }
-
-        @SuppressForbidden(reason = "File#pathSeparator has not equivalent in java.nio.file")
-        static Map<NodeFeature, Version> loadHistoricalFeatures(String metadataPath) {
-            Map<NodeFeature, Version> historicalFeaturesMap = new HashMap<>();
-            String[] metadataFiles = metadataPath.split(File.pathSeparator);
-            for (String metadataFile : metadataFiles) {
-                try (
-                    InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
-                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
-                ) {
-                    Map<String, Object> parsedMap = parser.map();
-                    if (parsedMap.get("historical_features") instanceof Map<?, ?> parsedHistoricalFeatures) {
-                        for (var entry : parsedHistoricalFeatures.entrySet()) {
-                            historicalFeaturesMap.put(
-                                new NodeFeature((String) entry.getKey()),
-                                Version.fromString((String) entry.getValue())
-                            );
-                        }
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-            return historicalFeaturesMap;
-        }
-
-        @SuppressForbidden(reason = "File#pathSeparator has not equivalent in java.nio.file")
-        static Set<String> loadFeatureNames(String metadataPath) {
-            Set<String> featureNames = new HashSet<>();
-            String[] metadataFiles = metadataPath.split(File.pathSeparator);
-            for (String metadataFile : metadataFiles) {
-                try (
-                    InputStream in = Files.newInputStream(PathUtils.get(metadataFile));
-                    XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, in)
-                ) {
-                    Map<String, Object> parsedMap = parser.map();
-                    if (parsedMap.get("feature_names") instanceof ArrayList<?> parsedFeatureNames) {
-                        for (var entry : parsedFeatureNames) {
-                            featureNames.add((String) entry);
-                        }
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-            return featureNames;
         }
     }
 

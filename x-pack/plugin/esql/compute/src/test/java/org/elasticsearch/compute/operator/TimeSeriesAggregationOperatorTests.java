@@ -96,36 +96,6 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
         );
     }
 
-    // TODO: in a follow up add support for ordinal based time series grouping operator
-    // (and then remove this test)
-    // (ordinal based can only group by one field and never includes timestamp)
-    public void testBasicRateOrdinalBased() {
-        long[] v1 = { 1, 1, 3, 0, 2, 9, 21, 3, 7, 7, 9, 12 };
-        long[] t1 = { 1, 5, 11, 20, 21, 59, 88, 91, 92, 97, 99, 112 };
-
-        long[] v2 = { 7, 2, 0, 11, 24, 0, 4, 1, 10, 2 };
-        long[] t2 = { 1, 2, 4, 5, 6, 8, 10, 11, 12, 14 };
-
-        long[] v3 = { 0, 1, 0, 1, 1, 4, 2, 2, 2, 2, 3, 5, 5 };
-        long[] t3 = { 2, 3, 5, 7, 8, 9, 10, 12, 14, 15, 18, 20, 22 };
-        List<Pod> pods = List.of(new Pod("p1", t1, v1), new Pod("p2", t2, v2), new Pod("p3", t3, v3));
-        long unit = between(1, 5);
-        Map<String, Double> actualRates = runRateTestOrdinalBased(pods, TimeValue.timeValueMillis(unit));
-        assertThat(
-            actualRates,
-            equalTo(
-                Map.of(
-                    "p1",
-                    35.0 * unit / 111.0,
-                    "p2",
-                    42.0 * unit / 13.0,
-                    "p3",
-                    10.0 * unit / 20.0
-                )
-            )
-        );
-    }
-
     public void testRateWithInterval() {
         long[] v1 = { 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3 };
         long[] t1 = { 0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000, 110_000, 120_000 };
@@ -175,36 +145,6 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
             }
         }
         Map<Group, Double> actualRates = runRateTest(pods, unit, TimeValue.ZERO);
-        assertThat(actualRates, equalTo(expectedRates));
-    }
-
-    // TODO: in a follow up add support for ordinal based time series grouping operator
-    // (and then remove this test)
-    // (ordinal based can only group by one field and never includes timestamp)
-    public void testRandomRateOrdinalBased() {
-        int numPods = between(1, 10);
-        List<Pod> pods = new ArrayList<>();
-        Map<String, Double> expectedRates = new HashMap<>();
-        TimeValue unit = TimeValue.timeValueSeconds(1);
-        for (int p = 0; p < numPods; p++) {
-            int numValues = between(2, 100);
-            long[] values = new long[numValues];
-            long[] times = new long[numValues];
-            long t = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
-            for (int i = 0; i < numValues; i++) {
-                values[i] = randomIntBetween(0, 100);
-                t += TimeValue.timeValueSeconds(between(1, 10)).millis();
-                times[i] = t;
-            }
-            Pod pod = new Pod("p" + p, times, values);
-            pods.add(pod);
-            if (numValues == 1) {
-                expectedRates.put(pod.name, null);
-            } else {
-                expectedRates.put(pod.name, pod.expectedRate(unit));
-            }
-        }
-        Map<String, Double> actualRates = runRateTestOrdinalBased(pods, unit);
         assertThat(actualRates, equalTo(expectedRates));
     }
 
@@ -302,6 +242,66 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
     }
 
     record Group(String tsidHash, long timestampInterval) {}
+
+    // TODO: in a follow up add support for ordinal based time series grouping operator
+    // (and then remove this test)
+    // (ordinal based can only group by one field and never includes timestamp)
+    public void testBasicRateOrdinalBased() {
+        long[] v1 = { 1, 1, 3, 0, 2, 9, 21, 3, 7, 7, 9, 12 };
+        long[] t1 = { 1, 5, 11, 20, 21, 59, 88, 91, 92, 97, 99, 112 };
+
+        long[] v2 = { 7, 2, 0, 11, 24, 0, 4, 1, 10, 2 };
+        long[] t2 = { 1, 2, 4, 5, 6, 8, 10, 11, 12, 14 };
+
+        long[] v3 = { 0, 1, 0, 1, 1, 4, 2, 2, 2, 2, 3, 5, 5 };
+        long[] t3 = { 2, 3, 5, 7, 8, 9, 10, 12, 14, 15, 18, 20, 22 };
+        List<Pod> pods = List.of(new Pod("p1", t1, v1), new Pod("p2", t2, v2), new Pod("p3", t3, v3));
+        long unit = between(1, 5);
+        Map<String, Double> actualRates = runRateTestOrdinalBased(pods, TimeValue.timeValueMillis(unit));
+        assertThat(
+            actualRates,
+            equalTo(
+                Map.of(
+                    "p1",
+                    35.0 * unit / 111.0,
+                    "p2",
+                    42.0 * unit / 13.0,
+                    "p3",
+                    10.0 * unit / 20.0
+                )
+            )
+        );
+    }
+
+    // TODO: in a follow up add support for ordinal based time series grouping operator
+    // (and then remove this test)
+    // (ordinal based can only group by one field and never includes timestamp)
+    public void testRandomRateOrdinalBased() {
+        int numPods = between(1, 10);
+        List<Pod> pods = new ArrayList<>();
+        Map<String, Double> expectedRates = new HashMap<>();
+        TimeValue unit = TimeValue.timeValueSeconds(1);
+        for (int p = 0; p < numPods; p++) {
+            int numValues = between(2, 100);
+            long[] values = new long[numValues];
+            long[] times = new long[numValues];
+            long t = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
+            for (int i = 0; i < numValues; i++) {
+                values[i] = randomIntBetween(0, 100);
+                t += TimeValue.timeValueSeconds(between(1, 10)).millis();
+                times[i] = t;
+            }
+            Pod pod = new Pod("p" + p, times, values);
+            pods.add(pod);
+            if (numValues == 1) {
+                expectedRates.put(pod.name, null);
+            } else {
+                expectedRates.put(pod.name, pod.expectedRate(unit));
+            }
+        }
+        Map<String, Double> actualRates = runRateTestOrdinalBased(pods, unit);
+        assertThat(actualRates, equalTo(expectedRates));
+    }
 
     Map<String, Double> runRateTestOrdinalBased(List<Pod> pods, TimeValue unit) {
         long unitInMillis = unit.millis();

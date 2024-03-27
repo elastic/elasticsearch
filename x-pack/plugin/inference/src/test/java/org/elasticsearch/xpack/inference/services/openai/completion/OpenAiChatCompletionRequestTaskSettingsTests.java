@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -28,9 +29,7 @@ public class OpenAiChatCompletionRequestTaskSettingsTests extends ESTestCase {
     }
 
     public void testFromMap_ReturnsUser() {
-        var settings = OpenAiChatCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiChatCompletionTaskSettings.USER, "user"))
-        );
+        var settings = OpenAiChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
         assertThat(settings.user(), is("user"));
     }
 
@@ -38,7 +37,7 @@ public class OpenAiChatCompletionRequestTaskSettingsTests extends ESTestCase {
         var map = new HashMap<String, Object>();
 
         if (user != null) {
-            map.put(OpenAiChatCompletionTaskSettings.USER, user);
+            map.put(OpenAiServiceFields.USER, user);
         }
 
         return map;

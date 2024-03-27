@@ -824,12 +824,21 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final TestTelemetryPlugin plugin = getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
+
         List<Measurement> measurements = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_SHARD);
         assertFalse(measurements.isEmpty());
         for (Measurement measurement : measurements) {
             assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
             assertEquals(1, measurement.attributes().size());
             assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
+        }
+
+        measurements = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_TOTAL);
+        assertFalse(measurements.isEmpty());
+        for (Measurement measurement : measurements) {
+            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
+            assertEquals(1, measurement.attributes().size());
+            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed")));
         }
     }
 

@@ -25,6 +25,8 @@ setup:
                     similarity: l2_norm
                     index_options:
                       type: hnsw
+                      m: 16
+                      ef_construction: 200
 
   - do:
       index:

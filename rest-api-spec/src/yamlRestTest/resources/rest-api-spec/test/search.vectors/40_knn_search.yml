@@ -17,6 +17,8 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: hnsw
+                  m: 16
+                  ef_construction: 200
               another_vector:
                 type: dense_vector
                 dims: 5
@@ -24,6 +26,8 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: hnsw
+                  m: 16
+                  ef_construction: 200
 
   - do:
       index:
@@ -377,6 +381,8 @@ setup:
                 similarity: max_inner_product
                 index_options:
                   type: hnsw
+                  m: 16
+                  ef_construction: 200
 
   - do:
       index:

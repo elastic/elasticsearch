@@ -10,7 +10,7 @@ the `elastic` built-in superuser.
 * Certificates and keys for TLS are generated for the transport and HTTP layer,
 and TLS is enabled and configured with these keys and certificates.
 
-The password and certificate and keys are output to your terminal.
+The password and certificate and keys are output to your terminal. If that's not the case, reset the password for the user `elastic` with <<reset-password,`elasticsearch-reset-password`>>.
 
 We recommend storing the `elastic` password as an environment variable in your shell. Example:
 

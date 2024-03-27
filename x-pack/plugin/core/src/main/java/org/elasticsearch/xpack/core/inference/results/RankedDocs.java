@@ -20,19 +20,23 @@ import java.util.Map;
 public class RankedDocs implements InferenceServiceResults {
     List<RankedDoc> rankedDocs;
 
+    public RankedDocs(List<RankedDoc> rankedDocs) {
+        this.rankedDocs = rankedDocs;
+    }
+
     /**
      * A record representing a document that has been ranked by the cohere rerank API
      * @param id the index of the document when it was passed to the cohere rerank API
      * @param relevanceScore
      * @param text
      */
-    public record RankedDoc(String id, double relevanceScore, String text) {};
+    public record RankedDoc(String id, String relevanceScore, String text) {};
 
     public RankedDocs() {
         this.rankedDocs = new ArrayList<RankedDoc>(0);
     }
 
-    public void addRankedDoc(String id, double relevanceScore, String text) {
+    public void addRankedDoc(String id, String relevanceScore, String text) {
         this.rankedDocs.add(new RankedDoc(id, relevanceScore, text));
     }
 

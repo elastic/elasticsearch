@@ -48,7 +48,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
 
     @Override
     public String toString() {
-        return this == NIGHTLY ? "nightly." + emoji : String.format("%d.%02d.%s", year, month, emoji);
+        return versionStringNoEmoji() + "." + emoji;
     }
 
     @Override

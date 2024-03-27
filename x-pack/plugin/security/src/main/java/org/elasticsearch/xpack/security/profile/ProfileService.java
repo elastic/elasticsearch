@@ -336,15 +336,10 @@ public class ProfileService {
                     .filter(t -> Objects.nonNull(t.v2()))
                     .map(t -> new Tuple<>(t.v1(), t.v2().uid()))
                     .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
-                listener.onResponse(
-                    apiKeyInfos.stream()
-                        .map(
-                            apiKeyInfo -> getApiKeyCreatorSubject(apiKeyInfo) == null
-                                ? null
-                                : profileUidLookup.get(getApiKeyCreatorSubject(apiKeyInfo))
-                        )
-                        .toList()
-                );
+                listener.onResponse(apiKeyInfos.stream().map(apiKeyInfo -> {
+                    Subject subject = getApiKeyCreatorSubject(apiKeyInfo);
+                    return subject == null ? null : profileUidLookup.get(subject);
+                }).toList());
             } else {
                 final ElasticsearchStatusException exception = new ElasticsearchStatusException(
                     "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",

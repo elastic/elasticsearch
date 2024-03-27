@@ -66,9 +66,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
     ) {
         assert taskContext.getTask() == this;
         if (featureService.clusterHasFeature(state, License.INDEPENDENT_TRIAL_VERSION_FEATURE) == false) {
-            throw new IllegalStateException(
-                "Please ensure all nodes are up to date before starting your trial"
-            );
+            throw new IllegalStateException("Please ensure all nodes are up to date before starting your trial");
         }
         final var listener = ActionListener.runBefore(this.listener, () -> {
             logger.debug("started self generated trial license: {}", currentLicensesMetadata);

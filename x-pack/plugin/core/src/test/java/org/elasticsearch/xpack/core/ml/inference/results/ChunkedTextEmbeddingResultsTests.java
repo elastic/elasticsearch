@@ -39,6 +39,10 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
         return new ChunkedTextEmbeddingResults(DEFAULT_RESULTS_FIELD, chunks, randomBoolean());
     }
 
+    /**
+     * Similar to {@link ChunkedTextEmbeddingResults.EmbeddingChunk#asMap()} but it converts the double array into a list of doubles to
+     * make testing equality easier.
+     */
     public static Map<String, Object> asMapWithListsInsteadOfArrays(ChunkedTextEmbeddingResults.EmbeddingChunk chunk) {
         var map = new HashMap<String, Object>();
         map.put(TEXT, chunk.matchedText());
@@ -64,5 +68,4 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
             default -> throw new IllegalArgumentException("unexpected case");
         };
     }
-
 }

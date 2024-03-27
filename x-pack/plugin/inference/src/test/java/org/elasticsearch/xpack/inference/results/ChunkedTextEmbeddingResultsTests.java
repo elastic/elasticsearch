@@ -46,6 +46,10 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
         return new ChunkedTextEmbeddingResults(chunks);
     }
 
+    /**
+     * Similar to {@link ChunkedTextEmbeddingResults#asMap()} but it converts the embeddings double array into a list of doubles to
+     * make testing equality easier.
+     */
     public static Map<String, Object> asMapWithListsInsteadOfArrays(ChunkedTextEmbeddingResults result) {
         return Map.of(
             ChunkedTextEmbeddingResults.FIELD_NAME,

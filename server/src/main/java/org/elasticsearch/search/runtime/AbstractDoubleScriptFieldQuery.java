@@ -22,7 +22,7 @@ abstract class AbstractDoubleScriptFieldQuery extends AbstractScriptFieldQuery<D
     }
 
     @Override
-    protected boolean matches(DoubleFieldScript scriptContext, int docId) {
+    protected final boolean matches(DoubleFieldScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
         return matches(scriptContext.values(), scriptContext.count());
     }

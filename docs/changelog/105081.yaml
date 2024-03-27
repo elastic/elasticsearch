@@ -1,6 +1,0 @@
-pr: 105081
-summary: For empty mappings use a `LocalRelation`
-area: ES|QL
-type: bug
-issues:
- - 104809

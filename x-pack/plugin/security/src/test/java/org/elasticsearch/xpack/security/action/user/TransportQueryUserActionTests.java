@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.user.QueryUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.QueryUserResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -305,16 +304,8 @@ public class TransportQueryUserActionTests extends ESTestCase {
 
     private Realms mockRealms() {
         final Realms realms = mock(Realms.class);
-        when(realms.getRealmRefs()).thenReturn(
-            Map.of(
-                new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME),
-                new Authentication.RealmRef(
-                    NativeRealmSettings.DEFAULT_NAME,
-                    NativeRealmSettings.TYPE,
-                    randomAlphaOfLengthBetween(3, 8),
-                    null
-                )
-            )
+        when(realms.getNativeRealmRef()).thenReturn(
+            new Authentication.RealmRef(NativeRealmSettings.DEFAULT_NAME, NativeRealmSettings.TYPE, randomAlphaOfLengthBetween(3, 8), null)
         );
         return realms;
     }

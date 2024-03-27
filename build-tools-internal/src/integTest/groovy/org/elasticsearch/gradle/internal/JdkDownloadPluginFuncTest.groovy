@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal
 
-import spock.lang.TempDir
+
 import spock.lang.Unroll
 import com.github.tomakehurst.wiremock.WireMockServer
 
@@ -102,10 +102,6 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
         buildFile.text = """
             plugins {
              id 'elasticsearch.jdk-download' apply false
-            }
-
-            subprojects {
-
             }
         """
         3.times {

@@ -8,15 +8,36 @@
 
 package org.elasticsearch.nativeaccess;
 
-class NoopNativeAccess extends AbstractNativeAccess {
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
-    NoopNativeAccess() {
-        super("noop");
-    }
+class NoopNativeAccess implements NativeAccess {
+
+    private static final Logger logger = LogManager.getLogger(NativeAccess.class);
+
+    NoopNativeAccess() {}
 
     @Override
     public boolean definitelyRunningAsRoot() {
         logger.warn("Cannot check if running as root because native access is not available");
         return false;
+    }
+
+    @Override
+    public Systemd systemd() {
+        logger.warn("Cannot get systemd access because native access is not available");
+        return null;
+    }
+
+    @Override
+    public Zstd getZstd() {
+        logger.warn("cannot compress with zstd because native access is not available");
+        return null;
+    }
+
+    @Override
+    public CloseableByteBuffer newBuffer(int len) {
+        logger.warn("cannot allocate buffer because native access is not available");
+        return null;
     }
 }

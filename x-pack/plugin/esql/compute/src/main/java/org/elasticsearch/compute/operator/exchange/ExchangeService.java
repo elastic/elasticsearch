@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -91,7 +92,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      *
      * @throws IllegalStateException if a sink handler for the given id already exists
      */
-    ExchangeSinkHandler createSinkHandler(String exchangeId, int maxBufferSize) {
+    public ExchangeSinkHandler createSinkHandler(String exchangeId, int maxBufferSize) {
         ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool::relativeTimeInMillis);
         if (sinks.putIfAbsent(exchangeId, sinkHandler) != null) {
             throw new IllegalStateException("sink exchanger for id [" + exchangeId + "] already exists");
@@ -112,8 +113,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     /**
      * Removes the exchange sink handler associated with the given exchange id.
+     * W will abort the sink handler if the given failure is not null.
      */
-    public void finishSinkHandler(String exchangeId, Exception failure) {
+    public void finishSinkHandler(String exchangeId, @Nullable Exception failure) {
         final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
         if (sinkHandler != null) {
             if (failure != null) {

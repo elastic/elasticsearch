@@ -196,7 +196,11 @@ public class QueryRewriteContext {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
+                name,
+                getIndexAnalyzers(),
+                getIndexSettings() != null && getIndexSettings().getMode().isSyntheticSourceEnabled()
+            );
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -336,13 +340,13 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Same as {@link #getMatchingFieldNames(String)} with pattern {@code *} but returns an {@link Iterable} instead of a set.
+     * @return An {@link Iterable} with key the field name and value the MappedFieldType
      */
-    public Iterable<String> getAllFieldNames() {
-        var allFromMapping = mappingLookup.getMatchingFieldNames("*");
+    public Iterable<Map.Entry<String, MappedFieldType>> getAllFields() {
+        var allFromMapping = mappingLookup.getFullNameToFieldType();
         // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
         return runtimeMappings.isEmpty()
-            ? allFromMapping
-            : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
+            ? allFromMapping.entrySet()
+            : () -> Iterators.concat(allFromMapping.entrySet().iterator(), runtimeMappings.entrySet().iterator());
     }
 }

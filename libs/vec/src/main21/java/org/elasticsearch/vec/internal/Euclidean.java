@@ -6,15 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.jdk.vec;
+package org.elasticsearch.vec.internal;
+
+import org.apache.lucene.store.IndexInput;
 
 import java.lang.foreign.MemorySegment;
 
-// Scalar Quantized vectors are inherently bytes.
-final class Euclidean extends AbstractScalarQuantizedVectorScorer {
+import static org.elasticsearch.vec.internal.IndexInputUtils.segmentSlice;
 
-    Euclidean(int dims, int maxOrd, float scoreCorrectionConstant, VectorDataInput data) {
-        super(dims, maxOrd, scoreCorrectionConstant, data);
+// Scalar Quantized vectors are inherently bytes.
+public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
+
+    public Euclidean(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
+        super(dims, maxOrd, scoreCorrectionConstant, input);
     }
 
     @Override
@@ -24,12 +28,12 @@ final class Euclidean extends AbstractScalarQuantizedVectorScorer {
 
         final int length = dims;
         int firstByteOffset = firstOrd * (length + Float.BYTES);
-        MemorySegment firstSeg = data.addressFor(firstByteOffset, length);
+        MemorySegment firstSeg = segmentSlice(input, firstByteOffset, length);
 
         int secondByteOffset = secondOrd * (length + Float.BYTES);
-        MemorySegment secondSeg = data.addressFor(secondByteOffset, length);
+        MemorySegment secondSeg = segmentSlice(input, secondByteOffset, length);
 
-        int squareDistance = DISTANCE_FUNCS.squareDistance(firstSeg, secondSeg, length);
+        int squareDistance = squareDistance(firstSeg, secondSeg, length);
         float adjustedDistance = squareDistance * scoreCorrectionConstant;
         return 1 / (1f + adjustedDistance);
     }

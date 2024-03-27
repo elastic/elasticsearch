@@ -19,12 +19,14 @@ import java.util.Optional;
 abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     protected final PosixCLibrary libc;
-    protected final VectorScorerFactory vectorScorerFactory;
+    protected final VectorSimilarityFunctions vectorDistance;
 
     PosixNativeAccess(String name, NativeLibraryProvider libraryProvider) {
         super(name, libraryProvider);
         this.libc = libraryProvider.getLibrary(PosixCLibrary.class);
-        this.vectorScorerFactory = Runtime.version().feature() >= 21 ? libraryProvider.getLibrary(VectorLibrary.class) : null;
+        this.vectorDistance = Runtime.version().feature() >= 21
+            ? new VectorSimilarityFunctions(libraryProvider.getLibrary(VectorLibrary.class))
+            : null;
     }
 
     @Override
@@ -33,13 +35,13 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public VectorScorerFactory getVectorScorerFactory() {
-        return vectorScorerFactory;
+    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+        return Optional.ofNullable(vectorDistance);
     }
 
-    static boolean isNativeVectorLibSupported() {
-        return Runtime.version().feature() >= 21 && isMacOrLinuxAarch64() && checkEnableSystemProperty();
-    }
+    // static boolean isNativeVectorLibSupported() { TODO: remove
+    // return Runtime.version().feature() >= 21 && isMacOrLinuxAarch64() && checkEnableSystemProperty();
+    // }
 
     /** Returns true iff the OS is Mac or Linux, and the architecture is aarch64. */
     static boolean isMacOrLinuxAarch64() {

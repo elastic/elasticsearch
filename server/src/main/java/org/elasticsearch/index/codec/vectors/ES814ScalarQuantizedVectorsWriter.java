@@ -38,13 +38,10 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.InfoStream;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.Unwrappable;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
@@ -55,10 +52,9 @@ import org.apache.lucene.util.quantization.ScalarQuantizedRandomVectorScorerSupp
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.mapper.vectors.VectorScorerSupplierAdapter;
-import org.elasticsearch.index.mapper.vectors.VectorSimilarityTypeConverter;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.VectorScorerFactory;
+import org.elasticsearch.vec.VectorScorerFactory;
+import org.elasticsearch.vec.VectorScorerSupplierAdapter;
+import org.elasticsearch.vec.VectorSimilarityType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -66,6 +62,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.QUANTIZED_VECTOR_COMPONENT;
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.calculateDefaultConfidenceInterval;
@@ -428,31 +425,24 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
             success = true;
             final IndexInput finalQuantizationDataInput = quantizationDataInput;
 
-            // -- chegar here --
-            RandomVectorScorerSupplier scorerSupplier;
-            VectorScorerFactory factory = NativeAccess.instance().getVectorScorerFactory();
-            var unwrappedDir = FilterDirectory.unwrap(segmentWriteState.directory);
-            // assert unwrappedDir instanceof FSDirectory : "Expected FSDirectory, got: " + unwrappedDir ;
-            if (factory != null && unwrappedDir instanceof FSDirectory dir) {
-                var similarity = VectorSimilarityTypeConverter.of(fieldInfo.getVectorSimilarityFunction());
-                var path = Unwrappable.unwrapAll(dir.getDirectory().resolve(tempQuantizedVectorData.getName()));
-                var sc = mergedQuantizationState.getConstantMultiplier();
-                var dim = byteVectorValues.dimension();
-                var maxOrd = docsWithField.cardinality();
-                var scorer = factory.getScalarQuantizedVectorScorer(dim, maxOrd, sc, similarity, path);
-                scorerSupplier = new VectorScorerSupplierAdapter(scorer);
-                // System.out.println("HEGO using new impl, " + unwrappedDir);
-                // var x = scorerSupplier.scorer(0);
-                // x.score(0);
-
-                // } else {
-                // // var msg = "unexpected dir type: " + unwrappedDir.getClass() + ", [" + unwrappedDir + "]";
-                // // throw new UnsupportedOperationException(msg);
-                // }
-            } else {
-                // var x = unwrappedDir instanceof FSDirectory;
-                // System.out.println("HEGO using old impl, FSDirectory=" + x + ", " + unwrappedDir);
-                // throw new UnsupportedOperationException("expected provider, but was none");
+            // retrieve a scorer
+            RandomVectorScorerSupplier scorerSupplier = null;
+            Optional<VectorScorerFactory> factory = VectorScorerFactory.instance();
+            if (factory.isPresent()) {
+                var scorer = factory.get()
+                    .getScalarQuantizedVectorScorer(
+                        byteVectorValues.dimension(),
+                        docsWithField.cardinality(),
+                        mergedQuantizationState.getConstantMultiplier(),
+                        VectorSimilarityType.of(fieldInfo.getVectorSimilarityFunction()),
+                        quantizationDataInput
+                    )
+                    .map(VectorScorerSupplierAdapter::new);
+                if (scorer.isPresent()) {
+                    scorerSupplier = scorer.get();
+                }
+            }
+            if (scorerSupplier == null) {
                 scorerSupplier = new ScalarQuantizedRandomVectorScorerSupplier(
                     fieldInfo.getVectorSimilarityFunction(),
                     mergedQuantizationState,

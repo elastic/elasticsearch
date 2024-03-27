@@ -6,12 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper.vectors;
+package org.elasticsearch.vec;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.elasticsearch.nativeaccess.VectorSimilarityType;
 
-public final class VectorSimilarityTypeConverter {
+public enum VectorSimilarityType {
+
+    COSINE,
+
+    DOT_PRODUCT,
+
+    EUCLIDEAN,
+
+    MAXIMUM_INNER_PRODUCT;
 
     public static VectorSimilarityType of(VectorSimilarityFunction func) {
         return switch (func) {
@@ -19,6 +26,15 @@ public final class VectorSimilarityTypeConverter {
             case COSINE -> VectorSimilarityType.COSINE;
             case DOT_PRODUCT -> VectorSimilarityType.DOT_PRODUCT;
             case MAXIMUM_INNER_PRODUCT -> VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+        };
+    }
+
+    public static VectorSimilarityFunction of(VectorSimilarityType func) {
+        return switch (func) {
+            case EUCLIDEAN -> VectorSimilarityFunction.EUCLIDEAN;
+            case COSINE -> VectorSimilarityFunction.COSINE;
+            case DOT_PRODUCT -> VectorSimilarityFunction.DOT_PRODUCT;
+            case MAXIMUM_INNER_PRODUCT -> VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
         };
     }
 }

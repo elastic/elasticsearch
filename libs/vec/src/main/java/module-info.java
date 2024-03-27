@@ -6,13 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.jdk.vec;
+module org.elasticsearch.vec {
+    requires org.elasticsearch.nativeaccess;
+    requires org.apache.lucene.core;
 
-import java.lang.foreign.MemorySegment;
-
-public interface VectorDistance {
-
-    int dotProduct(MemorySegment a, MemorySegment b, int length);
-
-    int squareDistance(MemorySegment a, MemorySegment b, int length);
+    exports org.elasticsearch.vec;
 }

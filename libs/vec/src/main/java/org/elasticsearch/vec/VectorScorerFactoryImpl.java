@@ -6,18 +6,24 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.vec;
 
-import java.io.IOException;
-import java.nio.file.Path;
+import org.apache.lucene.store.IndexInput;
 
-public interface VectorScorerFactory {
+import java.util.Optional;
 
-    VectorScorer getScalarQuantizedVectorScorer(
+public class VectorScorerFactoryImpl implements VectorScorerFactory {
+
+    static final VectorScorerFactoryImpl INSTANCE = null;
+
+    @Override
+    public Optional<VectorScorer> getScalarQuantizedVectorScorer(
         int dims,
         int maxOrd,
         float scoreCorrectionConstant,
         VectorSimilarityType similarityType,
-        Path path
-    ) throws IOException;
+        IndexInput input
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
 }

@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
 
@@ -53,7 +54,7 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         String fieldName = "field";
         Document doc = new Document();
         doc.add(new KnnFloatVectorField(fieldName, new float[4], VectorSimilarityFunction.DOT_PRODUCT));
-        try (Directory dir = newFSDirectory(root.resolve("dir1")); Directory dir2 = newFSDirectory(root.resolve("dir2"))) {
+        try (Directory dir = new MMapDirectory(root.resolve("dir1")); Directory dir2 = new MMapDirectory(root.resolve("dir2"))) {
             try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
                 w.addDocument(doc);
             }
@@ -93,7 +94,7 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         float[] vector = new float[] { 1f };
         Document doc = new Document();
         doc.add(new KnnFloatVectorField(fieldName, vector, similarityFunction));
-        try (Directory dir = newFSDirectory(root.resolve("dir1")); Directory dir2 = newFSDirectory(root.resolve("dir2"))) {
+        try (Directory dir = new MMapDirectory(root.resolve("dir1")); Directory dir2 = new MMapDirectory(root.resolve("dir2"))) {
             try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
                 w.addDocument(doc);
             }

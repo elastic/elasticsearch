@@ -6,8 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.vec;
 
+import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -15,17 +16,20 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Optional;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
-    static VectorScorerFactory factory;
+    static Optional<VectorScorerFactory> factory;
 
     @BeforeClass
     public static void getVectorScorerFactory() {
-        factory = NativeAccess.instance().getVectorScorerFactory();
+        factory = VectorScorerFactory.instance();
     }
 
     protected AbstractVectorTestCase() {
@@ -38,10 +42,10 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         var osName = System.getProperty("os.name");
 
         if (jdkVersion >= 21 && arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))) {
-            assertNotNull(factory);
+            assertThat(factory, isPresent());
             return true;
         } else {
-            assertNull(factory);
+            assertThat(factory, not(isPresent()));
             assertThat(osName, either(startsWith("Mac")).or(startsWith("Linux")));
             return false;
         }
@@ -58,27 +62,17 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         return "JDK=" + jdkVersion + ", os=" + osName + ", arch=" + arch;
     }
 
-    /** Computes the scalar quantized dot product of the given vectors a and b. */
-    public static float scalarQuantizedDotProductScore(byte[] a, byte[] b, float correction, float aOffsetValue, float bOffsetValue) {
-        int dotProduct = dotProductScalar(a, b);
-        float adjustedDistance = dotProduct * correction + aOffsetValue + bOffsetValue;
-        return (1 + adjustedDistance) / 2;
-    }
-
-    /** Computes the dot product of the given vectors a and b. */
-    public static int dotProductScalar(byte[] a, byte[] b) {
-        int res = 0;
-        for (int i = 0; i < a.length; i++) {
-            res += a[i] * b[i];
-        }
-        return res;
-    }
-
-    public static float scaleMaxInnerProductScore(float rawSimilarity) {
-        if (rawSimilarity < 0) {
-            return 1 / (1 + -1 * rawSimilarity);
-        }
-        return rawSimilarity + 1;
+    /** Computes the score using the Lucene implementation. */
+    public static float luceneScore(
+        VectorSimilarityType similarityFunc,
+        byte[] a,
+        byte[] b,
+        float correction,
+        float aOffsetValue,
+        float bOffsetValue
+    ) {
+        var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityType.of(similarityFunc), correction);
+        return scorer.score(a, aOffsetValue, b, bOffsetValue);
     }
 
     /** Converts a float value to a byte array. */

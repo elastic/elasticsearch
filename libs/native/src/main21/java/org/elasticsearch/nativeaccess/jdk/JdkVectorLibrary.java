@@ -6,11 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.jdk.vec;
+package org.elasticsearch.nativeaccess.jdk;
+
+import org.elasticsearch.nativeaccess.lib.VectorLibrary;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
@@ -19,7 +23,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
-final class NativeVectorDistance implements VectorDistance {
+public final class JdkVectorLibrary implements VectorLibrary {
 
     static {
         loadLibrary();
@@ -32,6 +36,8 @@ final class NativeVectorDistance implements VectorDistance {
             return null;
         });
     }
+
+    public JdkVectorLibrary() {}
 
     private static final MethodHandle stride$mh = downcallHandle("stride", FunctionDescriptor.of(JAVA_INT));
     private static final MethodHandle dot8s$mh = downcallHandle("dot8s", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
@@ -51,8 +57,8 @@ final class NativeVectorDistance implements VectorDistance {
      * @param b address of the second vector
      * @param length the vector dimensions
      */
-    @Override
-    public int dotProduct(MemorySegment a, MemorySegment b, int length) {
+    // @Override
+    static int dotProduct(MemorySegment a, MemorySegment b, int length) {
         assert length >= 0;
         if (a.byteSize() != b.byteSize()) {
             throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + b.byteSize());
@@ -75,8 +81,7 @@ final class NativeVectorDistance implements VectorDistance {
         return res;
     }
 
-    @Override
-    public int squareDistance(MemorySegment a, MemorySegment b, int length) {
+    static int squareDistance(MemorySegment a, MemorySegment b, int length) {
         return 0; // TODO
     }
 
@@ -94,5 +99,27 @@ final class NativeVectorDistance implements VectorDistance {
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
+    }
+
+    static final MethodHandle DOT_HANDLE;
+
+    static {
+        try {
+            var lookup = MethodHandles.lookup();
+            var mt = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+            DOT_HANDLE = lookup.findStatic(JdkVectorLibrary.class, "dotProduct", mt);
+        } catch (NoSuchMethodException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public MethodHandle dotProductHandle() {
+        return DOT_HANDLE;
+    }
+
+    @Override
+    public MethodHandle squareDistanceHandle() {
+        return null;
     }
 }

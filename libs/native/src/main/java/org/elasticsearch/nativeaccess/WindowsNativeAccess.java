@@ -10,6 +10,8 @@ package org.elasticsearch.nativeaccess;
 
 import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
+import java.util.Optional;
+
 class WindowsNativeAccess extends AbstractNativeAccess {
 
     WindowsNativeAccess(NativeLibraryProvider libraryProvider) {
@@ -22,7 +24,7 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
-    public VectorScorerFactory getVectorScorerFactory() {
-        return null; // not supported yet
+    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+        return Optional.empty(); // not supported yet
     }
 }

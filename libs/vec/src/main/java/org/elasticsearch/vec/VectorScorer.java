@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess;
+package org.elasticsearch.vec;
 
-import java.io.Closeable;
+import java.io.IOException;
 
-public interface VectorScorer extends Closeable {
+public interface VectorScorer {
 
-    float score(int firstOrd, int secondOrd);
+    float score(int firstOrd, int secondOrd) throws IOException;
 
     int dims();
 

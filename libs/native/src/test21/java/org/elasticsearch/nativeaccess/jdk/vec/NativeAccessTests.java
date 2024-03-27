@@ -10,8 +10,9 @@ package org.elasticsearch.nativeaccess.jdk.vec;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.nativeaccess.AbstractVectorTestCase;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -19,19 +20,28 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class NativeAccessTests extends AbstractVectorTestCase {
+public class NativeAccessTests extends VectorSimilarityFunctionsTests {
+
+    static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
 
     static final int[] VECTOR_DIMS = { 1, 4, 6, 8, 13, 16, 25, 31, 32, 33, 64, 100, 128, 207, 256, 300, 512, 702, 1023, 1024, 1025 };
 
     final int size;
 
-    final VectorDistance impl;
     static Arena arena;
 
     public NativeAccessTests(int size) {
         this.size = size;
-        impl = VectorDistanceProvider.lookup();
+    }
+
+    @BeforeClass
+    public static void setup() {
         arena = Arena.ofConfined();
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        arena.close();
     }
 
     @ParametersFactory
@@ -40,6 +50,7 @@ public class NativeAccessTests extends AbstractVectorTestCase {
     }
 
     public void testBinaryVectors() {
+        assumeTrue(notSupportedMsg(), supported());
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
         var values = new byte[numVecs][dims];
@@ -53,26 +64,42 @@ public class NativeAccessTests extends AbstractVectorTestCase {
         for (int i = 0; i < loopTimes; i++) {
             int first = randomInt(numVecs - 1);
             int second = randomInt(numVecs - 1);
-            int implDot = impl.dotProduct(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
+            int implDot = dotProduct(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
             int otherDot = dotProductScalar(values[first], values[second]);
             assertEquals(otherDot, implDot);
         }
-        // assertIntReturningProviders(p -> p.squareDistance(a, b));
+        // TODO: add squareDistance
     }
 
     public void testIllegalDims() {
         var segment = arena.allocate((long) size * 3);
-        var e = expectThrows(IAE, () -> impl.dotProduct(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
+        var e = expectThrows(IAE, () -> dotProduct(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
         assertThat(e.getMessage(), containsString("dimensions differ"));
 
-        e = expectThrows(IAE, () -> impl.dotProduct(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        e = expectThrows(IAE, () -> dotProduct(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(e.getMessage(), containsString("greater than vector dimensions"));
     }
 
-    @AfterClass
-    public static void cleanup() {
-        arena.close();
+    int dotProduct(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return (int) getVectorDistance().dotProductHandle().invokeExact(a, b, length);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
-    static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
+    /** Computes the dot product of the given vectors a and b. */
+    static int dotProductScalar(byte[] a, byte[] b) {
+        int res = 0;
+        for (int i = 0; i < a.length; i++) {
+            res += a[i] * b[i];
+        }
+        return res;
+    }
 }

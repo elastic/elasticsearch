@@ -6,32 +6,39 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.jdk.vec;
+package org.elasticsearch.vec.internal;
 
+import org.apache.lucene.store.IndexInput;
+
+import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
-// Scalar Quantized vectors are inherently bytes.
-final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScorer {
+import static org.elasticsearch.vec.internal.IndexInputUtils.segmentSlice;
 
-    MaximumInnerProduct(int dims, int maxOrd, float scoreCorrectionConstant, VectorDataInput data) {
-        super(dims, maxOrd, scoreCorrectionConstant, data);
+// Scalar Quantized vectors are inherently bytes.
+public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScorer {
+
+    public MaximumInnerProduct(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
+        super(dims, maxOrd, scoreCorrectionConstant, input);
     }
 
     @Override
-    public float score(int firstOrd, int secondOrd) {
+    public float score(int firstOrd, int secondOrd) throws IOException {
         checkOrdinal(firstOrd);
         checkOrdinal(secondOrd);
 
         final int length = dims;
         int firstByteOffset = firstOrd * (length + Float.BYTES);
-        MemorySegment firstSeg = data.addressFor(firstByteOffset, length);
-        float firstOffset = data.readFloat(firstByteOffset + length);
+        MemorySegment firstSeg = segmentSlice(input, firstByteOffset, length);
+        input.seek(firstByteOffset + length);
+        float firstOffset = Float.intBitsToFloat(input.readInt());
 
         int secondByteOffset = secondOrd * (length + Float.BYTES);
-        MemorySegment secondSeg = data.addressFor(secondByteOffset, length);
-        float secondOffset = data.readFloat(secondByteOffset + length);
+        MemorySegment secondSeg = segmentSlice(input, secondByteOffset, length);
+        input.seek(secondByteOffset + length);
+        float secondOffset = Float.intBitsToFloat(input.readInt());
 
-        int dotProduct = DISTANCE_FUNCS.dotProduct(firstSeg, secondSeg, length);
+        int dotProduct = dotProduct(firstSeg, secondSeg, length);
         float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
         return scaleMaxInnerProductScore(adjustedDistance);
     }

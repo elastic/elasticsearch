@@ -8,6 +8,8 @@
 
 package org.elasticsearch.nativeaccess;
 
+import java.util.Optional;
+
 /**
  * Provides access to native functionality needed by Elastisearch.
  */
@@ -36,9 +38,10 @@ public interface NativeAccess {
     Zstd getZstd();
 
     /**
-     * Returns the vector scorer factory, or null.
+     * Returns the vector similarity functions, or an empty optional.
      */
-    VectorScorerFactory getVectorScorerFactory();
+
+    Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions();
 
     CloseableByteBuffer newBuffer(int len);
 }

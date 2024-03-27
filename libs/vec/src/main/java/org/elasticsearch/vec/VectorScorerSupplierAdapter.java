@@ -6,11 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper.vectors;
+package org.elasticsearch.vec;
 
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.elasticsearch.vec.VectorScorer;
 
 import java.io.IOException;
 

@@ -144,7 +144,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     public void testNonExistentEnrichPolicy() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris"), List.of())
+            () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris"), Mode.SYNC)
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
@@ -155,9 +155,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     public void testNonExistentEnrichPolicy_KeepField() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> RestEsqlTestCase.runEsqlSync(
-                new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris | keep number")
-            )
+            () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris | keep number"), Mode.SYNC)
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
@@ -178,7 +176,6 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     public void testMatchField_ImplicitFieldsList_WithStats() throws IOException {
         Map<String, Object> result = runEsql(
             new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countries | stats s = sum(number) by country_name")
-
         );
         var columns = List.of(Map.of("name", "s", "type", "long"), Map.of("name", "country_name", "type", "keyword"));
         var values = List.of(List.of(2000, "United States of America"), List.of(5000, "China"));
@@ -187,10 +184,23 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     }
 
     private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        return runEsql(requestObject, this.mode, NO_WARNINGS);
+    }
+
+    private static Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject, Mode mode) throws IOException {
+        return runEsql(requestObject, mode, NO_WARNINGS);
+    }
+
+    private static Map<String, Object> runEsql(
+        RestEsqlTestCase.RequestObjectBuilder requestObject,
+        Mode mode,
+        List<String> expectedWarnings
+    ) throws IOException {
+        requestObject = requestObject.esqlVersion("snapshot");
         if (mode == Mode.ASYNC) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings);
         }
     }
 

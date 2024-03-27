@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -127,7 +128,12 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         }
     }
 
-    protected EsqlQueryResponse run(EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request) {
+    protected EsqlQueryResponse run(
+        EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> requestWithoutVersion
+    ) {
+        EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request = requestWithoutVersion.esqlVersion(
+            EsqlVersion.SNAPSHOT.toString()
+        );
         try {
             // The variants here ensure API usage patterns
             if (randomBoolean()) {

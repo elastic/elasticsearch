@@ -160,7 +160,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
     }
 
-    private Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
+    protected Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
         if (mode == Mode.ASYNC) {
             assert supportsAsync();
             return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings);

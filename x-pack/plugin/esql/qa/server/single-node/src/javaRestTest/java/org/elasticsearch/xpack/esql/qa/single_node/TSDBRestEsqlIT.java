@@ -63,7 +63,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
         RestEsqlTestCase.RequestObjectBuilder builder = new RestEsqlTestCase.RequestObjectBuilder().query(
             "FROM k8s | KEEP k8s.pod.name, @timestamp"
-        );
+        ).esqlVersion("snapshot");
         builder.pragmas(Settings.builder().put("time_series", true).build());
         Map<String, Object> result = runEsqlSync(builder);
         @SuppressWarnings("unchecked")

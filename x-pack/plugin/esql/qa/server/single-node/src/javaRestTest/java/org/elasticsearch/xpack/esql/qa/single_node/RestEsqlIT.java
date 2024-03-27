@@ -91,7 +91,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         RequestObjectBuilder builder = new RequestObjectBuilder().query("from test-index | limit 1 | keep f");
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
-        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder, List.of(), Mode.SYNC));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
 
         assertThat(deleteIndex("test-index").isAcknowledged(), is(true)); // clean up
@@ -101,7 +101,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assumeFalse("pragma only disabled on release builds", Build.current().isSnapshot());
         RequestObjectBuilder builder = new RequestObjectBuilder().query("row a = 1, b = 2");
         builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
-        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder, List.of(), Mode.SYNC));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
     }
 
@@ -197,10 +197,26 @@ public class RestEsqlIT extends RestEsqlTestCase {
     }
 
     private void assertException(String query, String... errorMessages) throws IOException {
-        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(new RequestObjectBuilder().query(query)));
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(new RequestObjectBuilder().query(query), List.of(), Mode.SYNC)
+        );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         for (var error : errorMessages) {
             assertThat(re.getMessage(), containsString(error));
         }
+    }
+
+    @Override
+    protected Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings, Mode mode) throws IOException {
+        if (requestObject.esqlVersion() == null) {
+            requestObject.esqlVersion("snapshot");
+        }
+        return super.runEsql(requestObject, expectedWarnings, mode);
+    }
+
+    @Override
+    protected RequestObjectBuilder builder() throws IOException {
+        return super.builder().esqlVersion("snapshot");
     }
 }

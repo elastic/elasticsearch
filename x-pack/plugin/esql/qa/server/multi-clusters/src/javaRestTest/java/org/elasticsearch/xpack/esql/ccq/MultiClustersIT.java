@@ -122,7 +122,7 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private Map<String, Object> run(String query) throws IOException {
-        Map<String, Object> resp = runEsql(new RestEsqlTestCase.RequestObjectBuilder().query(query).build());
+        Map<String, Object> resp = runEsql(new RestEsqlTestCase.RequestObjectBuilder().esqlVersion("snapshot").query(query).build());
         logger.info("--> query {} response {}", query, resp);
         return resp;
     }

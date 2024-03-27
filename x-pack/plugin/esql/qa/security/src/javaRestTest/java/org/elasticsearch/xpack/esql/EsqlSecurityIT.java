@@ -354,6 +354,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
         XContentBuilder json = JsonXContent.contentBuilder();
         json.startObject();
+        json.field("version", "snapshot");
         json.field("query", command);
         addRandomPragmas(json);
         json.endObject();

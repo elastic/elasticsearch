@@ -9,8 +9,13 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.junit.ClassRule;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
@@ -23,5 +28,11 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
 
     public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         super(fileName, groupName, testName, lineNumber, testCase, mode);
+    }
+
+    @Override
+    protected Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject, List<String> expectedWarnings)
+        throws IOException {
+        return super.runEsql(requestObject.esqlVersion("snapshot"), expectedWarnings);
     }
 }

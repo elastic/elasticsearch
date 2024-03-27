@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.WriteRequestBuilder;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -20,9 +20,7 @@ import java.util.Map;
 /**
  * Builder for requests to add a role to the administrative index
  */
-public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse>
-    implements
-        WriteRequestBuilder<PutRoleRequestBuilder> {
+public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse> {
 
     public PutRoleRequestBuilder(ElasticsearchClient client) {
         super(client, PutRoleAction.INSTANCE, new PutRoleRequest());
@@ -76,6 +74,16 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
 
     public PutRoleRequestBuilder metadata(Map<String, Object> metadata) {
         request.metadata(metadata);
+        return this;
+    }
+
+    public PutRoleRequestBuilder setRefreshPolicy(String refreshPolicy) {
+        request.setRefreshPolicy(refreshPolicy);
+        return this;
+    }
+
+    public PutRoleRequestBuilder setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
+        request.setRefreshPolicy(refreshPolicy);
         return this;
     }
 }

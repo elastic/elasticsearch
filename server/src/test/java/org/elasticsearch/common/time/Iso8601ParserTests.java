@@ -57,6 +57,10 @@ public class Iso8601ParserTests extends ESTestCase {
         assertThat(defaultParser().tryParse("-9999-01-01", null), hasResult(new DateTime(-9999, 1, 1, null, null, null, null, null, null)));
         assertThat(defaultParser().tryParse("1000", null), hasResult(new DateTime(1000, null, null, null, null, null, null, null, null)));
         assertThat(defaultParser().tryParse("2023-02-02T", null), hasResult(new DateTime(2023, 2, 2, null, null, null, null, null, null)));
+
+        // these are accepted by the previous formatters, but are not valid ISO8601
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00.01,02", null), hasError(22));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Europe/Paris+0400", null), hasError(19));
     }
 
     public void testOutOfRange() {

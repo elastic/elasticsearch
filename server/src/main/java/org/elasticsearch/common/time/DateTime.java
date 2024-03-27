@@ -72,7 +72,7 @@ record DateTime(
                 case SECOND_OF_MINUTE -> seconds != null;
                 case INSTANT_SECONDS -> months != null && days != null && hours != null && minutes != null && seconds != null;
                 // if the time components are there, we just default nanos to 0 if it's not present
-                case NANO_OF_SECOND, SECOND_OF_DAY, NANO_OF_DAY -> hours != null && minutes != null && seconds != null;
+                case SECOND_OF_DAY, NANO_OF_SECOND, NANO_OF_DAY -> hours != null && minutes != null && seconds != null;
                 case OFFSET_SECONDS -> offset != null;
                 default -> false;
             };
@@ -110,17 +110,17 @@ record DateTime(
                     return LocalDateTime.of(years, months, days, hours, minutes, seconds)
                         .toEpochSecond(offset != null ? offset : ZoneOffset.UTC);
                 }
-                case NANO_OF_SECOND -> {
-                    if (isSupported(ChronoField.NANO_OF_SECOND) == false) {
-                        throw new UnsupportedTemporalTypeException("No " + f + " value available");
-                    }
-                    return nanos != null ? nanos.longValue() : 0L;
-                }
                 case SECOND_OF_DAY -> {
                     if (isSupported(ChronoField.SECOND_OF_DAY) == false) {
                         throw new UnsupportedTemporalTypeException("No " + f + " value available");
                     }
                     return LocalTime.of(hours, minutes, seconds).toSecondOfDay();
+                }
+                case NANO_OF_SECOND -> {
+                    if (isSupported(ChronoField.NANO_OF_SECOND) == false) {
+                        throw new UnsupportedTemporalTypeException("No " + f + " value available");
+                    }
+                    return nanos != null ? nanos.longValue() : 0L;
                 }
                 case NANO_OF_DAY -> {
                     if (isSupported(ChronoField.NANO_OF_DAY) == false) {

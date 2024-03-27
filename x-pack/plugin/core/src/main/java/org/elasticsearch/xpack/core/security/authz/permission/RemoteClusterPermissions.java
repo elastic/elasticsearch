@@ -23,7 +23,7 @@ import java.util.Objects;
 
 /**
  * Represents a group of permissions for a remote cluster. This is intended to be the model for both the {@link RoleDescriptor}
- * and {@link Role}. This is model is not intended to be sent to a remote cluster, but can be (wire) serialized within a single cluster
+ * and {@link Role}. This model is not intended to be sent to a remote cluster, but can be (wire) serialized within a single cluster
  * as well as the Xcontent serialization for the REST API and persistence of the role in the security index. The privileges modeled here
  * will be converted to the appropriate cluster privileges when sent to a remote cluster.
  * For example, on the local/querying cluster this model represents the following:
@@ -31,37 +31,35 @@ import java.util.Objects;
  * "remote_cluster" : [
  *         {
  *             "privileges" : ["foo"],
- *             "clusters" : [
- *                 "clusterA"
- *             ]
+ *             "clusters" : ["clusterA"]
  *         },
  *         {
  *             "privileges" : ["bar"],
- *             "clusters" : [
- *                 "clusterB"
- *             ]
+ *             "clusters" : ["clusterB"]
  *         }
  *     ]
  * </code>
  * when sent to the remote cluster "clusterA", the privileges will be converted to the appropriate cluster privileges. For example:
- *  <code>
+ * <code>
  *   "cluster": ["foo"]
- *  </code>
- *  and when sent to the remote cluster "clusterB", the privileges will be converted to the appropriate cluster privileges. For example:
- *  <code>
+ * </code>
+ * and when sent to the remote cluster "clusterB", the privileges will be converted to the appropriate cluster privileges. For example:
+ * <code>
  *   "cluster": ["bar"]
- *  </code>
+ * </code>
  */
 public class RemoteClusterPermissions implements Writeable, ToXContentObject {
 
-    private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups = new ArrayList<>();
+    private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups ;
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
     public RemoteClusterPermissions(StreamInput in) throws IOException {
-        //this(List.of()); //TODO: fixme
+        remoteClusterPermissionGroups = in.readCollectionAsList(RemoteClusterPermissionGroup::new);
     }
-    public RemoteClusterPermissions(){}
+    public RemoteClusterPermissions(){
+        remoteClusterPermissionGroups = new ArrayList<>();
+    }
 
     public RemoteClusterPermissions addGroup(RemoteClusterPermissionGroup remoteClusterPermissionGroup) {
         Objects.requireNonNull(remoteClusterPermissionGroup, "remoteClusterPermissionGroup must not be null");
@@ -102,6 +100,6 @@ public class RemoteClusterPermissions implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        //TODO: fixme
+        out.writeCollection(remoteClusterPermissionGroups);
     }
 }

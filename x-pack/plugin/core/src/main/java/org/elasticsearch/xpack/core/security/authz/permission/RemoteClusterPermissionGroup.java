@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -23,24 +26,34 @@ import java.io.IOException;
  }
  * </code>
  */
-public class RemoteClusterPermissionGroup implements ToXContentObject {
+public class RemoteClusterPermissionGroup implements Writeable,ToXContentObject {
 
     private final String[] clusterPrivileges;
     private final String[] remoteClusterAliases;
     private final StringMatcher remoteClusterAliasMatcher;
+
+    public RemoteClusterPermissionGroup(StreamInput in) throws IOException {
+        clusterPrivileges = in.readStringArray();
+        remoteClusterAliases = in.readStringArray();
+        remoteClusterAliasMatcher = StringMatcher.of(remoteClusterAliases);
+    }
+    public RemoteClusterPermissionGroup(String[] clusterPrivileges, String[] remoteClusterAliases) {
+        this(clusterPrivileges, remoteClusterAliases, StringMatcher.of(remoteClusterAliases));
+    }
 
     private RemoteClusterPermissionGroup(
         String[] clusterPrivileges,
         String[] remoteClusterAliases,
         StringMatcher remoteClusterAliasMatcher
     ) {
+        assert clusterPrivileges != null;
+        assert remoteClusterAliases != null;
+        assert remoteClusterAliasMatcher != null;
+        assert clusterPrivileges.length > 0;
+        assert remoteClusterAliases.length > 0;
         this.clusterPrivileges = clusterPrivileges;
         this.remoteClusterAliases = remoteClusterAliases;
         this.remoteClusterAliasMatcher = remoteClusterAliasMatcher;
-    }
-
-    public RemoteClusterPermissionGroup(String[] clusterPrivileges, String[] remoteClusterAliases) {
-        this(clusterPrivileges, remoteClusterAliases, StringMatcher.of(remoteClusterAliases));
     }
 
     public boolean hasPrivileges(final String remoteClusterAlias) {
@@ -62,5 +75,11 @@ public class RemoteClusterPermissionGroup implements ToXContentObject {
         builder.array(RoleDescriptor.Fields.CLUSTERS.getPreferredName(), remoteClusterAliases);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeStringArray(clusterPrivileges);
+        out.writeStringArray(remoteClusterAliases);
     }
 }

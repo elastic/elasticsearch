@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.TopBucketBuilder;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -30,7 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -40,7 +41,7 @@ import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.S
 /**
  * Base class for terms and multi_terms aggregation that handles common reduce logic
  */
-public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B>, B extends AbstractInternalTerms.AbstractTermsBucket>
+public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B>, B extends AbstractInternalTerms.AbstractTermsBucket<B>>
     extends InternalMultiBucketAggregation<A, B> {
 
     public AbstractInternalTerms(String name, Map<String, Object> metadata) {
@@ -52,7 +53,9 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         super(in);
     }
 
-    public abstract static class AbstractTermsBucket extends InternalMultiBucketAggregation.InternalBucket {
+    public abstract static class AbstractTermsBucket<B extends AbstractTermsBucket<B>> extends InternalMultiBucketAggregation.InternalBucket
+        implements
+            KeyComparable<B> {
 
         protected abstract void updateDocCountError(long docCountErrorDiff);
 
@@ -153,7 +156,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     private BucketOrder reduceBuckets(
         List<InternalAggregation> aggregations,
         AggregationReduceContext reduceContext,
-        Function<DelayedBucket<B>, Boolean> sink
+        Consumer<DelayedBucket<B>> sink
     ) {
         /*
          * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
@@ -176,7 +179,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         List<InternalAggregation> aggregations,
         BucketOrder thisReduceOrder,
         AggregationReduceContext reduceContext,
-        Function<DelayedBucket<B>, Boolean> sink
+        Consumer<DelayedBucket<B>> sink
     ) {
         assert isKeyOrder(thisReduceOrder);
         final Comparator<Bucket> cmp = thisReduceOrder.comparator();
@@ -201,12 +204,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             assert lastBucket == null || cmp.compare(top.current(), lastBucket) >= 0;
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changed so bundle up the last key's worth of buckets
-                boolean shouldContinue = sink.apply(
-                    new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
-                );
-                if (false == shouldContinue) {
-                    return;
-                }
+                sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
                 sameTermBuckets = new ArrayList<>();
             }
             lastBucket = top.current();
@@ -226,14 +224,14 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         }
 
         if (sameTermBuckets.isEmpty() == false) {
-            sink.apply(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
         }
     }
 
     private void reduceLegacy(
         List<InternalAggregation> aggregations,
         AggregationReduceContext reduceContext,
-        Function<DelayedBucket<B>, Boolean> sink
+        Consumer<DelayedBucket<B>> sink
     ) {
         Map<Object, List<B>> bucketMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
@@ -246,12 +244,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             }
         }
         for (List<B> sameTermBuckets : bucketMap.values()) {
-            boolean shouldContinue = sink.apply(
-                new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
-            );
-            if (false == shouldContinue) {
-                return;
-            }
+            sink.accept(new DelayedBucket<>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
         }
     }
 
@@ -304,7 +297,6 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                 if (bucket.getDocCount() >= getMinDocCount()) {
                     top.add(bucket);
                 }
-                return true;
             });
             result = top.build();
         } else {
@@ -316,8 +308,11 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             boolean canPrune = isKeyOrder(getOrder()) && getMinDocCount() == 0;
             result = new ArrayList<>();
             thisReduceOrder = reduceBuckets(aggregations, reduceContext, bucket -> {
-                result.add(bucket.reduced());
-                return false == canPrune || result.size() < getRequiredSize();
+                if (canPrune == false || result.size() < getRequiredSize()) {
+                    result.add(bucket.reduced());
+                } else {
+                    otherDocCount[0] += bucket.getDocCount();
+                }
             });
         }
         for (B r : result) {
@@ -361,12 +356,12 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         Params params,
         Long docCountError,
         long otherDocCount,
-        List<? extends AbstractTermsBucket> buckets
+        List<? extends AbstractTermsBucket<?>> buckets
     ) throws IOException {
         builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), docCountError);
         builder.field(SUM_OF_OTHER_DOC_COUNTS.getPreferredName(), otherDocCount);
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
-        for (AbstractTermsBucket bucket : buckets) {
+        for (AbstractTermsBucket<?> bucket : buckets) {
             bucket.toXContent(builder, params);
         }
         builder.endArray();

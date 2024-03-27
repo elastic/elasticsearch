@@ -11,11 +11,13 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -35,6 +37,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetDataStreamsTransportActionTests extends ESTestCase {
 
@@ -247,5 +250,46 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testPassingGlobalRetention() {
+        ClusterState state;
+        {
+            var mBuilder = new Metadata.Builder();
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                mBuilder,
+                List.of(Tuple.tuple("data-stream-1", 2)),
+                List.of(),
+                System.currentTimeMillis(),
+                Settings.EMPTY,
+                0,
+                false,
+                false
+            );
+            state = ClusterState.builder(new ClusterName("_name")).metadata(mBuilder).build();
+        }
+
+        var req = new GetDataStreamAction.Request(new String[] {});
+        var response = GetDataStreamsTransportAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings()
+        );
+        assertThat(response.getGlobalRetention(), nullValue());
+        DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(
+            TimeValue.timeValueDays(randomIntBetween(1, 5)),
+            TimeValue.timeValueDays(randomIntBetween(5, 10))
+        );
+        state = ClusterState.builder(state).putCustom(DataStreamGlobalRetention.TYPE, globalRetention).build();
+        response = GetDataStreamsTransportAction.innerOperation(
+            state,
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings()
+        );
+        assertThat(response.getGlobalRetention(), equalTo(globalRetention));
     }
 }

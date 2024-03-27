@@ -23,11 +23,11 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Grea
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -73,7 +73,9 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
@@ -124,11 +126,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Number number;
 
         try {
-            number = StringUtils.parseIntegral(text);
+            number = stringToIntegral(text);
         } catch (InvalidArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
-                return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
+                return new Literal(source, EsqlDataTypeConverter.stringToDouble(text), DataTypes.DOUBLE);
             } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
@@ -161,7 +163,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 source,
                 mapNumbers(
                     numbers,
-                    (no, dt) -> dt == DataTypes.UNSIGNED_LONG ? no.longValue() : asLongUnsigned(BigInteger.valueOf(no.longValue()))
+                    (no, dt) -> dt == DataTypes.UNSIGNED_LONG
+                        ? no.longValue()
+                        : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
                 ),
                 DataTypes.UNSIGNED_LONG
             );

@@ -57,6 +57,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -80,6 +81,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -93,6 +96,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -162,7 +166,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             Downsample.class,
             AggregateMetricMapperPlugin.class,
             DataStreamsPlugin.class,
-            IndexLifecycle.class
+            IndexLifecycle.class,
+            TestTelemetryPlugin.class
         );
     }
 
@@ -623,6 +628,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,
@@ -672,6 +678,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,
@@ -739,6 +746,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,
@@ -791,6 +799,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 task,
                 client(),
                 indexService,
+                getInstanceFromNode(DownsampleMetrics.class),
                 shard.shardId(),
                 downsampleIndex,
                 config,
@@ -809,6 +818,27 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             final DownsampleIndexerAction.ShardDownsampleResponse executeResponse = indexer.execute();
 
             assertDownsampleIndexer(indexService, shardNum, task, executeResponse, task.getTotalShardDocCount());
+        }
+
+        // Check that metrics get collected as expected.
+        final TestTelemetryPlugin plugin = getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        List<Measurement> measurements = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_SHARD);
+        assertFalse(measurements.isEmpty());
+        for (Measurement measurement : measurements) {
+            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
+            assertEquals(1, measurement.attributes().size());
+            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
+        }
+
+        measurements = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_TOTAL);
+        assertFalse(measurements.isEmpty());
+        for (Measurement measurement : measurements) {
+            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
+            assertEquals(1, measurement.attributes().size());
+            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed")));
         }
     }
 
@@ -848,6 +878,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,
@@ -923,6 +954,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             task,
             client(),
             indexService,
+            getInstanceFromNode(DownsampleMetrics.class),
             shard.shardId(),
             downsampleIndex,
             config,

@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -67,7 +68,7 @@ public class MvSlice extends ScalarFunction implements OptionalArgument, Evaluat
     public MvSlice(
         Source source,
         @Param(
-            name = "v",
+            name = "field",
             type = {
                 "boolean",
                 "cartesian_point",
@@ -129,8 +130,8 @@ public class MvSlice extends ScalarFunction implements OptionalArgument, Evaluat
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
         if (start.foldable() && end.foldable()) {
-            int startOffset = Integer.parseInt(String.valueOf(start.fold()));
-            int endOffset = Integer.parseInt(String.valueOf(end.fold()));
+            int startOffset = stringToInt(String.valueOf(start.fold()));
+            int endOffset = stringToInt(String.valueOf(end.fold()));
             checkStartEnd(startOffset, endOffset);
         }
         return switch (PlannerUtils.toElementType(field.dataType())) {

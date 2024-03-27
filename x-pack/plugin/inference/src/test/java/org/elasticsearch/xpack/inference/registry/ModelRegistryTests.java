@@ -25,6 +25,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,7 +77,7 @@ public class ModelRegistryTests extends ESTestCase {
 
     public void testGetUnparsedModelMap_ThrowsIllegalArgumentException_WhenInvalidIndexReceived() {
         var client = mockClient();
-        var unknownIndexHit = SearchHit.createFromMap(Map.of("_index", "unknown_index"));
+        var unknownIndexHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", "unknown_index"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { unknownIndexHit }));
 
         var registry = new ModelRegistry(client);
@@ -93,7 +94,7 @@ public class ModelRegistryTests extends ESTestCase {
 
     public void testGetUnparsedModelMap_ThrowsIllegalStateException_WhenUnableToFindInferenceEntry() {
         var client = mockClient();
-        var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".secrets-inference"));
+        var inferenceSecretsHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".secrets-inference"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceSecretsHit }));
 
         var registry = new ModelRegistry(client);
@@ -110,7 +111,7 @@ public class ModelRegistryTests extends ESTestCase {
 
     public void testGetUnparsedModelMap_ThrowsIllegalStateException_WhenUnableToFindInferenceSecretsEntry() {
         var client = mockClient();
-        var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
+        var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
 
         var registry = new ModelRegistry(client);
@@ -140,9 +141,9 @@ public class ModelRegistryTests extends ESTestCase {
             }
             """;
 
-        var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
+        var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
         inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
-        var inferenceSecretsHit = SearchHit.createFromMap(Map.of("_index", ".secrets-inference"));
+        var inferenceSecretsHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".secrets-inference"));
         inferenceSecretsHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(secrets))));
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit, inferenceSecretsHit }));
@@ -171,7 +172,7 @@ public class ModelRegistryTests extends ESTestCase {
             }
             """;
 
-        var inferenceHit = SearchHit.createFromMap(Map.of("_index", ".inference"));
+        var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
         inferenceHit.sourceRef(BytesReference.fromByteBuffer(ByteBuffer.wrap(Strings.toUTF8Bytes(config))));
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));

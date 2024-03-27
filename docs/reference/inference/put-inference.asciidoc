@@ -25,14 +25,15 @@ or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 [[put-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+* Requires the `manage_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` role grants this privilege)
 
 
 [discrete]
 [[put-inference-api-desc]]
 ==== {api-description-title}
 
-The create {infer} API enables you to create and configure an {infer} model to
+The create {infer} API enables you to create and configure a {ml} model to
 perform a specific {infer} task.
 
 The following services are available through the {infer} API:
@@ -49,9 +50,9 @@ The following services are available through the {infer} API:
 ==== {api-path-parms-title}
 
 
-`<model_id>`::
+`<inference_id>`::
 (Required, string)
-The unique identifier of the model.
+The unique identifier of the {infer} endpoint.
 
 `<task_type>`::
 (Required, string)
@@ -100,6 +101,7 @@ the same name and the updated API key.
 (Optional, string)
 Specifies the types of embeddings you want to get back. Defaults to `float`.
 Valid values are:
+  * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`). 
   * `float`: use it for the default float embeddings.
   * `int8`: use it for signed int8 embeddings.
 
@@ -161,6 +163,12 @@ creating the {infer} model, you cannot change the associated API key. If you
 want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
+`model_id`:::
+(Optional, string)
+The name of the model to use for the {infer} task. Refer to the
+https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
+for the list of available text embedding models.
+
 `organization_id`:::
 (Optional, string)
 The unique identifier of your organization. You can find the Organization ID in
@@ -214,13 +222,6 @@ Valid values are:
   * `search`: use it for storing embeddings of search queries run against a
   vector data base to find relevant documents.
 
-`model`:::
-(Optional, string)
-For `openai` sevice only. The name of the model to use for the {infer} task. Refer
-to the
-https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
-for the list of available text embedding models.
-
 `truncate`:::
 (Optional, string)
 For `cohere` service only. Specifies how the API handles inputs longer than the
@@ -245,7 +246,7 @@ This section contains example API calls for every service type.
 [[inference-example-cohere]]
 ===== Cohere service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `cohere_embeddings` to perform a `text_embedding` task type.
 
 [source,console]
@@ -255,10 +256,8 @@ PUT _inference/text_embedding/cohere-embeddings
     "service": "cohere",
     "service_settings": {
         "api_key": "<api_key>",
-        "model": "embed-english-light-v3.0",
-        "embedding_type": "int8"
-    },
-    "task_settings": {
+        "model_id": "embed-english-light-v3.0",
+        "embedding_type": "byte"
     }
 }
 ------------------------------------------------------------
@@ -269,7 +268,7 @@ PUT _inference/text_embedding/cohere-embeddings
 [[inference-example-e5]]
 ===== E5 via the elasticsearch service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `my-e5-model` to perform a `text_embedding` task type.
 
 [source,console]
@@ -294,7 +293,7 @@ further details, refer to the {ml-docs}/ml-nlp-e5.html[E5 model documentation].
 [[inference-example-elser]]
 ===== ELSER service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `my-elser-model` to perform a `sparse_embedding` task type.
 
 [source,console]
@@ -305,8 +304,7 @@ PUT _inference/sparse_embedding/my-elser-model
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1
-  },
-  "task_settings": {}
+  }
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
@@ -317,7 +315,7 @@ Example response:
 [source,console-result]
 ------------------------------------------------------------
 {
-  "model_id": "my-elser-model",
+  "inference_id": "my-elser-model",
   "task_type": "sparse_embedding",
   "service": "elser",
   "service_settings": {
@@ -334,7 +332,7 @@ Example response:
 [[inference-example-hugging-face]]
 ===== Hugging Face service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `hugging-face_embeddings` to perform a `text_embedding` task type.
 
 [source,console]
@@ -364,7 +362,7 @@ after the endpoint initialization has been finished.
 [[inference-example-eland]]
 ===== Models uploaded by Eland via the elasticsearch service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `my-msmarco-minilm-model` to perform a `text_embedding` task type.
 
 [source,console]
@@ -389,7 +387,7 @@ been
 [[inference-example-openai]]
 ===== OpenAI service
 
-The following example shows how to create an {infer} model called
+The following example shows how to create an {infer} endpoint called
 `openai_embeddings` to perform a `text_embedding` task type.
 
 [source,console]
@@ -398,10 +396,8 @@ PUT _inference/text_embedding/openai_embeddings
 {
     "service": "openai",
     "service_settings": {
-        "api_key": "<api_key>"
-    },
-    "task_settings": {
-       "model": "text-embedding-ada-002"
+        "api_key": "<api_key>",
+        "model_id": "text-embedding-ada-002"
     }
 }
 ------------------------------------------------------------

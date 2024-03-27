@@ -735,6 +735,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public abstract double computeDotProduct(VectorData vectorData);
+
+        public static ElementType fromString(String name) {
+            return valueOf(name.trim().toUpperCase(Locale.ROOT));
+        }
     }
 
     static final Map<String, ElementType> namesToElementType = Map.of(

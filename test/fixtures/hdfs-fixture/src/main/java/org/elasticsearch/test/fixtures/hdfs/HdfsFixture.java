@@ -41,6 +41,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -185,14 +186,39 @@ public class HdfsFixture extends ExternalResource {
 
     private void startMinHdfs() throws Exception {
         Path baseDir = temporaryFolder.newFolder("baseDir").toPath();
+        int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                Path hdfsHome = createHdfsDataFolder(baseDir);
+                tryStartingHdfs(hdfsHome);
+                break;
+            } catch (IOException e) {
+                // Log the exception
+                System.out.println("Attempt " + attempt + " failed with error: " + e.getMessage());
+                // If the maximum number of attempts is reached, rethrow the exception
+                FileUtils.deleteDirectory(baseDir.toFile());
+
+                if (attempt == maxAttempts) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private static Path createHdfsDataFolder(Path baseDir) throws IOException {
         if (System.getenv("HADOOP_HOME") == null) {
             Path hadoopHome = baseDir.resolve("hadoop-home");
             Files.createDirectories(hadoopHome);
             System.setProperty("hadoop.home.dir", hadoopHome.toAbsolutePath().toString());
         }
         // hdfs-data/, where any data is going
-        Path hdfsHome = baseDir.resolve("hdfs-data");
-        new File(hdfsHome.toFile(), "data").mkdirs();
+        Path hdfsData = baseDir.resolve("hdfs-data");
+        Files.createDirectories(hdfsData);
+        return hdfsData;
+    }
+
+    private void tryStartingHdfs(Path hdfsHome) throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException,
+        InvocationTargetException, IOException, URISyntaxException {
         // configure cluster
         cfg = new Configuration();
         cfg.set(MiniDFSCluster.HDFS_MINIDFS_BASEDIR, hdfsHome.toAbsolutePath().toString());
@@ -218,11 +244,7 @@ public class HdfsFixture extends ExternalResource {
         UserGroupInformation.setConfiguration(cfg);
 
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
-        // if(isSecure()) {
         builder.nameNodePort(explicitPort);
-        // } else {
-        // builder.nameNodePort(explicitPort);
-        // }
         if (isHA()) {
             MiniDFSNNTopology.NNConf nn1 = new MiniDFSNNTopology.NNConf("nn1").setIpcPort(0);
             MiniDFSNNTopology.NNConf nn2 = new MiniDFSNNTopology.NNConf("nn2").setIpcPort(0);

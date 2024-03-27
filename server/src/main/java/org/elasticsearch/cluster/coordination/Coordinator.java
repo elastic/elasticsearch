@@ -854,7 +854,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
     }
 
-    public void becomeCandidate(String method) {
+    void becomeCandidate(String method) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         logger.debug(
             "{}: coordinator becoming CANDIDATE in term {} (was {}, lastKnownLeader was [{}])",
@@ -1035,7 +1035,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     // visible for testing
-    public Mode getMode() {
+    Mode getMode() {
         synchronized (mutex) {
             return mode;
         }

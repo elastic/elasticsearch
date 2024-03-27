@@ -87,27 +87,32 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             }
         """, InferenceMetadataFieldMapper.NAME, SEMANTIC_TEXT_FIELD);
 
-    // TODO: Dynamically generate proper inference results
-    private static final String TEXT_EMBEDDING_INFERENCE_RESULTS = Strings.format("""
-            {
-                "%s": {
+    private static final String TEXT_EMBEDDING_INFERENCE_RESULTS = Strings.format(
+        """
+                {
                     "%s": {
-                        "inference_id": "test_service",
-                        "model_settings": {
-                            "task_type": "TEXT_EMBEDDING",
-                            "dimensions": %d,
-                            "similarity": "cosine"
-                        },
-                        "chunks": [
-                            {
-                                "inference": [ 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0 ],
-                                "text": "feature_0"
-                            }
-                        ]
+                        "%s": {
+                            "inference_id": "test_service",
+                            "model_settings": {
+                                "task_type": "TEXT_EMBEDDING",
+                                "dimensions": %d,
+                                "similarity": "cosine"
+                            },
+                            "chunks": [
+                                {
+                                    "inference": %s,
+                                    "text": "feature_0"
+                                }
+                            ]
+                        }
                     }
                 }
-            }
-        """, InferenceMetadataFieldMapper.NAME, SEMANTIC_TEXT_FIELD, TEXT_EMBEDDING_DIMENSION_COUNT);
+            """,
+        InferenceMetadataFieldMapper.NAME,
+        SEMANTIC_TEXT_FIELD,
+        TEXT_EMBEDDING_DIMENSION_COUNT,
+        generateTextEmbeddingVector(TEXT_EMBEDDING_DIMENSION_COUNT)
+    );
 
     private static InferenceResultType inferenceResultType;
 
@@ -227,7 +232,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     private void assertTextEmbeddingLuceneQuery(Query query) {
         Query innerQuery = assertOuterBooleanQuery(query);
-        assertThat(innerQuery, instanceOf(KnnFloatVectorQuery.class));  // TODO: Accept KnnByteVectorQuery here as well?
+        assertThat(innerQuery, instanceOf(KnnFloatVectorQuery.class));
     }
 
     private Query assertOuterBooleanQuery(Query query) {
@@ -330,5 +335,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 }
               }
             }""", queryBuilder);
+    }
+
+    private static List<Float> generateTextEmbeddingVector(int size) {
+        List<Float> vector = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            vector.add((float) i);
+        }
+
+        return vector;
     }
 }

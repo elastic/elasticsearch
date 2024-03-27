@@ -10,7 +10,6 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;

@@ -117,7 +117,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
         LongVector k2;
         try (
             BytesRefVector.Builder tsidHashes = blockFactory.newBytesRefVectorBuilder(positions);
-            LongVector.Builder timestampIntervals = blockFactory.newLongVectorBuilder(positions)
+            LongVector.Builder timestampIntervals = blockFactory.newLongVectorFixedBuilder(positions)
         ) {
             BytesRef scratch = new BytesRef();
             for (long i = 0; i < positions; i++) {

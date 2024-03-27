@@ -116,8 +116,8 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     ? TransformMessages.getMessage(CANNOT_STOP_SINGLE_FAILED_TRANSFORM, failedTasks.get(0), failedReasons.get(0))
                     : TransformMessages.getMessage(
                         CANNOT_STOP_MULTIPLE_FAILED_TRANSFORM,
-                        String.join(",", failedTasks),
-                        String.join(",", failedReasons)
+                        String.join(", ", failedTasks),
+                        String.join(", ", failedReasons)
                     );
                 throw new ElasticsearchStatusException(msg, RestStatus.CONFLICT);
             }

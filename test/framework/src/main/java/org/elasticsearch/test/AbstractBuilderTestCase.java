@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -55,6 +57,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -65,6 +68,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptService;
@@ -75,6 +79,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -405,6 +410,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final ScriptService scriptService;
         private final Client client;
         private final long nowInMillis;
+        private final MapperMetrics mapperMetrics;
 
         ServiceHolder(
             Settings nodeSettings,
@@ -460,6 +466,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
+            var telemetryProvider = pluginsService.filterPlugins(TelemetryPlugin.class)
+                .map(p -> p.getTelemetryProvider(nodeSettings))
+                .findFirst()
+                .orElse(TelemetryProvider.NOOP);
+            mapperMetrics = new MapperMetrics(
+                new SourceFieldMetrics(telemetryProvider.getMeterRegistry(), () -> TimeValue.nsecToMSec(System.nanoTime()))
+            );
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(
                 clusterService,
@@ -470,7 +483,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperRegistry,
                 () -> createShardContext(null),
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
-                ScriptCompiler.NONE
+                ScriptCompiler.NONE,
+                mapperMetrics
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });

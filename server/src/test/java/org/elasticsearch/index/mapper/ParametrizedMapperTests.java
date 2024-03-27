@@ -23,6 +23,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
+import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptCompiler;
@@ -277,7 +278,8 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            mapperService.getIndexSettings().getMode().idFieldMapperWithoutFieldData()
+            mapperService.getIndexSettings().getMode().idFieldMapperWithoutFieldData(),
+            MapperMetrics.NOOP
         );
         if (fromDynamicTemplate) {
             pc = pc.createDynamicTemplateContext(null);

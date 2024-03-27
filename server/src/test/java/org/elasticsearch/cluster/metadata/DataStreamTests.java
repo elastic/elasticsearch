@@ -1697,7 +1697,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true);
             RolloverConfiguration rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
-            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionSerializationTests.randomGlobalRetention();
+            DataStreamGlobalRetention globalRetention = DataStreamGlobalRetentionTests.randomGlobalRetention();
 
             ToXContent.Params withEffectiveRetention = new ToXContent.MapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS);
             dataStream.toXContent(builder, withEffectiveRetention, rolloverConfiguration, globalRetention);

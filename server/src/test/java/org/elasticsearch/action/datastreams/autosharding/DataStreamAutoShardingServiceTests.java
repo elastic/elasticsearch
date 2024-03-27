@@ -644,7 +644,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             () -> now
         );
         // to cover the entire cooldown period, the last index before the cooling period is taken into account
-        assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 5.0 : 999.0));
+        assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 15.0 : 999.0));
     }
 
     public void testIndexLoadWithinCoolingPeriodIsSumOfShardsLoads() {

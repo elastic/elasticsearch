@@ -20,6 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +36,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     private boolean async;
 
+    private String esqlVersion;
     private String query;
     private boolean columnar;
     private boolean profile;
@@ -65,16 +67,45 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
+        if (Strings.hasText(esqlVersion) == false) {
+            // TODO: make this required
+            // validationException = addValidationError("[" + RequestXContent.ESQL_VERSION_FIELD + "] is required", validationException);
+        } else {
+            EsqlVersion version = EsqlVersion.parse(esqlVersion);
+            if (version == null) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.ESQL_VERSION_FIELD + "] has invalid value [" + esqlVersion + "]",
+                    validationException
+                );
+            } else if (version == EsqlVersion.NIGHTLY && Build.current().isSnapshot() == false) {
+                validationException = addValidationError(
+                    "[" + RequestXContent.ESQL_VERSION_FIELD + "] with value [" + esqlVersion + "] only allowed in snapshot builds",
+                    validationException
+                );
+            }
+        }
         if (Strings.hasText(query) == false) {
-            validationException = addValidationError("[query] is required", validationException);
+            validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
         if (Build.current().isSnapshot() == false && pragmas.isEmpty() == false) {
-            validationException = addValidationError("[pragma] only allowed in snapshot builds", validationException);
+            validationException = addValidationError(
+                "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
+                validationException
+            );
         }
         return validationException;
     }
 
     public EsqlQueryRequest() {}
+
+    public void esqlVersion(String esqlVersion) {
+        this.esqlVersion = esqlVersion;
+    }
+
+    @Override
+    public String esqlVersion() {
+        return esqlVersion;
+    }
 
     public void query(String query) {
         this.query = query;

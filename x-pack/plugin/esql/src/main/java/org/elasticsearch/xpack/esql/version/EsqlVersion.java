@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.version;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.VersionId;
 
 public enum EsqlVersion implements VersionId<EsqlVersion> {
@@ -24,6 +25,27 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
     private int month;
     private String emoji;
 
+    /**
+     * Version prefix that we accept when parsing. If a version string starts with the given prefix, we consider the version string valid.
+     * E.g. "2024.04.🎉" will be interpreted as {@link EsqlVersion#PARTY_POPPER}, but so will "2024.04" and "2024.04foobar".
+     */
+    String parsingPrefix() {
+        return this == NIGHTLY ? "nightly" : String.format("%d.%02d", year, month);
+    }
+
+    public static EsqlVersion parse(String versionString) {
+        EsqlVersion parsed = null;
+        if (Strings.hasText(versionString)) {
+            versionString = versionString.toLowerCase();
+            for (EsqlVersion version : EsqlVersion.values()) {
+                if (versionString.startsWith(version.parsingPrefix())) {
+                    return version;
+                }
+            }
+        }
+        return parsed;
+    }
+
     @Override
     public String toString() {
         return this == NIGHTLY ? "nightly." + emoji : String.format("%d.%02d.%s", year, month, emoji);
@@ -31,6 +53,6 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
 
     @Override
     public int id() {
-        return this == NIGHTLY ? Integer.MAX_VALUE : (100*year + month);
+        return this == NIGHTLY ? Integer.MAX_VALUE : (100 * year + month);
     }
 }

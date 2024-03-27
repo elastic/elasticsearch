@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.version;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
+import java.util.Arrays;
+
 import static org.elasticsearch.xpack.esql.version.EsqlVersion.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class EsqlVersionTests extends ESTestCase {
     public void testVersionString() {
@@ -21,5 +24,24 @@ public class EsqlVersionTests extends ESTestCase {
     public void testVersionId() {
         assertThat(NIGHTLY.id(), equalTo(Integer.MAX_VALUE));
         assertThat(PARTY_POPPER.id(), equalTo(202404));
+    }
+
+    public void testParsingPrefix() {
+        for (EsqlVersion version : EsqlVersion.values()) {
+            String[] versionSegments = version.toString().split("\\.");
+            String[] parsingPrefixSegments = Arrays.copyOf(versionSegments, versionSegments.length - 1);
+
+            String expectedParsingPrefix = String.join(".", parsingPrefixSegments);
+            assertThat(version.parsingPrefix(), equalTo(expectedParsingPrefix));
+        }
+    }
+
+    public void testParsing() {
+        for (EsqlVersion version : EsqlVersion.values()) {
+            int suffixLength = randomIntBetween(0, 10);
+            String validVersionString = version.parsingPrefix() + randomUnicodeOfLength(suffixLength);
+
+            assertThat(EsqlVersion.parse(validVersionString), is(version));
+        }
     }
 }

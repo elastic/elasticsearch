@@ -46,10 +46,12 @@ final class RequestXContent {
         PARAM_PARSER.declareString(constructorArg(), TYPE);
     }
 
-    private static final ParseField QUERY_FIELD = new ParseField("query");
+    // TODO: Maybe esql_version would be better? This looks like there's a JSON attribute `esql` with subattribute `version`.
+    static final ParseField ESQL_VERSION_FIELD = new ParseField("esql.version");
+    static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
-    private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
+    static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
@@ -72,6 +74,7 @@ final class RequestXContent {
     }
 
     private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
+        parser.declareString(EsqlQueryRequest::esqlVersion, ESQL_VERSION_FIELD);
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);

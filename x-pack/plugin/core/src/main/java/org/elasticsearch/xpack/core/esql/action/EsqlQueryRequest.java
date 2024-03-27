@@ -21,6 +21,8 @@ public abstract class EsqlQueryRequest extends ActionRequest {
         super(in);
     }
 
+    public abstract String esqlVersion();
+
     public abstract String query();
 
     public abstract QueryBuilder filter();

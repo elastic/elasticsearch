@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -253,7 +254,10 @@ public class SemanticTextFieldMapper extends FieldMapper {
             String inferenceResultsFieldName = nestedFieldPath + "." + INFERENCE_CHUNKS_RESULTS;
             QueryBuilder childQueryBuilder;
 
-            if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
+            if (modelSettings == null) {
+                // No inference results have been indexed yet
+                childQueryBuilder = new MatchNoneQueryBuilder();
+            } else if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
                 // TODO: Use WeightedTokensQueryBuilder
                 var boolQuery = QueryBuilders.boolQuery();
                 for (var weightedToken : textExpansionResults.getWeightedTokens()) {

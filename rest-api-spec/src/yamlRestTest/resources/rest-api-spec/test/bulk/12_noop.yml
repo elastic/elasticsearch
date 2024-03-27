@@ -18,6 +18,12 @@
           { "create": { "_index": "test_1", "_id": "2"} }
           { "foo": "bar" }
   - do:
+      indices.stats: { index: test_1 }
+
+  - match: { _all.total.indexing.index_total: 2 }
+  - match: { _all.total.indexing.noop_update_total: 0 }
+
+  - do:
       bulk:
         body: |
           { "update": { "_index": "test_1", "_id": "1"} }

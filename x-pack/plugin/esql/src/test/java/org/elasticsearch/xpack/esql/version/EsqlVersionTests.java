@@ -26,20 +26,20 @@ public class EsqlVersionTests extends ESTestCase {
         assertThat(PARTY_POPPER.id(), equalTo(202404));
     }
 
-    public void testParsingPrefix() {
+    public void testVersionStringNoEmoji() {
         for (EsqlVersion version : EsqlVersion.values()) {
             String[] versionSegments = version.toString().split("\\.");
             String[] parsingPrefixSegments = Arrays.copyOf(versionSegments, versionSegments.length - 1);
 
             String expectedParsingPrefix = String.join(".", parsingPrefixSegments);
-            assertThat(version.parsingPrefix(), equalTo(expectedParsingPrefix));
+            assertThat(version.versionStringNoEmoji(), equalTo(expectedParsingPrefix));
         }
     }
 
     public void testParsing() {
         for (EsqlVersion version : EsqlVersion.values()) {
             int suffixLength = randomIntBetween(0, 10);
-            String validVersionString = version.parsingPrefix() + randomUnicodeOfLength(suffixLength);
+            String validVersionString = version.versionStringNoEmoji() + randomUnicodeOfLength(suffixLength);
 
             assertThat(EsqlVersion.parse(validVersionString), is(version));
         }

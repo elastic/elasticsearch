@@ -29,7 +29,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
      * Version prefix that we accept when parsing. If a version string starts with the given prefix, we consider the version string valid.
      * E.g. "2024.04.🎉" will be interpreted as {@link EsqlVersion#PARTY_POPPER}, but so will "2024.04" and "2024.04foobar".
      */
-    String parsingPrefix() {
+    public String versionStringNoEmoji() {
         return this == NIGHTLY ? "nightly" : String.format("%d.%02d", year, month);
     }
 
@@ -38,7 +38,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
         if (Strings.hasText(versionString)) {
             versionString = versionString.toLowerCase();
             for (EsqlVersion version : EsqlVersion.values()) {
-                if (versionString.startsWith(version.parsingPrefix())) {
+                if (versionString.startsWith(version.versionStringNoEmoji())) {
                     return version;
                 }
             }

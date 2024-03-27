@@ -406,7 +406,7 @@ public class ElasticsearchInternalService implements InferenceService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
+        return TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED;
     }
 
     @Override

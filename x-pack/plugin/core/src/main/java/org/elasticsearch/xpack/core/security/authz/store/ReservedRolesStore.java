@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
@@ -94,8 +95,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 "*"
             ) },
-        new RoleDescriptor.RemoteClusterPrivileges[] {
-            new RoleDescriptor.RemoteClusterPrivileges(new String[] { "monitor_enrich" }, new String[] { "*" }) },
+        new RemoteClusterPermissions.Builder().addGroup(
+            new RemoteClusterPermissions.RemoteClusterGroup(new String[] { "monitor_enrich" }, new String[] { "*" })
+        ).build(),
         null
     );
 

@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -591,7 +592,7 @@ public class RoleDescriptorTests extends ESTestCase {
                         descriptor.getMetadata(),
                         descriptor.getTransientMetadata(),
                         descriptor.getRemoteIndicesPrivileges(),
-                        descriptor.getRemoteClusterPrivileges(),
+                        descriptor.getRemoteClusterPermissions(),
                         null
                     )
                 )
@@ -998,7 +999,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 new HashMap<>(),
                 new HashMap<>(),
                 new RoleDescriptor.RemoteIndicesPrivileges[0],
-                new RoleDescriptor.RemoteClusterPrivileges[0],
+                RemoteClusterPermissions.NONE,
                 null
             ).isEmpty()
         );

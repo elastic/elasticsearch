@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetB
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -432,6 +433,7 @@ public class CompositeRolesStore {
         final Map<Tuple<String, Set<String>>, Set<String>> applicationPrivilegesMap = new HashMap<>();
         final Set<String> workflows = new HashSet<>();
         final List<String> roleNames = new ArrayList<>(roleDescriptors.size());
+        final RemoteClusterPermissions.Builder remoteClusterPermissionsBuilder = new RemoteClusterPermissions.Builder();
         for (RoleDescriptor descriptor : roleDescriptors) {
             roleNames.add(descriptor.getName());
             if (descriptor.getClusterPrivileges() != null) {
@@ -451,8 +453,10 @@ public class CompositeRolesStore {
                 groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
             }
 
-            if(descriptor.hasRemoteClusterPrivileges()) {
-                groupClusterPrivilegesByCluster(); //TODO!!
+            if (descriptor.hasRemoteClusterPermissions()) {
+                for (RemoteClusterPermissions.RemoteClusterGroup groups : descriptor.getRemoteClusterPermissions().groups()) {
+                    remoteClusterPermissionsBuilder.addGroup(groups);
+                }
             }
 
             for (RoleDescriptor.ApplicationResourcePrivileges appPrivilege : descriptor.getApplicationPrivileges()) {
@@ -509,6 +513,11 @@ public class CompositeRolesStore {
                 )
             );
         });
+
+        RemoteClusterPermissions rcp = remoteClusterPermissionsBuilder.build();
+        final RemoteClusterPermissions remoteClusterPermissions = rcp.hasPrivileges() ? rcp : RemoteClusterPermissions.NONE;
+        builder.addRemoteClusterPermissions(remoteClusterPermissions);
+
         if (false == workflows.isEmpty()) {
             builder.workflows(workflows);
         }
@@ -596,10 +605,6 @@ public class CompositeRolesStore {
             final Set<String> clusterAliasKey = newHashSet(remoteIndicesPrivilege.remoteClusters());
             remoteIndexPrivilegesByCluster.computeIfAbsent(clusterAliasKey, k -> new HashSet<>()).add(indicesPrivilege);
         }
-    }
-
-    private static void groupClusterPrivilegesByCluster() {
-        //TODO!
     }
 
     /**

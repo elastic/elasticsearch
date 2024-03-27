@@ -41,7 +41,7 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         request.conditionalCluster(descriptor.getConditionalClusterPrivileges());
         request.addIndex(descriptor.getIndicesPrivileges());
         request.addRemoteIndex(descriptor.getRemoteIndicesPrivileges());
-        request.addRemoteCluster(descriptor.getRemoteClusterPrivileges());
+        request.addRemoteCluster(descriptor.getRemoteClusterPermissions());
         request.addApplicationPrivileges(descriptor.getApplicationPrivileges());
         request.runAs(descriptor.getRunAs());
         request.metadata(descriptor.getMetadata());

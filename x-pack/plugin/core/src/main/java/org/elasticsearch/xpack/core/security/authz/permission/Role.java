@@ -217,10 +217,10 @@ public interface Role {
         private RunAsPermission runAs = RunAsPermission.NONE;
         private final List<IndicesPermissionGroupDefinition> groups = new ArrayList<>();
         private final Map<Set<String>, List<IndicesPermissionGroupDefinition>> remoteIndicesGroups = new HashMap<>();
-        private final List<RoleDescriptor.RemoteClusterPrivileges> remoteClusterGroups = new ArrayList<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
         private WorkflowsRestriction workflowsRestriction = WorkflowsRestriction.NONE;
+        private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
             this.restrictedIndices = restrictedIndices;
@@ -275,27 +275,29 @@ public interface Role {
             return this;
         }
 
-        public Builder addRemoteClusterGroup( RoleDescriptor.RemoteClusterPrivileges remoteClusterPrivileges ){
-
-            if (remoteClusterPrivileges.clusterPrivileges().length > 0) {
+        public Builder addRemoteClusterPermissions(RemoteClusterPermissions remoteClusterPermissions ){
+            assert this.remoteClusterPermissions == RemoteClusterPermissions.NONE
+                : "addRemoteClusterPermissions should only be called once";
+            if (remoteClusterPermissions.hasPrivileges()) {
                 Set<String> namedClusterPrivileges = ClusterPrivilegeResolver.names();
-                for (String namedPrivilege : remoteClusterPrivileges.clusterPrivileges()) {
-                    if("monitor_enrich".equals(namedPrivilege) == false){
-                        //this should be enforced upstream while defining the role, but check here too just in case...
-                        throw new IllegalArgumentException("Only [monitor_enrich] is supported as a remote cluster privilege");
+                for (RemoteClusterPermissions.RemoteClusterGroup group : remoteClusterPermissions.groups()) {
+                    for (String namedPrivilege : group.clusterPrivileges()) {
+                        if ("monitor_enrich".equals(namedPrivilege) == false) {
+                            //this should be enforced upstream while defining the role, so the check here too is just in case...
+                            throw new IllegalArgumentException("Only [monitor_enrich] is supported as a remote cluster privilege");
+                        }
+                        // this can never happen, but if we ever expand the list of remote cluster privileges then we want to ensure that
+                        // only named cluster privileges are supported
+                        if (namedClusterPrivileges.contains(namedPrivilege) == false) {
+                            throw new IllegalArgumentException("Unknown cluster privilege [" + namedPrivilege + "]");
+                        }
                     }
-                    // this can never happen, but if we ever expand the list of remote cluster privileges then we want to ensure that only
-                    // named cluster privileges are supported
-                    if (namedClusterPrivileges.contains(namedPrivilege) == false) {
-                        throw new IllegalArgumentException("Unknown cluster privilege [" + namedPrivilege + "]");
-                    }
-
                 }
-                this.remoteClusterGroups.add(remoteClusterPrivileges);
             }
-
+            this.remoteClusterPermissions = remoteClusterPermissions;
             return this;
         }
+
         public Builder addApplicationPrivilege(ApplicationPrivilege privilege, Set<String> resources) {
             applicationPrivs.add(new Tuple<>(privilege, resources));
             return this;
@@ -348,17 +350,6 @@ public interface Role {
                     }
                 }
                 remoteIndicesPermission = remoteIndicesBuilder.build();
-            }
-
-            final RemoteClusterPermissions remoteClusterPermissions;
-            if (remoteClusterGroups.isEmpty()) {
-                remoteClusterPermissions = RemoteClusterPermissions.NONE;
-            } else {
-                final RemoteClusterPermissions.Builder remoteClusterBuilder = new RemoteClusterPermissions.Builder();
-                for (RoleDescriptor.RemoteClusterPrivileges remoteClusterPrivilege : remoteClusterGroups) {
-                    remoteClusterBuilder.addGroup(remoteClusterPrivilege.remoteClusterGroup());
-                }
-                remoteClusterPermissions = remoteClusterBuilder.build();
             }
 
             final ApplicationPermission applicationPermission = applicationPrivs.isEmpty()
@@ -451,12 +442,14 @@ public interface Role {
             );
         }
 
-        for(RoleDescriptor.RemoteClusterPrivileges remoteClusterPrivileges : roleDescriptor.getRemoteClusterPrivileges()) {
-            final String[] clusterAliases = remoteClusterPrivileges.remoteClusters();
+        RemoteClusterPermissions remoteClusterPermissions = roleDescriptor.getRemoteClusterPermissions();
+        for(RemoteClusterPermissions.RemoteClusterGroup group : remoteClusterPermissions.groups()){
+            final String[] clusterAliases = group.remoteClusterAliases();
+            //note: this validation only occurs from reserved roles, see the builder for additional general validation
             assert Arrays.equals(new String[] { "*" }, clusterAliases)
                 : "reserved role should not define remote cluster privileges for specific clusters";
-            builder.addRemoteClusterGroup(remoteClusterPrivileges);
         }
+        builder.addRemoteClusterPermissions(remoteClusterPermissions);
 
         for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : roleDescriptor.getApplicationPrivileges()) {
             ApplicationPrivilege.get(

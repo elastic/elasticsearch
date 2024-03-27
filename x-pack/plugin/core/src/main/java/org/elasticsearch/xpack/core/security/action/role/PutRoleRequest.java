@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
@@ -44,7 +45,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
     private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
-    private List<RoleDescriptor.RemoteClusterPrivileges> remoteClusterPrivileges = new ArrayList<>();
+    private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
 
     public PutRoleRequest(StreamInput in) throws IOException {
         super(in);
@@ -64,7 +65,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             remoteIndicesPrivileges = in.readCollectionAsList(RoleDescriptor.RemoteIndicesPrivileges::new);
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
-            // TODO:
+            remoteClusterPermissions = new RemoteClusterPermissions(in);
         }
     }
 
@@ -100,8 +101,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         remoteIndicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
-    public void addRemoteCluster(RoleDescriptor.RemoteClusterPrivileges... privileges) {
-        remoteClusterPrivileges.addAll(Arrays.asList(privileges));
+    public void addRemoteCluster(RemoteClusterPermissions remoteClusterPermissions) {
+        this.remoteClusterPermissions = remoteClusterPermissions;
     }
 
     public void addRemoteIndex(
@@ -126,9 +127,9 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
     }
 
     //TODO: who calls this ?
-    public void addRemoteCluster(final String[] privileges, final String[] remoteClusters) {
-        remoteClusterPrivileges.add(new RoleDescriptor.RemoteClusterPrivileges(remoteClusters, privileges));
-    }
+//    public void addRemoteCluster(final String[] privileges, final String[] remoteClusters) {
+//        remoteClusterPrivileges.add(new RoleDescriptor.RemoteClusterPrivileges(remoteClusters, privileges));
+//    }
 
     public void addIndex(
         String[] indices,
@@ -197,9 +198,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         return false == remoteIndicesPrivileges.isEmpty();
     }
 
-    public boolean hasRemoteClusterPrivileges() {
-        return false == remoteClusterPrivileges.isEmpty();
-    }
+    //TODO: who calls this ?
+    //public boolean hasRemoteClusterPrivileges() {
+     //   return false == remoteClusterPrivileges.isEmpty();
+   // }
 
     public List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges() {
         return Collections.unmodifiableList(applicationPrivileges);
@@ -255,7 +257,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             metadata,
             Collections.emptyMap(),
             remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]),
-            remoteClusterPrivileges.toArray(new RoleDescriptor.RemoteClusterPrivileges[0]),
+            remoteClusterPermissions,
             null
         );
     }

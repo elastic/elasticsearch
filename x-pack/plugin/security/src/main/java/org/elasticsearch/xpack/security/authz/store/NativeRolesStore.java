@@ -510,7 +510,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     roleDescriptor.getMetadata(),
                     transientMap,
                     roleDescriptor.getRemoteIndicesPrivileges(),
-                    roleDescriptor.getRemoteClusterPrivileges(),
+                    roleDescriptor.getRemoteClusterPermissions(),
                     roleDescriptor.getRestriction()
                 );
             } else {

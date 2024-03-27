@@ -7,19 +7,29 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 
-public class RemoteClusterPermissions {
+public class RemoteClusterPermissions implements Writeable, ToXContentObject {
 
     private final List<RemoteClusterGroup> remoteClusterGroups;
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions(List.of());
 
+    public RemoteClusterPermissions(StreamInput in) throws IOException {
+        this(List.of()); //TODO: fixme
+    }
     private RemoteClusterPermissions(List<RemoteClusterGroup> remoteClusterGroups) {
         this.remoteClusterGroups = remoteClusterGroups;
     }
@@ -36,8 +46,34 @@ public class RemoteClusterPermissions {
             .anyMatch(remoteIndicesGroup -> remoteIndicesGroup.hasPrivileges(remoteClusterAlias));
     }
 
+    public boolean hasPrivileges(){
+        return remoteClusterGroups.isEmpty() == false;
+    }
+
+    public List<RemoteClusterGroup> groups() {
+        return Collections.unmodifiableList(remoteClusterGroups);
+    }
+
+    //TODO: remove this in favor of just constructing the builder
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        //TODO: fixme
+//        builder.startObject();
+//        builder.array(RoleDescriptor.Fields.PRIVILEGES.getPreferredName(), remoteClusterGroup.clusterPrivileges());
+//        builder.array(RoleDescriptor.Fields.CLUSTERS.getPreferredName(), remoteClusterGroup.remoteClusterAliases());
+//        builder.endObject();
+//        return builder;
+        return null;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+
+        //TODO: fixme
     }
 
     public static class Builder {

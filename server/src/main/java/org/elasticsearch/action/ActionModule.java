@@ -1049,6 +1049,7 @@ public class ActionModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        bind(RestController.class).toInstance(restController);
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
         bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {

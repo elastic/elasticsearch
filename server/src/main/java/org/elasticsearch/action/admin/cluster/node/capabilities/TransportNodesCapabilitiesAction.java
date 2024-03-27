@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,12 +37,15 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
 
     public static final ActionType<NodesCapabilitiesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/capabilities");
 
+    private final RestController restController;
+
     @Inject
     public TransportNodesCapabilitiesAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        RestController restController
     ) {
         super(
             TYPE.name(),
@@ -50,6 +55,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             NodeCapabilitiesRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.restController = restController;
     }
 
     @Override
@@ -73,7 +79,9 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
 
     @Override
     protected NodeCapability nodeOperation(NodeCapabilitiesRequest request, Task task) {
-
+        // TODO: add the rest api version as a NodeCapabilitiesRequest parameter?
+        boolean supported = restController.checkSupported(request.method, request.path, RestApiVersion.V_8);
+        return new NodeCapability(supported, transportService.getLocalNode());
     }
 
     public static class NodeCapabilitiesRequest extends TransportRequest {
@@ -96,22 +104,6 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             this.path = path;
             this.parameters = Set.copyOf(parameters);
             this.features = Set.copyOf(features);
-        }
-
-        public RestRequest.Method getMethod() {
-            return method;
-        }
-
-        public String path() {
-            return path;
-        }
-
-        public Set<String> parameters() {
-            return parameters;
-        }
-
-        public Set<String> features() {
-            return features;
         }
 
         @Override

@@ -365,6 +365,24 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
+    public boolean checkSupported(RestRequest.Method method, String path, RestApiVersion restApiVersion) {
+        Iterator<MethodHandlers> allHandlers = getAllHandlers(null, path);
+        while (allHandlers.hasNext()) {
+            final RestHandler handler;
+            final MethodHandlers handlers = allHandlers.next();
+            if (handlers == null) {
+                handler = null;
+            } else {
+                handler = handlers.getHandler(method, restApiVersion);
+                // TODO: add query parameters and arbitrary features to Route, and check them here
+            }
+            if (handler != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public Map<String, HttpRouteStats> getStats() {
         final Iterator<MethodHandlers> methodHandlersIterator = handlers.allNodeValues();

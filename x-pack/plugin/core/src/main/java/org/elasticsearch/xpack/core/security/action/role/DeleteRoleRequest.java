@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -19,23 +20,28 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request delete a role from the security index
  */
-public class DeleteRoleRequest extends ActionRequest implements WriteRequest<DeleteRoleRequest> {
+public class DeleteRoleRequest extends ActionRequest {
 
     private String name;
-    private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+    private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.IMMEDIATE;
 
     private boolean restrictRequest;
 
     public DeleteRoleRequest() {}
 
-    @Override
-    public DeleteRoleRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+    public DeleteRoleRequest setRefreshPolicy(@Nullable String refreshPolicy) {
+        if (refreshPolicy != null) {
+            setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
+        }
+        return this;
+    }
+
+    public DeleteRoleRequest setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
         this.refreshPolicy = refreshPolicy;
         return this;
     }
 
-    @Override
-    public RefreshPolicy getRefreshPolicy() {
+    public WriteRequest.RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
     }
 

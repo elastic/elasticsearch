@@ -13,9 +13,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 /**
  * A builder for requests to delete a role from the security index
  */
-public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleRequest, DeleteRoleResponse>
-    implements
-        WriteRequestBuilder<DeleteRoleRequestBuilder> {
+public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleRequest, DeleteRoleResponse> {
 
     public DeleteRoleRequestBuilder(ElasticsearchClient client) {
         super(client, DeleteRoleAction.INSTANCE, new DeleteRoleRequest());
@@ -28,6 +26,11 @@ public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleReq
 
     public DeleteRoleRequestBuilder restrictRequest(boolean restrictRequest) {
         request.restrictRequest(restrictRequest);
+        return this;
+    }
+
+    public DeleteRoleRequestBuilder setRefreshPolicy(String refreshPolicy) {
+        request.setRefreshPolicy(refreshPolicy);
         return this;
     }
 }

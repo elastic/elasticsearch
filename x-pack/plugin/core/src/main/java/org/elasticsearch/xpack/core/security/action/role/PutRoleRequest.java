@@ -134,8 +134,11 @@ public class PutRoleRequest extends ActionRequest {
         this.runAs = usernames;
     }
 
-    public PutRoleRequest setRefreshPolicy(String refreshPolicy) {
-        return setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
+    public PutRoleRequest setRefreshPolicy(@Nullable String refreshPolicy) {
+        if (refreshPolicy != null) {
+            setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
+        }
+        return this;
     }
 
     public PutRoleRequest setRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {

@@ -6,10 +6,12 @@ Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 [[breaking-8.13.0]]
 [float]
 === Breaking changes
-There are no breaking changes in 8.13
+There are no breaking changes in 8.13.
 
+[[notable-changes-8.13.0]]
+[float]
 === Notable changes
-There are notable changes in 8.13 that you need to be aware of but that we do not consider breaking, items that we may consider as notable changes are
+The following are notable, non-breaking updates to be aware of:
 
 * Changes to features that are in Technical Preview.
 * Changes to log formats.

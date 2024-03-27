@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.Map;
 
 public interface OpenAiActionVisitor {
     ExecutableAction create(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings);
+
+    ExecutableAction create(OpenAiChatCompletionModel model, Map<String, Object> taskSettings);
 }

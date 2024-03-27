@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import java.lang.NumberFormatException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -41,7 +40,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantIntBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (InvalidArgumentException | NumberFormatException  e) {
+      } catch (InvalidArgumentException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
@@ -50,7 +49,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendInt(evalValue(vector, p, scratchPad));
-        } catch (InvalidArgumentException | NumberFormatException  e) {
+        } catch (InvalidArgumentException  e) {
           registerException(e);
           builder.appendNull();
         }
@@ -85,7 +84,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
             }
             builder.appendInt(value);
             valuesAppended = true;
-          } catch (InvalidArgumentException | NumberFormatException  e) {
+          } catch (InvalidArgumentException  e) {
             registerException(e);
           }
         }

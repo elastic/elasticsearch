@@ -72,6 +72,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -83,7 +84,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * Configures classes and services that are shared by indices on each node.
@@ -307,18 +307,15 @@ public class IndicesModule extends AbstractModule {
         return builtInMetadataFields;
     }
 
-    private static Function<String, Predicate<String>> getFieldFilter(List<MapperPlugin> mapperPlugins) {
-        Function<String, Predicate<String>> fieldFilter = MapperPlugin.NOOP_FIELD_FILTER;
+    private static Function<String, FieldPredicate> getFieldFilter(List<MapperPlugin> mapperPlugins) {
+        Function<String, FieldPredicate> fieldFilter = MapperPlugin.NOOP_FIELD_FILTER;
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             fieldFilter = and(fieldFilter, mapperPlugin.getFieldFilter());
         }
         return fieldFilter;
     }
 
-    private static Function<String, Predicate<String>> and(
-        Function<String, Predicate<String>> first,
-        Function<String, Predicate<String>> second
-    ) {
+    private static Function<String, FieldPredicate> and(Function<String, FieldPredicate> first, Function<String, FieldPredicate> second) {
         // the purpose of this method is to not chain no-op field predicates, so that we can easily find out when no plugins plug in
         // a field filter, hence skip the mappings filtering part as a whole, as it requires parsing mappings into a map.
         if (first == MapperPlugin.NOOP_FIELD_FILTER) {
@@ -328,15 +325,15 @@ public class IndicesModule extends AbstractModule {
             return first;
         }
         return index -> {
-            Predicate<String> firstPredicate = first.apply(index);
-            Predicate<String> secondPredicate = second.apply(index);
-            if (firstPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+            FieldPredicate firstPredicate = first.apply(index);
+            FieldPredicate secondPredicate = second.apply(index);
+            if (firstPredicate == FieldPredicate.ACCEPT_ALL) {
                 return secondPredicate;
             }
-            if (secondPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+            if (secondPredicate == FieldPredicate.ACCEPT_ALL) {
                 return firstPredicate;
             }
-            return firstPredicate.and(secondPredicate);
+            return new FieldPredicate.And(firstPredicate, secondPredicate);
         };
     }
 

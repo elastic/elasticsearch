@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class TransportPutRoleAction extends TransportAction<PutRoleRequest, PutRoleResponse> {
 
     private final NativeRolesStore rolesStore;
@@ -66,7 +68,7 @@ public class TransportPutRoleAction extends TransportAction<PutRoleRequest, PutR
             return validationException;
         }
         if (reservedRoleNameChecker.isReserved(request.name(), request.restrictRequest())) {
-            return new IllegalArgumentException("Role name [" + request.name() + "] is reserved and may not be used.");
+            throw addValidationError("Role [" + request.name() + "] is reserved and may not be used.", null);
         }
         try {
             DLSRoleQueryValidator.validateQueryField(request.roleDescriptor().getIndicesPrivileges(), xContentRegistry);

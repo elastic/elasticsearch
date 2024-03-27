@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -94,6 +95,16 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
 
     public CohereServiceSettings getCommonSettings() {
         return commonSettings;
+    }
+
+    @Override
+    public SimilarityMeasure similarity() {
+        return commonSettings.similarity();
+    }
+
+    @Override
+    public Integer dimensions() {
+        return commonSettings.dimensions();
     }
 
     public CohereEmbeddingType getEmbeddingType() {

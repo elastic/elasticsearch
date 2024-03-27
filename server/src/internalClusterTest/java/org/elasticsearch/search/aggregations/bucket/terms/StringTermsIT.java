@@ -1345,6 +1345,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
         int batchReduceSize
     ) {
         int size = randomIntBetween(1, keys.size());
+        long sumOtherCount = 0;
+        for (int i = size; i < keys.size(); i++) {
+            sumOtherCount += counts.get(keys.get(i))[0];
+        }
+        final long finalSumOtherCount = sumOtherCount;
         assertNoFailuresAndResponse(
             prepareSearch("idx0", "idx1", "idx2", "idx3", "idx4").setBatchedReduceSize(batchReduceSize)
                 .setQuery(QueryBuilders.termQuery("filter", false))
@@ -1360,6 +1365,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 assertThat(terms, notNullValue());
                 assertThat(terms.getName(), equalTo("terms"));
                 assertThat(terms.getBuckets().size(), equalTo(size));
+                assertThat(terms.getSumOfOtherDocCounts(), equalTo(finalSumOtherCount));
 
                 for (int i = 0; i < size; i++) {
                     StringTerms.Bucket bucket = terms.getBuckets().get(i);

@@ -14,6 +14,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -38,9 +39,14 @@ final class FieldTypeLookup {
 
     private final int maxParentPathDots;
 
+    FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
+        this(fieldMappers, fieldAliasMappers, List.of(), List.of());
+    }
+
     FieldTypeLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers,
         Collection<RuntimeField> runtimeFields
     ) {
 
@@ -83,6 +89,24 @@ final class FieldTypeLookup {
             fullNameToFieldType.put(aliasName, fieldType);
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(aliasName, (DynamicFieldType) fieldType);
+            }
+        }
+
+        for (FieldMapper fieldMapper : fieldMappers) {
+            String fieldName = fieldMapper.name();
+            for (PassThroughObjectMapper mapper : passThroughMappers) {
+                if (fieldName.startsWith(mapper.name())) {
+                    String name = fieldName.substring(mapper.name().length() + 1);
+                    // Check if there's an existing field or alias for the same field.
+                    if (fullNameToFieldType.containsKey(name)) {
+                        continue;
+                    }
+                    MappedFieldType fieldType = fieldMapper.fieldType();
+                    fullNameToFieldType.put(name, fieldType);
+                    if (fieldType instanceof DynamicFieldType) {
+                        dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
+                    }
+                }
             }
         }
 

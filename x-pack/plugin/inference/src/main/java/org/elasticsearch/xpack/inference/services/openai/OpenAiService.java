@@ -248,11 +248,14 @@ public class OpenAiService extends SenderService {
             );
         }
 
+        var similarityFromModel = model.getServiceSettings().similarity();
+        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
         OpenAiEmbeddingsServiceSettings serviceSettings = new OpenAiEmbeddingsServiceSettings(
             model.getServiceSettings().modelId(),
             model.getServiceSettings().uri(),
             model.getServiceSettings().organizationId(),
-            SimilarityMeasure.DOT_PRODUCT,
+            similarityToUse,
             embeddingSize,
             model.getServiceSettings().maxInputTokens(),
             model.getServiceSettings().dimensionsSetByUser()
@@ -263,7 +266,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_COMPLETION_INFERENCE_SERVICE_ADDED;
+        return TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED;
     }
 
     /**

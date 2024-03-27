@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
@@ -1286,5 +1287,93 @@ public class StringTermsIT extends AbstractTermsTestCase {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(ex.getCause().getMessage(), containsString("Unknown value type [foobar]"));
         }
+    }
+
+    public void testOrderByKey() throws Exception {
+        Map<String, long[]> data = new HashMap<>();
+        for (int i = 0; i < 5; i++) {
+            assertAcked(
+                indicesAdmin().prepareCreate("idx" + i).setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", "filter", "type=boolean")
+            );
+            List<IndexRequestBuilder> builders = new ArrayList<>();
+            for (int j = 0; j < 100; j++) {
+                String val = "val" + random().nextInt(1000);
+                boolean filter = randomBoolean();
+                long[] counter = data.computeIfAbsent(val, s -> new long[] { 0 });
+                if (filter == false) {
+                    counter[0]++;
+                }
+                builders.add(
+                    prepareIndex("idx" + i).setSource(
+                        jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, val).field("filter", filter).endObject()
+                    )
+                );
+            }
+            indexRandom(true, builders);
+        }
+        List<String> allKeys = new ArrayList<>(data.keySet());
+        List<String> keysMinDocCount1 = allKeys.stream().filter(key -> data.get(key)[0] > 0).collect(Collectors.toList());
+        List<String> keysMinDocCount2 = allKeys.stream().filter(key -> data.get(key)[0] > 1).collect(Collectors.toList());
+        // test for different batch sizes to exercise partial reduces
+        for (int batchReduceSize = 2; batchReduceSize < 6; batchReduceSize++) {
+            // with min_doc_count = 0
+            allKeys.sort(String::compareTo);
+            assertOrderByKeyResponse(allKeys, data, true, 0, batchReduceSize);
+            Collections.reverse(allKeys);
+            assertOrderByKeyResponse(allKeys, data, false, 0, batchReduceSize);
+            // with min_doc_count = 1
+            keysMinDocCount1.sort(String::compareTo);
+            assertOrderByKeyResponse(keysMinDocCount1, data, true, 1, batchReduceSize);
+            Collections.reverse(keysMinDocCount1);
+            assertOrderByKeyResponse(keysMinDocCount1, data, false, 1, batchReduceSize);
+            // with min_doc_count = 2
+            keysMinDocCount2.sort(String::compareTo);
+            assertOrderByKeyResponse(keysMinDocCount2, data, true, 2, batchReduceSize);
+            Collections.reverse(keysMinDocCount2);
+            assertOrderByKeyResponse(keysMinDocCount2, data, false, 2, batchReduceSize);
+        }
+        for (int i = 0; i < 5; i++) {
+            assertAcked(indicesAdmin().prepareDelete("idx" + i));
+        }
+    }
+
+    private void assertOrderByKeyResponse(
+        List<String> keys,
+        Map<String, long[]> counts,
+        boolean asc,
+        int minDocCount,
+        int batchReduceSize
+    ) {
+        int size = randomIntBetween(1, keys.size());
+        long sumOtherCount = 0;
+        for (int i = size; i < keys.size(); i++) {
+            sumOtherCount += counts.get(keys.get(i))[0];
+        }
+        final long finalSumOtherCount = sumOtherCount;
+        assertNoFailuresAndResponse(
+            prepareSearch("idx0", "idx1", "idx2", "idx3", "idx4").setBatchedReduceSize(batchReduceSize)
+                .setQuery(QueryBuilders.termQuery("filter", false))
+                .addAggregation(
+                    new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                        .size(size)
+                        .shardSize(500)
+                        .minDocCount(minDocCount)
+                        .order(BucketOrder.key(asc))
+                ),
+            response -> {
+                StringTerms terms = response.getAggregations().get("terms");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo("terms"));
+                assertThat(terms.getBuckets().size(), equalTo(size));
+                assertThat(terms.getSumOfOtherDocCounts(), equalTo(finalSumOtherCount));
+
+                for (int i = 0; i < size; i++) {
+                    StringTerms.Bucket bucket = terms.getBuckets().get(i);
+                    assertThat(bucket, notNullValue());
+                    assertThat(bucket.getKeyAsString(), equalTo(keys.get(i)));
+                    assertThat(bucket.getDocCount(), equalTo(counts.get(keys.get(i))[0]));
+                }
+            }
+        );
     }
 }

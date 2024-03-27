@@ -250,11 +250,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
                         .map(stats -> stats.getIndex(dataStream.getWriteIndex().getName()));
 
-                    Double writeLoad = indexStats.map(stats -> stats.getTotal().getIndexing())
-                        .map(indexing -> indexing.getTotal().getWriteLoad())
-                        .orElse(null);
+                    Double indexWriteLoad = indexStats.map(
+                        stats -> Arrays.stream(stats.getShards())
+                            .filter(shardStats -> shardStats.getStats().indexing != null)
+                            // only take primaries into account as in stateful the replicas also index data
+                            .filter(shardStats -> shardStats.getShardRouting().primary())
+                            .map(shardStats -> shardStats.getStats().indexing.getTotal().getWriteLoad())
+                            .reduce(0.0, Double::sum)
+                    ).orElse(null);
 
-                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(clusterState, dataStream, writeLoad);
+                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(clusterState, dataStream, indexWriteLoad);
                     logger.debug("auto sharding result for data stream [{}] is [{}]", dataStream.getName(), rolloverAutoSharding);
 
                     // if auto sharding recommends increasing the number of shards we want to trigger a rollover even if there are no

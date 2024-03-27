@@ -14,11 +14,13 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 
-public class NodesCapabilitiesResponse extends BaseNodesResponse<NodeCapability> {
+public class NodesCapabilitiesResponse extends BaseNodesResponse<NodeCapability> implements ToXContentFragment {
     protected NodesCapabilitiesResponse(ClusterName clusterName, List<NodeCapability> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
@@ -31,5 +33,14 @@ public class NodesCapabilitiesResponse extends BaseNodesResponse<NodeCapability>
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeCapability> nodes) throws IOException {
         TransportAction.localOnly();
+    }
+
+    public boolean isSupported() {
+        return getNodes().isEmpty() == false && getNodes().stream().allMatch(NodeCapability::isSupported);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.field("supported", isSupported());
     }
 }

@@ -24,6 +24,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesResponse;
+import org.elasticsearch.action.admin.cluster.node.capabilities.TransportNodesCapabilitiesAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -733,6 +736,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
             return new NodesInfoRequestBuilder(this).setNodesIds(nodesIds);
+        }
+
+        @Override
+        public ActionFuture<NodesCapabilitiesResponse> nodesCapabilities(NodesCapabilitiesRequest request) {
+            return execute(TransportNodesCapabilitiesAction.TYPE, request);
+        }
+
+        @Override
+        public void nodesCapabilities(NodesCapabilitiesRequest request, ActionListener<NodesCapabilitiesResponse> listener) {
+            execute(TransportNodesCapabilitiesAction.TYPE, request, listener);
         }
 
         @Override

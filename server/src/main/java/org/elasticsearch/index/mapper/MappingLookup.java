@@ -40,7 +40,7 @@ public final class MappingLookup {
      * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
      * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      */
-    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), List.of(), List.of());
+    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of());
 
     private final CacheKey cacheKey = new CacheKey();
 
@@ -127,6 +127,10 @@ public final class MappingLookup {
         Collection<PassThroughObjectMapper> passThroughMappers
     ) {
         return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers);
+    }
+
+    public static MappingLookup fromMappers(Mapping mapping, Collection<FieldMapper> mappers, Collection<ObjectMapper> objectMappers) {
+        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of());
     }
 
     private MappingLookup(

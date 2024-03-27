@@ -460,7 +460,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of(), Set.of(), Set.of());
+        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of());
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer, indexSettings.getIndexVersionCreated()))
             .when(subContext)
             .getNestedDocuments();

@@ -242,7 +242,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             "service",
             new CohereEmbeddingsServiceSettings(
                 new CohereServiceSettings(url, similarityMeasure, dimensions, tokenLimit, model),
-                embeddingType
+                Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))

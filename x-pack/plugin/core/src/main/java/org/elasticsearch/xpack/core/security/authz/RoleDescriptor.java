@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -416,7 +417,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             builder.xContentList(Fields.REMOTE_INDICES.getPreferredName(), remoteIndicesPrivileges);
         }
         if (hasRemoteClusterPermissions()) {
-            builder.xContentList(Fields.REMOTE_CLUSTER.getPreferredName(), remoteClusterPermissions);
+            builder.array(Fields.REMOTE_CLUSTER.getPreferredName(), remoteClusterPermissions);
         }
         if (hasRestriction()) {
             builder.field(Fields.RESTRICTION.getPreferredName(), restriction);
@@ -719,7 +720,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 parser.currentToken()
             );
         }
-        RemoteClusterPermissions.Builder remoteClusterPermissionsBuilder =  RemoteClusterPermissions.builder();
+        RemoteClusterPermissions remoteClusterPermissions =  new RemoteClusterPermissions();
         String[] privileges = null;
         String[] clusters = null;
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -730,16 +731,16 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     currentFieldName = parser.currentName();
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                     privileges = readStringArray(roleName, parser, false);
-                    if (privileges.length != 1 || "monitor_enrich".equals(privileges[0].trim()) == false) {
-                        throw new ElasticsearchParseException(
-                            "failed to parse remote_cluster for role [{}]. " + "[monitor_enrich] is the only value allowed for [{}]",
-                            roleName,
-                            currentFieldName
-                        );
-                    }
+                    //TODO: re-enable this validation
+//                    if (privileges.length != 1 || "monitor_enrich".equals(privileges[0].trim()) == false) {
+//                        throw new ElasticsearchParseException(
+//                            "failed to parse remote_cluster for role [{}]. " + "[monitor_enrich] is the only value allowed for [{}]",
+//                            roleName,
+//                            currentFieldName
+//                        );
+//                    }
                 } else if (Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                     clusters = readStringArray(roleName, parser, false);
-
                 } else {
                     throw new ElasticsearchParseException(
                         "failed to parse remote_cluster for role [{}]. unexpected field [{}]",
@@ -748,9 +749,20 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     );
                 }
             }
-            remoteClusterPermissionsBuilder.addGroup(new RemoteClusterPermissions.RemoteClusterGroup(privileges, clusters));
+            if(privileges != null && clusters == null) {
+                throw new ElasticsearchParseException(
+                    "failed to parse remote_cluster for role [{}]. [clusters] must be defined when [privileges] are defined ",
+                    roleName
+                );
+            } else if( privileges == null && clusters != null) {
+                throw new ElasticsearchParseException(
+                    "failed to parse remote_cluster for role [{}]. [privileges] must be defined when [clusters] are defined ",
+                    roleName
+                );
+            }
+            remoteClusterPermissions.addGroup(new RemoteClusterPermissionGroup(privileges, clusters));
         }
-        return remoteClusterPermissionsBuilder.build();
+        return remoteClusterPermissions;
     }
 
     private record IndicesPrivilegesWithOptionalRemoteClusters(IndicesPrivileges indicesPrivileges, String[] remoteClusters) {}

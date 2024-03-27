@@ -220,7 +220,7 @@ public interface Role {
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
         private final RestrictedIndices restrictedIndices;
         private WorkflowsRestriction workflowsRestriction = WorkflowsRestriction.NONE;
-        private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
+        private RemoteClusterPermissions remoteClusterPermissions = null;
 
         private Builder(RestrictedIndices restrictedIndices, String[] names) {
             this.restrictedIndices = restrictedIndices;
@@ -276,21 +276,23 @@ public interface Role {
         }
 
         public Builder addRemoteClusterPermissions(RemoteClusterPermissions remoteClusterPermissions ){
-            assert this.remoteClusterPermissions == RemoteClusterPermissions.NONE
+            Objects.requireNonNull(remoteClusterPermissions, "remoteClusterPermissions must not be null");
+            assert this.remoteClusterPermissions == null
                 : "addRemoteClusterPermissions should only be called once";
             if (remoteClusterPermissions.hasPrivileges()) {
                 Set<String> namedClusterPrivileges = ClusterPrivilegeResolver.names();
-                for (RemoteClusterPermissions.RemoteClusterGroup group : remoteClusterPermissions.groups()) {
+                for (RemoteClusterPermissionGroup group : remoteClusterPermissions.groups()) {
                     for (String namedPrivilege : group.clusterPrivileges()) {
-                        if ("monitor_enrich".equals(namedPrivilege) == false) {
-                            //this should be enforced upstream while defining the role, so the check here too is just in case...
-                            throw new IllegalArgumentException("Only [monitor_enrich] is supported as a remote cluster privilege");
-                        }
-                        // this can never happen, but if we ever expand the list of remote cluster privileges then we want to ensure that
-                        // only named cluster privileges are supported
-                        if (namedClusterPrivileges.contains(namedPrivilege) == false) {
-                            throw new IllegalArgumentException("Unknown cluster privilege [" + namedPrivilege + "]");
-                        }
+                        //TODO: re-enable this validation (and test)
+//                        if ("monitor_enrich".equals(namedPrivilege) == false) {
+//                            //this should be enforced upstream while defining the role, so the check here too is just in case...
+//                            throw new IllegalArgumentException("Only [monitor_enrich] is supported as a remote cluster privilege");
+//                        }
+//                        // this can never happen, but if we ever expand the list of remote cluster privileges then we want to ensure that
+//                        // only named cluster privileges are supported
+//                        if (namedClusterPrivileges.contains(namedPrivilege) == false) {
+//                            throw new IllegalArgumentException("Unknown cluster privilege [" + namedPrivilege + "]");
+//                        }
                     }
                 }
             }
@@ -362,7 +364,7 @@ public interface Role {
                 applicationPermission,
                 runAs,
                 remoteIndicesPermission,
-                remoteClusterPermissions,
+                remoteClusterPermissions == null ? RemoteClusterPermissions.NONE : remoteClusterPermissions,
                 workflowsRestriction
             );
         }
@@ -443,7 +445,7 @@ public interface Role {
         }
 
         RemoteClusterPermissions remoteClusterPermissions = roleDescriptor.getRemoteClusterPermissions();
-        for(RemoteClusterPermissions.RemoteClusterGroup group : remoteClusterPermissions.groups()){
+        for(RemoteClusterPermissionGroup group : remoteClusterPermissions.groups()){
             final String[] clusterAliases = group.remoteClusterAliases();
             //note: this validation only occurs from reserved roles, see the builder for additional general validation
             assert Arrays.equals(new String[] { "*" }, clusterAliases)

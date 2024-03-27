@@ -12,103 +12,96 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.support.StringMatcher;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
-
+/**
+ * Represents a group of permissions for a remote cluster. This is intended to be the model for both the {@link RoleDescriptor}
+ * and {@link Role}. This is model is not intended to be sent to a remote cluster, but can be (wire) serialized within a single cluster
+ * as well as the Xcontent serialization for the REST API and persistence of the role in the security index. The privileges modeled here
+ * will be converted to the appropriate cluster privileges when sent to a remote cluster.
+ * For example, on the local/querying cluster this model represents the following:
+ * <code>
+ * "remote_cluster" : [
+ *         {
+ *             "privileges" : ["foo"],
+ *             "clusters" : [
+ *                 "clusterA"
+ *             ]
+ *         },
+ *         {
+ *             "privileges" : ["bar"],
+ *             "clusters" : [
+ *                 "clusterB"
+ *             ]
+ *         }
+ *     ]
+ * </code>
+ * when sent to the remote cluster "clusterA", the privileges will be converted to the appropriate cluster privileges. For example:
+ *  <code>
+ *   "cluster": ["foo"]
+ *  </code>
+ *  and when sent to the remote cluster "clusterB", the privileges will be converted to the appropriate cluster privileges. For example:
+ *  <code>
+ *   "cluster": ["bar"]
+ *  </code>
+ */
 public class RemoteClusterPermissions implements Writeable, ToXContentObject {
 
-    private final List<RemoteClusterGroup> remoteClusterGroups;
+    private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups = new ArrayList<>();
 
-    public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions(List.of());
+    public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
     public RemoteClusterPermissions(StreamInput in) throws IOException {
-        this(List.of()); //TODO: fixme
+        //this(List.of()); //TODO: fixme
     }
-    private RemoteClusterPermissions(List<RemoteClusterGroup> remoteClusterGroups) {
-        this.remoteClusterGroups = remoteClusterGroups;
+    public RemoteClusterPermissions(){}
+
+    public RemoteClusterPermissions addGroup(RemoteClusterPermissionGroup remoteClusterPermissionGroup) {
+        Objects.requireNonNull(remoteClusterPermissionGroup, "remoteClusterPermissionGroup must not be null");
+        if(this == NONE) {
+            throw new IllegalArgumentException("Cannot add a group to the `NONE` instance");
+        }
+        remoteClusterPermissionGroups.add(remoteClusterPermissionGroup);
+        return this;
     }
 
     public String[] privilegeNames(final String remoteClusterAlias) {
         return
-            remoteClusterGroups.stream()
+            remoteClusterPermissionGroups.stream()
                 .filter(group -> group.hasPrivileges(remoteClusterAlias))
-                .flatMap(groups -> Arrays.stream(groups.clusterPrivileges)).distinct().sorted().toArray(String[]::new);
+                .flatMap(groups -> Arrays.stream(groups.clusterPrivileges())).distinct().sorted().toArray(String[]::new);
     }
 
     public boolean hasPrivileges(final String remoteClusterAlias) {
-        return remoteClusterGroups.stream()
+        return remoteClusterPermissionGroups.stream()
             .anyMatch(remoteIndicesGroup -> remoteIndicesGroup.hasPrivileges(remoteClusterAlias));
     }
 
     public boolean hasPrivileges(){
-        return remoteClusterGroups.isEmpty() == false;
+        return remoteClusterPermissionGroups.isEmpty() == false;
     }
 
-    public List<RemoteClusterGroup> groups() {
-        return Collections.unmodifiableList(remoteClusterGroups);
-    }
-
-    //TODO: remove this in favor of just constructing the builder
-    public static Builder builder() {
-        return new Builder();
+    public List<RemoteClusterPermissionGroup> groups() {
+        return Collections.unmodifiableList(remoteClusterPermissionGroups);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        //TODO: fixme
-//        builder.startObject();
-//        builder.array(RoleDescriptor.Fields.PRIVILEGES.getPreferredName(), remoteClusterGroup.clusterPrivileges());
-//        builder.array(RoleDescriptor.Fields.CLUSTERS.getPreferredName(), remoteClusterGroup.remoteClusterAliases());
-//        builder.endObject();
-//        return builder;
-        return null;
+        for (RemoteClusterPermissionGroup remoteClusterPermissionGroup : remoteClusterPermissionGroups) {
+            builder.value(remoteClusterPermissionGroup);
+        }
+        return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
         //TODO: fixme
-    }
-
-    public static class Builder {
-        final List<RemoteClusterGroup> remoteClusterGroupsList; //aliases -> permissions
-
-        public Builder() {
-            this.remoteClusterGroupsList = new ArrayList<>();
-        }
-
-        public Builder addGroup(RemoteClusterGroup remoteClusterGroup)
-
-        {
-            remoteClusterGroupsList.add(remoteClusterGroup);
-            return this;
-        }
-
-        public RemoteClusterPermissions build() {
-            return new RemoteClusterPermissions(remoteClusterGroupsList);
-        }
-    }
-
-    //TODO: pull out to top level, implement toXContent, Writable
-    // and replace org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RemoteClusterPrivileges
-    public record RemoteClusterGroup(
-        String[] clusterPrivileges,
-        String[] remoteClusterAliases,
-        StringMatcher remoteClusterAliasMatcher
-
-    ) {
-        public RemoteClusterGroup(String[] clusterPrivileges, String[] remoteClusterAliases) {
-            this(clusterPrivileges,remoteClusterAliases, StringMatcher.of(remoteClusterAliases));
-        }
-
-        public boolean hasPrivileges(final String remoteClusterAlias) {
-            return remoteClusterAliasMatcher.test(remoteClusterAlias);
-        }
     }
 }

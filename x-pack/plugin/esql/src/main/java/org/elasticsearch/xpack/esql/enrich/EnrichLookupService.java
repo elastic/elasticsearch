@@ -321,19 +321,11 @@ public class EnrichLookupService {
 
             // drop docs block
             intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));
-            boolean singleLeaf = searchContext.searcher().getLeafContexts().size() == 1;
 
             // merging field-values by position
             final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 1).toArray();
             intermediateOperators.add(
-                new MergePositionsOperator(
-                    singleLeaf,
-                    inputPage.getPositionCount(),
-                    0,
-                    mergingChannels,
-                    mergingTypes,
-                    driverContext.blockFactory()
-                )
+                new MergePositionsOperator(inputPage.getPositionCount(), 0, mergingChannels, mergingTypes, driverContext.blockFactory())
             );
             AtomicReference<Page> result = new AtomicReference<>();
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);

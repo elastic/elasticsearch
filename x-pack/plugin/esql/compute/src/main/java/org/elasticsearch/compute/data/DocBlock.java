@@ -144,8 +144,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            throw new UnsupportedOperationException("DocBlock doesn't support appendBlockAndMerge");
+        public Builder appendFrom(Block block, int valueIndex) {
+            DocVector docVector = ((DocBlock) block).asVector();
+            shards.appendInt(docVector.shards().getInt(valueIndex));
+            segments.appendInt(docVector.segments().getInt(valueIndex));
+            docs.appendInt(docVector.docs().getInt(valueIndex));
+            return this;
         }
 
         @Override

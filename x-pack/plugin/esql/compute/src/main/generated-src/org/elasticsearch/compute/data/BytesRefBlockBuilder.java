@@ -20,6 +20,7 @@ import org.elasticsearch.core.Releasables;
 final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRefBlock.Builder {
 
     private BytesRefArray values;
+    private final BytesRef scratch = new BytesRef();
 
     BytesRefBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
@@ -78,56 +79,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         values.append(BytesRefBlock.NULL_VALUE);
     }
 
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((BytesRefBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(BytesRefBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        BytesRef scratch = new BytesRef();
-        final BytesRefVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendBytesRef(vector.getBytesRef(p, scratch));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendBytesRef(block.getBytesRef(i++, scratch));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
-        return this;
-    }
-
     @Override
     public BytesRefBlockBuilder copyFrom(Block block, int beginInclusive, int endExclusive) {
         if (block.areAllValuesNull()) {
@@ -157,7 +108,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     private void copyFromBlock(BytesRefBlock block, int beginInclusive, int endExclusive) {
-        BytesRef scratch = new BytesRef();
         for (int p = beginInclusive; p < endExclusive; p++) {
             if (block.isNull(p)) {
                 appendNull();
@@ -178,10 +128,20 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     private void copyFromVector(BytesRefVector vector, int beginInclusive, int endExclusive) {
-        BytesRef scratch = new BytesRef();
         for (int p = beginInclusive; p < endExclusive; p++) {
             appendBytesRef(vector.getBytesRef(p, scratch));
         }
+    }
+
+    /**
+    * Appends a single value from the given block at the value index to this builder. The value indices for a given position are
+    * between {@link Block#getFirstValueIndex inclusive} and {@link Block#getFirstValueIndex} plus {@link Block#getValueCount}
+    * exclusive.
+    */
+    @Override
+    public BytesRefBlockBuilder appendFrom(Block block, int valueIndex) {
+        appendBytesRef(((BytesRefBlock) block).getBytesRef(valueIndex, new BytesRef()));
+        return this;
     }
 
     @Override

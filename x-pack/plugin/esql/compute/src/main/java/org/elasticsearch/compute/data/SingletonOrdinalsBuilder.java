@@ -111,12 +111,12 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     @Override
-    public Block.Builder appendAllValuesToCurrentPosition(Block block) {
+    public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+    public Block.Builder appendFrom(Block block, int valueIndex) {
         throw new UnsupportedOperationException();
     }
 

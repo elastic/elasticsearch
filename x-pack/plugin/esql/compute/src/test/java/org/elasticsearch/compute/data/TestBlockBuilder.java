@@ -108,14 +108,14 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
-            builder.mvOrdering(mvOrdering);
+        public TestBlockBuilder appendFrom(Block block, int valueIndex) {
+            builder.appendFrom(block, valueIndex);
             return this;
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
             return this;
         }
 
@@ -169,14 +169,14 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
-            builder.mvOrdering(mvOrdering);
+        public TestBlockBuilder appendFrom(Block block, int valueIndex) {
+            builder.appendFrom(block, valueIndex);
             return this;
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
             return this;
         }
 
@@ -230,14 +230,14 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
-            builder.mvOrdering(mvOrdering);
+        public TestBlockBuilder appendFrom(Block block, int valueIndex) {
+            builder.appendFrom(block, valueIndex);
             return this;
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
             return this;
         }
 
@@ -291,14 +291,14 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
-            builder.mvOrdering(mvOrdering);
+        public TestBlockBuilder appendFrom(Block block, int valueIndex) {
+            builder.appendFrom(block, valueIndex);
             return this;
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
             return this;
         }
 
@@ -355,14 +355,14 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
-            builder.mvOrdering(mvOrdering);
+        public TestBlockBuilder appendFrom(Block block, int valueIndex) {
+            builder.appendFrom(block, valueIndex);
             return this;
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
+        public TestBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+            builder.mvOrdering(mvOrdering);
             return this;
         }
 

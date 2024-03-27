@@ -37,8 +37,8 @@ public class TransformMessages {
 
     public static final String CANNOT_STOP_SINGLE_FAILED_TRANSFORM = "Unable to stop transform [{0}] as it is in a failed state. "
         + "Use force stop to stop the transform. More details: [{1}]";
-    public static final String CANNOT_STOP_MULTIPLE_FAILED_TRANSFORM = "Unable to stop transforms. The following transforms are in a failed"
-        + " state [{0}]. Use force stop to stop the transform. More details: [{1}]";
+    public static final String CANNOT_STOP_MULTIPLE_FAILED_TRANSFORMS = "Unable to stop transforms. The following transforms are in a "
+        + "failed state [{0}]. Use force stop to stop the transforms. More details: [{1}]";
     public static final String CANNOT_START_FAILED_TRANSFORM = "Unable to start transform [{0}] as it is in a failed state. "
         + "Use force stop and then restart the transform once error is resolved. More details: [{1}]";
 

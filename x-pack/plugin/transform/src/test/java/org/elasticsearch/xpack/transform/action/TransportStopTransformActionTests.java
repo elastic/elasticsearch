@@ -17,7 +17,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
-import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
@@ -92,7 +91,10 @@ public class TransportStopTransformActionTests extends ESTestCase {
         assertThat(ex.status(), equalTo(CONFLICT));
         assertThat(
             ex.getMessage(),
-            equalTo(TransformMessages.getMessage(TransformMessages.CANNOT_STOP_SINGLE_FAILED_TRANSFORM, "failed-task", "task has failed"))
+            equalTo(
+                "Unable to stop transform [failed-task] as it is in a failed state. Use force stop to stop the transform. "
+                    + "More details: [task has failed]"
+            )
         );
 
         // test again with two failed tasks
@@ -127,11 +129,8 @@ public class TransportStopTransformActionTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             equalTo(
-                TransformMessages.getMessage(
-                    TransformMessages.CANNOT_STOP_MULTIPLE_FAILED_TRANSFORM,
-                    "failed-task, failed-task-2",
-                    "task has failed, task has also failed"
-                )
+                "Unable to stop transforms. The following transforms are in a failed state [failed-task, failed-task-2]. Use force "
+                    + "stop to stop the transforms. More details: [task has failed, task has also failed]"
             )
         );
     }

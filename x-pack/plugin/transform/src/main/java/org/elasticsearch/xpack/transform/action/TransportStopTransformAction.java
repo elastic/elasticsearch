@@ -61,7 +61,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_MULTIPLE_FAILED_TRANSFORM;
+import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_MULTIPLE_FAILED_TRANSFORMS;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_SINGLE_FAILED_TRANSFORM;
 
 public class TransportStopTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
@@ -115,7 +115,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 String msg = failedTasks.size() == 1
                     ? TransformMessages.getMessage(CANNOT_STOP_SINGLE_FAILED_TRANSFORM, failedTasks.get(0), failedReasons.get(0))
                     : TransformMessages.getMessage(
-                        CANNOT_STOP_MULTIPLE_FAILED_TRANSFORM,
+                        CANNOT_STOP_MULTIPLE_FAILED_TRANSFORMS,
                         String.join(", ", failedTasks),
                         String.join(", ", failedReasons)
                     );

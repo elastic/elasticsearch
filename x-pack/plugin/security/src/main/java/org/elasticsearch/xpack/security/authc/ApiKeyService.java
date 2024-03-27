@@ -1958,18 +1958,17 @@ public class ApiKeyService {
                     TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
-                        final long total = searchResponse.getHits().getTotalHits().value;
+                        long total = searchResponse.getHits().getTotalHits().value;
                         if (total == 0) {
                             logger.debug("No api keys found for query [{}]", searchRequest.source().query());
                             listener.onResponse(QueryApiKeysResult.EMPTY);
                             return;
                         }
-                        List<ApiKey> apiKeyInfos = Arrays.stream(searchResponse.getHits().getHits())
+                        SearchHit[] hits = searchResponse.getHits().getHits();
+                        List<ApiKey> apiKeyInfos = Arrays.stream(hits)
                             .map(hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy))
                             .toList();
-                        List<Object[]> sortValues = Arrays.stream(searchResponse.getHits().getHits())
-                            .map(SearchHit::getSortValues)
-                            .toList();
+                        List<Object[]> sortValues = Arrays.stream(hits).map(SearchHit::getSortValues).toList();
                         listener.onResponse(new QueryApiKeysResult(total, apiKeyInfos, sortValues, searchResponse.getAggregations()));
                     }, listener::onFailure)
                 )

@@ -40,7 +40,7 @@ final class EnrichQuerySourceOperator extends SourceOperator {
     private final IndexSearcher searcher;
 
     // TODO: Increase this max_page_size once we no longer sort the extracted values blocks.
-    private static final int MAX_PAGE_SIZE = 256;
+    private static final int MAX_PAGE_SIZE = 1;
 
     EnrichQuerySourceOperator(BlockFactory blockFactory, QueryList queryList, IndexReader indexReader) {
         this.blockFactory = blockFactory;
@@ -74,7 +74,7 @@ final class EnrichQuerySourceOperator extends SourceOperator {
                 Query query = nextQuery();
                 if (query == null) {
                     assert isFinished();
-                    break;
+                    return null;
                 }
                 query = searcher.rewrite(new ConstantScoreQuery(query));
                 final var weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);

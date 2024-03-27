@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -61,6 +62,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.results.ChunkedTextEmbeddingResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.Utils.getInvalidModel;
@@ -1162,9 +1164,10 @@ public class CohereServiceTests extends ESTestCase {
             service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.UNSPECIFIED, new ChunkingOptions(null, null), listener);
 
             var result = listener.actionGet(TIMEOUT).get(0);
+            assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
 
             MatcherAssert.assertThat(
-                result.asMap(),
+                asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) result),
                 Matchers.is(
                     Map.of(
                         ChunkedTextEmbeddingResults.FIELD_NAME,

@@ -18,7 +18,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTestCase<ChunkedTextEmbeddingResults> {
@@ -44,6 +46,16 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
         return new ChunkedTextEmbeddingResults(chunks);
     }
 
+    public static Map<String, Object> asMapWithListsInsteadOfArrays(ChunkedTextEmbeddingResults result) {
+        return Map.of(
+            ChunkedTextEmbeddingResults.FIELD_NAME,
+            result.getChunks()
+                .stream()
+                .map(org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResultsTests::asMapWithListsInsteadOfArrays)
+                .collect(Collectors.toList())
+        );
+    }
+
     public void testToXContent_CreatesTheRightJsonForASingleChunk() {
         var entity = new ChunkedTextEmbeddingResults(
             List.of(
@@ -55,7 +67,7 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
         );
 
         assertThat(
-            entity.asMap(),
+            asMapWithListsInsteadOfArrays(entity),
             is(
                 Map.of(
                     ChunkedTextEmbeddingResults.FIELD_NAME,
@@ -87,8 +99,9 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
         assertThat(entity.size(), is(1));
 
         var firstEntry = entity.get(0);
+        assertThat(firstEntry, instanceOf(ChunkedTextEmbeddingResults.class));
         assertThat(
-            firstEntry.asMap(),
+            asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) firstEntry),
             is(
                 Map.of(
                     ChunkedTextEmbeddingResults.FIELD_NAME,

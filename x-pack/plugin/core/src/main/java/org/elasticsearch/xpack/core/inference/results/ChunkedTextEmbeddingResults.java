@@ -113,15 +113,12 @@ public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResul
         throw new UnsupportedOperationException("Chunked results are not returned in the legacy format");
     }
 
-    @SuppressWarnings("checkstyle:LineLength")
     @Override
     public Map<String, Object> asMap() {
         return Map.of(
             FIELD_NAME,
             chunks.stream()
-                .map(
-                    org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk::asMapWithListsInsteadOfArrays
-                )
+                .map(org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk::asMap)
                 .collect(Collectors.toList())
         );
     }

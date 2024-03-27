@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceE
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelTests;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -58,6 +59,7 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.results.ChunkedTextEmbeddingResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettingsTests.getServiceSettingsMap;
@@ -594,9 +596,10 @@ public class HuggingFaceServiceTests extends ESTestCase {
             service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, new ChunkingOptions(null, null), listener);
 
             var result = listener.actionGet(TIMEOUT).get(0);
+            assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
 
             MatcherAssert.assertThat(
-                result.asMap(),
+                asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) result),
                 Matchers.is(
                     Map.of(
                         ChunkedTextEmbeddingResults.FIELD_NAME,

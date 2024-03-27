@@ -289,7 +289,7 @@ a:integer |b:integer |c:integer
 // end::in-with-expressions-result[]
 ;
 
-convertMvToMvDifferentCardinality
+convertMvToMvDifferentCardinality#[skip:-8.13.99, reason:warning changed in 8.14]
 row strings = ["1", "2", "three"] | eval ints = to_int(strings);
 warning:Line 1:49: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:49: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [three]
@@ -298,7 +298,7 @@ strings:keyword |ints:integer
 [1, 2, three]   |[1, 2]
 ;
 
-convertMvToSv
+convertMvToSv#[skip:-8.13.99, reason:warning changed in 8.14]
 row strings = ["1", "two"] | eval ints = to_int(strings);
 
 warning:Line 1:42: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
@@ -308,7 +308,7 @@ strings:keyword |ints:integer
 [1, two]        |1
 ;
 
-convertMvToNull
+convertMvToNull#[skip:-8.13.99, reason:warning changed in 8.14]
 row strings = ["one", "two"] | eval ints = to_int(strings);
 warning:Line 1:44: evaluation of [to_int(strings)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:44: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [one]

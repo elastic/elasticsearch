@@ -238,7 +238,7 @@ int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
 2147483647       |2147483646.2        |2147483647  |2147483646
 ;
 
-convertStringToIntFail
+convertStringToIntFail#[skip:-8.13.99, reason:warning changed in 8.14]
 required_feature: esql.mv_warn
 
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);

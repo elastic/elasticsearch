@@ -36,14 +36,6 @@ public class RankedDocs implements InferenceServiceResults {
         this.rankedDocs = new ArrayList<RankedDoc>(0);
     }
 
-    public void addRankedDoc(String id, String relevanceScore, String text) {
-        this.rankedDocs.add(new RankedDoc(id, relevanceScore, text));
-    }
-
-    public void addRankedDoc(RankedDoc rankedDoc) {
-        this.rankedDocs.add(rankedDoc);
-    }
-
     public List<RankedDoc> getRankedDocs() {
         return this.rankedDocs;
     }

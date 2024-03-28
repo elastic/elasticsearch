@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.RankedDocs;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -40,7 +40,7 @@ public class CohereRankedResponseEntity {
 
             token = jsonParser.currentToken();
             if (token == XContentParser.Token.START_ARRAY) {
-                return new RankedDocs(parseList(jsonParser, CohereRankedResponseEntity::parseRankedDocObject));
+                return new RankedDocsResults(parseList(jsonParser, CohereRankedResponseEntity::parseRankedDocObject));
             } else {
                 throwUnknownToken(token, jsonParser);
             }
@@ -51,7 +51,7 @@ public class CohereRankedResponseEntity {
         }
     }
 
-    private static RankedDocs.RankedDoc parseRankedDocObject(XContentParser parser) throws IOException {
+    private static RankedDocsResults.RankedDoc parseRankedDocObject(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Integer index = null;
         Float relevanceScore = null;
@@ -71,7 +71,7 @@ public class CohereRankedResponseEntity {
                 }
             }
         }
-        return new RankedDocs.RankedDoc(String.valueOf(index), String.valueOf(relevanceScore), null);
+        return new RankedDocsResults.RankedDoc(String.valueOf(index), String.valueOf(relevanceScore), null);
     }
 
     private CohereRankedResponseEntity() {}

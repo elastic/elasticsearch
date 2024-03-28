@@ -26,9 +26,9 @@ import java.util.function.Supplier;
 
 public class CohereRerankExecutableRequestCreator implements ExecutableRequestCreator {
     private static final Logger logger = LogManager.getLogger(CohereRerankExecutableRequestCreator.class);
-    private static final ResponseHandler HANDLER = createEmbeddingsHandler();
+    private static final ResponseHandler HANDLER = createCohereResponseHandler();
 
-    private static ResponseHandler createEmbeddingsHandler() {
+    private static ResponseHandler createCohereResponseHandler() {
         return new CohereResponseHandler("cohere rerank", CohereRankedResponseEntity::fromResponse);
     }
 

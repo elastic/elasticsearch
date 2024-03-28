@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.response.cohere;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.inference.results.RankedDocs;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.hamcrest.MatcherAssert;
@@ -32,14 +32,14 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
             new HttpResult(mock(HttpResponse.class), responseLiteral.getBytes(StandardCharsets.UTF_8))
         );
 
-        MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocs.class));
-        MatcherAssert.assertThat(((RankedDocs) parsedResults).getRankedDocs(), is(responseLiteralDocs));
+        MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
+        MatcherAssert.assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(responseLiteralDocs));
     }
 
     public void testGeneratedResponse() throws IOException {
         int numDocs = randomIntBetween(1, 10);
 
-        List<RankedDocs.RankedDoc> rankedDocs = new ArrayList<>(numDocs);
+        List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>(numDocs);
         StringBuilder responseBuilder = new StringBuilder();
 
         responseBuilder.append("{");
@@ -53,7 +53,7 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
             responseBuilder.append("{");
             responseBuilder.append("\"index\":").append(index).append(",");
             responseBuilder.append("\"relevance_score\":").append(scores.get(i)).append("}");
-            rankedDocs.add(new RankedDocs.RankedDoc(String.valueOf(index), String.valueOf(scores.get(i)), null));
+            rankedDocs.add(new RankedDocsResults.RankedDoc(String.valueOf(index), String.valueOf(scores.get(i)), null));
             if (i < numDocs - 1) {
                 responseBuilder.append(",");
             }
@@ -69,8 +69,8 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseBuilder.toString().getBytes(StandardCharsets.UTF_8))
         );
-        MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocs.class));
-        MatcherAssert.assertThat(((RankedDocs) parsedResults).getRankedDocs(), is(rankedDocs));
+        MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
+        MatcherAssert.assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(rankedDocs));
     }
 
     private final String responseLiteral = """
@@ -101,10 +101,10 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
         }
         """;
 
-    private final List<RankedDocs.RankedDoc> responseLiteralDocs = List.of(
-        new RankedDocs.RankedDoc("2", "0.98005307", null),
-        new RankedDocs.RankedDoc("3", "0.27904198", null),
-        new RankedDocs.RankedDoc("0", "0.10194652", null)
+    private final List<RankedDocsResults.RankedDoc> responseLiteralDocs = List.of(
+        new RankedDocsResults.RankedDoc("2", "0.98005307", null),
+        new RankedDocsResults.RankedDoc("3", "0.27904198", null),
+        new RankedDocsResults.RankedDoc("0", "0.10194652", null)
     );
 
     private ArrayList<Integer> linear(int n) {

@@ -220,7 +220,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 for (DiscoveryNode node : routingAllocation.nodes()) {
                     if (routingAllocation.routingNodes().node(node.getId()).getByShardId(indexShardRoutingTable.shardId()) == null) {
                         routingAllocation.routingNodes()
-                            .relocateShard(indexShardRoutingTable.shard(0), node.getId(), 0L, routingAllocation.changes());
+                            .relocateShard(indexShardRoutingTable.shard(0), node.getId(), 0L, "test", routingAllocation.changes());
                         return;
                     }
                 }

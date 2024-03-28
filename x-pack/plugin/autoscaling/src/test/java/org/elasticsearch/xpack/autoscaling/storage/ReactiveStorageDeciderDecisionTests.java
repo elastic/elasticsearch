@@ -251,9 +251,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 .stream()
                 .filter(ShardRouting::primary)
                 .filter(s -> warmShards.contains(s.shardId()))
-                .forEach(
-                    shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE)
-                )
+                .forEach(shard -> allocation.routingNodes().startShard(shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE))
         );
 
         do {
@@ -274,12 +272,12 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 .forEach(
                     shard -> allocation.routingNodes()
                         .startShard(
-                            logger,
                             allocation.routingNodes()
                                 .relocateShard(
                                     shard,
                                     randomNodeId(allocation.routingNodes(), DATA_WARM_NODE_ROLE),
                                     0L,
+                                    "test",
                                     allocation.changes()
                                 )
                                 .v2(),
@@ -349,9 +347,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
                 .filter(ShardRouting::primary)
-                .forEach(
-                    shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE)
-                )
+                .forEach(shard -> allocation.routingNodes().startShard(shard, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE))
         );
 
         verify(
@@ -695,10 +691,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             // replicas before primaries, since replicas can be reinit'ed, resulting in a new ShardRouting instance.
             shards.stream()
                 .filter(not(ShardRouting::primary))
-                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                .forEach(s -> allocation.routingNodes().startShard(s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
             shards.stream()
                 .filter(ShardRouting::primary)
-                .forEach(s -> allocation.routingNodes().startShard(logger, s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                .forEach(s -> allocation.routingNodes().startShard(s, allocation.changes(), UNAVAILABLE_EXPECTED_SHARD_SIZE));
             SHARDS_ALLOCATOR.allocate(allocation);
 
             // ensure progress by only relocating a shard if we started more than one shard.
@@ -711,7 +707,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                         .filter(n -> allocation.deciders().canAllocate(toMove, n, allocation) == Decision.YES)
                         .collect(toSet());
                     if (candidates.isEmpty() == false) {
-                        allocation.routingNodes().relocateShard(toMove, randomFrom(candidates).nodeId(), 0L, allocation.changes());
+                        allocation.routingNodes().relocateShard(toMove, randomFrom(candidates).nodeId(), 0L, "test", allocation.changes());
                     }
                 }
             }

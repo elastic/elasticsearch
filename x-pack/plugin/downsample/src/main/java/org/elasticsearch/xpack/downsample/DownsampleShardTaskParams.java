@@ -71,7 +71,9 @@ public record DownsampleShardTaskParams(
             new ShardId(in),
             in.readStringArray(),
             in.readStringArray(),
-            in.readOptionalStringArray()
+            in.getTransportVersion().onOrAfter(TransportVersions.DIMENSIONS_SERIALIZATION_PERSISTENT_TASK)
+                ? in.readOptionalStringArray()
+                : new String[] {}
         );
     }
 
@@ -108,7 +110,10 @@ public record DownsampleShardTaskParams(
         shardId.writeTo(out);
         out.writeStringArray(metrics);
         out.writeStringArray(labels);
-        out.writeOptionalStringArray(dimensions);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.DIMENSIONS_SERIALIZATION_PERSISTENT_TASK)) {
+            out.writeOptionalStringArray(dimensions);
+        }
+        out.writeBoolean(false);
     }
 
     public static DownsampleShardTaskParams fromXContent(XContentParser parser) throws IOException {

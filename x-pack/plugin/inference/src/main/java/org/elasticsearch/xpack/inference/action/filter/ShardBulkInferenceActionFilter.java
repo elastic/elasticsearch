@@ -90,16 +90,25 @@ import java.util.stream.Collectors;
  * </pre>
  * The rewriting process occurs on the bulk coordinator node, and the results are then passed downstream
  * to the {@link TransportShardBulkAction} for actual indexing.
+ *
+ * TODO: batchSize should be configurable via a cluster setting
  */
 public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private static final Logger logger = LogManager.getLogger(ShardBulkInferenceActionFilter.class);
+    protected static final int DEFAULT_BATCH_SIZE = 512;
 
     private final InferenceServiceRegistry inferenceServiceRegistry;
     private final ModelRegistry modelRegistry;
+    private final int batchSize;
 
     public ShardBulkInferenceActionFilter(InferenceServiceRegistry inferenceServiceRegistry, ModelRegistry modelRegistry) {
+        this(inferenceServiceRegistry, modelRegistry, DEFAULT_BATCH_SIZE);
+    }
+
+    public ShardBulkInferenceActionFilter(InferenceServiceRegistry inferenceServiceRegistry, ModelRegistry modelRegistry, int batchSize) {
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
+        this.batchSize = batchSize;
     }
 
     @Override
@@ -250,30 +259,49 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
                 return;
             }
-            final List<String> inputs = requests.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
+            int currentBatchSize = Math.min(requests.size(), batchSize);
+            final List<FieldInferenceRequest> currentBatch = requests.subList(0, currentBatchSize);
+            final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatchSize, requests.size());
+            final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
             ActionListener<List<ChunkedInferenceServiceResults>> completionListener = new ActionListener<>() {
                 @Override
                 public void onResponse(List<ChunkedInferenceServiceResults> results) {
-                    for (int i = 0; i < results.size(); i++) {
-                        var request = requests.get(i);
-                        var result = results.get(i);
-                        var acc = inferenceResults.get(request.id);
-                        acc.responses.add(new FieldInferenceResponse(request.field, inferenceProvider.model, result));
+                    try {
+                        for (int i = 0; i < results.size(); i++) {
+                            var request = requests.get(i);
+                            var result = results.get(i);
+                            var acc = inferenceResults.get(request.id);
+                            acc.responses.add(new FieldInferenceResponse(request.field, inferenceProvider.model, result));
+                        }
+                    } finally {
+                        onFinish();
                     }
                 }
 
                 @Override
                 public void onFailure(Exception exc) {
-                    for (int i = 0; i < requests.size(); i++) {
-                        var request = requests.get(i);
-                        inferenceResults.get(request.id).failures.add(
-                            new ElasticsearchException(
-                                "Exception when running inference id [{}] on field [{}]",
-                                exc,
-                                inferenceProvider.model.getInferenceEntityId(),
-                                request.field
-                            )
-                        );
+                    try {
+                        for (int i = 0; i < requests.size(); i++) {
+                            var request = requests.get(i);
+                            inferenceResults.get(request.id).failures.add(
+                                new ElasticsearchException(
+                                    "Exception when running inference id [{}] on field [{}]",
+                                    exc,
+                                    inferenceProvider.model.getInferenceEntityId(),
+                                    request.field
+                                )
+                            );
+                        }
+                    } finally {
+                        onFinish();
+                    }
+                }
+
+                private void onFinish() {
+                    if (nextBatch.isEmpty()) {
+                        onFinish.close();
+                    } else {
+                        executeShardBulkInferenceAsync(inferenceId, inferenceProvider, nextBatch, onFinish);
                     }
                 }
             };
@@ -284,7 +312,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     Map.of(),
                     InputType.INGEST,
                     new ChunkingOptions(null, null),
-                    ActionListener.runAfter(completionListener, onFinish::close)
+                    completionListener
                 );
         }
 

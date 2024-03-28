@@ -188,6 +188,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             if (randomBoolean()) {
                 settings.put("max_concurrent_shards_per_node", randomIntBetween(1, 10));
             }
+            if (randomBoolean()) {
+                settings.put("node_level_reduction", randomBoolean());
+            }
         }
         return new QueryPragmas(settings.build());
     }

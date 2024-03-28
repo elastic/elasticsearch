@@ -576,6 +576,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Nullable
     private final MappingMetadata mapping;
 
+    private final ImmutableOpenMap<String, InferenceFieldMetadata> inferenceFields;
+
     private final ImmutableOpenMap<String, DiffableStringMap> customData;
 
     private final Map<Integer, Set<String>> inSyncAllocationIds;
@@ -631,7 +633,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Double writeLoadForecast;
     @Nullable
     private final Long shardSizeInBytesForecast;
-    private final FieldInferenceMetadata fieldInferenceMetadata;
 
     private IndexMetadata(
         final Index index,
@@ -645,6 +646,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int numberOfReplicas,
         final Settings settings,
         final MappingMetadata mapping,
+        final ImmutableOpenMap<String, InferenceFieldMetadata> inferenceFields,
         final ImmutableOpenMap<String, AliasMetadata> aliases,
         final ImmutableOpenMap<String, DiffableStringMap> customData,
         final Map<Integer, Set<String>> inSyncAllocationIds,
@@ -677,8 +679,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final IndexVersion indexCompatibilityVersion,
         @Nullable final IndexMetadataStats stats,
         @Nullable final Double writeLoadForecast,
-        @Nullable Long shardSizeInBytesForecast,
-        @Nullable FieldInferenceMetadata fieldInferenceMetadata
+        @Nullable Long shardSizeInBytesForecast
     ) {
         this.index = index;
         this.version = version;
@@ -696,6 +697,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.totalNumberOfShards = numberOfShards * (numberOfReplicas + 1);
         this.settings = settings;
         this.mapping = mapping;
+        this.inferenceFields = inferenceFields;
         this.customData = customData;
         this.aliases = aliases;
         this.inSyncAllocationIds = inSyncAllocationIds;
@@ -734,7 +736,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.writeLoadForecast = writeLoadForecast;
         this.shardSizeInBytesForecast = shardSizeInBytesForecast;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
-        this.fieldInferenceMetadata = Objects.requireNonNullElse(fieldInferenceMetadata, FieldInferenceMetadata.EMPTY);
     }
 
     IndexMetadata withMappingMetadata(MappingMetadata mapping) {
@@ -753,6 +754,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.numberOfReplicas,
             this.settings,
             mapping,
+            this.inferenceFields,
             this.aliases,
             this.customData,
             this.inSyncAllocationIds,
@@ -785,8 +787,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast,
-            this.fieldInferenceMetadata
+            this.shardSizeInBytesForecast
         );
     }
 
@@ -812,6 +813,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.numberOfReplicas,
             this.settings,
             this.mapping,
+            this.inferenceFields,
             this.aliases,
             this.customData,
             Maps.copyMapWithAddedOrReplacedEntry(this.inSyncAllocationIds, shardId, Set.copyOf(inSyncSet)),
@@ -844,8 +846,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast,
-            this.fieldInferenceMetadata
+            this.shardSizeInBytesForecast
         );
     }
 
@@ -869,6 +870,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.numberOfReplicas,
             this.settings,
             this.mapping,
+            this.inferenceFields,
             this.aliases,
             this.customData,
             this.inSyncAllocationIds,
@@ -901,8 +903,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast,
-            this.fieldInferenceMetadata
+            this.shardSizeInBytesForecast
         );
     }
 
@@ -926,6 +927,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.numberOfReplicas,
             this.settings,
             this.mapping,
+            this.inferenceFields,
             this.aliases,
             this.customData,
             this.inSyncAllocationIds,
@@ -958,8 +960,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast,
-            this.fieldInferenceMetadata
+            this.shardSizeInBytesForecast
         );
     }
 
@@ -979,6 +980,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.numberOfReplicas,
             this.settings,
             this.mapping,
+            this.inferenceFields,
             this.aliases,
             this.customData,
             this.inSyncAllocationIds,
@@ -1011,8 +1013,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.indexCompatibilityVersion,
             this.stats,
             this.writeLoadForecast,
-            this.shardSizeInBytesForecast,
-            this.fieldInferenceMetadata
+            this.shardSizeInBytesForecast
         );
     }
 
@@ -1203,6 +1204,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return mapping;
     }
 
+    public Map<String, InferenceFieldMetadata> getInferenceFields() {
+        return inferenceFields;
+    }
+
     @Nullable
     public IndexMetadataStats getStats() {
         return stats;
@@ -1214,10 +1219,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public OptionalLong getForecastedShardSizeInBytes() {
         return shardSizeInBytesForecast == null ? OptionalLong.empty() : OptionalLong.of(shardSizeInBytesForecast);
-    }
-
-    public FieldInferenceMetadata getFieldInferenceMetadata() {
-        return fieldInferenceMetadata;
     }
 
     public static final String INDEX_RESIZE_SOURCE_UUID_KEY = "index.resize.source.uuid";
@@ -1417,7 +1418,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (rolloverInfos.equals(that.rolloverInfos) == false) {
             return false;
         }
-        if (fieldInferenceMetadata.equals(that.fieldInferenceMetadata) == false) {
+        if (inferenceFields.equals(that.inferenceFields) == false) {
             return false;
         }
         if (isSystem != that.isSystem) {
@@ -1440,7 +1441,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + Arrays.hashCode(primaryTerms);
         result = 31 * result + inSyncAllocationIds.hashCode();
         result = 31 * result + rolloverInfos.hashCode();
-        result = 31 * result + fieldInferenceMetadata.hashCode();
+        result = 31 * result + inferenceFields.hashCode();
         result = 31 * result + Boolean.hashCode(isSystem);
         return result;
     }
@@ -1487,6 +1488,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable
         private final Diff<Settings> settingsDiff;
         private final Diff<ImmutableOpenMap<String, MappingMetadata>> mappings;
+        private final Diff<ImmutableOpenMap<String, InferenceFieldMetadata>> inferenceFields;
         private final Diff<ImmutableOpenMap<String, AliasMetadata>> aliases;
         private final Diff<ImmutableOpenMap<String, DiffableStringMap>> customData;
         private final Diff<Map<Integer, Set<String>>> inSyncAllocationIds;
@@ -1496,7 +1498,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final IndexMetadataStats stats;
         private final Double indexWriteLoadForecast;
         private final Long shardSizeInBytesForecast;
-        private final Diff<FieldInferenceMetadata> fieldInferenceMetadata;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1519,6 +1520,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     : ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, after.mapping).build(),
                 DiffableUtils.getStringKeySerializer()
             );
+            inferenceFields = DiffableUtils.diff(before.inferenceFields, after.inferenceFields, DiffableUtils.getStringKeySerializer());
             aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
             customData = DiffableUtils.diff(before.customData, after.customData, DiffableUtils.getStringKeySerializer());
             inSyncAllocationIds = DiffableUtils.diff(
@@ -1533,7 +1535,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             stats = after.stats;
             indexWriteLoadForecast = after.writeLoadForecast;
             shardSizeInBytesForecast = after.shardSizeInBytesForecast;
-            fieldInferenceMetadata = after.fieldInferenceMetadata.diff(before.fieldInferenceMetadata);
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -1544,6 +1545,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             new DiffableUtils.DiffableValueReader<>(DiffableStringMap::readFrom, DiffableStringMap::readDiffFrom);
         private static final DiffableUtils.DiffableValueReader<String, RolloverInfo> ROLLOVER_INFO_DIFF_VALUE_READER =
             new DiffableUtils.DiffableValueReader<>(RolloverInfo::new, RolloverInfo::readDiffFrom);
+        private static final DiffableUtils.DiffableValueReader<String, InferenceFieldMetadata> INFERENCE_FIELDS_METADATA_DIFF_VALUE_READER =
+            new DiffableUtils.DiffableValueReader<>(InferenceFieldMetadata::new, InferenceFieldMetadata::readDiffFrom);
 
         IndexMetadataDiff(StreamInput in) throws IOException {
             index = in.readString();
@@ -1566,6 +1569,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             primaryTerms = in.readVLongArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+                inferenceFields = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    INFERENCE_FIELDS_METADATA_DIFF_VALUE_READER
+                );
+            } else {
+                inferenceFields = DiffableUtils.emptyDiff();
+            }
             aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), ALIAS_METADATA_DIFF_VALUE_READER);
             customData = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_DIFF_VALUE_READER);
             inSyncAllocationIds = DiffableUtils.readJdkMapDiff(
@@ -1593,11 +1605,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexWriteLoadForecast = null;
                 shardSizeInBytesForecast = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
-                fieldInferenceMetadata = in.readOptionalWriteable(FieldInferenceMetadata.FieldInferenceMetadataDiff::new);
-            } else {
-                fieldInferenceMetadata = FieldInferenceMetadata.FieldInferenceMetadataDiff.EMPTY;
-            }
         }
 
         @Override
@@ -1620,6 +1627,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             out.writeVLongArray(primaryTerms);
             mappings.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+                inferenceFields.writeTo(out);
+            }
             aliases.writeTo(out);
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
@@ -1632,9 +1642,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeOptionalWriteable(stats);
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
-                out.writeOptionalWriteable(fieldInferenceMetadata);
             }
         }
 
@@ -1656,6 +1663,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.mapping = mappings.apply(
                 ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, part.mapping).build()
             ).get(MapperService.SINGLE_MAPPING_NAME);
+            builder.inferenceFields.putAllFromMap(inferenceFields.apply(part.inferenceFields));
             builder.aliases.putAllFromMap(aliases.apply(part.aliases));
             builder.customMetadata.putAllFromMap(customData.apply(part.customData));
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
@@ -1665,7 +1673,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
-            builder.fieldInferenceMetadata(fieldInferenceMetadata.apply(part.fieldInferenceMetadata));
             return builder.build(true);
         }
     }
@@ -1702,6 +1709,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(new MappingMetadata(in));
             }
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            var fields = in.readCollectionAsImmutableList(InferenceFieldMetadata::new);
+            fields.stream().forEach(f -> builder.putInferenceField(f));
+        }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
             AliasMetadata aliasMd = new AliasMetadata(in);
@@ -1733,9 +1744,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
-            builder.fieldInferenceMetadata(new FieldInferenceMetadata(in));
-        }
         return builder.build(true);
     }
 
@@ -1765,6 +1773,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping.writeTo(out);
             }
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            out.writeCollection(inferenceFields.values());
+        }
         out.writeCollection(aliases.values());
         out.writeMap(customData, StreamOutput::writeWriteable);
         out.writeMap(
@@ -1781,9 +1792,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalWriteable(stats);
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
-            fieldInferenceMetadata.writeTo(out);
         }
     }
 
@@ -1823,6 +1831,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private long[] primaryTerms = null;
         private Settings settings = Settings.EMPTY;
         private MappingMetadata mapping;
+        private final ImmutableOpenMap.Builder<String, InferenceFieldMetadata> inferenceFields;
         private final ImmutableOpenMap.Builder<String, AliasMetadata> aliases;
         private final ImmutableOpenMap.Builder<String, DiffableStringMap> customMetadata;
         private final Map<Integer, Set<String>> inSyncAllocationIds;
@@ -1834,10 +1843,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;
         private Long shardSizeInBytesForecast = null;
-        private FieldInferenceMetadata fieldInferenceMetadata = FieldInferenceMetadata.EMPTY;
 
         public Builder(String index) {
             this.index = index;
+            this.inferenceFields = ImmutableOpenMap.builder();
             this.aliases = ImmutableOpenMap.builder();
             this.customMetadata = ImmutableOpenMap.builder();
             this.inSyncAllocationIds = new HashMap<>();
@@ -1855,6 +1864,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.settings = indexMetadata.getSettings();
             this.primaryTerms = indexMetadata.primaryTerms.clone();
             this.mapping = indexMetadata.mapping;
+            this.inferenceFields = ImmutableOpenMap.builder(indexMetadata.inferenceFields);
             this.aliases = ImmutableOpenMap.builder(indexMetadata.aliases);
             this.customMetadata = ImmutableOpenMap.builder(indexMetadata.customData);
             this.routingNumShards = indexMetadata.routingNumShards;
@@ -1866,7 +1876,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.stats = indexMetadata.stats;
             this.indexWriteLoadForecast = indexMetadata.writeLoadForecast;
             this.shardSizeInBytesForecast = indexMetadata.shardSizeInBytesForecast;
-            this.fieldInferenceMetadata = indexMetadata.fieldInferenceMetadata;
         }
 
         public Builder index(String index) {
@@ -2096,8 +2105,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public Builder fieldInferenceMetadata(FieldInferenceMetadata fieldInferenceMetadata) {
-            this.fieldInferenceMetadata = Objects.requireNonNullElse(fieldInferenceMetadata, FieldInferenceMetadata.EMPTY);
+        public Builder putInferenceField(InferenceFieldMetadata value) {
+            this.inferenceFields.put(value.getName(), value);
+            return this;
+        }
+
+        public Builder putInferenceFields(Map<String, InferenceFieldMetadata> values) {
+            this.inferenceFields.putAllFromMap(values);
             return this;
         }
 
@@ -2263,6 +2277,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 numberOfReplicas,
                 settings,
                 mapping,
+                inferenceFields.build(),
                 aliasesMap,
                 newCustomMetadata,
                 Map.ofEntries(denseInSyncAllocationIds),
@@ -2295,8 +2310,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 SETTING_INDEX_VERSION_COMPATIBILITY.get(settings),
                 stats,
                 indexWriteLoadForecast,
-                shardSizeInBytesForecast,
-                fieldInferenceMetadata
+                shardSizeInBytesForecast
             );
         }
 
@@ -2422,8 +2436,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.field(KEY_SHARD_SIZE_FORECAST, indexMetadata.shardSizeInBytesForecast);
             }
 
-            if (indexMetadata.fieldInferenceMetadata.isEmpty() == false) {
-                builder.field(KEY_FIELD_INFERENCE, indexMetadata.fieldInferenceMetadata);
+            if (indexMetadata.getInferenceFields().isEmpty() == false) {
+                builder.startObject(KEY_FIELD_INFERENCE);
+                for (InferenceFieldMetadata field : indexMetadata.getInferenceFields().values()) {
+                    field.toXContent(builder, params);
+                }
+                builder.endObject();
             }
 
             builder.endObject();
@@ -2504,7 +2522,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             builder.stats(IndexMetadataStats.fromXContent(parser));
                             break;
                         case KEY_FIELD_INFERENCE:
-                            builder.fieldInferenceMetadata(FieldInferenceMetadata.fromXContent(parser));
+                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                builder.putInferenceField(InferenceFieldMetadata.fromXContent(parser));
+                            }
                             break;
                         default:
                             // assume it's custom index metadata

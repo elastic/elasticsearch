@@ -542,7 +542,7 @@ setup:
 ---
 values:
   - requires:
-      cluster_features: esql.value_agg
+      cluster_features: esql.agg_values
       reason: "values is available in 8.14+"
 
   - do:

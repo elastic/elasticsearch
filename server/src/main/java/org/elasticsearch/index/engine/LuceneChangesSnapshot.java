@@ -351,7 +351,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         } else {
             final String id = fields.id();
             if (isTombstone) {
-                op = new Translog.Delete(id, seqNo, primaryTerm, version);
+                op = new Translog.Delete(id, seqNo, primaryTerm, version, null);
                 assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
             } else {
                 final BytesReference source = fields.source();

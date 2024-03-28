@@ -375,7 +375,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
         }
 
-        addToTranslogAndList(translog, ops, new Translog.Delete("2", 1, primaryTerm.get()));
+        addToTranslogAndList(translog, ops, new Translog.Delete("2", 1, primaryTerm.get(), null));
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
@@ -483,25 +483,25 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
-        translog.add(new Translog.Delete("2", 1, primaryTerm.get()));
+        translog.add(new Translog.Delete("2", 1, primaryTerm.get(), null));
         {
             waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(192L + sourceLength));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(193L + sourceLength));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(137L + sourceLength));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(138L + sourceLength));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
-        translog.add(new Translog.Delete("3", 2, primaryTerm.get()));
+        translog.add(new Translog.Delete("3", 2, primaryTerm.get(), "2"));
         {
             waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(228L + sourceLength));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(232L + sourceLength));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(173L + sourceLength));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(177L + sourceLength));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -510,9 +510,9 @@ public class TranslogTests extends ESTestCase {
             waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(270L + sourceLength));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(274L + sourceLength));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(215L + sourceLength));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(219L + sourceLength));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -521,9 +521,9 @@ public class TranslogTests extends ESTestCase {
             waitForPositiveAge();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(325L + sourceLength));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(329L + sourceLength));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(270L + sourceLength));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(274L + sourceLength));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -533,7 +533,7 @@ public class TranslogTests extends ESTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(325L + sourceLength));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(329L + sourceLength));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -548,7 +548,7 @@ public class TranslogTests extends ESTestCase {
                         "uncommitted_size_in_bytes": %s,
                         "earliest_last_modified_age": %s
                       }
-                    }""", 325L + sourceLength, 270L + sourceLength, stats.getEarliestLastModifiedAge()))));
+                    }""", 329L + sourceLength, 274L + sourceLength, stats.getEarliestLastModifiedAge()))));
             }
         }
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));
@@ -1016,7 +1016,7 @@ public class TranslogTests extends ESTestCase {
                             .values().length))];
                         op = switch (type) {
                             case CREATE, INDEX -> indexOp("" + id, id, primaryTerm.get(), Long.toString(id));
-                            case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
+                            case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get(), null);
                             case NO_OP -> new Translog.NoOp(id, 1, Long.toString(id));
                         };
                         Translog.Location location = translog.add(op);
@@ -2403,7 +2403,8 @@ public class TranslogTests extends ESTestCase {
                             threadId + "_" + opCount,
                             seqNoGenerator.getAndIncrement(),
                             primaryTerm.get(),
-                            1 + randomInt(100000)
+                            1 + randomInt(100000),
+                            randomUnicodeOfLengthBetween(1, 20 * 1024)
                         );
                         case NO_OP -> new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
                     };
@@ -3424,7 +3425,8 @@ public class TranslogTests extends ESTestCase {
             Origin.PRIMARY,
             0,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
-            0
+            0,
+            doc.routing()
         );
         Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomPrimaryTerm, randomSeqNum, true, doc.id());
         Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);

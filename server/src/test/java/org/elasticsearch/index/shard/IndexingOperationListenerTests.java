@@ -127,7 +127,7 @@ public class IndexingOperationListenerTests extends ESTestCase {
             logger
         );
         ParsedDocument doc = EngineTestCase.createParsedDoc("1", null);
-        Engine.Delete delete = new Engine.Delete("1", new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong());
+        Engine.Delete delete = new Engine.Delete("1", new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc.routing());
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
         compositeListener.postDelete(
             randomShardId,

@@ -185,7 +185,8 @@ public class FollowingEngineTests extends ESTestCase {
                     origin,
                     System.currentTimeMillis(),
                     SequenceNumbers.UNASSIGNED_SEQ_NO,
-                    0
+                    0,
+                    null
                 );
 
                 consumer.accept(followingEngine, delete);
@@ -307,7 +308,8 @@ public class FollowingEngineTests extends ESTestCase {
             VersionType.EXTERNAL,
             origin,
             SequenceNumbers.UNASSIGNED_SEQ_NO,
-            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+            null
         );
     }
 
@@ -318,7 +320,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     private Engine.Delete deleteForPrimary(String id) {
         final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
-        return new Engine.Delete(parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get());
+        return new Engine.Delete(parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get(), null);
     }
 
     private Engine.Result applyOperation(Engine engine, Engine.Operation op, long primaryTermValue, Engine.Operation.Origin origin)
@@ -354,7 +356,8 @@ public class FollowingEngineTests extends ESTestCase {
                     origin,
                     delete.startTime(),
                     delete.getIfSeqNo(),
-                    delete.getIfPrimaryTerm()
+                    delete.getIfPrimaryTerm(),
+                    delete.getRouting()
                 )
             );
         } else {
@@ -737,7 +740,8 @@ public class FollowingEngineTests extends ESTestCase {
                         Engine.Operation.Origin.PRIMARY,
                         threadPool.relativeTimeInMillis(),
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        0
+                        0,
+                        null
                     )
                 );
             } else {

@@ -86,6 +86,7 @@ public final class RestResponse implements Releasable {
 
     public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBody content, @Nullable Releasable releasable) {
         if (content.isDone()) {
+            assert content.isEndOfResponse() : "response with continuations must have at least one (possibly-empty) chunk in each part";
             return new RestResponse(restStatus, content.getResponseContentTypeString(), BytesArray.EMPTY, releasable);
         } else {
             return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content, releasable);

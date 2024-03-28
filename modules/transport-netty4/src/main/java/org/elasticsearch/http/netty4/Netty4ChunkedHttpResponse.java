@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 /**
  * A http response that will be transferred via chunked encoding when handled by {@link Netty4HttpPipeliningHandler}.
  */
-public final class Netty4ChunkedHttpResponse extends DefaultHttpResponse implements Netty4HttpResponse, HttpResponse {
+final class Netty4ChunkedHttpResponse extends DefaultHttpResponse implements Netty4HttpResponse, HttpResponse {
 
     private final int sequence;
 

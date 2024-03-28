@@ -42,6 +42,7 @@ public class RestResponseUtils {
                     chunk.writeTo(out);
                 }
             }
+            assert chunkedRestResponseBody.isEndOfResponse() : "RestResponseUtils#getBodyContent does not support continuations (yet)";
 
             out.flush();
             return out.bytes();

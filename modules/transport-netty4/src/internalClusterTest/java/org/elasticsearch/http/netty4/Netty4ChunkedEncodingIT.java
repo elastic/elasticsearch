@@ -10,6 +10,7 @@ package org.elasticsearch.http.netty4;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ESNetty4IntegTestCase;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
@@ -248,6 +249,16 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
                     @Override
                     public boolean isDone() {
                         return chunkIterator.hasNext() == false;
+                    }
+
+                    @Override
+                    public boolean isEndOfResponse() {
+                        return true;
+                    }
+
+                    @Override
+                    public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+                        assert false : "no continuations";
                     }
 
                     @Override

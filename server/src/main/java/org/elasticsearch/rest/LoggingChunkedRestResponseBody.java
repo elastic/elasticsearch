@@ -9,6 +9,7 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 
@@ -28,6 +29,16 @@ public class LoggingChunkedRestResponseBody implements ChunkedRestResponseBody {
     @Override
     public boolean isDone() {
         return inner.isDone();
+    }
+
+    @Override
+    public boolean isEndOfResponse() {
+        return inner.isEndOfResponse();
+    }
+
+    @Override
+    public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+        inner.getContinuation(listener.map(continuation -> new LoggingChunkedRestResponseBody(continuation, loggerStream)));
     }
 
     @Override

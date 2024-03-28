@@ -83,6 +83,11 @@ public class TestRankBuilder extends RankBuilder {
     }
 
     @Override
+    public RankCoordinatorContext buildRankCoordinatorContext(RankContext rankContext) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     protected boolean doEquals(RankBuilder other) {
         return true;
     }

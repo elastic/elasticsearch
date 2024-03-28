@@ -17,6 +17,8 @@ import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -68,6 +70,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
+import org.elasticsearch.xpack.core.ml.reranking.TextSimilarityRankBuilder;
+import org.elasticsearch.xpack.core.ml.reranking.TextSimilarityRankRetrieverBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -108,7 +112,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 // TODO: merge this into XPackPlugin
-public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
+public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin, SearchPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -283,7 +287,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 XPackField.ENTERPRISE_SEARCH,
                 EnterpriseSearchFeatureSetUsage::new
             ),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new),
+            new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankRetrieverBuilder.NAME, TextSimilarityRankBuilder::new)
         ).filter(Objects::nonNull).toList();
     }
 
@@ -357,4 +362,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             )
         );
     }
+
+    @Override
+    public List<RetrieverSpec<?>> getRetrievers() {
+        return List.of(new RetrieverSpec<>(new ParseField(TextSimilarityRankRetrieverBuilder.NAME),
+            TextSimilarityRankRetrieverBuilder::fromXContent));
+    }
+
 }

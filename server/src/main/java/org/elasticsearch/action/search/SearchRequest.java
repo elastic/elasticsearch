@@ -408,13 +408,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                         validationException
                     );
                 }
-                int queryCount = source.subSearches().size() + source.knnSearch().size();
-                if (queryCount < 2) {
-                    validationException = addValidationError(
-                        "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
-                        validationException
-                    );
-                }
+//                int queryCount = source.subSearches().size() + source.knnSearch().size();
+//                if (queryCount < 2) {
+//                    validationException = addValidationError(
+//                        "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
+//                        validationException
+//                    );
+//                }
                 if (scroll) {
                     validationException = addValidationError("[rank] cannot be used in a scroll context", validationException);
                 }

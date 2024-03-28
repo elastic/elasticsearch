@@ -77,6 +77,8 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      */
     public abstract RankCoordinatorContext buildRankCoordinatorContext(int size, int from);
 
+    public abstract RankCoordinatorContext buildRankCoordinatorContext(RankContext rankContext);
+
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {

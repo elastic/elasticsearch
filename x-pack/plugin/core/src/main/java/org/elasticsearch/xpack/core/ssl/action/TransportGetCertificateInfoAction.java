@@ -45,7 +45,9 @@ public class TransportGetCertificateInfoAction extends HandledTransportAction<
         ActionListener<GetCertificateInfoAction.Response> listener
     ) {
         try {
-            Collection<CertificateInfo> certificates = sslService.getLoadedCertificates();
+            Collection<CertificateInfo> certificates = request.includeDefaults()
+                ? sslService.getAllCertificates()
+                : sslService.getLoadedCertificates();
             listener.onResponse(new GetCertificateInfoAction.Response(certificates));
         } catch (GeneralSecurityException | IOException e) {
             listener.onFailure(e);

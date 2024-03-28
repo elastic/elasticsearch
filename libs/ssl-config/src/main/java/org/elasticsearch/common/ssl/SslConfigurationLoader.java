@@ -147,7 +147,7 @@ public abstract class SslConfigurationLoader {
         if (this.settingPrefix.isEmpty() == false && this.settingPrefix.endsWith(".") == false) {
             throw new IllegalArgumentException("Setting prefix [" + settingPrefix + "] must be blank or end in '.'");
         }
-        this.defaultTrustConfig = new DefaultJdkTrustConfig();
+        this.defaultTrustConfig = DefaultJdkTrustConfig.DEFAULT_INSTANCE;
         this.defaultKeyConfig = EmptyKeyConfig.INSTANCE;
         this.defaultVerificationMode = SslVerificationMode.FULL;
         this.defaultClientAuth = SslClientAuthenticationMode.OPTIONAL;

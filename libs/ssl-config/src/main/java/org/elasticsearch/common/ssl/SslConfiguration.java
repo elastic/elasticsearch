@@ -116,6 +116,19 @@ public record SslConfiguration(
     }
 
     /**
+     * @return A collection of {@link StoredCertificate certificates} that are used by this SSL configuration iff this SSL configuration
+     * is using the default JRE certificates. The JRE will never ship with private keys and generally the default SSL trust certificates are
+     * only used if the configuration is not explicitly configured. If the default trust is not in use, then return an empty collection.
+     */
+    public Collection<? extends StoredCertificate> getDefaultCertificates() {
+        List<StoredCertificate> certificates = new ArrayList<>();
+        if (trustConfig instanceof DefaultJdkTrustConfig defaultJdkTrustConfig) {
+            certificates.addAll(defaultJdkTrustConfig.getDefaultCertificates());
+        }
+        return certificates;
+    }
+
+    /**
      * Dynamically create a new SSL context based on the current state of the configuration.
      * Because the {@link #keyConfig() key config} and {@link #trustConfig() trust config} may change based on the
      * contents of their referenced files (see {@link #getDependentFiles()}, consecutive calls to this method may

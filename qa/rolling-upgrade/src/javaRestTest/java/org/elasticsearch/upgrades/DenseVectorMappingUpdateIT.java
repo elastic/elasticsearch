@@ -36,7 +36,7 @@ public class DenseVectorMappingUpdateIT extends ParameterizedRollingUpgradeTestC
                     {"embedding": [1, 1, 1, 2]}
                     {"index": {"_id": "3"}}
                     {"embedding": [1, 1, 1, 3]}
-                    {"index": {"_id": "4"}}'
+                    {"index": {"_id": "4"}}
                     {"embedding": [1, 1, 1, 4]}
                     {"index": {"_id": "5"}}
                     {"embedding": [1, 1, 1, 5]}
@@ -59,7 +59,7 @@ public class DenseVectorMappingUpdateIT extends ParameterizedRollingUpgradeTestC
                     {"embedding": [1, 2, 1, 1]}
                     {"index": {"_id": "13"}}
                     {"embedding": [1, 3, 1, 1]}
-                    {"index": {"_id": "14"}}'
+                    {"index": {"_id": "14"}}
                     {"embedding": [1, 4, 1, 1]}
                     {"index": {"_id": "15"}}
                     {"embedding": [1, 5, 1, 1]}

@@ -1330,6 +1330,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
             for (ShardRouting original : shardsWithRelocationFailures) {
                 ShardRouting updated = original.updateRelocationFailure(RelocationFailureInfo.NO_FAILURES);
+                routingChangesObserver.relocationFailureInfoUpdated(original, RelocationFailureInfo.NO_FAILURES);
                 routingNode.update(original, updated);
                 assignedShardsRemove(original);
                 assignedShardsAdd(updated);

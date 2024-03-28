@@ -13,88 +13,141 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class RetryFailedAllocationTests extends ESAllocationTestCase {
 
-    private MockAllocationService strategy;
-    private ClusterState clusterState;
-    private final String INDEX_NAME = "index";
+    private final MockAllocationService allocationService = createAllocationService();
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder(INDEX_NAME).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+    public void testRetryFailedResetsFailedAllocationsCounter() {
+
+        final var inSyncId = UUIDs.randomBase64UUID();
+        final var indexMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), 1, 1))
+            .putInSyncAllocationIds(0, Set.of(inSyncId))
             .build();
-        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index(INDEX_NAME))
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(index)
+                            .addShard(newShardRouting(shardId, "node-1", null, true, STARTED, AllocationId.newInitializing(inSyncId)))
+                            .addShard(newShardRouting(shardId, null, false, UNASSIGNED))
+                    )
+            )
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
             .build();
-        clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .routingTable(routingTable)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
-            .build();
-        strategy = createAllocationService(Settings.EMPTY);
-    }
+        clusterState = reroute(clusterState);
 
-    private ShardRouting getPrimary() {
-        return clusterState.getRoutingTable().index(INDEX_NAME).shard(0).primaryShard();
-    }
+        Function<ClusterState, ShardRouting> replicaShard = state -> state.getRoutingTable().index(index).shard(0).replicaShards().get(0);
 
-    private ShardRouting getReplica() {
-        return clusterState.getRoutingTable().index(INDEX_NAME).shard(0).replicaShards().get(0);
-    }
-
-    public void testRetryFailedResetForAllocationCommands() {
+        // Exhaust all shard allocation attempts
         final int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
-        clusterState = strategy.reroute(clusterState, "initial allocation", ActionListener.noop());
-        clusterState = startShardsAndReroute(strategy, clusterState, getPrimary());
-
-        // Exhaust all replica allocation attempts with shard failures
-        for (int i = 0; i < retries; i++) {
-            List<FailedShard> failedShards = Collections.singletonList(
-                new FailedShard(getReplica(), "failing-shard::attempt-" + i, new ElasticsearchException("simulated"), randomBoolean())
-            );
-            clusterState = strategy.applyFailedShards(clusterState, failedShards, List.of());
-            clusterState = strategy.reroute(clusterState, "allocation retry attempt-" + i, ActionListener.noop());
+        for (int i = 1; i <= retries; i++) {
+            clusterState = failShard(clusterState, replicaShard.apply(clusterState));
+            clusterState = reroute(clusterState);
+            assertShardStateAndAllocationFailures(replicaShard.apply(clusterState), i < retries ? INITIALIZING : UNASSIGNED, i);
         }
-        assertThat("replica should not be assigned", getReplica().state(), equalTo(ShardRoutingState.UNASSIGNED));
-        assertThat("reroute should be a no-op", strategy.reroute(clusterState, "test", ActionListener.noop()), sameInstance(clusterState));
+        // And extra reroute should not change cluster state as all retries exhausted
+        assertThat(reroute(clusterState), equalTo(clusterState));
 
-        // Now allocate replica with retry_failed flag set
-        AllocationService.CommandsResult result = strategy.reroute(
+        // When counter is resetted
+        clusterState = resetFailedCounters(clusterState);
+        assertShardStateAndRelocationFailures(replicaShard.apply(clusterState), INITIALIZING, 0);
+    }
+
+    private static void assertShardStateAndAllocationFailures(ShardRouting shard, ShardRoutingState state, int failures) {
+        assertThat(shard.state(), equalTo(state));
+        assertThat(shard.unassignedInfo().getNumFailedAllocations(), equalTo(failures));
+    }
+
+    public void testRetryFailedResetsFailedRelocationsCounter() {
+
+        final var inSyncId = UUIDs.randomBase64UUID();
+        final var indexMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.require._id", "node-2"))
+            .putInSyncAllocationIds(0, Set.of(inSyncId))
+            .build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(index)
+                            .addShard(newShardRouting(shardId, "node-1", null, true, STARTED, AllocationId.newInitializing(inSyncId)))
+                    )
+            )
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .build();
+        clusterState = reroute(clusterState);
+
+        Function<ClusterState, ShardRouting> sourceShard = state -> state.getRoutingNodes().node("node-1").getByShardId(shardId);
+        Function<ClusterState, ShardRouting> targetShard = state -> state.getRoutingNodes().node("node-2").getByShardId(shardId);
+
+        // Exhaust all shard relocation attempts
+        final int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
+        for (int i = 1; i <= retries; i++) {
+            clusterState = failShard(clusterState, targetShard.apply(clusterState));
+            clusterState = reroute(clusterState);
+            assertShardStateAndRelocationFailures(sourceShard.apply(clusterState), i < retries ? RELOCATING : STARTED, i);
+        }
+        // And extra reroute should not change cluster state as all retries exhausted
+        assertThat(reroute(clusterState), equalTo(clusterState));
+
+        // When counter is resetted
+        clusterState = resetFailedCounters(clusterState);
+        assertShardStateAndRelocationFailures(sourceShard.apply(clusterState), RELOCATING, 0);
+    }
+
+    private static void assertShardStateAndRelocationFailures(ShardRouting shard, ShardRoutingState state, int failures) {
+        assertThat(shard.state(), equalTo(state));
+        assertThat(shard.relocationFailureInfo().failedRelocations(), equalTo(failures));
+    }
+
+    private ClusterState resetFailedCounters(ClusterState clusterState) {
+        return allocationService.reroute(clusterState, new AllocationCommands(), false, true, false, ActionListener.noop()).clusterState();
+    }
+
+    private ClusterState reroute(ClusterState clusterState) {
+        return allocationService.reroute(clusterState, "test", ActionListener.noop());
+    }
+
+    private ClusterState failShard(ClusterState clusterState, ShardRouting shardRouting) {
+        return allocationService.applyFailedShards(
             clusterState,
-            new AllocationCommands(
-                new AllocateReplicaAllocationCommand(INDEX_NAME, 0, getPrimary().currentNodeId().equals("node1") ? "node2" : "node1")
-            ),
-            false,
-            true,
-            false,
-            ActionListener.noop()
+            List.of(new FailedShard(shardRouting, "simulated", new ElasticsearchException("simulated"), randomBoolean())),
+            List.of()
         );
-        clusterState = result.clusterState();
-
-        assertEquals(ShardRoutingState.INITIALIZING, getReplica().state());
-        clusterState = startShardsAndReroute(strategy, clusterState, getReplica());
-        assertEquals(ShardRoutingState.STARTED, getReplica().state());
-        assertFalse(clusterState.getRoutingNodes().hasUnassignedShards());
     }
 }

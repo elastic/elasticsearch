@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
@@ -30,11 +31,19 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.NestedQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -277,6 +286,35 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
+        }
+
+        public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) throws IOException {
+            String nestedFieldPath = name() + "." + CHUNKS;
+            String inferenceResultsFieldName = nestedFieldPath + "." + INFERENCE_CHUNKS_RESULTS;
+            QueryBuilder childQueryBuilder;
+
+            if (modelSettings == null) {
+                // No inference results have been indexed yet
+                childQueryBuilder = new MatchNoneQueryBuilder();
+            } else if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
+                // TODO: Use WeightedTokensQueryBuilder
+                var boolQuery = QueryBuilders.boolQuery();
+                for (var weightedToken : textExpansionResults.getWeightedTokens()) {
+                    boolQuery.should(
+                        QueryBuilders.termQuery(inferenceResultsFieldName, weightedToken.token()).boost(weightedToken.weight())
+                    );
+                }
+                boolQuery.minimumShouldMatch(1);
+
+                childQueryBuilder = boolQuery;
+            } else if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
+                float[] inference = textEmbeddingResults.getInferenceAsFloat();
+                childQueryBuilder = new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null);
+            } else {
+                throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
+            }
+
+            return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Total).boost(boost).queryName(queryName);
         }
     }
 

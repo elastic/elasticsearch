@@ -25,6 +25,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -39,13 +40,12 @@ import org.gradle.api.tasks.TaskAction;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
-import org.gradle.api.model.ObjectFactory;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -53,7 +53,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
-import java.io.Serializable;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 /**
  * Checks files for license headers..
@@ -232,7 +234,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
 
     private static List<String> unapprovedFiles(File xmlReportFile) {
         try {
-            NodeList resourcesNodes = DocumentBuilderFactory.newInstance()
+            NodeList resourcesNodes = createXmlDocumentBuilderFactory()
                 .newDocumentBuilder()
                 .parse(xmlReportFile)
                 .getElementsByTagName("resource");
@@ -247,6 +249,21 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         } catch (SAXException | IOException | ParserConfigurationException e) {
             throw new GradleException("Error parsing xml report " + xmlReportFile.getAbsolutePath());
         }
+    }
+
+    private static DocumentBuilderFactory createXmlDocumentBuilderFactory() throws ParserConfigurationException {
+        final DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+        dbf.setXIncludeAware(false);
+        dbf.setIgnoringComments(true);
+        dbf.setExpandEntityReferences(false);
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        dbf.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        return dbf;
     }
 
     private static List<Element> elementList(NodeList resourcesNodes) {

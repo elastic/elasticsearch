@@ -434,6 +434,10 @@ public final class BulkRequestParser {
                         if (upsertRequest != null) {
                             upsertRequest.setPipeline(pipeline).setListExecutedPipelines(listExecutedPipelines);
                         }
+                        IndexRequest docRequest = updateRequest.doc();
+                        if (docRequest != null) {
+                            docRequest.setPipeline(pipeline).setListExecutedPipelines(listExecutedPipelines);
+                        }
 
                         updateRequestConsumer.accept(updateRequest);
                     }

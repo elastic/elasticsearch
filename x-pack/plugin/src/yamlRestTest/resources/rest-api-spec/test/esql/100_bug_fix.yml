@@ -193,3 +193,64 @@
   - match: { columns.0.type: double }
   - length: { values: 1 }
   - match: { values.0.0: 30.0 }
+
+
+
+---
+"text in functions #105379":
+  - skip:
+      version: " - 8.13.99"
+      reason: "fixes in 8.13 or later"
+  - do:
+      indices.create:
+        index: idx_with_date_ip_txt
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+              date:
+                type: date
+              ip:
+                type: ip
+              text:
+                type: text
+              text2:
+                type: text
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx_with_date_ip_txt" } }
+          - { "id": 1, "date": "2024-03-22T14:50:00.000Z", "ip": "192.168.0.10", "text":"yyyy-MM-dd", "text2":"year" }
+          - { "index": { "_index": "idx_with_date_ip_txt" } }
+          - { "id": 2, "date": "2024-03-22T14:50:00.000Z", "ip": "192.168.0.10", "text": "192.168.0.0/16" }
+          - { "index": { "_index": "idx_with_date_ip_txt" } }
+          - { "id": 3, "date": "2024-03-22T14:50:00.000Z", "ip": "10.0.0.10", "text": "192.168.0.0/16" }
+  - do:
+      esql.query:
+        body:
+          query: 'from idx_with_date_ip_txt | where id == 1 | eval x = date_format(text, date), y = date_extract(text2, date), p = date_parse(text, "2024-03-14") | keep x, y, p | limit 1'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: y }
+  - match: { columns.1.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: "2024-03-22" }
+  - match: { values.0.1: 2024 }
+  - match: { values.0.2: "2024-03-14T00:00:00.000Z" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from idx_with_date_ip_txt | where id > 1 | eval x = cidr_match(ip, text) | sort id | keep id, x | limit 2'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: x }
+  - match: { columns.1.type: boolean }
+  - length: { values: 2 }
+  - match: { values.0.0: 2 }
+  - match: { values.0.1: true }
+  - match: { values.1.0: 3 }
+  - match: { values.1.1: false }

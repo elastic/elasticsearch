@@ -154,6 +154,11 @@ its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's 
 (effectively limited by it). An API key cannot retrieve any API key's limited-by role descriptors
 (including itself) unless it has `manage_api_key` or higher privileges.
 
+`with_profile_uid`::
+(Optional, boolean) Determines whether to also retrieve the <<user-profile,user profile>> `uid`, for the API key owner user.
+If it exists, the profile uid is returned under the `profile_uid` response field for each API key.
+Defaults to `false`.
+
 [[security-api-query-api-key-request-body]]
 ==== {api-request-body-title}
 

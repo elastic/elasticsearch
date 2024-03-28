@@ -166,7 +166,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             SearchHit parsed;
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
-                parsed = SearchHit.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSearchHit(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
@@ -201,7 +201,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             SearchHit parsed;
             try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
                 parser.nextToken(); // jump to first START_OBJECT
-                parsed = SearchHit.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSearchHit(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
@@ -219,7 +219,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         SearchHit parsed;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, hit)) {
             parser.nextToken(); // jump to first START_OBJECT
-            parsed = SearchHit.fromXContent(parser);
+            parsed = SearchResponseUtils.parseSearchHit(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
@@ -341,7 +341,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                     "result": [null]
                   }
                 }""");
-            SearchHit searchHit = SearchHit.fromXContent(parser);
+            SearchHit searchHit = SearchResponseUtils.parseSearchHit(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
             assertEquals(1, fields.size());
             DocumentField result = fields.get("result");
@@ -360,7 +360,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                   }
                 }""");
 
-            SearchHit searchHit = SearchHit.fromXContent(parser);
+            SearchHit searchHit = SearchResponseUtils.parseSearchHit(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
             assertEquals(1, fields.size());
             DocumentField result = fields.get("result");
@@ -384,7 +384,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
                   }
                 }""");
 
-            SearchHit searchHit = SearchHit.fromXContent(parser);
+            SearchHit searchHit = SearchResponseUtils.parseSearchHit(parser);
             Map<String, DocumentField> fields = searchHit.getFields();
             assertEquals(1, fields.size());
             DocumentField result = fields.get("result");
@@ -410,7 +410,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             final SearchHit parsed;
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
-                parsed = SearchHit.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSearchHit(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
@@ -431,7 +431,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             final SearchHit parsed;
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
-                parsed = SearchHit.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSearchHit(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }
@@ -448,7 +448,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             final SearchHit parsed;
             try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
                 parser.nextToken(); // jump to first START_OBJECT
-                parsed = SearchHit.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSearchHit(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());
             }

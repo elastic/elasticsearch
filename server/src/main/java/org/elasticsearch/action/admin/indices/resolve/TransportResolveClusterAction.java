@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -54,6 +57,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
 
     private static final Logger logger = LogManager.getLogger(TransportResolveClusterAction.class);
     private static final String TRANSPORT_VERSION_ERROR_MESSAGE = "ResolveClusterAction requires at least Transport Version";
+    private static final int DEFAULT_TIMEOUT_SECONDS = 10;
 
     public static final String NAME = "indices:admin/resolve/cluster";
     public static final ActionType<ResolveClusterActionResponse> TYPE = new ActionType<>(NAME);
@@ -67,6 +71,8 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
     private final RemoteClusterService remoteClusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final boolean ccsCheckCompatibility;
+    private final ThreadPool threadPool;
+    private int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
 
     @Inject
     public TransportResolveClusterAction(
@@ -77,6 +83,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(NAME, transportService, actionFilters, ResolveClusterActionRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.threadPool = threadPool;
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
@@ -173,6 +180,11 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         }
                         if (notConnectedError(failure)) {
                             clusterInfoMap.put(clusterAlias, new ResolveClusterInfo(false, skipUnavailable));
+                        } else if (failure instanceof ElasticsearchTimeoutException t) {
+                            clusterInfoMap.put(
+                                clusterAlias,
+                                new ResolveClusterInfo(false, skipUnavailable, "AAA: No response in 30 seconds")
+                            );
                         } else if (ExceptionsHelper.unwrap(
                             failure,
                             ElasticsearchSecurityException.class
@@ -236,13 +248,25 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
                         }
                     }
                 };
+                final ActionListener<ResolveClusterActionResponse> timeoutListener = ListenerTimeouts.wrapWithTimeout(
+                    threadPool,
+                    remoteListener,
+                    TimeValue.timeValueSeconds(timeoutSeconds),
+                    searchCoordinationExecutor,
+                    TransportResolveClusterAction.NAME
+                );
                 remoteClusterClient.execute(
                     TransportResolveClusterAction.REMOTE_TYPE,
                     remoteRequest,
-                    ActionListener.releaseAfter(remoteListener, refs.acquire())
+                    ActionListener.releaseAfter(timeoutListener, refs.acquire())
                 );
             }
         }
+    }
+
+    // only visible for testing
+    void setTimeoutSeconds(int timeout) {
+        this.timeoutSeconds = timeout;
     }
 
     /**

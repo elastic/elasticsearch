@@ -19,11 +19,13 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -79,18 +81,44 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         long offset = 0;
         PrimaryTermAndGeneration primaryTermAndGeneration = null;
         while (offset < blobLength) {
+            assert offset == BlobCacheUtils.toPageAlignedSize(offset) : "should only read page-aligned compound commits but got: " + offset;
             try (StreamInput streamInput = blobReader.readBlobAtOffset(blobName, offset, blobLength - offset)) {
                 var compoundCommit = StatelessCompoundCommit.readFromStoreAtOffset(streamInput, offset, ignored -> blobName);
                 // BatchedCompoundCommit uses the first StatelessCompoundCommit primary term and generation
                 if (primaryTermAndGeneration == null) {
                     primaryTermAndGeneration = compoundCommit.primaryTermAndGeneration();
                 }
-                offset += compoundCommit.sizeInBytes();
                 compoundCommits.add(compoundCommit);
+                assert assertPaddingComposedOfZeros(blobName, blobLength, blobReader, offset, compoundCommit);
+                offset += BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
             }
         }
-        assert offset == blobLength;
+        assert offset == BlobCacheUtils.toPageAlignedSize(blobLength)
+            : "offset " + offset + " != page-aligned blobLength " + BlobCacheUtils.toPageAlignedSize(blobLength);
         return new BatchedCompoundCommit(primaryTermAndGeneration, Collections.unmodifiableList(compoundCommits));
+    }
+
+    private static boolean assertPaddingComposedOfZeros(
+        String blobName,
+        long blobLength,
+        BlobReader blobReader,
+        long offset,
+        StatelessCompoundCommit compoundCommit
+    ) throws IOException {
+        long compoundCommitSize = compoundCommit.sizeInBytes();
+        long compoundCommitSizePageAligned = BlobCacheUtils.toPageAlignedSize(compoundCommitSize);
+        int padding = Math.toIntExact(compoundCommitSizePageAligned - compoundCommitSize);
+        assert padding >= 0 : "padding " + padding + " is negative";
+        long paddingOffset = offset + compoundCommitSize;
+        if (padding > 0 && paddingOffset < blobLength) {
+            try (StreamInput paddingStreamInput = blobReader.readBlobAtOffset(blobName, paddingOffset, padding)) {
+                byte[] paddingBytes = paddingStreamInput.readNBytes(padding);
+                byte[] zeroBytes = new byte[padding];
+                Arrays.fill(zeroBytes, (byte) 0);
+                assert Arrays.equals(paddingBytes, zeroBytes);
+            }
+        }
+        return true;
     }
 
     /**

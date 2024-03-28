@@ -215,8 +215,26 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 assertBytesRange.accept((long) serializedBatchedCompoundCommit.length(), 0L);
 
                 // Read first header
-                long firstHeaderSize = virtualBatchedCompoundCommit.getPendingCompoundCommits().stream().findFirst().get().getHeaderSize();
-                assertBytesRange.accept(0L, firstHeaderSize);
+                var firstCC = virtualBatchedCompoundCommit.getPendingCompoundCommits().stream().findFirst().get();
+                long firstCCHeaderSize = firstCC.getHeaderSize();
+                assertBytesRange.accept(0L, firstCCHeaderSize);
+
+                // Read first StatelessCompoundCommit (without header)
+                long firstCCWithoutHeaderSize = firstCC.getStatelessCompoundCommit().sizeInBytes() - firstCCHeaderSize;
+                assertBytesRange.accept(firstCCHeaderSize, firstCCWithoutHeaderSize);
+
+                // Read first padding
+                long firstCCPaddingSize = firstCC.getSizeInBytes() - firstCCHeaderSize - firstCCWithoutHeaderSize;
+                assertBytesRange.accept(firstCCHeaderSize + firstCCWithoutHeaderSize, firstCCPaddingSize);
+                assert firstCC.getSizeInBytes() == firstCCHeaderSize + firstCCWithoutHeaderSize + firstCCPaddingSize
+                    : "the compound commit size "
+                        + firstCC.getSizeInBytes()
+                        + " is not equal to the sum of its parts of header "
+                        + firstCCHeaderSize
+                        + ", commit "
+                        + firstCCWithoutHeaderSize
+                        + " and padding "
+                        + firstCCPaddingSize;
 
                 // Read a random file
                 StatelessCommitRef randomCommit = commits.get(randomIntBetween(0, commits.size() - 1));

@@ -200,13 +200,15 @@ public record StatelessCompoundCommit(
         );
     }
 
-    static void writeInternalFilesToStore(OutputStream outputStream, List<InternalFile> internalFiles, Directory directory)
+    static long writeInternalFilesToStore(OutputStream outputStream, List<InternalFile> internalFiles, Directory directory)
         throws IOException {
+        long writtenBytes = 0L;
         for (InternalFile internalFile : internalFiles) {
             try (ChecksumIndexInput input = directory.openChecksumInput(internalFile.name(), IOContext.READONCE)) {
-                Streams.copy(new InputStreamIndexInput(input, internalFile.length()), outputStream, false);
+                writtenBytes += Streams.copy(new InputStreamIndexInput(input, internalFile.length()), outputStream, false);
             }
         }
+        return writtenBytes;
     }
 
     // visible for testing

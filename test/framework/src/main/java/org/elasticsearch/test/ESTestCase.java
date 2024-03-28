@@ -2082,8 +2082,12 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static void safeAwait(CyclicBarrier barrier) {
+        safeAwait(barrier, 10, TimeUnit.SECONDS);
+    }
+
+    public static void safeAwait(CyclicBarrier barrier, long timeout, TimeUnit timeUnit) {
         try {
-            barrier.await(10, TimeUnit.SECONDS);
+            barrier.await(timeout, timeUnit);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CyclicBarrier release");

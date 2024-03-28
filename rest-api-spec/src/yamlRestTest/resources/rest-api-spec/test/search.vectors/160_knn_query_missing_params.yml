@@ -17,7 +17,7 @@ setup:
                     similarity: l2_norm
                     index_options:
                       type: hnsw
-                      ef_search: 100
+                      ef_construction: 100
                       m: 16
                   category:
                     type: keyword
@@ -33,7 +33,7 @@ setup:
                         similarity: l2_norm
                         index_options:
                           type: hnsw
-                          ef_search: 100
+                          ef_construction: 100
                           m: 16
 
   - do:

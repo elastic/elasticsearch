@@ -101,6 +101,13 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertDateMathEquals(formatter.toDateMathParser(), "2022W02", "2022-01-10T23:59:59.999Z", 0, true, ZoneOffset.UTC);
     }
 
+    public void testWeekBasedDateLeniency() {
+        // Many users mistakenly use YYYY when they actually meant yyyy. Since date formats can't be changed on existing indices, we're
+        // doing a best effort to make these bad formats work.
+        DateFormatter formatter = DateFormatter.forPattern("YYYY-MM-dd");
+        assertDateMathEquals(formatter.toDateMathParser(), "2022-03-04", "2022-03-04T23:59:59.999Z", 0, true, ZoneOffset.UTC);
+    }
+
     public void testDayOfYear() {
         DateFormatter formatter = DateFormatter.forPattern("yyyy-DDD'T'HH:mm:ss.SSS");
         assertDateMathEquals(formatter.toDateMathParser(), "2022-104T14:08:30.293", "2022-04-14T14:08:30.293", 0, true, ZoneOffset.UTC);

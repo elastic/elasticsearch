@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -89,7 +90,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             RetentionLeaseSyncAction.Request::new,
             RetentionLeaseSyncAction.Request::new,
             (service, ignore) -> ThreadPool.Names.MANAGEMENT,
-            false,
+            true,
             indexingPressure,
             systemIndices
         );

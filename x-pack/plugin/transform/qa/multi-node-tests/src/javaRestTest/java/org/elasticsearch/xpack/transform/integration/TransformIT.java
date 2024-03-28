@@ -22,11 +22,14 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.junit.After;
@@ -225,6 +228,82 @@ public class TransformIT extends TransformRestTestCase {
         deleteTransform(transformId);
     }
 
+    public void testCreateStartStopDeleteTransformInALoop() throws Exception {
+        String transformId = "lifecycle-in-a-loop";
+        String indexName = transformId + "-src";
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        String destIndex = transformId + "-dest";
+        String config = createConfig(transformId, indexName, destIndex);
+        for (int i = 0; i < 100; ++i) {
+            try {
+                // Create the continuous transform
+                putTransform(transformId, config, RequestOptions.DEFAULT);
+                assertEquals(0, getNumberOfTransformTasks());
+
+                startTransform(transformId, RequestOptions.DEFAULT);
+                // There is 1 transform task after start
+                assertEquals(1, getNumberOfTransformTasks());
+
+                Thread.sleep(randomLongBetween(0, 5_000));
+                // There should still be 1 transform task as the transform is continuous
+                assertEquals(1, getNumberOfTransformTasks());
+
+                // Stop the transform with force set randomly
+                stopTransform(transformId, true, null, false, randomBoolean());
+                // After the transform is stopped, there should be no transform task left
+                assertEquals(0, getNumberOfTransformTasks());
+
+                // Delete the transform
+                deleteTransform(transformId);
+            } catch (AssertionError | Exception e) {
+                fail("Failure at iteration " + i + ": " + e.getMessage());
+            }
+        }
+    }
+
+    private String createConfig(String transformId, String sourceIndex, String destIndex) throws Exception {
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
+        groups.put("by-user", new TermsGroupSource("user_id", null, false));
+        groups.put("by-business", new TermsGroupSource("business_id", null, false));
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        PivotConfig pivotConfig = createPivotConfig(groups, aggs);
+
+        SyncConfig syncConfig = new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1));
+
+        TransformConfig config = createTransformConfigBuilder(transformId, destIndex, QueryConfig.matchAll(), sourceIndex).setFrequency(
+            TimeValue.timeValueSeconds(1)
+        ).setSyncConfig(syncConfig).setPivotConfig(pivotConfig).build();
+
+        return Strings.toString(config);
+    }
+
+    @SuppressWarnings("unchecked")
+    private int getNumberOfTransformTasks() throws IOException {
+        final Request tasksRequest = new Request("GET", "/_tasks");
+        tasksRequest.addParameter("actions", TransformField.TASK_NAME + "*");
+        Map<String, Object> tasksResponse = entityAsMap(client().performRequest(tasksRequest));
+
+        Map<String, Object> nodes = (Map<String, Object>) tasksResponse.get("nodes");
+        if (nodes == null) {
+            return 0;
+        }
+
+        int foundTasks = 0;
+        for (Map.Entry<String, Object> node : nodes.entrySet()) {
+            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
+            Map<String, Object> tasks = (Map<String, Object>) nodeInfo.get("tasks");
+            foundTasks += tasks != null ? tasks.size() : 0;
+        }
+
+        return foundTasks;
+    }
+
     public void testContinuousTransformUpdate() throws Exception {
         String indexName = "continuous-reviews-update";
         createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
@@ -382,7 +461,7 @@ public class TransformIT extends TransformRestTestCase {
         });
 
         // waitForCheckpoint: true should make the transform continue until we hit the first checkpoint, then it will stop
-        stopTransform(transformId, false, null, true);
+        stopTransform(transformId, false, null, true, false);
 
         // Wait until the first checkpoint
         waitUntilCheckpoint(config.getId(), 1L);
@@ -416,7 +495,7 @@ public class TransformIT extends TransformRestTestCase {
             });
 
             var waitForCompletion = randomBoolean();
-            stopTransform(transformId, waitForCompletion, null, true);
+            stopTransform(transformId, waitForCompletion, null, true, false);
             assertBusy(() -> {
                 var stateAndStats = getBasicTransformStats(transformId);
                 assertThat(stateAndStats.get("state"), equalTo("stopped"));

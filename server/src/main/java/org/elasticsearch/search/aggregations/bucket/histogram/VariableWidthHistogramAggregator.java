@@ -63,7 +63,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          * @return the final number of buckets that will be used
          * If this is not the final phase, then an instance of the next phase is created and it is asked for this answer.
          */
-        abstract int finalNumBuckets();
+        abstract int finalNumBuckets() throws IOException;
 
         /**
          * If this CollectionPhase is the final phase then this method will build and return the i'th bucket
@@ -113,7 +113,8 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             }
         }
 
-        int finalNumBuckets() {
+        @Override
+        int finalNumBuckets() throws IOException {
             return getMergeBucketPhase().finalNumBuckets();
         }
 
@@ -123,7 +124,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             return bucket;
         }
 
-        MergeBucketsPhase getMergeBucketPhase() {
+        MergeBucketsPhase getMergeBucketPhase() throws IOException {
             if (mergeBucketsPhase == null) {
                 mergeBucketsPhase = new MergeBucketsPhase(buffer, bufferSize);
             }
@@ -157,7 +158,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         private double avgBucketDistance;
 
-        MergeBucketsPhase(DoubleArray buffer, int bufferSize) {
+        MergeBucketsPhase(DoubleArray buffer, int bufferSize) throws IOException {
             // Cluster the documents to reduce the number of buckets
             boolean success = false;
             try {
@@ -229,7 +230,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          * By just creating a merge map, we eliminate the need to actually sort <code>buffer</code>. We can just
          * use the merge map to find any doc's sorted index.
          */
-        private void bucketBufferedDocs(final DoubleArray buffer, final int bufferSize, final int numBuckets) {
+        private void bucketBufferedDocs(final DoubleArray buffer, final int bufferSize, final int numBuckets) throws IOException {
             // Allocate space for the clusters about to be created
             clusterMins = bigArrays().newDoubleArray(1);
             clusterMaxes = bigArrays().newDoubleArray(1);
@@ -331,7 +332,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          *
          * TODO: Make this more efficient
          */
-        private void moveLastCluster(int index) {
+        private void moveLastCluster(int index) throws IOException {
             if (index != numClusters - 1) {
 
                 // Move the cluster metadata

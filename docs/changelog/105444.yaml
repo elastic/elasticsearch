@@ -1,0 +1,5 @@
+pr: 105444
+summary: Reduce heap usage in `BestBucketsDeferringCollector`
+area: Aggregations
+type: enhancement
+issues: []

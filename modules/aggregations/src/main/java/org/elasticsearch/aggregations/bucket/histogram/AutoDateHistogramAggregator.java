@@ -176,7 +176,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         return roundingPreparer.apply(roundingInfos[index].rounding);
     }
 
-    protected final void merge(long[] mergeMap, long newNumBuckets) {
+    protected final void merge(long[] mergeMap, long newNumBuckets) throws IOException {
         LongUnaryOperator howToRewrite = b -> mergeMap[(int) b];
         rewriteBuckets(newNumBuckets, howToRewrite);
         if (deferringCollector != null) {
@@ -265,7 +265,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     increaseRoundingIfNeeded(rounded);
                 }
 
-                private void increaseRoundingIfNeeded(long rounded) {
+                private void increaseRoundingIfNeeded(long rounded) throws IOException {
                     if (roundingIdx >= roundingInfos.length - 1) {
                         return;
                     }
@@ -482,7 +482,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                  * estimated, bucket counts, {@link FromMany#rebucket() rebucketing} the all
                  * buckets if the estimated number of wasted buckets is too high.
                  */
-                private int increaseRoundingIfNeeded(long owningBucketOrd, int oldEstimatedBucketCount, long newKey, int oldRounding) {
+                private int increaseRoundingIfNeeded(long owningBucketOrd, int oldEstimatedBucketCount, long newKey, int oldRounding)
+                    throws IOException {
                     if (oldRounding >= roundingInfos.length - 1) {
                         return oldRounding;
                     }
@@ -532,7 +533,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             };
         }
 
-        private void rebucket() {
+        private void rebucket() throws IOException {
             rebucketCount++;
             LongKeyedBucketOrds oldOrds = bucketOrds;
             boolean success = false;

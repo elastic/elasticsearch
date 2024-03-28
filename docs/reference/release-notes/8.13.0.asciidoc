@@ -127,8 +127,7 @@ Machine Learning::
 * Fix `categorize_text` aggregation nested under empty buckets {es-pull}105987[#105987] (issue: {es-issue}105836[#105836])
 * Fix resetting a job if the original reset task no longer exists. {es-pull}106020[#106020]
 * Retry updates to model snapshot ID on job config {es-pull}104077[#104077]
-* The OpenAI model parameter should be in service settings not task settings.
-Move the configuration field to service settings {es-pull}105458[#105458]
+* The OpenAI model parameter should be in service settings not task settings. Move the configuration field to service settings {es-pull}105458[#105458]
 * Undeploy elser when inference model deleted {es-pull}104230[#104230]
 
 Mapping::

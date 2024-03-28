@@ -8,8 +8,11 @@
 
 package org.elasticsearch.vec.internal;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 
+import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
 import static org.elasticsearch.vec.internal.IndexInputUtils.segmentSlice;
@@ -18,23 +21,33 @@ import static org.elasticsearch.vec.internal.IndexInputUtils.segmentSlice;
 public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
 
     public Euclidean(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
-        super(dims, maxOrd, scoreCorrectionConstant, input);
+        super(
+            dims,
+            maxOrd,
+            scoreCorrectionConstant,
+            input,
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant)
+        );
     }
 
     @Override
-    public float score(int firstOrd, int secondOrd) {
+    public float score(int firstOrd, int secondOrd) throws IOException {
         checkOrdinal(firstOrd);
         checkOrdinal(secondOrd);
 
         final int length = dims;
         int firstByteOffset = firstOrd * (length + Float.BYTES);
-        MemorySegment firstSeg = segmentSlice(input, firstByteOffset, length);
-
         int secondByteOffset = secondOrd * (length + Float.BYTES);
+
+        MemorySegment firstSeg = segmentSlice(input, firstByteOffset, length);
         MemorySegment secondSeg = segmentSlice(input, secondByteOffset, length);
 
-        int squareDistance = squareDistance(firstSeg, secondSeg, length);
-        float adjustedDistance = squareDistance * scoreCorrectionConstant;
-        return 1 / (1f + adjustedDistance);
+        if (firstSeg != null && secondSeg != null) {
+            int squareDistance = squareDistance(firstSeg, secondSeg, length);
+            float adjustedDistance = squareDistance * scoreCorrectionConstant;
+            return 1 / (1f + adjustedDistance);
+        } else {
+            return fallbackScore(firstByteOffset, secondByteOffset);
+        }
     }
 }

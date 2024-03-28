@@ -34,33 +34,26 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         supported();
     }
 
-    public void testDotProductSimple() throws IOException {
-        testSimple(DOT_PRODUCT);
+    public void testSimple() throws IOException {
+        testSimpleImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE);
     }
 
-    public void testCosineSimple() throws IOException {
-        testSimple(COSINE);
+    public void testSimpleMaxChunkSizeSmall() throws IOException {
+        long maxChunkSize = randomLongBetween(4, 16);
+        logger.info("maxChunkSize=" + maxChunkSize);
+        testSimpleImpl(maxChunkSize);
     }
 
-    public void testMaxInnerProductSimple() throws IOException {
-        testSimple(MAXIMUM_INNER_PRODUCT);
-    }
-
-    @AwaitsFix(bugUrl = "http://") // TODO:
-    public void testEuclideanSimple() throws IOException {
-        testSimple(EUCLIDEAN);
-    }
-
-    void testSimple(VectorSimilarityType similarityType) throws IOException {
+    void testSimpleImpl(long maxChunkSize) throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
 
-        try (Directory dir = new MMapDirectory(createTempDir(getTestName() + "-" + similarityType))) {
+        try (Directory dir = new MMapDirectory(createTempDir(getTestName()), maxChunkSize)) {
             for (int dims : List.of(31, 32, 33)) {
                 // dimensions that cross the scalar / native boundary (stride)
                 byte[] vec1 = new byte[dims];
                 byte[] vec2 = new byte[dims];
-                String fileName = getTestName() + "-" + similarityType + "-" + dims;
+                String fileName = getTestName() + "-" + dims;
                 try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                     for (int i = 0; i < dims; i++) {
                         vec1[i] = (byte) i;
@@ -71,81 +64,53 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     out.writeBytes(bytes, 0, bytes.length);
                 }
                 try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                    var scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, similarityType, in).get();
-                    float expected = luceneScore(similarityType, vec1, vec2, 1, 1, 1);
+                    // dot product
+                    var scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, DOT_PRODUCT, in).get();
+                    float expected = luceneScore(DOT_PRODUCT, vec1, vec2, 1, 1, 1);
                     assertThat(scorer.score(0, 1), equalTo(expected));
+                    // max inner product
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, MAXIMUM_INNER_PRODUCT, in).get();
+                    expected = luceneScore(MAXIMUM_INNER_PRODUCT, vec1, vec2, 1, 1, 1);
+                    assertThat(scorer.score(0, 1), equalTo(expected));
+                    // cosine
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, COSINE, in).get();
+                    expected = luceneScore(COSINE, vec1, vec2, 1, 1, 1);
+                    assertThat(scorer.score(0, 1), equalTo(expected));
+                    // euclidean
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, EUCLIDEAN, in).get();
+                    expected = luceneScore(EUCLIDEAN, vec1, vec2, 1, 1, 1);
+                    // assertThat(scorer.score(0, 1), equalTo(expected)); TODO: implement
                 }
             }
         }
     }
 
-    public void testDotProductRandom() throws IOException {
+    public void testRandom() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandom(DOT_PRODUCT, ESTestCase::randomByteArrayOfLength);
+        testRandom(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, ESTestCase::randomByteArrayOfLength);
     }
 
-    public void testDotProductRandomMax() throws IOException {
+    public void testRandomMaxChunkSizeSmall() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandom(DOT_PRODUCT, BYTE_ARRAY_MAX_FUNC);
+        long maxChunkSize = randomLongBetween(32, 128);
+        logger.info("maxChunkSize=" + maxChunkSize);
+        testRandom(maxChunkSize, ESTestCase::randomByteArrayOfLength);
     }
 
-    public void testDotProductRandomMin() throws IOException {
+    public void testRandomMax() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandom(DOT_PRODUCT, BYTE_ARRAY_MIN_FUNC);
+        testRandom(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MAX_FUNC);
     }
 
-    public void testMaxInnerProductRandom() throws IOException {
+    public void testRandomMin() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandom(MAXIMUM_INNER_PRODUCT, ESTestCase::randomByteArrayOfLength);
+        testRandom(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MIN_FUNC);
     }
 
-    public void testMaxInnerProductRandomMax() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandom(MAXIMUM_INNER_PRODUCT, BYTE_ARRAY_MAX_FUNC);
-    }
-
-    public void testMaxInnerProductRandomMin() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandom(MAXIMUM_INNER_PRODUCT, BYTE_ARRAY_MIN_FUNC);
-    }
-
-    public void testCosineRandom() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandom(COSINE, ESTestCase::randomByteArrayOfLength);
-    }
-
-    public void testCosineRandomMax() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandom(COSINE, BYTE_ARRAY_MAX_FUNC);
-    }
-
-    public void testCosineRandomMin() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandom(COSINE, BYTE_ARRAY_MIN_FUNC);
-    }
-
-    @AwaitsFix(bugUrl = "http://") // TODO:
-    public void testEuclideanRandom() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandom(EUCLIDEAN, ESTestCase::randomByteArrayOfLength);
-    }
-
-    @AwaitsFix(bugUrl = "http://") // TODO:
-    public void testEuclideanRandomMax() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandom(EUCLIDEAN, BYTE_ARRAY_MAX_FUNC);
-    }
-
-    @AwaitsFix(bugUrl = "http://") // TODO:
-    public void testEuclideanRandomMin() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        testRandom(EUCLIDEAN, BYTE_ARRAY_MIN_FUNC);
-    }
-
-    void testRandom(VectorSimilarityType similarityType, Function<Integer, byte[]> byteArraySupplier) throws IOException {
+    void testRandom(long maxChunkSize, Function<Integer, byte[]> byteArraySupplier) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
-        try (Directory dir = new MMapDirectory(createTempDir(getTestName() + "-" + similarityType))) {
+        try (Directory dir = new MMapDirectory(createTempDir(getTestName()), maxChunkSize)) {
             for (int times = 0; times < TIMES; times++) {
                 final int dims = randomIntBetween(1, 4096);
                 final int size = randomIntBetween(2, 100);
@@ -153,7 +118,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                 final byte[][] vectors = new byte[size][];
                 final float[] offsets = new float[size];
 
-                String fileName = getTestName() + "-" + similarityType + "-" + times + "-" + dims;
+                String fileName = getTestName() + "-" + times + "-" + dims;
                 logger.info("Testing " + fileName);
                 try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                     for (int i = 0; i < size; i++) {
@@ -166,11 +131,24 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     }
                 }
                 try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, similarityType, in).get();
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
-                    float expected = luceneScore(similarityType, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    // dot product
+                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
+                    float expected = luceneScore(DOT_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    // max inner product
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
+                    expected = luceneScore(MAXIMUM_INNER_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    // cosine
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
+                    expected = luceneScore(COSINE, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    // euclidean
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
+                    expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    // assertThat(scorer.score(idx0, idx1), equalTo(expected)); // TODO: implement
                 }
             }
         }

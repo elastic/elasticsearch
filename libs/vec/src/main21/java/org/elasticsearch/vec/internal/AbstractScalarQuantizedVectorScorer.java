@@ -9,10 +9,12 @@
 package org.elasticsearch.vec.internal;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.vec.VectorScorer;
 
+import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 
@@ -26,12 +28,20 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
     protected final int maxOrd;
     protected final float scoreCorrectionConstant;
     protected final IndexInput input;
+    private final ScalarQuantizedVectorSimilarity fallbackScorer;
 
-    protected AbstractScalarQuantizedVectorScorer(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
+    protected AbstractScalarQuantizedVectorScorer(
+        int dims,
+        int maxOrd,
+        float scoreCorrectionConstant,
+        IndexInput input,
+        ScalarQuantizedVectorSimilarity fallbackScorer
+    ) {
         this.dims = dims;
         this.maxOrd = maxOrd;
         this.scoreCorrectionConstant = scoreCorrectionConstant;
         this.input = input;
+        this.fallbackScorer = fallbackScorer;
     }
 
     @Override
@@ -50,10 +60,25 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
         }
     }
 
+    protected final float fallbackScore(int firstByteOffset, int secondByteOffset) throws IOException {
+        input.seek(firstByteOffset);
+        byte[] a = new byte[dims];
+        input.readBytes(a, 0, a.length);
+        float aOffsetValue = Float.intBitsToFloat(input.readInt());
+
+        input.seek(secondByteOffset);
+        byte[] b = new byte[dims];
+        input.readBytes(b, 0, a.length);
+        float bOffsetValue = Float.intBitsToFloat(input.readInt());
+
+        return fallbackScorer.score(a, aOffsetValue, b, bOffsetValue);
+    }
+
     static final MethodHandle DOT_PRODUCT = DISTANCE_FUNCS.dotProductHandle();
     static final MethodHandle SQUARE_DISTANCE = DISTANCE_FUNCS.squareDistanceHandle();
 
     static int dotProduct(MemorySegment a, MemorySegment b, int length) {
+        assert assertSegments(a, b, length);
         try {
             return (int) DOT_PRODUCT.invokeExact(a, b, length);
         } catch (Throwable e) {
@@ -68,6 +93,7 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
     }
 
     static int squareDistance(MemorySegment a, MemorySegment b, int length) {
+        assert assertSegments(a, b, length);
         try {
             return (int) SQUARE_DISTANCE.invokeExact(a, b, length);
         } catch (Throwable e) {
@@ -79,5 +105,9 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    static boolean assertSegments(MemorySegment a, MemorySegment b, int length) {
+        return a.isNative() && a.byteSize() >= length && b.isNative() && b.byteSize() >= length;
     }
 }

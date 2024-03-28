@@ -8,7 +8,9 @@
 
 package org.elasticsearch.vec.internal;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -19,7 +21,13 @@ import static org.elasticsearch.vec.internal.IndexInputUtils.segmentSlice;
 public final class DotProduct extends AbstractScalarQuantizedVectorScorer {
 
     public DotProduct(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
-        super(dims, maxOrd, scoreCorrectionConstant, input);
+        super(
+            dims,
+            maxOrd,
+            scoreCorrectionConstant,
+            input,
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant)
+        );
     }
 
     @Override
@@ -29,17 +37,22 @@ public final class DotProduct extends AbstractScalarQuantizedVectorScorer {
 
         final int length = dims;
         int firstByteOffset = firstOrd * (length + Float.BYTES);
+        int secondByteOffset = secondOrd * (length + Float.BYTES);
+
         MemorySegment firstSeg = segmentSlice(input, firstByteOffset, length);
         input.seek(firstByteOffset + length);
         float firstOffset = Float.intBitsToFloat(input.readInt());
 
-        int secondByteOffset = secondOrd * (length + Float.BYTES);
         MemorySegment secondSeg = segmentSlice(input, secondByteOffset, length);
         input.seek(secondByteOffset + length);
         float secondOffset = Float.intBitsToFloat(input.readInt());
 
-        int dotProduct = dotProduct(firstSeg, secondSeg, length);
-        float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
-        return (1 + adjustedDistance) / 2;
+        if (firstSeg != null && secondSeg != null) {
+            int dotProduct = dotProduct(firstSeg, secondSeg, length);
+            float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
+            return (1 + adjustedDistance) / 2;
+        } else {
+            return fallbackScore(firstByteOffset, secondByteOffset);
+        }
     }
 }

@@ -162,7 +162,7 @@ final class SystemJvmOptions {
         } else {
             arch = "unsupported_arch[" + archname + "]";
         }
-        return platformDir.resolve(os + "-" + arch).toAbsolutePath() + getPathSeparator() + existingPath;
+        return "\"" + platformDir.resolve(os + "-" + arch).toAbsolutePath() + getPathSeparator() + existingPath + "\"";
     }
 
     @SuppressForbidden(reason = "no way to get path separator with nio")

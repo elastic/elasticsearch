@@ -58,7 +58,8 @@ The unique identifier of the {infer} endpoint.
 (Required, string)
 The type of the {infer} task that the model will perform. Available task types:
 * `sparse_embedding`,
-* `text_embedding`.
+* `text_embedding`,
+* `completion`
 
 
 [discrete]
@@ -101,7 +102,7 @@ the same name and the updated API key.
 (Optional, string)
 Specifies the types of embeddings you want to get back. Defaults to `float`.
 Valid values are:
-  * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`). 
+  * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`).
   * `float`: use it for the default float embeddings.
   * `int8`: use it for signed int8 embeddings.
 
@@ -232,6 +233,18 @@ maximum token length. Defaults to `END`. Valid values are:
  the input is discarded.
  * `END`: when the input exceeds the maximum input token length the end of
  the input is discarded.
+
+`user`:::
+(optional, string)
+For `openai` service only. Specifies the user issuing the request, which can be used for abuse detection.
+=====
++
+.`task_settings` for the `completion` task type
+[%collapsible%closed]
+=====
+`user`:::
+(optional, string)
+For `openai` service only. Specifies the user issuing the request, which can be used for abuse detection.
 =====
 
 
@@ -402,3 +415,20 @@ PUT _inference/text_embedding/openai_embeddings
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
+
+The next example shows how to create an {infer} endpoint called
+`openai_completion` to perform a `completion` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/completion/openai_completion
+{
+    "service": "openai",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "model_id": "gpt-3.5-turbo"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+

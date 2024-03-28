@@ -75,7 +75,11 @@ public class MrjarPlugin implements Plugin<Project> {
             String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
             SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
             testSourceSets.add(testSourceSetName);
-            createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
+            var testTask = project.getTasks().withType(Test.class).iterator().next();
+            // only register a testTask if the runtime JDK is capable of running the test-specific java version
+            if (testTask.getJavaLauncher().get().getMetadata().getLanguageVersion().canCompileOrRun(JavaLanguageVersion.of(javaVersion))) {
+                createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
+            }
         }
 
         configureMrjar(project);

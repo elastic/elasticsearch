@@ -8,6 +8,8 @@
 
 package org.elasticsearch.nativeaccess;
 
+import java.util.Optional;
+
 /**
  * Provides access to native functionality needed by Elastisearch.
  */
@@ -34,6 +36,11 @@ public interface NativeAccess {
      * @return an object used to compress and decompress bytes using zstd
      */
     Zstd getZstd();
+
+    /*
+     * Returns the vector similarity functions, or an empty optional.
+     */
+    Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions();
 
     /**
      * Creates a new {@link CloseableByteBuffer}. The buffer must be used within the same thread

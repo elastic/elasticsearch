@@ -63,6 +63,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.securesm",
         "org.elasticsearch.server",
         "org.elasticsearch.tdigest",
+        "org.elasticsearch.vec",
         "org.elasticsearch.xcontent"
     );
 

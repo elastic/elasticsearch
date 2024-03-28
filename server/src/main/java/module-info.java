@@ -31,6 +31,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.tdigest;
+    requires org.elasticsearch.vec;
 
     requires com.sun.jna;
     requires hppc;
@@ -432,7 +433,8 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
-            org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
+            org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat,
+            org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
         to

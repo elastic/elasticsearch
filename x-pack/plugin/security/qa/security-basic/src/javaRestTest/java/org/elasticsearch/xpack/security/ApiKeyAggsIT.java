@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +66,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             ),
             API_KEY_USER_AUTH_HEADER
         );
-        assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
+        assertAggs(API_KEY_ADMIN_AUTH_HEADER, "typed_keys", """
             {
               "aggs": {
                 "hostnames": {
@@ -79,22 +80,23 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
-            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get("hostnames")).get("buckets")).size(), is(2));
+            String aggName = "filters#hostnames";
+            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).size(), is(2));
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("hostnames")).get("buckets")).get(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(
                     "my-org-host-1"
                 )).get("doc_count"),
                 is(2)
             );
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("hostnames")).get("buckets")).get(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(
                     "my-org-host-2"
                 )).get("doc_count"),
                 is(2)
             );
         });
         // other bucket
-        assertAggs(API_KEY_USER_AUTH_HEADER, """
+        assertAggs(API_KEY_USER_AUTH_HEADER, "typed_keys", """
             {
               "aggs": {
                 "only_user_keys": {
@@ -108,22 +110,23 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
               }
             }
             """, aggs -> {
-            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get("only_user_keys")).get("buckets")).size(), is(2));
+            String aggName = "filters#only_user_keys";
+            assertThat(((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).size(), is(2));
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("only_user_keys")).get("buckets")).get(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(
                     "only_key4_match"
                 )).get("doc_count"),
                 is(1)
             );
             assertThat(
-                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get("only_user_keys")).get("buckets")).get(
+                ((Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) aggs.get(aggName)).get("buckets")).get(
                     "other_user_keys"
                 )).get("doc_count"),
                 is(1)
             );
         });
         // anonymous filters
-        assertAggs(API_KEY_USER_AUTH_HEADER, """
+        assertAggs(API_KEY_USER_AUTH_HEADER, null, """
             {
               "aggs": {
                 "all_user_keys": {
@@ -159,7 +162,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             );
         });
         // nested filters
-        assertAggs(API_KEY_USER_AUTH_HEADER, """
+        assertAggs(API_KEY_USER_AUTH_HEADER, null, """
             {
               "aggs": {
                 "level1": {
@@ -310,7 +313,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         updateApiKeys(systemWriteCreds, "ctx._source['type']='cross_cluster';", crossApiKeyIds);
 
         boolean isAdmin = randomBoolean();
-        assertAggs(isAdmin ? API_KEY_ADMIN_AUTH_HEADER : API_KEY_USER_AUTH_HEADER, """
+        assertAggs(isAdmin ? API_KEY_ADMIN_AUTH_HEADER : API_KEY_USER_AUTH_HEADER, null, """
             {
               "size": 0,
               "aggs": {
@@ -342,7 +345,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             }
         });
 
-        assertAggs(isAdmin ? API_KEY_ADMIN_AUTH_HEADER : API_KEY_USER_AUTH_HEADER, """
+        assertAggs(isAdmin ? API_KEY_ADMIN_AUTH_HEADER : API_KEY_USER_AUTH_HEADER, null, """
             {
               "size": 0,
               "aggs": {
@@ -432,7 +435,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         invalidateApiKey(key2User1KeyId, false, API_KEY_ADMIN_AUTH_HEADER);
         invalidateApiKey(key1User3KeyId, false, API_KEY_ADMIN_AUTH_HEADER);
 
-        assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
+        assertAggs(API_KEY_ADMIN_AUTH_HEADER, null, """
             {
               "size": 0,
               "aggs": {
@@ -464,7 +467,7 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
             assertThat(buckets.get(2).get("doc_count"), is(1));
         });
 
-        assertAggs(API_KEY_ADMIN_AUTH_HEADER, """
+        assertAggs(API_KEY_ADMIN_AUTH_HEADER, null, """
             {
               "aggs": {
                 "keys_by_username": {
@@ -587,8 +590,8 @@ public class ApiKeyAggsIT extends SecurityInBasicRestTestCase {
         }
     }
 
-    void assertAggs(String authHeader, String body, Consumer<Map<String, Object>> aggsVerifier) throws IOException {
-        final Request request = new Request("GET", "/_security/_query/api_key");
+    void assertAggs(String authHeader, @Nullable String URLparams, String body, Consumer<Map<String, Object>> aggsVerifier) throws IOException {
+        final Request request = new Request("GET", "/_security/_query/api_key" + (URLparams != null ? "?" + URLparams : ""));
         request.setJsonEntity(body);
         request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.AUTHORIZATION, authHeader));
         final Response response = client().performRequest(request);

@@ -7,7 +7,7 @@ Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 [float]
 === Known issues
 
-* Downsampling persistent state fails to load, preventing upgraded nodes from joining the cluster (issue: {es-issue}106880[#106880])
+* Downsampling persistent tasks fail to load, preventing upgraded nodes from joining the cluster (issue: {es-issue}106880[#106880])
 +
 This affects clusters running version 8.10 or later, with an active downsampling
 https://www.elastic.co/guide/en/elasticsearch/reference/current/downsampling-ilm.html[configuration]

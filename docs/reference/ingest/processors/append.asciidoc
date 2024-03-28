@@ -19,6 +19,8 @@ Accepts a single value or an array of values.
 | `value`   | yes       | -        | The value to be appended. Supports <<template-snippets,template snippets>>.
 | `allow_duplicates` | no | true  | If `false`, the processor does not append
 values already present in the field.
+| `ignore_empty_values` | no | false  | If `true`, the processor does not append
+values that resolve to empty strings.
 | `media_type` | no | `application/json` | The media type for encoding `value`. Applies only when `value` is a
 <<template-snippets,template snippet>>. Must be one of `application/json`, `text/plain`, or
 `application/x-www-form-urlencoded`.

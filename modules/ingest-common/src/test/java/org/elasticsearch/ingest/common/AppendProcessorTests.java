@@ -50,13 +50,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value, true);
+            appendProcessor = createAppendProcessor(field, value, true, false);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values, true);
+            appendProcessor = createAppendProcessor(field, values, true, false);
         }
         appendProcessor.execute(ingestDocument);
         Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
@@ -79,13 +79,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value, true);
+            appendProcessor = createAppendProcessor(field, value, true, false);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values, true);
+            appendProcessor = createAppendProcessor(field, values, true, false);
         }
         appendProcessor.execute(ingestDocument);
         List<?> list = ingestDocument.getFieldValue(field, List.class);
@@ -103,13 +103,13 @@ public class AppendProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             Object value = scalar.randomValue();
             values.add(value);
-            appendProcessor = createAppendProcessor(field, value, true);
+            appendProcessor = createAppendProcessor(field, value, true, false);
         } else {
             int valuesSize = randomIntBetween(0, 10);
             for (int i = 0; i < valuesSize; i++) {
                 values.add(scalar.randomValue());
             }
-            appendProcessor = createAppendProcessor(field, values, true);
+            appendProcessor = createAppendProcessor(field, values, true, false);
         }
         appendProcessor.execute(ingestDocument);
         List<?> fieldValue = ingestDocument.getFieldValue(field, List.class);
@@ -127,7 +127,7 @@ public class AppendProcessorTests extends ESTestCase {
 
         List<Object> valuesToAppend = new ArrayList<>();
         valuesToAppend.add(originalValue);
-        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false);
+        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false, false);
         appendProcessor.execute(ingestDocument);
         Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
         assertThat(fieldValue, not(instanceOf(List.class)));
@@ -142,7 +142,7 @@ public class AppendProcessorTests extends ESTestCase {
         List<Object> valuesToAppend = new ArrayList<>();
         String newValue = randomValueOtherThan(originalValue, () -> randomAlphaOfLengthBetween(1, 10));
         valuesToAppend.add(newValue);
-        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false);
+        Processor appendProcessor = createAppendProcessor(field, valuesToAppend, false, false);
         appendProcessor.execute(ingestDocument);
         List<?> list = ingestDocument.getFieldValue(field, List.class);
         assertThat(list.size(), equalTo(2));
@@ -171,20 +171,145 @@ public class AppendProcessorTests extends ESTestCase {
         Collections.sort(valuesToAppend);
 
         // attempt to append both new and existing values
-        Processor appendProcessor = createAppendProcessor(originalField, valuesToAppend, false);
+        Processor appendProcessor = createAppendProcessor(originalField, valuesToAppend, false, false);
         appendProcessor.execute(ingestDocument);
         List<?> fieldValue = ingestDocument.getFieldValue(originalField, List.class);
         assertThat(fieldValue, sameInstance(list));
         assertThat(fieldValue, containsInAnyOrder(expectedValues.toArray()));
     }
 
-    private static Processor createAppendProcessor(String fieldName, Object fieldValue, boolean allowDuplicates) {
+    public void testAppendingToListWithNoEmptyValuesAndEmptyValuesDisallowed() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        Scalar scalar = randomFrom(Scalar.values());
+        List<Object> list = new ArrayList<>();
+        int size = randomIntBetween(0, 10);
+        for (int i = 0; i < size; i++) {
+            list.add(scalar.randomValue());
+        }
+        List<Object> checkList = new ArrayList<>(list);
+        String field = RandomDocumentPicks.addRandomField(random(), ingestDocument, list);
+        List<Object> values = new ArrayList<>();
+        Processor appendProcessor;
+        if (randomBoolean()) {
+            Object value = scalar.randomValue();
+            values.add(value);
+            appendProcessor = createAppendProcessor(field, value, true, true);
+        } else {
+            int valuesSize = randomIntBetween(0, 10);
+            for (int i = 0; i < valuesSize; i++) {
+                values.add(scalar.randomValue());
+            }
+            appendProcessor = createAppendProcessor(field, values, true, true);
+        }
+        appendProcessor.execute(ingestDocument);
+        Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
+        assertThat(fieldValue, sameInstance(list));
+        assertThat(list.size(), equalTo(size + values.size()));
+        for (int i = 0; i < size; i++) {
+            assertThat(list.get(i), equalTo(checkList.get(i)));
+        }
+        for (int i = size; i < size + values.size(); i++) {
+            assertThat(list.get(i), equalTo(values.get(i - size)));
+        }
+    }
+
+    public void testAppendingToListEmptyStringAndEmptyValuesDisallowed() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        Scalar scalar = Scalar.STRING;
+        List<Object> list = new ArrayList<>();
+        int size = randomIntBetween(0, 10);
+        for (int i = 0; i < size; i++) {
+            list.add(scalar.randomValue());
+        }
+        List<Object> checkList = new ArrayList<>(list);
+        String field = RandomDocumentPicks.addRandomField(random(), ingestDocument, list);
+        List<Object> values = new ArrayList<>();
+        Processor appendProcessor;
+        if (randomBoolean()) {
+            Object value;
+            if (randomBoolean()) {
+                value = "";
+            } else {
+                value = scalar.randomValue();
+                values.add(value);
+            }
+            appendProcessor = createAppendProcessor(field, value, true, true);
+        } else {
+            int valuesSize = randomIntBetween(0, 10);
+            List<Object> allValues = new ArrayList<>();
+            for (int i = 0; i < valuesSize; i++) {
+                Object value;
+                if (randomBoolean()) {
+                    value = "";
+                } else {
+                    value = scalar.randomValue();
+                    values.add(value);
+                }
+                allValues.add(value);
+            }
+            appendProcessor = createAppendProcessor(field, allValues, true, true);
+        }
+        appendProcessor.execute(ingestDocument);
+        Object fieldValue = ingestDocument.getFieldValue(field, Object.class);
+        assertThat(fieldValue, sameInstance(list));
+        assertThat(list.size(), equalTo(size + values.size()));
+        for (int i = 0; i < size; i++) {
+            assertThat(list.get(i), equalTo(checkList.get(i)));
+        }
+        for (int i = size; i < size + values.size(); i++) {
+            assertThat(list.get(i), equalTo(values.get(i - size)));
+        }
+    }
+
+    public void testAppendingToNonExistingListEmptyStringAndEmpyValuesDisallowed() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String field = RandomDocumentPicks.randomFieldName(random());
+        Scalar scalar = Scalar.STRING;
+        List<Object> values = new ArrayList<>();
+        Processor appendProcessor;
+        if (randomBoolean()) {
+            Object value;
+            if (randomBoolean()) {
+                value = "";
+            } else {
+                value = scalar.randomValue();
+                values.add(value);
+            }
+            appendProcessor = createAppendProcessor(field, value, true, true);
+        } else {
+            List<Object> allValues = new ArrayList<>();
+            int valuesSize = randomIntBetween(0, 10);
+            for (int i = 0; i < valuesSize; i++) {
+                Object value;
+                if (randomBoolean()) {
+                    value = "";
+                } else {
+                    value = scalar.randomValue();
+                    values.add(value);
+                }
+                allValues.add(value);
+            }
+            appendProcessor = createAppendProcessor(field, allValues, true, true);
+        }
+        appendProcessor.execute(ingestDocument);
+        List<?> list = ingestDocument.getFieldValue(field, List.class);
+        assertThat(list, not(sameInstance(values)));
+        assertThat(list, equalTo(values));
+    }
+
+    private static Processor createAppendProcessor(
+        String fieldName,
+        Object fieldValue,
+        boolean allowDuplicates,
+        boolean ignoreEmptyValues
+    ) {
         return new AppendProcessor(
             randomAlphaOfLength(10),
             null,
             new TestTemplateService.MockTemplateScript.Factory(fieldName),
             ValueSource.wrap(fieldValue, TestTemplateService.instance()),
-            allowDuplicates
+            allowDuplicates,
+            ignoreEmptyValues
         );
     }
 

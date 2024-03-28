@@ -199,7 +199,7 @@ public class ForEachProcessorTests extends ESTestCase {
             new CompoundProcessor(
                 false,
                 List.of(new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")),
-                List.of(new AppendProcessor("_tag", null, template, (model) -> (List.of("added")), true))
+                List.of(new AppendProcessor("_tag", null, template, (model) -> (List.of("added")), true, false))
             ),
             false
         );

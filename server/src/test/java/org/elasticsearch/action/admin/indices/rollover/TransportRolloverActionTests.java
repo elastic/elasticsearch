@@ -570,8 +570,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             rolloverService,
             mockClient,
             mockAllocationService,
-            mockMetadataDataStreamService,
-            dataStreamAutoShardingService
+            mockMetadataDataStreamService
         );
 
         final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();

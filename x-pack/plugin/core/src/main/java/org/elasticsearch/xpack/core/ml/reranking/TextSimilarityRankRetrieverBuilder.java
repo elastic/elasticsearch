@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 
@@ -25,8 +26,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
 
-    public static final String NAME = "text_similarity_rank";
-    public static final NodeFeature NODE_FEATURE = new NodeFeature(NAME + "_retriever");
+    public static final NodeFeature NODE_FEATURE = new NodeFeature(XPackField.TEXT_SIMILARITY_RANK + "_retriever");
 
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -35,7 +35,7 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
     public static final ParseField MODEL_TEXT_FIELD = new ParseField("model_text");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
-        new ConstructingObjectParser<>(NAME, args -> {
+        new ConstructingObjectParser<>(XPackField.TEXT_SIMILARITY_RANK, args -> {
             int argIndex = 0;
             RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[argIndex++];
             String field = (String) args[argIndex++];
@@ -57,13 +57,13 @@ public class TextSimilarityRankRetrieverBuilder extends RetrieverBuilder {
         PARSER.declareString(constructorArg(), MODEL_ID_FIELD);
         PARSER.declareString(constructorArg(), MODEL_TEXT_FIELD);
 
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(XPackField.TEXT_SIMILARITY_RANK, PARSER);
     }
 
     public static TextSimilarityRankRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context)
         throws IOException {
         if (context.clusterSupportsFeature(NODE_FEATURE) == false) {
-            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
+            throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + XPackField.TEXT_SIMILARITY_RANK + "]");
         }
         return PARSER.apply(parser, context);
     }

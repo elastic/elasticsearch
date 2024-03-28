@@ -288,7 +288,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 EnterpriseSearchFeatureSetUsage::new
             ),
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new),
-            new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankRetrieverBuilder.NAME, TextSimilarityRankBuilder::new)
+            new NamedWriteableRegistry.Entry(RankBuilder.class, XPackField.TEXT_SIMILARITY_RANK, TextSimilarityRankBuilder::new)
         ).filter(Objects::nonNull).toList();
     }
 
@@ -365,7 +365,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
 
     @Override
     public List<RetrieverSpec<?>> getRetrievers() {
-        return List.of(new RetrieverSpec<>(new ParseField(TextSimilarityRankRetrieverBuilder.NAME),
+        return List.of(new RetrieverSpec<>(new ParseField(XPackField.TEXT_SIMILARITY_RANK),
             TextSimilarityRankRetrieverBuilder::fromXContent));
     }
 

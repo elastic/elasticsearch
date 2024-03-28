@@ -87,8 +87,11 @@ public final class XPackField {
 
     /** Name constant for the redact processor feature. */
     public static final String REDACT_PROCESSOR = "redact_processor";
-    /* Name for Universal Profiling. */
+    /** Name for Universal Profiling. */
     public static final String UNIVERSAL_PROFILING = "universal_profiling";
+
+    /** Name constant for text similarity ranking feature. */
+    public static final String TEXT_SIMILARITY_RANK = "text_similarity_rank";
 
     private XPackField() {}
 

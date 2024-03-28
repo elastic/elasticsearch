@@ -33,7 +33,7 @@ public class EsTimeseriesQueryExec extends EsQueryExec {
             List.of(
                 new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
                 new FieldAttribute(source, TSID_FIELD.getName(), TSID_FIELD),
-                new FieldAttribute(source, TIMESTAMP_FIELD.getName(), TSID_FIELD)
+                new FieldAttribute(source, TIMESTAMP_FIELD.getName(), TIMESTAMP_FIELD)
             ),
             query,
             null,

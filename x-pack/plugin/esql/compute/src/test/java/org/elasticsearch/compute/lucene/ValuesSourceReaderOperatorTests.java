@@ -133,7 +133,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         return factory(reader, mapperService.fieldType("long"), ElementType.LONG);
     }
 
-    static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft, ElementType elementType) {
+    public static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft, ElementType elementType) {
         return factory(reader, ft.name(), elementType, ft.blockLoader(null));
     }
 

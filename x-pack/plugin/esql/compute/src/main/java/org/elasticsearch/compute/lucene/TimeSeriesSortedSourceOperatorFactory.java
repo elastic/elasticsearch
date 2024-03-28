@@ -17,6 +17,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -86,9 +87,9 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
         private IntVector.Builder docsBuilder;
         private IntVector.Builder segmentsBuilder;
         private LongVector.Builder timestampIntervalBuilder;
-        // TODO: handle when a time series spans across backing indices
-        // In that case we need to bytes representation of the tsid
-        private IntVector.Builder tsOrdBuilder;
+        // TODO: add an ordinal block for tsid hashes
+        // (This allows for efficiently grouping by tsid locally, no need to use bytes representation of tsid hash)
+        private BytesRefVector.Builder tsHashesBuilder;
         private TimeSeriesIterator iterator;
 
         Impl(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int maxPageSize, int limit) {
@@ -98,7 +99,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             this.docsBuilder = blockFactory.newIntVectorBuilder(Math.min(limit, maxPageSize));
             this.segmentsBuilder = null;
             this.timestampIntervalBuilder = blockFactory.newLongVectorBuilder(Math.min(limit, maxPageSize));
-            this.tsOrdBuilder = blockFactory.newIntVectorBuilder(Math.min(limit, maxPageSize));
+            this.tsHashesBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(limit, maxPageSize));
             this.sliceQueue = sliceQueue;
         }
 
@@ -128,7 +129,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
             IntVector leaf = null;
             IntVector docs = null;
             LongVector timestampIntervals = null;
-            IntVector tsids = null;
+            BytesRefVector tsids = null;
             try {
                 if (iterator == null) {
                     var slice = sliceQueue.nextSlice();
@@ -156,8 +157,8 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
 
                 timestampIntervals = timestampIntervalBuilder.build();
                 timestampIntervalBuilder = blockFactory.newLongVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                tsids = tsOrdBuilder.build();
-                tsOrdBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
+                tsids = tsHashesBuilder.build();
+                tsHashesBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(remainingDocs, maxPageSize));
                 page = new Page(
                     currentPagePos,
                     new DocVector(shard.asVector(), leaf, docs, leaf.isConstant()).asBlock(),
@@ -181,7 +182,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(docsBuilder, segmentsBuilder, timestampIntervalBuilder, tsOrdBuilder);
+            Releasables.closeExpectNoException(docsBuilder, segmentsBuilder, timestampIntervalBuilder, tsHashesBuilder);
         }
 
         class TimeSeriesIterator {
@@ -237,7 +238,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                         segmentsBuilder.appendInt(leaf.segmentOrd);
                         docsBuilder.appendInt(leaf.iterator.docID());
                         timestampIntervalBuilder.appendLong(leaf.timestamp);
-                        tsOrdBuilder.appendInt(globalTsidOrd);
+                        tsHashesBuilder.appendBytesRef(currentTsid);
                         final Leaf newTop;
                         if (leaf.nextDoc()) {
                             // TODO: updating the top is one of the most expensive parts of this operation.
@@ -257,7 +258,7 @@ public record TimeSeriesSortedSourceOperatorFactory(int limit, int maxPageSize, 
                     // Only one segment, so no need to use priority queue and use segment ordinals as tsid ord.
                     leaf.reinitializeIfNeeded(Thread.currentThread());
                     while (leaf.nextDoc()) {
-                        tsOrdBuilder.appendInt(leaf.timeSeriesHashOrd);
+                        tsHashesBuilder.appendBytesRef(leaf.timeSeriesHash);
                         timestampIntervalBuilder.appendLong(leaf.timestamp);
                         // Don't append segment ord, because there is only one segment.
                         docsBuilder.appendInt(leaf.iterator.docID());

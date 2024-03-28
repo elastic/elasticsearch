@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -191,10 +192,12 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         return organizationId;
     }
 
+    @Override
     public SimilarityMeasure similarity() {
         return similarity;
     }
 
+    @Override
     public Integer dimensions() {
         return dimensions;
     }
@@ -209,6 +212,11 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
     public String modelId() {
         return modelId;
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
     @Override
@@ -271,8 +279,9 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
         out.writeOptionalString(organizationId);
+
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalEnum(similarity);
+            out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);
         }

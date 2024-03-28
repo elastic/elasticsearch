@@ -16,6 +16,12 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -25,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -127,7 +134,25 @@ public abstract class HuggingFaceBaseService extends SenderService {
         ChunkingOptions chunkingOptions,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        listener.onFailure(new UnsupportedOperationException("Chunked inference not implemented for Hugging Face"));
+        ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
+            (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
+        );
+
+        doInfer(model, input, taskSettings, inputType, inferListener);
     }
 
+    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
+        List<String> inputs,
+        InferenceServiceResults inferenceResults
+    ) {
+        if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
+            return ChunkedTextEmbeddingResults.of(inputs, textEmbeddingResults);
+        } else if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
+            return ChunkedSparseEmbeddingResults.of(inputs, sparseEmbeddingResults);
+        } else if (inferenceResults instanceof ErrorInferenceResults error) {
+            return List.of(new ErrorChunkedInferenceResults(error.getException()));
+        } else {
+            throw createInvalidChunkedResultException(inferenceResults.getWriteableName());
+        }
+    }
 }

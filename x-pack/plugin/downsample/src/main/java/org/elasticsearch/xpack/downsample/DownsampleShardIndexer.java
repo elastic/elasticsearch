@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -148,17 +149,6 @@ class DownsampleShardIndexer {
 
     public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
         final Query initialStateQuery = createQuery();
-        if (this.dimensions == null || this.dimensions.length <= 0) {
-            final String errorMessage = "Downsampling task ["
-                + task.getPersistentTaskId()
-                + "] on shard "
-                + indexShard.shardId()
-                + " failed because of missing dimensions for index ["
-                + task.getDownsampleIndex()
-                + "]";
-            logger.error(errorMessage);
-            throw new DownsampleShardIndexerException(errorMessage, false);
-        }
         if (initialStateQuery instanceof MatchNoDocsQuery) {
             return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
         }
@@ -576,7 +566,10 @@ class DownsampleShardIndexer {
             }
 
             if (dimensions.length == 0) {
-                // Extract dimension values from _tsid field, so we avoid loading them from doc_values
+                if (indexShard.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_HASHING)) {
+                    throw new IllegalStateException("downsampling task of indices create in 8.13 or later should specify dimensions");
+                }
+                // load dimensions from the legacy tsid
                 Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
                 for (Map.Entry<?, ?> e : dimensions.entrySet()) {
                     assert e.getValue() != null;

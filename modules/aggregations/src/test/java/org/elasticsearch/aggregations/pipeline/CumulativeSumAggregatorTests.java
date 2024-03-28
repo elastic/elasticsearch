@@ -38,6 +38,14 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearhc.search.aggregations.support.ValueType;
+
+
+
+
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -325,5 +333,178 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
 
     private static long asLong(String dateTime) {
         return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
+    }
+
+    public void testTermsHelper(ValueType vType, String bPath, Consumer<InternalAggregation> verify, CheckedConsumer<RandomIndexWriter, IOException> setup, String terms) throws IOException {
+        TermsAggregationBuilder termsAggResult = createTermsAggregation(vType, bPath, terms);
+
+        Query matchQuery = new MatchAllDocsQuery();
+
+        executeTestCase(matchQuery, termsAggResult, verify, setup);
+    }
+
+    public TermsAggregationBuilder createTermsAggregation(ValueType vType, String bPath, String terms) {
+        TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("terms");
+        termsAgg.field(terms);
+        termsAgg.userValueTypeHint(vType);
+
+        SumAggregationBuilder sumAgg = new SumAggregationBuilder("sum");
+        sumAgg.field("value_field");
+        termsAgg.subAggregation(sumAgg);
+
+        CumulativeSumPipelineAggregationBuilder cusumAgg = new CumulativeSumPipelineAggregationBuilder("cusum", bPath);
+        termsAgg.subAggregation(cusumAgg);
+
+        return termsAgg;
+    }
+
+    public Consumer<InternalAggregation> createConsumer(List datasetTems) {
+        return terms -> {
+            Document currDoc = new Document();
+            for (int i : datasetTerms) {
+                int counterValue = datasetTerms.get(i);
+                SortedNumericDocValuesField sorted = new SortedNumericDocValuesField("value_field", new BytesRef((String) sorted));
+                currDoc.add(sorted.apply(counterValue));
+                currDoc.add(new NumericDocValuesField("value_field", datasetTerms.get(i).intValue()));
+
+                terms.addDocument(currDoc);
+                currDoc.clear();
+            }
+        };
+    }
+
+    public CheckedConsumer<RandomIndexWriter, IOException> createSetup(List expected) {
+        return checkedTerms -> {
+            List <? extends Terms.Bucket> buckets = ((InternalTerms) checkedTerms).getBuckets();
+            assertThat(buckets.size(), equalTo(expected.size()));
+            for (int i = 0; i < buckets.size(); i++) {
+                InternalSimpleValue value = (InternalSimpleValue) buckets.get(i).getAggregations().get("cusum");
+                assertThat(value.value(), equalTo(expected.get(i)));
+            }
+        };
+    }
+
+    public void testTermsAggSimple() {
+        List<String> simpleDataset = Array.asList("10", "20", "30", "40", "50");
+
+        List<Double> expectedCt = Array.asList(1.0, 2.0, 3.0, 4.0, 5.0);
+
+        List<Double> expectedSum = Array.asList(10.0, 30.0, 60.0, 100.0, 150.0);
+
+        verify = createConsumer(simpleDataset);
+
+        setup = createSetup(expectedCt);
+
+        testTermsHelper(ValueType.STRING, "_count", verify, setup, "keyword_field");
+
+        verify = createConsumer(simpleDataset);
+
+        setup = createSetup(expectedSum);
+
+        testTermsHelper(ValueType.STRING, "sum", verify, setup, "keyword_field");
+    }
+
+    public void testTermsAggCheckCountVal() {
+        List<String> datasetTerms = Array.asList("10", "10", "20", "20", "30", "30", "30", "40", "40", "50");
+
+        List<Double> expectedCt = Array.asList(2.0, 4.0, 7.0, 9.0, 10.0);
+
+        verify = createConsumer(datasetTerms);
+
+        setup = createSetup(expectedCt);
+
+        testTermsHelper(ValueType.STRING, "_count", verify, setup, "keyword_field");
+    }
+
+    public void testTermsAggDouble() {
+        List<Double> datasetTerms  = Array.asList(10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 20.0, 20.0);
+
+        List<Double> expectedSum = Array.asList(80.0, 120.0);
+
+        verify = createConsumer(datasetTerms);
+
+        setup = createSetup(expectedSum);
+
+        testTermsHelper(ValueType.DOUBLE, "sum", verify, setup, "keyword_field");
+    }
+
+    public void testTermsAggString() {
+        List<String> datasetTerms = Array.asList("10", "20", "30", "40", "50", "60", "70", "80", "90", "100");
+
+        List<Double> expectedSum = Array.asList(10.0, 30.0, 60.0, 100.0, 150.0, 210.0, 280.0, 360.0, 450.0, 550.0);
+
+        verify = createConsumer(datasetTerms);
+
+        setup = createSetup(expectedSum);
+
+        testTermsHelper(ValueType.STRING, "sum", verify, setup, "keyword_field");
+    }
+
+    public void testTermsAggLong() {
+        List<Long> datasetTerms = Array.asList(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L);
+
+        List<Double> expectedSum = Array.asList(1.0, 3.0, 6.0, 10.0, 15.0, 21.0, 28.0, 36.0, 45.0, 55.0);
+
+        verify = createConsumer(datasetTerms);
+
+        setup = createSetup(expectedSum);
+
+        testTermsHelper(ValueType.LONG, "sum", verify, setup, "keyword_field");
+    }
+
+    public void testTermsAggInteger() {
+        List<Integer> datasetTerms = Array.asList(100, 200, 300);
+
+        List<Double> expectedSum = Array.asList(100.0, 300.0, 600.0);
+
+        verify = createConsumer(datasetTerms);
+
+        setup = createSetup(expectedSum);
+
+        testTermsHelper(ValueType.INTEGER, "sum", verify, setup, "keyword_field");
+    }
+
+    public void testTermsAggShort() {
+        List<Short> datasetTerms = Array.asList(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+
+        List<Double> expectedSum = Array.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+
+        verify = createConsumer(datasetTerms);
+
+        setup = createSetup(expectedSum);
+
+        testTermsHelper(ValueType.SHORT, "sum", verify, setup, "keyword_field");
+    }
+
+    public void testTermsAggOneEntry() {
+        List<Double> datasetTerms = Array.asList(13.0);
+
+        List<Double> expectedSum = Array.asList(13.0);
+
+        verify = createConsumer(datasetTerms);
+
+        setup = createSetup(expectedSum);
+
+        testTermsHelper(ValueType.DOUBLE, "sum", verify, setup, "keyword_field");
+    }
+
+    public void testTermsNoValues() {
+        List<String> datasetEmpty = Array.asList("");
+
+        List<String> expectedSum = Array.asList("");
+
+        List<Double> expectedCt = Array.asList(0.0);
+
+        vertify = createConsumer(datasetEmpty);
+
+        setup = createSetup(expectedSum);
+
+        testTermsHelper(ValueType.STRING, "sum", verify, setup, "keyword_field");
+
+        verify = createConsumer(datasetEmpty);
+
+        setup = createSetup(expectedCt);
+
+        testTermsHelper(ValueType.STRING, "_count", verify, setup, "keyword_field");
     }
 }

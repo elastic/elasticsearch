@@ -35,6 +35,10 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * Pass-through objects allow creating fields inside them that can also be referenced directly in search queries.
  * They also include parameters that affect how nested fields get configured. For instance, if parameter "time_series_dimension"
  * is set, eligible subfields are marked as dimensions and keyword fields are additionally included in routing and tsid calculations.
+ *
+ * In case different pass-through objects contain subfields with the same name (excluding the pass-through prefix), their aliases conflict.
+ * To resolve this, the pass-through spec can specify which object takes precedence by including it in the "superseded_by" parameter.
+ * Otherwise, precedence is based on lexicographical ordering.
  */
 public class PassThroughObjectMapper extends ObjectMapper {
     public static final String CONTENT_TYPE = "passthrough";

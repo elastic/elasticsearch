@@ -652,7 +652,10 @@ PUT passage_vectors
                 "properties": {
                     "vector": {
                         "type": "dense_vector",
-                        "dims": 2
+                        "dims": 2,
+                        "index_options": {
+                            "type": "hnsw"
+                        }
                     },
                     "text": {
                         "type": "text",

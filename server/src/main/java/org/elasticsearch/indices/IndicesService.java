@@ -18,7 +18,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -1725,28 +1724,18 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, Supplier<OriginalIndices> localIndicesSupplier) {
-        Objects.requireNonNull(localIndicesSupplier);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, Supplier<Index[]> resolvedLocalIndicesSupplier) {
+        Objects.requireNonNull(resolvedLocalIndicesSupplier);
 
         Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier = () -> {
             Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
-            OriginalIndices localIndices = localIndicesSupplier.get();
-            if (localIndices == null) {
-                return indexMetadataMap;
-            }
-
-            String[] localIndexNames = localIndices.indices();
-            if (localIndexNames == null) {
-                return indexMetadataMap;
-            }
-
-            for (String indexName : localIndexNames) {
-                IndexMetadata indexMetadata = clusterService.state().metadata().index(indexName);
+            for (Index index : resolvedLocalIndicesSupplier.get()) {
+                IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
                 if (indexMetadata == null) {
-                    throw new IndexNotFoundException(indexName);
+                    throw new IndexNotFoundException(index);
                 }
 
-                indexMetadataMap.put(indexName, indexMetadata);
+                indexMetadataMap.put(index.getName(), indexMetadata);
             }
 
             return indexMetadataMap;

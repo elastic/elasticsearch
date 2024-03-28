@@ -28,6 +28,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -89,15 +90,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
 
-        // Get local indices lazily since it will not always be necessary
-        final AtomicReference<OriginalIndices> localIndices = new AtomicReference<>();
-        Supplier<OriginalIndices> localIndicesSupplier = () -> {
-            localIndices.compareAndSet(
-                null,
-                remoteClusterService.groupIndices(request.indicesOptions(), request.indices())
-                    .getOrDefault(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, OriginalIndices.NONE)
-            );
-            return localIndices.get();
+        // Resolve local indices lazily since it will not always be necessary
+        final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
+        Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
+            resolvedLocalIndices.compareAndSet(null, resolveLocalIndices(request));
+            return resolvedLocalIndices.get();
         };
 
         ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
@@ -128,7 +125,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } else {
             Rewriteable.rewriteAndFetch(
                 request.query(),
-                searchService.getRewriteContext(timeProvider, localIndicesSupplier),
+                searchService.getRewriteContext(timeProvider, resolvedLocalIndicesSupplier),
                 rewriteListener
             );
         }
@@ -248,5 +245,17 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } else {
             return query.toString();
         }
+    }
+
+    private Index[] resolveLocalIndices(ValidateQueryRequest request) {
+        OriginalIndices localIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices())
+            .get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+        if (localIndices == null) {
+            return Index.EMPTY_ARRAY;
+        }
+
+        // TODO: Need to provide start time?
+        return indexNameExpressionResolver.concreteIndices(clusterService.state(), localIndices);
     }
 }

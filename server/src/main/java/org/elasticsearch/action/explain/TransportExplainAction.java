@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
@@ -85,15 +86,11 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
 
-        // Get local indices lazily since it will not always be necessary
-        final AtomicReference<OriginalIndices> localIndices = new AtomicReference<>();
-        Supplier<OriginalIndices> localIndicesSupplier = () -> {
-            localIndices.compareAndSet(
-                null,
-                remoteClusterService.groupIndices(request.indicesOptions(), request.indices())
-                    .getOrDefault(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, OriginalIndices.NONE)
-            );
-            return localIndices.get();
+        // Resolve local indices lazily since it will not always be necessary
+        final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
+        Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
+            resolvedLocalIndices.compareAndSet(null, resolveLocalIndices(request));
+            return resolvedLocalIndices.get();
         };
 
         ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
@@ -103,7 +100,11 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, localIndicesSupplier), rewriteListener);
+        Rewriteable.rewriteAndFetch(
+            request.query(),
+            searchService.getRewriteContext(timeProvider, resolvedLocalIndicesSupplier),
+            rewriteListener
+        );
     }
 
     @Override
@@ -192,5 +193,17 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         return indexService.getIndexSettings().isSearchThrottled()
             ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
             : super.getExecutor(request, shardId);
+    }
+
+    private Index[] resolveLocalIndices(ExplainRequest request) {
+        OriginalIndices localIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices())
+            .get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+        if (localIndices == null) {
+            return Index.EMPTY_ARRAY;
+        }
+
+        // TODO: Need to provide start time?
+        return indexNameExpressionResolver.concreteIndices(clusterService.state(), localIndices);
     }
 }

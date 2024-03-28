@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -57,6 +58,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -1624,7 +1626,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
         final List<SearchShardIterator> shardIterators = TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
             clusterState,
-            OriginalIndices.NONE,
+            null,
             null,
             new SearchContextId(contexts, aliasFilterMap),
             keepAlive,
@@ -1669,7 +1671,7 @@ public class TransportSearchActionTests extends ESTestCase {
         IndexNotFoundException error = expectThrows(IndexNotFoundException.class, () -> {
             TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
                 clusterState,
-                OriginalIndices.NONE,
+                null,
                 null,
                 new SearchContextId(contexts, aliasFilterMap),
                 keepAlive,
@@ -1680,7 +1682,7 @@ public class TransportSearchActionTests extends ESTestCase {
         // Ok when some indices don't exist and `allowPartialSearchResults` is true.
         Optional<SearchShardIterator> anotherShardIterator = TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
             clusterState,
-            OriginalIndices.NONE,
+            null,
             null,
             new SearchContextId(contexts, aliasFilterMap),
             keepAlive,
@@ -1724,6 +1726,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 threadPool,
                 null
             );
+            clusterService.getClusterApplierService().setInitialState(ClusterState.EMPTY_STATE);
+
             TransportSearchAction action = new TransportSearchAction(
                 threadPool,
                 new NoneCircuitBreakerService(),
@@ -1733,7 +1737,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 clusterService,
                 actionFilters,
-                null,
+                new IndexNameExpressionResolver(threadPool.getThreadContext(), EmptySystemIndices.INSTANCE),
                 null,
                 null,
                 new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),

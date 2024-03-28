@@ -39,7 +39,7 @@ public class RRFRankShardContext extends RankShardContext {
         // if a doc isn't part of a result set its position will be NO_RANK [0] and
         // its score is [0f]
         int queries = rankResults.size();
-        Map<Integer, RRFRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(windowSize);
+        Map<Integer, RRFRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(from + windowSize);
         int index = 0;
         for (TopDocs rrfRankResult : rankResults) {
             int rank = 1;
@@ -90,7 +90,7 @@ public class RRFRankShardContext extends RankShardContext {
             }
             return rrf1.doc < rrf2.doc ? -1 : 1;
         });
-        // trim the results to window size
+        // trim the results to from + window size
         RRFRankDoc[] topResults = new RRFRankDoc[Math.min(windowSize + from, sortedResults.length)];
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[rank];

@@ -127,6 +127,11 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
             }
         }
 
+        // return if pagination requested is outside the results
+        if (results.values().size() - from <= 0) {
+            return SortedTopDocs.EMPTY;
+        }
+
         // sort the results based on rrf score, tiebreaker based on
         // larger individual query score from 1 to n, smaller shard then smaller doc id
         RRFRankDoc[] sortedResults = results.values().toArray(RRFRankDoc[]::new);
@@ -151,9 +156,10 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
             }
             return rrf1.doc < rrf2.doc ? -1 : 1;
         });
+        // trim results to size
         RRFRankDoc[] topResults = new RRFRankDoc[Math.min(size, sortedResults.length - from)];
         for (int rank = 0; rank < topResults.length; ++rank) {
-            topResults[rank] = sortedResults[rank];
+            topResults[rank] = sortedResults[from + rank];
             topResults[rank].rank = rank + 1 + from;
         }
         // update fetch hits for the fetch phase, so we gather any additional

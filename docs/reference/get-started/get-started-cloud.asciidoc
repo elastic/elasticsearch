@@ -1,0 +1,31 @@
+[[get-started-elasticsearch-cloud]]
+== Get started with {es} on {ecloud}
+++++
+<titleabbrev>{ecloud}</titleabbrev>
+++++
+
+Elastic Cloud offers all of the features of Elasticsearch, Kibana, and our Observability, Search, and Security solutions as a hosted service available on AWS, GCP, and Azure.
+
+To get started with {es} on {ecloud}, you need to:
+
+* https://cloud.elastic.co/registration[Sign up for free trial]
+* Create a deployment (takes ~5 mins)
+* Save superuser credentials
+
+Once created your deployment will be visible in your {ecloud} https://cloud.elastic.co/deployments[deployments overview] page.
+
+** Select **Open** to navigate directly into your Elastic UI (Kibana)
+** Select **Manage** to navigate to your deployment's management overview.
+*** To connect to your instance using a https://www.elastic.co/guide/en/elasticsearch/client/index.html[programming language client] or cURL, you'll need some information about your deployment, and an API key.
+**** Find your <<endpoints-keys-cloud-id, Cloud ID>> and <<endpoints-keys-elasticsearch, {es} endpoint>>.
+**** Create an <<endpoints-keys-api-keys, API key>>.
+
+[discrete]
+[[get-started-elasticsearch-cloud-next-steps]]
+== Next steps
+
+* Now that you have {es} running, follow our <<getting-started, quickstart>> to learn how to index and search data, using Console or cURL.
+* If you'd like to call the {es} APIs using your preferred programming language, refer to our https://www.elastic.co/guide/en/elasticsearch/client/index.html[programming language client] documentation.
+* If you're a Python developer, check out Elastic Search Labs:
+** The https://www.elastic.co/search-labs[Elastic Search Labs] webpage has a range of examples that use the {es} Python client. This is the best place to explore AI-powered search use cases, such as working with embeddings, vector search, and retrieval augmented generation (RAG).
+** The companion https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs` repo] contains a range of executable Python https://github.com/elastic/elasticsearch-labs/tree/main/notebooks[notebooks] and https://github.com/elastic/elasticsearch-labs/tree/main/example-apps[example apps].

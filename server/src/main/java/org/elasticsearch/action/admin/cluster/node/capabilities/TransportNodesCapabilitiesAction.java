@@ -80,7 +80,13 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
     @Override
     protected NodeCapability nodeOperation(NodeCapabilitiesRequest request, Task task) {
         // TODO: add the rest api version as a NodeCapabilitiesRequest parameter?
-        boolean supported = restController.checkSupported(request.method, request.path, request.parameters, request.features, RestApiVersion.V_8);
+        boolean supported = restController.checkSupported(
+            request.method,
+            request.path,
+            request.parameters,
+            request.features,
+            RestApiVersion.V_8
+        );
         return new NodeCapability(supported, transportService.getLocalNode());
     }
 

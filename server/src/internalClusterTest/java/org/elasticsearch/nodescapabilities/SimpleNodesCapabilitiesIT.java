@@ -32,5 +32,17 @@ public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
             .actionGet();
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.isSupported(), is(true));
+
+        // check we support some parameters of the capabilities API
+        response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities").parameters("method", "path"))
+            .actionGet();
+        assertThat(response.getNodes(), hasSize(2));
+        assertThat(response.isSupported(), is(true));
+
+        // check we don't support some other parameters of the capabilities API
+        response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities").parameters("method", "invalid"))
+            .actionGet();
+        assertThat(response.getNodes(), hasSize(2));
+        assertThat(response.isSupported(), is(false));
     }
 }

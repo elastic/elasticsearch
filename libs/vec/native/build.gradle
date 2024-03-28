@@ -9,22 +9,24 @@ apply plugin: 'c'
 
 var os = org.gradle.internal.os.OperatingSystem.current()
 
-// This task is deliberately not depended upon. Run it manually if you
-// modify the native code,
-//   ./gradlew :libs:elasticsearch-vec:native:buildNativeLibrary
-// then commit the native library, e.g.
-//   git commit libs/vec/platform/darwin-aarch64/libvec.dylib
+// To update this library run publish_vec_binaries.sh
 //
 // Look at the disassemble:
 //  objdump --disassemble-symbols=_dot8s libs/vec/native/build/libs/vec/shared/libvec.dylib
 
 // gcc -shared -fpic -o libvec.so -I src/vec/headers/ src/vec/c/vec.c -O3
 
-tasks.register("buildNativeLibrary") {
-  dependsOn tasks.named("copyLib")
-}
+group = 'org.elasticsearch'
 
 model {
+  toolChains {
+    gcc(Gcc) {
+      target("aarch64") {
+        cCompiler.executable = "/usr/bin/gcc"
+      }
+    }
+    clang(Clang)
+  }
   platforms {
     aarch64 {
       architecture "aarch64"
@@ -34,18 +36,11 @@ model {
     vec(NativeLibrarySpec) {
       targetPlatform "aarch64"
       binaries.withType(SharedLibraryBinarySpec) {
-        cCompiler.args "-O3"
+        cCompiler.args "-O3", "-std=c99"
         linker.args "-march=native"
         linker.args "-mcpu=native"
         linker.args "-mtune=native"
       }
     }
   }
-}
-
-tasks.register("copyLib", Copy).configure {
-  description "Copy native lib"
-  from "build/libs/vec/shared/${os.getSharedLibraryName('vec')}"
-  into "../platform/${os.getNativePrefix()}-aarch64"
-  dependsOn tasks.named("vecSharedLibrary")
 }

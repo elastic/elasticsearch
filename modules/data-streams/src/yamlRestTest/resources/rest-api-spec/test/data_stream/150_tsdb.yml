@@ -834,11 +834,39 @@ enable subobjects in passthrough object:
               index:
                 number_of_shards: 1
                 mode: time_series
-                time_series:
-                  start_time: 2023-08-31T13:03:08.138Z
 
             mappings:
               properties:
                 attributes:
                   type: passthrough
                   subobjects: true
+
+---
+passthrough objects with circular deps:
+  - skip:
+      version: " - 8.12.99"
+      reason: "Support for passthrough fields was added in 8.13"
+  - do:
+      catch: /Circular dependency between pass-through objects/
+      indices.put_index_template:
+        name: my-dynamic-template
+        body:
+          index_patterns: [k9s*]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                number_of_shards: 1
+                mode: time_series
+
+            mappings:
+              properties:
+                attributes:
+                  type: passthrough
+                  superseded_by: system.attributes
+                resource.attributes:
+                  type: passthrough
+                  superseded_by: attributes
+                system.attributes:
+                  type: passthrough
+                  superseded_by: resource.attributes

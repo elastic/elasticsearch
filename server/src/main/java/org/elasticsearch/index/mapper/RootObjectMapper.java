@@ -18,8 +18,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -76,8 +74,6 @@ public class RootObjectMapper extends ObjectMapper {
         protected final Map<String, RuntimeField> runtimeFields = new HashMap<>();
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
-
-        private static final Logger logger = LogManager.getLogger(RootObjectMapper.Builder.class);
 
         public Builder(String name, Explicit<Boolean> subobjects) {
             super(name, subobjects);

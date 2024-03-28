@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -16,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -422,5 +424,77 @@ public class FieldTypeLookupTests extends ESTestCase {
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
         return new FlattenedFieldMapper.Builder(fieldName).build(MapperBuilderContext.root(false, false));
+    }
+
+    private PassThroughObjectMapper createPassThroughMapper(String name, Set<String> supersededBy) {
+        return new PassThroughObjectMapper(
+            name,
+            name,
+            Explicit.EXPLICIT_TRUE,
+            ObjectMapper.Dynamic.FALSE,
+            Map.of(),
+            Explicit.EXPLICIT_FALSE,
+            supersededBy
+        );
+    }
+
+    public void testAddRootAliasesForPassThroughFields() {
+        MockFieldMapper foo = new MockFieldMapper("attributes.foo");
+        MockFieldMapper bar = new MockFieldMapper(
+            new MockFieldMapper.FakeFieldType("attributes.much.more.deeply.nested.bar"),
+            "much.more.deeply.nested.bar"
+        );
+        PassThroughObjectMapper attributes = createPassThroughMapper("attributes", Set.of());
+
+        MockFieldMapper baz = new MockFieldMapper("resource.attributes.baz");
+        MockFieldMapper bag = new MockFieldMapper(
+            new MockFieldMapper.FakeFieldType("resource.attributes.much.more.deeply.nested.bag"),
+            "much.more.deeply.nested.bag"
+        );
+        PassThroughObjectMapper resourceAttributes = createPassThroughMapper("resource.attributes", Set.of(""));
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(foo, bar, baz, bag),
+            List.of(),
+            List.of(attributes, resourceAttributes),
+            List.of()
+        );
+        assertEquals(foo.fieldType(), lookup.get("foo"));
+        assertEquals(bar.fieldType(), lookup.get("much.more.deeply.nested.bar"));
+        assertEquals(baz.fieldType(), lookup.get("baz"));
+        assertEquals(bag.fieldType(), lookup.get("much.more.deeply.nested.bag"));
+    }
+
+    public void testNoPassThroughField() {
+        MockFieldMapper field = new MockFieldMapper("labels.foo");
+        PassThroughObjectMapper attributes = createPassThroughMapper("attributes", Set.of());
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(field), List.of(), List.of(attributes), List.of());
+        assertNull(lookup.get("foo"));
+    }
+
+    public void testAddRootAliasForConflictingPassThroughFields() {
+        MockFieldMapper attributeField = new MockFieldMapper("attributes.foo");
+        PassThroughObjectMapper attributes = createPassThroughMapper("attributes", Set.of());
+
+        MockFieldMapper resourceAttributeField = new MockFieldMapper("resource.attributes.foo");
+        PassThroughObjectMapper resourceAttributes = createPassThroughMapper("resource.attributes", Set.of("attributes"));
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(attributeField, resourceAttributeField),
+            List.of(),
+            List.of(attributes, resourceAttributes),
+            List.of()
+        );
+        assertEquals(attributeField.fieldType(), lookup.get("foo"));
+    }
+
+    public void testNoRootAliasForPassThroughFieldOnConflictingField() {
+        MockFieldMapper attributeFoo = new MockFieldMapper("attributes.foo");
+        MockFieldMapper foo = new MockFieldMapper("foo");
+        PassThroughObjectMapper attributes = createPassThroughMapper("attributes", Set.of());
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(foo, attributeFoo), List.of(), List.of(attributes), List.of());
+        assertEquals(foo.fieldType(), lookup.get("foo"));
     }
 }

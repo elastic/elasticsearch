@@ -92,6 +92,9 @@ final class FieldTypeLookup {
             }
         }
 
+        // Pass-though subfields can be referenced without the prefix corresponding to the
+        // PassThroughObjectMapper name. This is achieved by adding a second reference to their
+        // MappedFieldType using the remaining suffix.
         Map<String, PassThroughObjectMapper> passThroughFieldAliases = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A (mostly) immutable snapshot of the current mapping of an index with
@@ -182,6 +183,14 @@ public final class MappingLookup {
             if (fieldMappers.put(aliasMapper.name(), aliasMapper) != null) {
                 throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an alias and a concrete field");
             }
+        }
+
+        List<PassThroughObjectMapper> sequence = PassThroughObjectMapper.checkSupersedesForCircularDeps(passThroughMappers);
+        if (sequence.isEmpty() == false) {
+            throw new MapperParsingException(
+                "Circular dependency between pass-through objects: "
+                    + sequence.stream().map(PassThroughObjectMapper::name).collect(Collectors.joining(" => "))
+            );
         }
 
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();

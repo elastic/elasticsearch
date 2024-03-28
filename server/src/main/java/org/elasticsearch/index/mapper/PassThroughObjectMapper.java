@@ -15,10 +15,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
@@ -33,6 +39,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 public class PassThroughObjectMapper extends ObjectMapper {
     public static final String CONTENT_TYPE = "passthrough";
     public static final String SUPERSEDED_BY_PARAM = "superseded_by";
+
+    private static final int CIRCULAR_DEPENDENCY_MAX_OPS = 10_000;
 
     public static class Builder extends ObjectMapper.Builder {
 
@@ -93,6 +101,12 @@ public class PassThroughObjectMapper extends ObjectMapper {
         super(name, fullPath, enabled, Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         this.supersededBy = supersededBy;
+
+        if (supersededBy.contains(fullPath)) {
+            throw new MapperException(
+                "Mapping definition for [" + fullPath + "] contains a self-reference in param [" + SUPERSEDED_BY_PARAM + "]"
+            );
+        }
     }
 
     @Override
@@ -192,5 +206,53 @@ public class PassThroughObjectMapper extends ObjectMapper {
                 node.remove(SUPERSEDED_BY_PARAM);
             }
         }
+    }
+
+    /**
+     * Checks the passed objects for circular dependencies on the superseded_by cross-dependencies.
+     * @param passThroughMappers objects to check
+     * @return A list containing the circular dependency chain, or an empty list if no circular dependency is found
+     */
+    public static List<PassThroughObjectMapper> checkSupersedesForCircularDeps(Collection<PassThroughObjectMapper> passThroughMappers) {
+        if (passThroughMappers.size() < 2) {
+            return List.of();
+        }
+
+        // Perform DFS.
+        // The implementation below assumes that the graph is rather small and sparse. Further optimizations are
+        // required (e.g. use sets for lookups) if production systems end up with hundreds of tightly-coupled objects.
+        int i = 0;
+        Map<String, PassThroughObjectMapper> lookupByName = passThroughMappers.stream()
+            .collect(Collectors.toMap(PassThroughObjectMapper::name, Function.identity()));
+        for (PassThroughObjectMapper start : passThroughMappers) {
+            Stack<PassThroughObjectMapper> sequence = new Stack<>();
+            Map<PassThroughObjectMapper, PassThroughObjectMapper> reverseDeps = new HashMap<>();
+            Stack<PassThroughObjectMapper> pending = new Stack<>();
+            pending.push(start);
+            while (pending.empty() == false) {
+                if (++i > CIRCULAR_DEPENDENCY_MAX_OPS) {  // Defensive check.
+                    break;
+                }
+                PassThroughObjectMapper current = pending.pop();
+                // If we reached the end of a branch, unwind the stack till the beginning of the next branch.
+                while (sequence.isEmpty() == false && reverseDeps.get(current) != sequence.peek()) {
+                    sequence.pop();
+                }
+                // Check if the branch contains the same element twice.
+                if (sequence.contains(current)) {
+                    sequence.push(current);
+                    return sequence;
+                }
+                sequence.push(current);
+                for (String dep : current.supersededBy()) {
+                    PassThroughObjectMapper mapper = lookupByName.get(dep);
+                    if (mapper != null) {
+                        pending.push(mapper);
+                        reverseDeps.put(mapper, current);
+                    }
+                }
+            }
+        }
+        return List.of();
     }
 }

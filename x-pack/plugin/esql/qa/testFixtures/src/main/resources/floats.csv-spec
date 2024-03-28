@@ -544,3 +544,24 @@ required_feature: esql.agg_values
      [1.56, 1.78] | Tech Lead
 [1.7, 1.83, 2.05] | null
 ;
+
+signumOfPositiveDouble
+row d = to_double(100) | eval s = signum(d);
+
+d:double | s:double
+100      | 1.0
+;
+
+signumOfNegativeDouble
+row d = to_double(-100) | eval s = signum(d);
+
+d:double | s:double
+-100     | -1.0
+;
+
+signumOfZeroDouble
+row d = to_double(0) | eval s = signum(d);
+
+d:double | s:double
+0        | 0.0
+;

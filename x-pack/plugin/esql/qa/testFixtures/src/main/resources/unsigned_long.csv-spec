@@ -187,3 +187,17 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
          bytes_in:ul | rad:double
 16002960716282089759 | 2.79304354566432608E17
 ;
+
+signumOfPositiveUnsignedLong
+row l = to_ul(100) | eval s = signum(l);
+
+l:ul | s:double
+100  | 1.0
+;
+
+signumOfZeroUnsignedLong
+row l = to_ul(0) | eval s = signum(l);
+
+l:ul | s:double
+0    | 0.0
+;

@@ -209,6 +209,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 
 import java.io.IOException;
 import java.util.List;
@@ -312,6 +313,7 @@ public final class PlanNamedTypes {
             of(Expression.class, ReferenceAttribute.class, (o, a) -> a.writeTo(o), ReferenceAttribute::new),
             of(Expression.class, MetadataAttribute.class, (o, a) -> a.writeTo(o), MetadataAttribute::new),
             of(Expression.class, UnsupportedAttribute.class, (o, a) -> a.writeTo(o), UnsupportedAttribute::new),
+            of(EsField.class, MultiTypeEsField.class, PlanNamedTypes::writeMultiTypeEsField, PlanNamedTypes::readMultiTypeEsField),
             // NamedExpressions
             of(Expression.class, Alias.class, (o, a) -> a.writeTo(o), Alias::new),
             // BinaryComparison
@@ -1078,6 +1080,22 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(topN.child());
         out.writeCollection(topN.order(), writerFromPlanWriter(PlanNamedTypes::writeOrder));
         out.writeExpression(topN.limit());
+    }
+
+    static MultiTypeEsField readMultiTypeEsField(PlanStreamInput in) throws IOException {
+        return new MultiTypeEsField(
+            in.readString(),
+            DataType.readFrom(in),
+            in.readBoolean(),
+            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readExpression))
+        );
+    }
+
+    static void writeMultiTypeEsField(PlanStreamOutput out, MultiTypeEsField field) throws IOException {
+        out.writeString(field.getName());
+        out.writeString(field.getDataType().typeName());
+        out.writeBoolean(field.isAggregatable());
+        out.writeMap(field.getIndexToConversionExpressions(), (o, v) -> out.writeNamed(Expression.class, v));
     }
 
     // -- BinaryComparison

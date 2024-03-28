@@ -375,4 +375,37 @@ public class ObjectPathTests extends ESTestCase {
 
         assertEquals(Set.of("key1", "key2", "key3"), objectPath.evaluateMapKeys("test-object"));
     }
+
+    public void testEvaluateBoolean() throws Exception {
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.field("field2", true);
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(
+            xContentBuilder.contentType().xContent(),
+            BytesReference.bytes(xContentBuilder)
+        );
+        Object object = objectPath.evaluate("field1.field2");
+        assertThat(object, instanceOf(Boolean.class));
+        assertThat(object, equalTo(true));
+    }
+
+    public void testEvaluateEmptyObject() throws Exception {
+        XContentBuilder xContentBuilder = randomXContentBuilder();
+        xContentBuilder.startObject();
+        xContentBuilder.startObject("field1");
+        xContentBuilder.startObject("field2");
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        xContentBuilder.endObject();
+        ObjectPath objectPath = ObjectPath.createFromXContent(
+            xContentBuilder.contentType().xContent(),
+            BytesReference.bytes(xContentBuilder)
+        );
+        Object object = objectPath.evaluate("field1.field2");
+        assertThat(object, instanceOf(Map.class));
+        assertThat(((Map)object).isEmpty(), equalTo(true));
+    }
 }

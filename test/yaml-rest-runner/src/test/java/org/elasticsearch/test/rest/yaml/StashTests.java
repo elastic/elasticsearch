@@ -182,4 +182,34 @@ public class StashTests extends ESTestCase {
         assertThat(stash.getValue("$body.$backing_index.mappings"), equalTo(Map.of()));
     }
 
+    public void testReplaceNonExistentStashedValue() throws IOException {
+        Stash stash = new Stash();
+    
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", "foo${nonExistentStashValue}");
+    
+        Exception e = expectThrows(IllegalArgumentException.class, () -> stash.replaceStashedValues(map));
+        assertEquals("Stashed value not found for key [nonExistentStashValue]", e.getMessage());
+    }
+
+    public void testStashNullValue() {
+        Stash stash = new Stash();
+    
+        Exception e = expectThrows(IllegalArgumentException.class, () -> stash.stashValue("nullValue", null));
+        assertEquals("Cannot stash null value", e.getMessage());
+    }
+
+    public void testReplaceStashedValueWithComplexObject() throws IOException {
+        Stash stash = new Stash();
+        Map<String, Object> complexObject = new HashMap<>();
+        complexObject.put("innerKey", "innerValue");
+    
+        stash.stashValue("complex", complexObject);
+        Map<String, Object> map = new HashMap<>();
+        map.put("key", "$complex");
+    
+        Map<String, Object> actual = stash.replaceStashedValues(map);
+        assertEquals(complexObject, actual.get("key"));
+        assertThat(actual, not(sameInstance(map)));
+    }
 }

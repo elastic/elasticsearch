@@ -53,7 +53,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         StringBuilder paramsString = paramsString(params, hasParams);
         String json = String.format(Locale.ROOT, """
             {
-                "esql.version": "%s",
+                "version": "%s",
                 "query": "%s",
                 "columnar": %s,
                 "locale": "%s",
@@ -92,7 +92,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             Locale.ROOT,
             """
                 {
-                    "esql.version": "%s",
+                    "version": "%s",
                     "query": "%s",
                     "columnar": %s,
                     "locale": "%s",
@@ -164,7 +164,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
             String json = String.format(Locale.ROOT, """
                 {
-                    "esql.version": "%s",
+                    "version": "%s",
                     "query": "ROW x = 1"
                 }
                 """, validVersionString);
@@ -182,18 +182,18 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         String json = String.format(Locale.ROOT, """
             {
-                "esql.version": "%s",
+                "version": "%s",
                 "query": "ROW x = 1"
             }
             """, invalidVersionString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
         assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[esql.version] has invalid value [" + invalidVersionString + "]"));
+        assertThat(request.validate().getMessage(), containsString("[version] has invalid value [" + invalidVersionString + "]"));
 
         request = parseEsqlQueryRequestAsync(json);
         assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[esql.version] has invalid value [" + invalidVersionString + "]"));
+        assertThat(request.validate().getMessage(), containsString("[version] has invalid value [" + invalidVersionString + "]"));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104890")
@@ -205,18 +205,18 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
         assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[esql.version] is required"));
+        assertThat(request.validate().getMessage(), containsString("[version] is required"));
 
         request = parseEsqlQueryRequestAsync(json);
         assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[esql.version] is required"));
+        assertThat(request.validate().getMessage(), containsString("[version] is required"));
     }
 
     public void testMissingQueryIsNotValid() throws IOException {
         String json = """
             {
                 "columnar": true,
-                "esql.version": "nightly"
+                "version": "nightly"
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
         assertNotNull(request.validate());

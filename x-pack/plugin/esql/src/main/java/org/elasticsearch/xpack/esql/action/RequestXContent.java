@@ -47,7 +47,7 @@ final class RequestXContent {
     }
 
     // TODO: Maybe esql_version would be better? This looks like there's a JSON attribute `esql` with subattribute `version`.
-    static final ParseField ESQL_VERSION_FIELD = new ParseField("esql.version");
+    static final ParseField ESQL_VERSION_FIELD = new ParseField("version");
     static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
     private static final ParseField FILTER_FIELD = new ParseField("filter");

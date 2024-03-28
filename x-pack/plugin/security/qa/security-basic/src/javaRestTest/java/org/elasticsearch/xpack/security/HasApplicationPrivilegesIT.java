@@ -151,6 +151,32 @@ public class HasApplicationPrivilegesIT extends SecurityInBasicRestTestCase {
         }
     }
 
+    public void testNamed() throws IOException {
+        createApplicationPrivilege("app", "write", new String[] { "action:write/*" });
+        createRole("correct", "app", new String[] { "read" }, new String[] { "*" });
+        createRole("wrong", "app", new String[] { "read", randomFrom("create", "write") }, new String[] { "*" });
+
+        var password = new SecureString("password-123");
+        createUser("correct", password, Set.of("correct"));
+        createUser("wrong", password, Set.of("wrong"));
+
+        {
+            var reqOptions = RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue("correct", password))
+                .build();
+            var actual = hasPrivilege(reqOptions, "app", new String[] { "read" }, new String[] { "resource" });
+            assertSinglePrivilege(actual, "resource", "read", true);
+        }
+
+        {
+            var reqOptions = RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue("wrong", password))
+                .build();
+            var actual = hasPrivilege(reqOptions, "app", new String[] { "read" }, new String[] { "resource" });
+            assertSinglePrivilege(actual, "resource", "read", true);
+        }
+    }
+
     private void assertSinglePrivilege(
         List<ResourcePrivileges> hasPrivilegesResult,
         String expectedResource,

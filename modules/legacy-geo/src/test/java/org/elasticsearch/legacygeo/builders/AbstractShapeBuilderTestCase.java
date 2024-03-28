@@ -102,7 +102,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder<?, ?,
 
     protected static <T extends NamedWriteable> T copyShape(T original) throws IOException {
         @SuppressWarnings("unchecked")
-        Reader<T> reader = (Reader<T>) namedWriteableRegistry.getReader(ShapeBuilder.class, original.getWriteableName());
+        Reader<T> reader = (Reader<T>) namedWriteableRegistry.getReader(ShapeBuilder.class, original.getNameSymbol());
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, reader);
     }
 }

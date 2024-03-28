@@ -63,7 +63,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
- *
+ * <p>
  * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
  * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
  * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamOutput}. Finally
@@ -682,6 +682,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads an optional byte array. It's effectively the same as readByteArray, except
      * it supports null.
+     *
      * @return a byte array or null
      * @throws IOException
      */
@@ -759,7 +760,7 @@ public abstract class StreamInput extends InputStream {
      * Reads a multiple {@code V}-values and then converts them to a {@code Map} using keyMapper.
      *
      * @param valueReader The value reader
-     * @param keyMapper function to create a key from a value
+     * @param keyMapper   function to create a key from a value
      * @return Never {@code null}.
      */
     public <K, V> Map<K, V> readMapValues(final Writeable.Reader<V> valueReader, final Function<V, K> keyMapper) throws IOException {
@@ -794,7 +795,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Read a {@link Map} using the given key and value readers. The return Map is immutable.
      *
-     * @param keyReader Method to read a key. Must not return null.
+     * @param keyReader   Method to read a key. Must not return null.
      * @param valueReader Method to read a value. Must not return null.
      * @return The immutable map
      */
@@ -1049,6 +1050,10 @@ public abstract class StreamInput extends InputStream {
 
     public byte[] readByteArray() throws IOException {
         final int length = readArraySize();
+        return doReadByteArray(length);
+    }
+
+    protected byte[] doReadByteArray(int length) throws IOException {
         if (length == 0) {
             return EMPTY_BYTE_ARRAY;
         }
@@ -1131,16 +1136,20 @@ public abstract class StreamInput extends InputStream {
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
-     *
+     * <p>
      * Prefer {@link StreamInput#readNamedWriteable(Class)} and {@link StreamOutput#writeNamedWriteable(NamedWriteable)} unless you
      * have a compelling reason to use this method instead.
      */
     @Nullable
     public <C extends NamedWriteable> C readNamedWriteable(
         @SuppressWarnings("unused") Class<C> categoryClass,
-        @SuppressWarnings("unused") String name
+        @SuppressWarnings("unused") Symbol name
     ) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    public Symbol readSymbol() throws IOException {
+        return Symbol.lookupOrThrow(readByteArray());
     }
 
     /**
@@ -1351,17 +1360,21 @@ public abstract class StreamInput extends InputStream {
      */
     protected int readArraySize() throws IOException {
         final int arraySize = readVInt();
+        validateArraySize(arraySize);
+        // let's do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
+        // throw an exception instead of allocating the array based on the size. A simple corrupted byte can make a node go OOM
+        // if the size is large and for perf reasons we allocate arrays ahead of time
+        ensureCanReadBytes(arraySize);
+        return arraySize;
+    }
+
+    protected static void validateArraySize(int arraySize) {
         if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
             throwExceedsMaxArraySize(arraySize);
         }
         if (arraySize < 0) {
             throwNegative(arraySize);
         }
-        // let's do a sanity check that if we are reading an array size that is bigger that the remaining bytes we can safely
-        // throw an exception instead of allocating the array based on the size. A simple corrupted byte can make a node go OOM
-        // if the size is large and for perf reasons we allocate arrays ahead of time
-        ensureCanReadBytes(arraySize);
-        return arraySize;
     }
 
     private static void throwNegative(int arraySize) {

@@ -16,12 +16,21 @@ import java.util.Collections;
 
 public class NamedWriteableRegistryTests extends ESTestCase {
 
+    public static final String NAME = "test";
+    public static final Symbol NAME_SYMBOL = Symbol.ofConstant(NAME);
+
     private static class DummyNamedWriteable implements NamedWriteable {
+
         DummyNamedWriteable(StreamInput in) {}
 
         @Override
         public String getWriteableName() {
-            return "test";
+            return NAME;
+        }
+
+        @Override
+        public Symbol getNameSymbol() {
+            return NAME_SYMBOL;
         }
 
         @Override
@@ -33,14 +42,14 @@ public class NamedWriteableRegistryTests extends ESTestCase {
     }
 
     public void testBasic() throws IOException {
-        NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
+        NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, NAME, DummyNamedWriteable::new);
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(entry));
-        Writeable.Reader<? extends NamedWriteable> reader = registry.getReader(NamedWriteable.class, "test");
+        Writeable.Reader<? extends NamedWriteable> reader = registry.getReader(NamedWriteable.class, NAME_SYMBOL);
         assertNotNull(reader.read(null));
     }
 
     public void testDuplicates() throws IOException {
-        NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
+        NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, NAME, DummyNamedWriteable::new);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> new NamedWriteableRegistry(Arrays.asList(entry, entry))
@@ -50,14 +59,20 @@ public class NamedWriteableRegistryTests extends ESTestCase {
 
     public void testUnknownCategory() throws IOException {
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> registry.getReader(NamedWriteable.class, "test"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> registry.getReader(NamedWriteable.class, Symbol.ofConstant(NAME))
+        );
         assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable category ["));
     }
 
     public void testUnknownName() throws IOException {
-        NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
+        NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, NAME, DummyNamedWriteable::new);
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(entry));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> registry.getReader(NamedWriteable.class, "dne"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> registry.getReader(NamedWriteable.class, Symbol.ofConstant("dne"))
+        );
         assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable ["));
     }
 }

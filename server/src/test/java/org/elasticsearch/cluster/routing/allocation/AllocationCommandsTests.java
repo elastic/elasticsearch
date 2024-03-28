@@ -746,6 +746,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
     }
 
     public void testSerialization() throws Exception {
+        // Since the commands are named writeable we need to register them and wrap the input stream
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(NetworkModule.getNamedWriteables());
+
         AllocationCommands commands = new AllocationCommands(
             new AllocateEmptyPrimaryAllocationCommand("test", 1, "node1", true),
             new AllocateStalePrimaryAllocationCommand("test", 2, "node1", true),
@@ -757,8 +760,6 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         AllocationCommands.writeTo(commands, bytes);
         StreamInput in = bytes.bytes().streamInput();
 
-        // Since the commands are named writeable we need to register them and wrap the input stream
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(NetworkModule.getNamedWriteables());
         in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
 
         // Now we can read them!

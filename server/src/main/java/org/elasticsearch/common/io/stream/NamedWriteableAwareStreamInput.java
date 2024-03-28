@@ -28,8 +28,8 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
 
     @Override
     public <C extends NamedWriteable> C readNamedWriteable(Class<C> categoryClass) throws IOException {
-        String name = readString();
-        return readNamedWriteable(categoryClass, name);
+        Symbol symbol = readSymbol();
+        return readNamedWriteable(categoryClass, symbol);
     }
 
     @Override
@@ -38,32 +38,33 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
         if (count == 0) {
             return Collections.emptyList();
         }
-        final Map<String, Writeable.Reader<?>> readers = namedWriteableRegistry.getReaders(categoryClass);
+        final Map<Symbol, Writeable.Reader<?>> readers = namedWriteableRegistry.getReaders(categoryClass);
         List<T> builder = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            final String name = readString();
-            builder.add(NamedWriteableRegistry.getReader(categoryClass, name, readers).read(this));
+            Symbol symbol = readSymbol();
+            T namedWriteable = NamedWriteableRegistry.getReader(categoryClass, symbol, readers).read(this);
+
+            assert assertSymbolMatches(symbol, namedWriteable);
+            builder.add(namedWriteable);
         }
         return builder;
     }
 
     @Override
-    public <C extends NamedWriteable> C readNamedWriteable(
-        @SuppressWarnings("unused") Class<C> categoryClass,
-        @SuppressWarnings("unused") String name
-    ) throws IOException {
-        Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, name);
-        C c = reader.read(this);
-        if (c == null) {
+    public <C extends NamedWriteable> C readNamedWriteable(Class<C> categoryClass, Symbol symbol) throws IOException {
+        Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, symbol);
+        C namedWritable = reader.read(this);
+        if (namedWritable == null) {
             throwOnNullRead(reader);
         }
-        assert assertNameMatches(name, c);
-        return c;
+        assert assertSymbolMatches(symbol, namedWritable);
+        return namedWritable;
     }
 
-    private static <C extends NamedWriteable> boolean assertNameMatches(String name, C c) {
-        assert name.equals(c.getWriteableName())
-            : c + " claims to have a different name [" + c.getWriteableName() + "] than it was read from [" + name + "].";
+    private static <C extends NamedWriteable> boolean assertSymbolMatches(Symbol symbol, C c) {
+        assert symbol.equals(c.getNameSymbol())
+            : c + " claims to have a different symbol [" + c.getNameSymbol() + "] than it was read from [" + symbol + "].";
+
         return true;
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Symbol;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
@@ -73,7 +74,7 @@ public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implemen
          */
         CompleteNamedDiff(Class<? extends T> tClass, String name, StreamInput in) throws IOException {
             if (in.readBoolean()) {
-                this.part = in.readNamedWriteable(tClass, name);
+                this.part = in.readNamedWriteable(tClass, Symbol.lookupOrThrow(name));
                 this.minimalSupportedVersion = part.getMinimalSupportedVersion();
             } else {
                 this.part = null;

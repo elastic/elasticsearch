@@ -434,7 +434,7 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    public void testWriteableReaderReturnsWrongName() throws IOException {
+    public void testWriteableReaderReturnsWrongSymbol() throws IOException {
         try (TestStreamOutput out = new TestStreamOutput()) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
                 Collections.singletonList(
@@ -443,8 +443,8 @@ public class BytesStreamsTests extends ESTestCase {
                         TestNamedWriteable.NAME,
                         (StreamInput in) -> new TestNamedWriteable(in) {
                             @Override
-                            public String getWriteableName() {
-                                return "intentionally-broken";
+                            public Symbol getNameSymbol() {
+                                return Symbol.ofConstant("intentionally-broken");
                             }
                         }
                     )
@@ -461,7 +461,7 @@ public class BytesStreamsTests extends ESTestCase {
                 AssertionError e = expectThrows(AssertionError.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
                 assertThat(
                     e.getMessage(),
-                    endsWith(" claims to have a different name [intentionally-broken] than it was read from [test-named-writeable].")
+                    endsWith(" claims to have a different symbol [intentionally-broken] than it was read from [test-named-writeable].")
                 );
             }
         }
@@ -566,6 +566,7 @@ public class BytesStreamsTests extends ESTestCase {
     private static class TestNamedWriteable extends BaseNamedWriteable {
 
         private static final String NAME = "test-named-writeable";
+        public static final Symbol NAME_SYMBOL = Symbol.ofConstant(NAME);
 
         private final String field1;
         private final String field2;
@@ -583,6 +584,11 @@ public class BytesStreamsTests extends ESTestCase {
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        @Override
+        public Symbol getNameSymbol() {
+            return NAME_SYMBOL;
         }
 
         @Override

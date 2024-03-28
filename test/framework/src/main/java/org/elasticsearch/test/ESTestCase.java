@@ -509,6 +509,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             HeaderWarning.setThreadContext(threadContext);
         }
+        writableRegistry(); // make sure named symbols are loaded
     }
 
     /**

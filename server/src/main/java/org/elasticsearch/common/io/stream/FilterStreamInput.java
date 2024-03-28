@@ -62,6 +62,10 @@ public abstract class FilterStreamInput extends StreamInput {
         return delegate.readSlicedBytesReference();
     }
 
+    public Symbol readSymbol() throws IOException {
+        return delegate.readSymbol();
+    }
+
     @Override
     public short readShort() throws IOException {
         return delegate.readShort();

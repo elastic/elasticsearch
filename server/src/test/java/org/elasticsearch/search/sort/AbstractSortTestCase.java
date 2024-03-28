@@ -264,7 +264,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         return (T) copyWriteable(
             original,
             namedWriteableRegistry,
-            namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName())
+            namedWriteableRegistry.getReader(SortBuilder.class, original.getNameSymbol())
         );
     }
 }

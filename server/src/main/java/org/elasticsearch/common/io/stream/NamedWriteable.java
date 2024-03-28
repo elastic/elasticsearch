@@ -19,4 +19,13 @@ public interface NamedWriteable extends Writeable {
      * Returns the name of the writeable object
      */
     String getWriteableName();
+
+    /**
+     * The name {@link Symbol} used for efficient de-/serialization.
+     * <p>
+     * It's recommended to overwrite this default implementation to avoid unnecessary lookup costs.
+     */
+    default Symbol getNameSymbol() {
+        return Symbol.ofConstant(getWriteableName());
+    }
 }

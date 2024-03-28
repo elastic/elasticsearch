@@ -206,7 +206,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
                 @SuppressWarnings("unchecked")
-                AB secondAgg = (AB) namedWriteableRegistry().getReader(AggregationBuilder.class, agg.getWriteableName()).read(in);
+                AB secondAgg = (AB) namedWriteableRegistry().getReader(AggregationBuilder.class, agg.getNameSymbol()).read(in);
                 return secondAgg;
             }
         }

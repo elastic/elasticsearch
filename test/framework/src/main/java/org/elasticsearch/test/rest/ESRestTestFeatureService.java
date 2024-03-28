@@ -31,7 +31,7 @@ class ESRestTestFeatureService implements TestFeatureService {
         Set<String> clusterStateFeatures
     ) {
         var minNodeVersion = nodeVersions.stream().min(Comparator.naturalOrder());
-        var featureData = FeatureData.createFromSpecifications(specs);
+        var featureData = FeatureData.createFromSpecifications(specs, Version.V_8_13_0);
         var historicalFeatures = featureData.getHistoricalFeatures();
         Set<String> allHistoricalFeatures = historicalFeatures.lastEntry() == null ? Set.of() : historicalFeatures.lastEntry().getValue();
 

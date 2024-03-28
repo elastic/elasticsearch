@@ -93,7 +93,7 @@ public class EsSourceOptions {
                 List<String> matches = StringUtils.findSimilar(name, List.of(ALLOW_NO_INDICES, IGNORE_UNAVAILABLE, OPTION_PREFERENCE));
                 if (matches.isEmpty() == false) {
                     String suggestions = matches.size() == 1 ? "[" + matches.get(0) + "]" : "any of " + matches;
-                    message += ", did you mean " + suggestions;
+                    message += ", did you mean " + suggestions + "?";
                 }
                 throw new IllegalArgumentException(message);
             }

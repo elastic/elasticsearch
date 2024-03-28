@@ -652,7 +652,7 @@ public class StatementParserTests extends ESTestCase {
     public void testFromOptionsSuggestedOptionName() {
         expectError(
             FROM + " options \"allow_indices\"=\"true\"",
-            "line 1:20: invalid options provided: unknown option named [allow_indices], did you mean [allow_no_indices]"
+            "line 1:20: invalid options provided: unknown option named [allow_indices], did you mean [allow_no_indices]?"
         );
     }
 

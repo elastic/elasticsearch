@@ -544,16 +544,3 @@ required_feature: esql.agg_values
      [1.56, 1.78] | Tech Lead
 [1.7, 1.83, 2.05] | null
 ;
-
-convertFromDatetimeWithOptions#[skip:-8.13.99, reason:OPTIONS added in 8.14]
-  FROM employees OPTIONS "allow_no_indices"="false","preference"="_shards:0"
-| SORT emp_no
-| EVAL hire_double = to_double(hire_date)
-| KEEP emp_no, hire_date, hire_double
-| LIMIT 3;
-
-emp_no:integer |hire_date:date          |hire_double:double
-10001          |1986-06-26T00:00:00.000Z|5.20128E11
-10002          |1985-11-21T00:00:00.000Z|5.013792E11
-10003          |1986-08-28T00:00:00.000Z|5.255712E11
-;

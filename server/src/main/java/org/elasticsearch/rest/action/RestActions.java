@@ -17,10 +17,12 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -203,16 +205,24 @@ public class RestActions {
     private static final String[] queryStringParams = new String[] { "df", "analyzer", "analyze_wildcard", "lenient", "default_operator" };
 
     public static QueryBuilder urlParamsToQueryBuilder(RestRequest request) {
-        String queryString = request.param("q");
+        return paramsToQueryBuilder(request.requestParams(), request.path());
+    }
+
+    public static QueryBuilder requestParamsToQueryBuilder(RequestParams params) {
+        return paramsToQueryBuilder(params, null);
+    }
+
+    private static QueryBuilder paramsToQueryBuilder(RequestParams params, @Nullable String requestPath) {
+        String queryString = params.param("q");
         if (queryString == null) {
-            List<String> unconsumedParams = Arrays.stream(queryStringParams).filter(key -> request.param(key) != null).toList();
+            List<String> unconsumedParams = Arrays.stream(queryStringParams).filter(key -> params.param(key) != null).toList();
             if (unconsumedParams.isEmpty() == false) {
                 // this would lead to a non-descriptive error from RestBaseHandler#unrecognized later, so throw a better IAE here
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,
-                        "request [%s] contains parameters %s but missing query string parameter 'q'.",
-                        request.path(),
+                        "request %s contains parameters %s but missing query string parameter 'q'.",
+                        requestPath == null ? "" : "[" + requestPath + "]",
                         unconsumedParams.toString()
                     )
                 );
@@ -220,11 +230,11 @@ public class RestActions {
             return null;
         }
         QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
-        queryBuilder.defaultField(request.param("df"));
-        queryBuilder.analyzer(request.param("analyzer"));
-        queryBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
-        queryBuilder.lenient(request.paramAsBoolean("lenient", null));
-        String defaultOperator = request.param("default_operator");
+        queryBuilder.defaultField(params.param("df"));
+        queryBuilder.analyzer(params.param("analyzer"));
+        queryBuilder.analyzeWildcard(params.paramAsBoolean("analyze_wildcard", false));
+        queryBuilder.lenient(params.paramAsBoolean("lenient", null));
+        String defaultOperator = params.param("default_operator");
         if (defaultOperator != null) {
             queryBuilder.defaultOperator(Operator.fromString(defaultOperator));
         }

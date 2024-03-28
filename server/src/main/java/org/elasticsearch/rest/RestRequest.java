@@ -16,7 +16,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -32,19 +31,14 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
-
-import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
 
@@ -55,15 +49,14 @@ public class RestRequest implements ToXContent.Params, Traceable {
     private static final AtomicLong requestIdGenerator = new AtomicLong();
 
     private final XContentParserConfiguration parserConfig;
-    private final Map<String, String> params;
     private final Map<String, List<String>> headers;
     private final String rawPath;
-    private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
     private final HttpChannel httpChannel;
     private final ParsedMediaType parsedAccept;
     private final ParsedMediaType parsedContentType;
     private final Optional<RestApiVersion> restApiVersion;
+    private final RequestParams requestParams;
     private HttpRequest httpRequest;
 
     private boolean contentConsumed = false;
@@ -121,7 +114,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
             ? parserConfig
             : parserConfig.withRestApiVersion(effectiveApiVersion);
         this.httpChannel = httpChannel;
-        this.params = params;
+        this.requestParams = new RequestParams(params);
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
@@ -138,7 +131,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         this.parserConfig = other.parserConfig;
         this.httpRequest = other.httpRequest;
         this.httpChannel = other.httpChannel;
-        this.params = other.params;
+        this.requestParams = other.requestParams;
         this.rawPath = other.rawPath;
         this.headers = other.headers;
         this.requestId = other.requestId;
@@ -354,27 +347,25 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public final boolean hasParam(String key) {
-        return params.containsKey(key);
+        return requestParams.hasParam(key);
     }
 
     @Override
     public final String param(String key) {
-        consumedParams.add(key);
-        return params.get(key);
+        return requestParams.param(key);
     }
 
     @Override
     public final String param(String key, String defaultValue) {
-        consumedParams.add(key);
-        String value = params.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return value;
+        return requestParams.param(key, defaultValue);
     }
 
     public Map<String, String> params() {
-        return params;
+        return requestParams.params();
+    }
+
+    public RequestParams requestParams() {
+        return requestParams;
     }
 
     /**
@@ -384,7 +375,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * @return the list of currently consumed parameters.
      */
     List<String> consumedParams() {
-        return new ArrayList<>(consumedParams);
+        return requestParams.consumedParams();
     }
 
     /**
@@ -394,95 +385,50 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * @return the list of currently unconsumed parameters.
      */
     List<String> unconsumedParams() {
-        return params.keySet().stream().filter(p -> consumedParams.contains(p) == false).toList();
+        return requestParams.unconsumedParams();
     }
 
     public float paramAsFloat(String key, float defaultValue) {
-        String sValue = param(key);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Float.parseFloat(sValue);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Failed to parse float parameter [" + key + "] with value [" + sValue + "]", e);
-        }
+        return requestParams.paramAsFloat(key, defaultValue);
     }
 
     public double paramAsDouble(String key, double defaultValue) {
-        String sValue = param(key);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Double.parseDouble(sValue);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Failed to parse double parameter [" + key + "] with value [" + sValue + "]", e);
-        }
+        return requestParams.paramAsDouble(key, defaultValue);
     }
 
     public int paramAsInt(String key, int defaultValue) {
-        String sValue = param(key);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(sValue);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Failed to parse int parameter [" + key + "] with value [" + sValue + "]", e);
-        }
+        return requestParams.paramAsInt(key, defaultValue);
     }
 
     public long paramAsLong(String key, long defaultValue) {
-        String sValue = param(key);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Long.parseLong(sValue);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Failed to parse long parameter [" + key + "] with value [" + sValue + "]", e);
-        }
+        return requestParams.paramAsLong(key, defaultValue);
     }
 
     @Override
     public boolean paramAsBoolean(String key, boolean defaultValue) {
-        String rawParam = param(key);
         // Treat empty string as true because that allows the presence of the url parameter to mean "turn this on"
-        if (rawParam != null && rawParam.length() == 0) {
-            return true;
-        } else {
-            return Booleans.parseBoolean(rawParam, defaultValue);
-        }
+        return requestParams.paramAsBoolean(key, defaultValue);
     }
 
     @Override
     public Boolean paramAsBoolean(String key, Boolean defaultValue) {
-        return Booleans.parseBoolean(param(key), defaultValue);
+        return requestParams.paramAsBoolean(key, defaultValue);
     }
 
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {
-        return parseTimeValue(param(key), defaultValue, key);
+        return requestParams.paramAsTime(key, defaultValue);
     }
 
     public ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue) {
-        return parseBytesSizeValue(param(key), defaultValue, key);
+        return requestParams.paramAsSize(key, defaultValue);
     }
 
     public String[] paramAsStringArray(String key, String[] defaultValue) {
-        String value = param(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return Strings.splitStringByCommaToArray(value);
+        return requestParams.paramAsStringArray(key, defaultValue);
     }
 
     public String[] paramAsStringArrayOrEmptyIfAll(String key) {
-        String[] params = paramAsStringArray(key, Strings.EMPTY_ARRAY);
-        if (Strings.isAllOrWildcard(params)) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return params;
+        return requestParams.paramAsStringArrayOrEmptyIfAll(key);
     }
 
     /**
@@ -617,12 +563,12 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public void markPathRestricted(String restriction) {
-        if (params.containsKey(PATH_RESTRICTED)) {
+        if (requestParams.params.containsKey(PATH_RESTRICTED)) {
             throw new IllegalArgumentException("The parameter [" + PATH_RESTRICTED + "] is already defined.");
         }
-        params.put(PATH_RESTRICTED, restriction);
+        requestParams.params.put(PATH_RESTRICTED, restriction);
         // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
-        consumedParams.add(PATH_RESTRICTED);
+        requestParams.consumedParams.add(PATH_RESTRICTED);
     }
 
     @Override

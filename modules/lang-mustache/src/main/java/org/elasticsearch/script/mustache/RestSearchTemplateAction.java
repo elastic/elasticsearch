@@ -71,9 +71,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(
             searchRequest,
-            request,
+            request.getRestApiVersion(),
+            request.requestParams(),
             null,
-            namedWriteableRegistry,
             clusterSupportsFeature,
             size -> searchRequest.source().size(size)
         );

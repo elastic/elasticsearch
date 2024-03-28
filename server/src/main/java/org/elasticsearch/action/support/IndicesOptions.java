@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1099,21 +1100,25 @@ public record IndicesOptions(
         );
     }
 
-    public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
-        if (request.hasParam(GatekeeperOptions.IGNORE_THROTTLED)) {
+    public static IndicesOptions fromRequestParams(RequestParams params, IndicesOptions defaultSettings) {
+        if (params.hasParam(GatekeeperOptions.IGNORE_THROTTLED)) {
             DEPRECATION_LOGGER.warn(DeprecationCategory.API, "ignore_throttled_param", IGNORE_THROTTLED_DEPRECATION_MESSAGE);
         }
 
         return fromParameters(
-            request.param(WildcardOptions.EXPAND_WILDCARDS),
-            request.param(ConcreteTargetOptions.IGNORE_UNAVAILABLE),
-            request.param(WildcardOptions.ALLOW_NO_INDICES),
-            request.param(GatekeeperOptions.IGNORE_THROTTLED),
+            params.param(WildcardOptions.EXPAND_WILDCARDS),
+            params.param(ConcreteTargetOptions.IGNORE_UNAVAILABLE),
+            params.param(WildcardOptions.ALLOW_NO_INDICES),
+            params.param(GatekeeperOptions.IGNORE_THROTTLED),
             DataStream.isFailureStoreEnabled()
-                ? request.param(FailureStoreOptions.FAILURE_STORE)
+                ? params.param(FailureStoreOptions.FAILURE_STORE)
                 : FailureStoreOptions.INCLUDE_ONLY_REGULAR_INDICES,
             defaultSettings
         );
+    }
+
+    public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
+        return fromRequestParams(request.requestParams(), defaultSettings);
     }
 
     public static IndicesOptions fromMap(Map<String, Object> map, IndicesOptions defaultSettings) {

@@ -274,6 +274,23 @@ public class RolloverRequestTests extends ESTestCase {
                 validationException.validationErrors().get(0)
             );
         }
+
+        {
+            RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
+            rolloverRequest.setIndicesOptions(
+                IndicesOptions.builder(rolloverRequest.indicesOptions())
+                    .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
+                    .build()
+            );
+            rolloverRequest.lazy(true);
+            ActionRequestValidationException validationException = rolloverRequest.validate();
+            assertNotNull(validationException);
+            assertEquals(1, validationException.validationErrors().size());
+            assertEquals(
+                "lazily rolling over a failure store is currently not supported",
+                validationException.validationErrors().get(0)
+            );
+        }
     }
 
     public void testParsingWithType() throws Exception {

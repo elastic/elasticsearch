@@ -628,6 +628,14 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
     }
 
+    public void testRewriteUnmappedFieldToMatchNone() throws IOException {
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(UNMAPPED_FIELD_NAME, "value");
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = queryBuilder.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
+    }
+
     public void testRewriteWithFuzziness() throws IOException {
         // If we've configured fuzziness then we can't rewrite to a term query
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(KEYWORD_FIELD_NAME, "value");

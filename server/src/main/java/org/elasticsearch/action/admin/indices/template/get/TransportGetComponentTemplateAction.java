@@ -102,7 +102,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
                 )
             );
         } else {
-            listener.onResponse(new GetComponentTemplateAction.Response(results));
+            listener.onResponse(new GetComponentTemplateAction.Response(results, DataStreamGlobalRetention.getFromClusterState(state)));
         }
     }
 }

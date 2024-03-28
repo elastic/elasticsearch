@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 

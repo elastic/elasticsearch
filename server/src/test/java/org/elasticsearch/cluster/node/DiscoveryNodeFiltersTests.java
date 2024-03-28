@@ -45,6 +45,55 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         localAddress = null;
     }
 
+    public void testMergeFilters() {
+        Map<String, List<String>> exist = new HashMap<>();
+        exist.put("xxx.name", List.of("name1"));
+        Map<String, List<String>> toApply = new HashMap<>();
+        toApply.put("xxx.ip", List.of("ip1"));
+        Map<String, List<String>> merge = DiscoveryNodeFilters.mergeFilters(exist, toApply);
+        assertEquals(merge, new HashMap<String, List<String>>() {
+            {
+                put("xxx.name", List.of("name1"));
+                put("xxx.ip", List.of("ip1"));
+            }
+        });
+
+        exist = new HashMap<>();
+        exist.put("xxx.name", List.of("name1"));
+        toApply = new HashMap<>();
+        merge = DiscoveryNodeFilters.mergeFilters(exist, toApply);
+        assertEquals(merge, new HashMap<String, List<String>>() {
+            {
+                put("xxx.name", List.of("name1"));
+            }
+        });
+
+        exist = new HashMap<>();
+        toApply = new HashMap<>();
+        toApply.put("xxx.ip", List.of("ip1"));
+        merge = DiscoveryNodeFilters.mergeFilters(exist, toApply);
+        assertEquals(merge, new HashMap<String, List<String>>() {
+            {
+                put("xxx.ip", List.of("ip1"));
+            }
+        });
+
+        exist = new HashMap<>();
+        exist.put("xxx.name", List.of("name1"));
+        exist.put("xxx.host", List.of("host1"));
+        toApply = new HashMap<>();
+        toApply.put("xxx.ip", List.of("ip1"));
+        toApply.put("xxx.host", List.of("host2"));
+        merge = DiscoveryNodeFilters.mergeFilters(exist, toApply);
+        assertEquals(merge, new HashMap<String, List<String>>() {
+            {
+                put("xxx.name", List.of("name1"));
+                put("xxx.ip", List.of("ip1"));
+                put("xxx.host", List.of("host2"));
+            }
+        });
+    }
+
     public void testNameMatch() {
         Settings settings = Settings.builder().put("xxx.name", "name1").build();
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);

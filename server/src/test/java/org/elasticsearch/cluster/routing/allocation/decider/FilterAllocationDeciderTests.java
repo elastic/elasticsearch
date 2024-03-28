@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,12 +38,15 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_UUID;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.routingNode;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
@@ -325,5 +330,318 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             ShardRouting.Role.DEFAULT
         );
         assertThat(decider.getForcedInitialShardAllocationToNodes(newShard, allocation), equalTo(Optional.empty()));
+    }
+
+    public void testClusterRequireFilter() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(filterAllocationDecider));
+
+        String indexName = "test";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ImmutableOpenMap<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(indexName, indexMetadata)
+            .build();
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            null,
+            ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices).build()).build(),
+            null,
+            null,
+            0
+        );
+        ShardRouting shard = ShardRouting.newUnassigned(
+            new ShardId(indexName, "_na_", 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
+
+        Map<String, String> nodeAttrMap1 = new HashMap<>();
+        nodeAttrMap1.put("attr", "n1");
+        Map<String, String> nodeAttrMap2 = new HashMap<>();
+        nodeAttrMap2.put("attr", "n2");
+
+        RoutingNode node1 = routingNode("1", newNode("node1", "1", nodeAttrMap1));
+        RoutingNode node2 = routingNode("2", newNode("node2", "2", nodeAttrMap2));
+
+        Decision decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        Decision decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.YES, decisionNode2.type());
+
+        String prefixKey = "cluster.routing.allocation.require.";
+        // set cluster.routing.allocation.require._name to node1
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "_name", "node1").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
+
+        // set cluster.routing.allocation.require.attr to n2
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "_name", "node1").put(prefixKey + "attr", "n2").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        assertEquals(Type.NO, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
+
+        // set cluster.routing.allocation.require.attr to n1
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "_name", "node1").put(prefixKey + "attr", "n1").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
+    }
+
+    public void testClusterIncludeFilter() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(filterAllocationDecider));
+
+        String indexName = "test";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ImmutableOpenMap<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(indexName, indexMetadata)
+            .build();
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            null,
+            ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices).build()).build(),
+            null,
+            null,
+            0
+        );
+        ShardRouting shard = ShardRouting.newUnassigned(
+            new ShardId(indexName, "_na_", 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
+
+        Map<String, String> nodeAttrMap1 = new HashMap<>();
+        nodeAttrMap1.put("attr", "n1");
+        Map<String, String> nodeAttrMap2 = new HashMap<>();
+        nodeAttrMap2.put("attr", "n2");
+        Map<String, String> nodeAttrMap3 = new HashMap<>();
+        nodeAttrMap3.put("attr", "n3");
+
+        RoutingNode node1 = routingNode("1", newNode("node1", "1", nodeAttrMap1));
+        RoutingNode node2 = routingNode("2", newNode("node2", "2", nodeAttrMap2));
+        RoutingNode node3 = routingNode("3", newNode("node3", "3", nodeAttrMap3));
+
+        Decision decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        Decision decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        Decision decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.YES, decisionNode2.type());
+        assertEquals(Type.YES, decisionNode3.type());
+
+        String prefixKey = "cluster.routing.allocation.include.";
+        // set cluster.routing.allocation.include._name to node1
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "_name", "node1").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
+        assertEquals(Type.NO, decisionNode3.type());
+
+        // set cluster.routing.allocation.include.attr to n2
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "_name", "node1").put(prefixKey + "attr", "n2").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.YES, decisionNode2.type());
+        assertEquals(Type.NO, decisionNode3.type());
+
+        // set cluster.routing.allocation.include.attr to n1,n2,n3
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "attr", "n1,n2,n3").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.YES, decisionNode2.type());
+        assertEquals(Type.YES, decisionNode3.type());
+
+        // set cluster.routing.allocation.include.attr to n2,n3
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "attr", "n2,n3").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.NO, decisionNode1.type());
+        assertEquals(Type.YES, decisionNode2.type());
+        assertEquals(Type.YES, decisionNode3.type());
+    }
+
+    public void testClusterExcludeFilter() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(filterAllocationDecider));
+
+        String indexName = "test";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ImmutableOpenMap<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(indexName, indexMetadata)
+            .build();
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            null,
+            ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices).build()).build(),
+            null,
+            null,
+            0
+        );
+        ShardRouting shard = ShardRouting.newUnassigned(
+            new ShardId(indexName, "_na_", 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
+
+        Map<String, String> nodeAttrMap1 = new HashMap<>();
+        nodeAttrMap1.put("attr", "n1");
+        Map<String, String> nodeAttrMap2 = new HashMap<>();
+        nodeAttrMap2.put("attr", "n2");
+        Map<String, String> nodeAttrMap3 = new HashMap<>();
+        nodeAttrMap3.put("attr", "n3");
+
+        RoutingNode node1 = routingNode("1", newNode("node1", "1", nodeAttrMap1));
+        RoutingNode node2 = routingNode("2", newNode("node2", "2", nodeAttrMap2));
+        RoutingNode node3 = routingNode("3", newNode("node3", "3", nodeAttrMap3));
+
+        Decision decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        Decision decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        Decision decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.YES, decisionNode2.type());
+        assertEquals(Type.YES, decisionNode3.type());
+
+        String prefixKey = "cluster.routing.allocation.exclude.";
+        // set cluster.routing.allocation.exclude._name to node1
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "_name", "node1").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.NO, decisionNode1.type());
+        assertEquals(Type.YES, decisionNode2.type());
+        assertEquals(Type.YES, decisionNode3.type());
+
+        // set cluster.routing.allocation.exclude.attr to n2
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "_name", "node1").put(prefixKey + "attr", "n2").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.NO, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
+        assertEquals(Type.YES, decisionNode3.type());
+
+        // set cluster.routing.allocation.exclude.attr to n1,n2,n3
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "attr", "n1,n2,n3").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.NO, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
+        assertEquals(Type.NO, decisionNode3.type());
+
+        // set cluster.routing.allocation.exclude.attr to n2,n3
+        clusterSettings.applySettings(Settings.builder().put(prefixKey + "attr", "n2,n3").build());
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        decisionNode3 = filterAllocationDecider.canAllocate(shard, node3, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
+        assertEquals(Type.NO, decisionNode3.type());
+    }
+
+    public void testClusterMixedFilter() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        FilterAllocationDecider filterAllocationDecider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Collections.singleton(filterAllocationDecider));
+
+        String indexName = "test";
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ImmutableOpenMap<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(indexName, indexMetadata)
+            .build();
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            null,
+            ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices).build()).build(),
+            null,
+            null,
+            0
+        );
+        ShardRouting shard = ShardRouting.newUnassigned(
+            new ShardId(indexName, "_na_", 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
+
+        Map<String, String> nodeAttrMap1 = new HashMap<>();
+        nodeAttrMap1.put("attr", "n1");
+        Map<String, String> nodeAttrMap2 = new HashMap<>();
+        nodeAttrMap2.put("attr", "n2");
+
+        RoutingNode node1 = routingNode("1", newNode("node1", "1", nodeAttrMap1));
+        RoutingNode node2 = routingNode("2", newNode("node2", "2", nodeAttrMap2));
+
+        Decision decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        Decision decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.YES, decisionNode2.type());
+
+        String requirePrefixKey = "cluster.routing.allocation.require.";
+        String includePrefixKey = "cluster.routing.allocation.include.";
+        String excludePrefixKey = "cluster.routing.allocation.exclude.";
+
+        // set cluster.routing.allocation.require._name to node1
+        // set cluster.routing.allocation.include._name to node1
+
+        clusterSettings.applySettings(
+            Settings.builder().put(requirePrefixKey + "_name", "node1").put(includePrefixKey + "_name", "node1").build()
+        );
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
+
+        // set cluster.routing.allocation.require._name to node1
+        // set cluster.routing.allocation.include._name to node2
+        clusterSettings.applySettings(
+            Settings.builder().put(requirePrefixKey + "_name", "node1").put(includePrefixKey + "_name", "node2").build()
+        );
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        assertEquals(Type.NO, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
+
+        // set cluster.routing.allocation.require._name to node1
+        // set cluster.routing.allocation.exclude._name to node2
+        clusterSettings.applySettings(
+            Settings.builder().put(requirePrefixKey + "_name", "node1").put(excludePrefixKey + "_name", "node2").build()
+        );
+        decisionNode1 = filterAllocationDecider.canAllocate(shard, node1, allocation);
+        decisionNode2 = filterAllocationDecider.canAllocate(shard, node2, allocation);
+        assertEquals(Type.YES, decisionNode1.type());
+        assertEquals(Type.NO, decisionNode2.type());
     }
 }

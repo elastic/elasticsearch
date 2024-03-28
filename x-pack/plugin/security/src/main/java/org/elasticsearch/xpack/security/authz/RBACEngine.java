@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
+import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
@@ -187,6 +188,10 @@ public class RBACEngine implements AuthorizationEngine {
             if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
             } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
+                listener.onResponse(AuthorizationResult.granted());
+            } else if (GetAsyncStatusAction.NAME.equals(requestInfo.getAction()) && role.checkIndicesAction(SubmitAsyncSearchAction.NAME)) {
+                // Users who are allowed to submit async searches are allowed to check the status of those searches
+                // Search ownership will be checked by AsyncSearchSecurity
                 listener.onResponse(AuthorizationResult.granted());
             } else {
                 listener.onResponse(AuthorizationResult.deny());

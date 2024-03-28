@@ -327,4 +327,63 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
         );
     }
+
+    public void testFieldsInDifferentOrderServer() throws IOException {
+        // The fields of the objects in the data array are reordered
+        String response = """
+            {
+                "created": 1711530064,
+                "object": "list",
+                "id": "6667830b-716b-4796-9a61-33b67b5cc81d",
+                "model": "mxbai-embed-large-v1",
+                "data": [
+                    {
+                        "embedding": [
+                            -0.9,
+                            0.5,
+                            0.3
+                        ],
+                        "index": 0,
+                        "object": "embedding"
+                    },
+                    {
+                        "index": 0,
+                        "embedding": [
+                            0.1,
+                            0.5
+                        ],
+                        "object": "embedding"
+                    },
+                    {
+                        "object": "embedding",
+                        "index": 0,
+                        "embedding": [
+                            0.5,
+                            0.5
+                        ]
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0
+                }
+            }""";
+
+        TextEmbeddingResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
+            mock(Request.class),
+            new HttpResult(mock(HttpResponse.class), response.getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertThat(
+            parsedResults.embeddings(),
+            is(
+                List.of(
+                    new TextEmbeddingResults.Embedding(List.of(-0.9F, 0.5F, 0.3F)),
+                    new TextEmbeddingResults.Embedding(List.of(0.1F, 0.5F)),
+                    new TextEmbeddingResults.Embedding(List.of(0.5F, 0.5F))
+                )
+            )
+        );
+    }
 }

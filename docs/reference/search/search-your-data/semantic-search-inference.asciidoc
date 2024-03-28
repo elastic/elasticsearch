@@ -23,9 +23,9 @@ include::{es-repo-dir}/tab-widgets/inference-api/infer-api-requirements-widget.a
 
 [discrete]
 [[infer-text-embedding-task]]
-==== Create the inference task
+==== Create an inference endpoint
 
-Create the {infer} task by using the <<put-inference-api>>:
+Create an {infer} endpoint by using the <<put-inference-api>>:
 
 include::{es-repo-dir}/tab-widgets/inference-api/infer-api-task-widget.asciidoc[]
 

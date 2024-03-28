@@ -33,7 +33,7 @@ own model, use the <<ml-df-trained-models-apis>>.
 ==== {api-description-title}
 
 The perform {infer} API enables you to use {ml} models to perform specific tasks
-on data that you provide as an input. The API returns a response with the 
+on data that you provide as an input. The API returns a response with the
 resutls of the tasks. The {infer} model you use can perform one specific task
 that has been defined when the model was created with the <<put-inference-api>>.
 
@@ -60,6 +60,10 @@ The type of {infer} task that the model performs.
 (Required, array of strings)
 The text on which you want to perform the {infer} task.
 `input` can be a single string or an array.
+[NOTE]
+====
+Inference endpoints for the `completion` task type currently only support a single string as input.
+====
 
 
 [discrete]

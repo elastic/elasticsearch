@@ -225,6 +225,12 @@ public class Iso8601ParserTests extends ESTestCase {
         assertThat(defaultParser().tryParse("2023-01-01T12:00:00UTC-4", null), hasTimezone(ZoneId.of("UTC-4")));
         assertThat(defaultParser().tryParse("2023-01-01T12:00:00UT+6", null), hasTimezone(ZoneId.of("UT+6")));
         assertThat(defaultParser().tryParse("2023-01-01T12:00:00Europe/Paris", null), hasTimezone(ZoneId.of("Europe/Paris")));
+
+        // we could be more specific in the error index for invalid timezones,
+        // but that would require keeping track & propagating Result objects within date-time parsing just for the ZoneId
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+04:0030", null), hasError(19));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00+0400:30", null), hasError(19));
+        assertThat(defaultParser().tryParse("2023-01-01T12:00:00Invalid", null), hasError(19));
     }
 
     private static void assertEquivalent(String text, DateTimeFormatter formatter) {

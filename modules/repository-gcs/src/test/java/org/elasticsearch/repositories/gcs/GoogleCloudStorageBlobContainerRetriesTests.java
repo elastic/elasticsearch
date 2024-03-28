@@ -159,7 +159,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             "repo",
             service,
             BigArrays.NON_RECYCLING_INSTANCE,
-            randomIntBetween(1, 8) * 1024
+            randomIntBetween(1, 8) * 1024,
+            randomBoolean()
         );
 
         return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);
@@ -203,7 +204,10 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             assertThat(exchange.getRequestURI().getQuery(), containsString("uploadType=multipart"));
             if (countDown.countDown()) {
-                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(exchange.getRequestBody());
+                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(
+                    exchange.getRequestHeaders(),
+                    exchange.getRequestBody()
+                );
                 assertThat(content, isPresent());
                 assertThat(content.get().v1(), equalTo(blobContainer.path().buildAsString() + "write_blob_max_retries"));
                 if (Objects.deepEquals(bytes, BytesReference.toBytes(content.get().v2()))) {

@@ -76,6 +76,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     // called "resumable upload")
     // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
     public static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+    public static final boolean ENABLE_DEFAULT_GCP_COMPRESSION;
     public static final int MAX_DELETES_PER_BATCH = 1000;
 
     static {
@@ -95,6 +96,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             }
             LARGE_BLOB_THRESHOLD_BYTE_SIZE = largeBlobThresholdByteSize;
         }
+
+        final String enabledCompressProperty = System.getProperty("es.repository_gcs.enable_default_gcs_compression");
+        if (largeBlobThresholdByteSizeProperty == null) {
+            ENABLE_DEFAULT_GCP_COMPRESSION = false;
+        } else {
+            ENABLE_DEFAULT_GCP_COMPRESSION = Boolean.parseBoolean(enabledCompressProperty);
+        }
     }
 
     private final String bucketName;
@@ -103,6 +111,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final GoogleCloudStorageService storageService;
     private final GoogleCloudStorageOperationsStats stats;
     private final int bufferSize;
+    private final boolean defaultGCSContentEncoding;
     private final BigArrays bigArrays;
 
     GoogleCloudStorageBlobStore(
@@ -113,6 +122,18 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BigArrays bigArrays,
         int bufferSize
     ) {
+        this(bucketName, clientName, repositoryName, storageService, bigArrays, bufferSize, ENABLE_DEFAULT_GCP_COMPRESSION);
+    }
+
+    GoogleCloudStorageBlobStore(
+        String bucketName,
+        String clientName,
+        String repositoryName,
+        GoogleCloudStorageService storageService,
+        BigArrays bigArrays,
+        int bufferSize,
+        boolean defaultGCSContentEncoding
+    ) {
         this.bucketName = bucketName;
         this.clientName = clientName;
         this.repositoryName = repositoryName;
@@ -120,6 +141,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.bigArrays = bigArrays;
         this.stats = new GoogleCloudStorageOperationsStats(bucketName);
         this.bufferSize = bufferSize;
+        this.defaultGCSContentEncoding = defaultGCSContentEncoding;
     }
 
     private Storage client() throws IOException {
@@ -454,10 +476,17 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         throw storageException;
     }
 
+    // possible options for #writeBlobMultipart uploads
+    private static final Storage.BlobTargetOption[] NO_OVERWRITE_NO_COMPRESSION = {
+        Storage.BlobTargetOption.doesNotExist(),
+        Storage.BlobTargetOption.disableGzipContent() };
+    private static final Storage.BlobTargetOption[] OVERWRITE_NO_COMPRESSION = { Storage.BlobTargetOption.disableGzipContent() };
+    private static final Storage.BlobTargetOption[] NO_OVERWRITE_COMPRESSION = { Storage.BlobTargetOption.doesNotExist() };
+    private static final Storage.BlobTargetOption[] OVERWRITE_COMPRESSION = new Storage.BlobTargetOption[0];
+
     /**
      * Uploads a blob using the "multipart upload" method (a single
-     * 'multipart/related' request containing both data and metadata. The request is
-     * gziped), see:
+     * 'multipart/related' request containing both data and metadata. see:
      * https://cloud.google.com/storage/docs/json_api/v1/how-tos/multipart-upload
      * @param blobInfo the info for the blob to be uploaded
      * @param buffer the byte array containing the data
@@ -469,9 +498,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         throws IOException {
         assert blobSize <= getLargeBlobThresholdInBytes() : "large blob uploads should use the resumable upload method";
         try {
-            final Storage.BlobTargetOption[] targetOptions = failIfAlreadyExists
-                ? new Storage.BlobTargetOption[] { Storage.BlobTargetOption.doesNotExist() }
-                : new Storage.BlobTargetOption[0];
+            final Storage.BlobTargetOption[] targetOptions;
+            // By default GCS will gzip compress uploads. We disable this unless the system property to re-enable this has been configured
+            if (defaultGCSContentEncoding == false) {
+                targetOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_COMPRESSION : OVERWRITE_NO_COMPRESSION;
+            } else {
+                targetOptions = failIfAlreadyExists ? NO_OVERWRITE_COMPRESSION : OVERWRITE_COMPRESSION;
+            }
             SocketAccess.doPrivilegedVoidIOException(() -> client().create(blobInfo, buffer, offset, blobSize, targetOptions));
             // We don't track this operation on the http layer as
             // we do with the GET/LIST operations since this operations

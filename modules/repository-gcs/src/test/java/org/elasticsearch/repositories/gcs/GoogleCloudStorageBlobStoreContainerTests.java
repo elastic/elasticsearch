@@ -86,7 +86,8 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 "repo",
                 storageService,
                 BigArrays.NON_RECYCLING_INSTANCE,
-                randomIntBetween(1, 8) * 1024
+                randomIntBetween(1, 8) * 1024,
+                randomBoolean()
             )
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);

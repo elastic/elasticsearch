@@ -7,6 +7,7 @@
  */
 package fixture.gcs;
 
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -182,7 +183,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=multipart*", request)) {
                 // Multipart upload
-                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(requestBody.streamInput());
+                Optional<Tuple<String, BytesReference>> content = parseMultipartRequestBody(
+                    exchange.getRequestHeaders(),
+                    requestBody.streamInput()
+                );
                 if (content.isPresent()) {
                     blobs.put(content.get().v1(), content.get().v2());
 
@@ -284,10 +288,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static final Pattern NAME_PATTERN = Pattern.compile("\"name\":\"([^\"]*)\"");
 
-    public static Optional<Tuple<String, BytesReference>> parseMultipartRequestBody(final InputStream requestBody) throws IOException {
+    public static Optional<Tuple<String, BytesReference>> parseMultipartRequestBody(Headers requestHeaders, final InputStream requestBody)
+        throws IOException {
+        List<String> encoding = requestHeaders.get("Content-encoding");
+        String contentEncoding = encoding == null ? null : encoding.get(0);
         Tuple<String, BytesReference> content = null;
         final BytesReference fullRequestBody;
-        try (InputStream in = new GZIPInputStream(requestBody)) {
+        try (InputStream in = "gzip".equals(contentEncoding) ? new GZIPInputStream(requestBody) : requestBody) {
             fullRequestBody = Streams.readFully(in);
         }
         String name = null;

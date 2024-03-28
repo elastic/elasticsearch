@@ -11,8 +11,13 @@ package org.elasticsearch.index;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.test.ESTestCase;
+
+import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class IndexingPressureTests extends ESTestCase {
 
@@ -152,5 +157,83 @@ public class IndexingPressureTests extends ESTestCase {
             assertEquals(1024 * 11, indexingPressure.stats().getCurrentCoordinatingBytes());
         }
         assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+    }
+
+    public void testLogMessageWhenOverWarningLimit() {
+        final AtomicReference<Instant> now = new AtomicReference<>(Instant.now());
+        final AtomicBoolean warningLogged = new AtomicBoolean(false);
+        final IndexingPressure indexingPressure = new IndexingPressure(
+            1_000,
+            150,
+            new IndexingPressure.WarningThreshold(250, TimeValue.timeValueSeconds(30), now::get)
+        ) {
+            @Override
+            protected void logThresholdWarning() {
+                warningLogged.set(true);
+                super.logThresholdWarning();
+            }
+        };
+
+        final Releasable mark1 = indexingPressure.markCoordinatingOperationStarted(1, 100, false);
+
+        now.set(now.get().plusSeconds(60));
+        final Releasable mark2 = indexingPressure.markCoordinatingOperationStarted(1, 100, false);
+        assertEquals(false, warningLogged.get());
+
+        now.set(now.get().plusSeconds(60));
+        // At this point we are over the warning limit, but not for the required period
+        final Releasable mark3 = indexingPressure.markCoordinatingOperationStarted(1, 100, false);
+        assertEquals(false, warningLogged.get());
+
+        // Move clock forward by less than the period
+        now.set(now.get().plusSeconds(20));
+        final Releasable mark4 = indexingPressure.markCoordinatingOperationStarted(1, randomIntBetween(1, 100), false);
+        assertEquals(false, warningLogged.get());
+
+        // Move clock forward to past the warning period
+        now.set(now.get().plusSeconds(20));
+        // We're still over the limit even if we release the most recent set of bytes
+        mark4.close();
+
+        // This will trigger a warning
+        final Releasable mark5 = indexingPressure.markCoordinatingOperationStarted(1, randomIntBetween(1, 100), false);
+        assertEquals(true, warningLogged.get());
+        mark5.close();
+
+        warningLogged.set(false);
+
+        for (int i = 0; i < 5; i++) {
+            // Move clock forward by less than the period
+            now.set(now.get().plusSeconds(5));
+            final Releasable mark6 = indexingPressure.markCoordinatingOperationStarted(1, randomIntBetween(1, 100), false);
+            mark6.close();
+            assertEquals(false, warningLogged.get());
+        }
+
+        // Move clock forward to exceed the period
+        now.set(now.get().plusSeconds(10));
+        final Releasable mark7 = indexingPressure.markCoordinatingOperationStarted(1, randomIntBetween(1, 100), false);
+        assertEquals(true, warningLogged.get());
+        mark7.close();
+
+        // Drop below the warning
+        mark3.close();
+        warningLogged.set(false);
+
+        for (int i = 0; i < 5; i++) {
+            // Move clock forward to exceed the period
+            now.set(now.get().plusSeconds(60));
+            // This will push us over the warning
+            final Releasable mark8 = indexingPressure.markCoordinatingOperationStarted(1, randomIntBetween(100, 200), false);
+            // This will trigger the timer
+            final Releasable mark9 = indexingPressure.markCoordinatingOperationStarted(1, randomIntBetween(1, 100), false);
+
+            // But we will drop below the threshold again before any new requests are sent
+            now.set(now.get().plusSeconds(10));
+            mark8.close();
+            now.set(now.get().plusSeconds(10));
+            mark9.close();
+            assertEquals(false, warningLogged.get());
+        }
     }
 }

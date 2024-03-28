@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.provider.cbor.CborXContentImpl;
 import org.elasticsearch.xcontent.provider.json.JsonStringEncoderImpl;
 import org.elasticsearch.xcontent.provider.json.JsonXContentImpl;
 import org.elasticsearch.xcontent.provider.smile.SmileXContentImpl;
+import org.elasticsearch.xcontent.provider.streamsmile.StreamSmileXContentImpl;
 import org.elasticsearch.xcontent.provider.yaml.YamlXContentImpl;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 
@@ -66,6 +67,21 @@ public class XContentProviderImpl implements XContentProvider {
             @Override
             public XContent XContent() {
                 return SmileXContentImpl.smileXContent();
+            }
+        };
+    }
+
+    @Override
+    public FormatProvider getStreamSmileXContent() {
+        return new FormatProvider() {
+            @Override
+            public XContentBuilder getContentBuilder() throws IOException {
+                return StreamSmileXContentImpl.getContentBuilder();
+            }
+
+            @Override
+            public XContent XContent() {
+                return StreamSmileXContentImpl.streamSmileXContent();
             }
         };
     }

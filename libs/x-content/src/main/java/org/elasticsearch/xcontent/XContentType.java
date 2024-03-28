@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
+import org.elasticsearch.xcontent.streamsmile.StreamSmileXContent;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.util.Map;
@@ -239,6 +240,38 @@ public enum XContentType implements MediaType {
         @Override
         public XContentType canonical() {
             return CBOR;
+        }
+    },
+    /**
+     * jackson based smile binary format that escapes the byte `0xFF` so documents can be safely streamed using
+     * that byte as separator.
+     */
+    STREAM_SMILE(8) {
+        @Override
+        public String mediaTypeWithoutParameters() {
+            return VENDOR_APPLICATION_PREFIX + "stream_smile";
+        }
+
+        @Override
+        public String queryParameter() {
+            return "stream_smile";
+        }
+
+        @Override
+        public XContent xContent() {
+            return StreamSmileXContent.streamSmileXContent;
+        }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "stream_smile", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN))
+            );
+        }
+
+        @Override
+        public XContentType canonical() {
+            return STREAM_SMILE;
         }
     };
 

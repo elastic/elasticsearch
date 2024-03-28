@@ -1,0 +1,5 @@
+pr: 94556
+summary: Add new XContent type for streaming SMILE documents
+area: Infra/Core
+type: enhancement
+issues: []

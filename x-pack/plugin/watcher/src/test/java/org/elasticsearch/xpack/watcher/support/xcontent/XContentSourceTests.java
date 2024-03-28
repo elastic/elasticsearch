@@ -15,11 +15,28 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.smileBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.streamSmileBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.yamlBuilder;
 
 public class XContentSourceTests extends ESTestCase {
-    public void testToXContent() throws Exception {
-        XContentBuilder builder = randomBoolean() ? jsonBuilder() : randomBoolean() ? yamlBuilder() : smileBuilder();
+
+    public void testJson() throws Exception {
+        testToXContent(jsonBuilder());
+    }
+
+    public void testYaml() throws Exception {
+        testToXContent(yamlBuilder());
+    }
+
+    public void testSmile() throws Exception {
+        testToXContent(smileBuilder());
+    }
+
+    public void testStreamSmile() throws Exception {
+        testToXContent(streamSmileBuilder());
+    }
+
+    private void testToXContent(XContentBuilder builder) throws Exception {
         BytesReference bytes = randomBoolean()
             ? BytesReference.bytes(builder.startObject().field("key", "value").endObject())
             : BytesReference.bytes(

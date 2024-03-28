@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
+import org.elasticsearch.xcontent.streamsmile.StreamSmileXContent;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
@@ -55,6 +56,20 @@ public class XContentFactory {
     }
 
     /**
+     * Returns a content builder using STREAM_SMILE format ({@link org.elasticsearch.xcontent.XContentType#STREAM_SMILE}.
+     */
+    public static XContentBuilder streamSmileBuilder() throws IOException {
+        return contentBuilder(XContentType.STREAM_SMILE);
+    }
+
+    /**
+     * Constructs a new STREAM_SMILE builder that will output the result into the provided output stream.
+     */
+    public static XContentBuilder streamSmileBuilder(OutputStream os) throws IOException {
+        return new XContentBuilder(StreamSmileXContent.streamSmileXContent, os);
+    }
+
+    /**
      * Returns a content builder using YAML format ({@link org.elasticsearch.xcontent.XContentType#YAML}.
      */
     public static XContentBuilder yamlBuilder() throws IOException {
@@ -95,6 +110,8 @@ public class XContentFactory {
             return yamlBuilder(outputStream);
         } else if (canonical == XContentType.CBOR) {
             return cborBuilder(outputStream);
+        } else if (canonical == XContentType.STREAM_SMILE) {
+            return streamSmileBuilder(outputStream);
         }
         throw new IllegalArgumentException("No matching content type for " + type);
     }
@@ -113,6 +130,8 @@ public class XContentFactory {
             return YamlXContent.contentBuilder();
         } else if (canonical == XContentType.CBOR) {
             return CborXContent.contentBuilder();
+        } else if (canonical == XContentType.STREAM_SMILE) {
+            return StreamSmileXContent.contentBuilder();
         }
         throw new IllegalArgumentException("No matching content type for " + type);
     }
@@ -150,6 +169,10 @@ public class XContentFactory {
         }
         if (YamlXContent.yamlXContent.detectContent(content)) {
             return XContentType.YAML;
+        }
+        // Should we throw a failure here? Smile idea is to use it in bytes....
+        if (StreamSmileXContent.streamSmileXContent.detectContent(content)) {
+            return XContentType.STREAM_SMILE;
         }
         // CBOR is not supported
 
@@ -294,6 +317,9 @@ public class XContentFactory {
         }
         if (CborXContent.cborXContent.detectContent(bytes, offset, length)) {
             return XContentType.CBOR;
+        }
+        if (StreamSmileXContent.streamSmileXContent.detectContent(bytes, offset, length)) {
+            return XContentType.STREAM_SMILE;
         }
 
         // fallback for JSON

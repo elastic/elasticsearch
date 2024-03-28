@@ -175,6 +175,10 @@ gradlePlugin {
       id = 'elasticsearch.test.fixtures'
       implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
     }
+    deployTestFixtures {
+      id = 'elasticsearch.deploy-test-fixtures'
+      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesDeployPlugin'
+    }
     testBase {
       id = 'elasticsearch.test-base'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin'

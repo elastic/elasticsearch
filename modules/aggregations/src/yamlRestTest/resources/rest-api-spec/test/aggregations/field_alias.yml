@@ -1,0 +1,52 @@
+---
+setup:
+  - skip:
+      version: " - 8.7.99"
+      reason:  "Bug fixed in 8.8.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              "timestamp":
+                type: date
+              "timestamp_alias":
+                  type: alias
+                  path: "timestamp"
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - { "index": {} }
+          - {"timestamp": "2023-02-03T10:19:47.885Z"}
+          - { "index": {} }
+          - {"timestamp": "2023-02-03T10:17:10.337Z"}
+          - { "index": {} }
+          - {"timestamp": "2023-02-02T14:51:36.367Z"}
+
+---
+"Date Histogram over Alias":
+  - do:
+      search:
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                - range:
+                    "timestamp_alias":
+                      gte: "2023-02-03T00:00:00"
+          aggs:
+            test:
+              date_histogram:
+                field: "timestamp_alias"
+                calendar_interval: "hour"
+                min_doc_count: 1
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key_as_string: "2023-02-03T10:00:00.000Z" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+

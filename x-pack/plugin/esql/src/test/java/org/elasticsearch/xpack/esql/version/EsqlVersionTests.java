@@ -31,16 +31,29 @@ public class EsqlVersionTests extends ESTestCase {
             String[] parsingPrefixSegments = Arrays.copyOf(versionSegments, versionSegments.length - 1);
 
             String expectedParsingPrefix = String.join(".", parsingPrefixSegments);
-            assertThat(version.versionStringNoEmoji(), equalTo(expectedParsingPrefix));
+            assertThat(version.versionStringWithoutEmoji(), equalTo(expectedParsingPrefix));
         }
     }
 
     public void testParsing() {
         for (EsqlVersion version : EsqlVersion.values()) {
-            int suffixLength = randomIntBetween(0, 10);
-            String validVersionString = version.versionStringNoEmoji() + randomUnicodeOfLength(suffixLength);
+            String versionStringWithoutEmoji = version.versionStringWithoutEmoji();
 
-            assertThat(EsqlVersion.parse(validVersionString), is(version));
+            assertThat(EsqlVersion.parse(versionStringWithoutEmoji), is(version));
+            assertThat(EsqlVersion.parse(versionStringWithoutEmoji + "." + version.emoji()), is(version));
         }
+
+        assertNull(EsqlVersion.parse(invalidVersionString()));
+    }
+
+    public static String invalidVersionString() {
+        String[] invalidVersionString = new String[1];
+
+        do {
+            int length = randomIntBetween(0, 10);
+            invalidVersionString[0] = randomAlphaOfLength(length);
+        } while (EsqlVersion.VERSION_MAP_WITH_AND_WITHOUT_EMOJI.containsKey(invalidVersionString[0]));
+
+        return invalidVersionString[0];
     }
 }

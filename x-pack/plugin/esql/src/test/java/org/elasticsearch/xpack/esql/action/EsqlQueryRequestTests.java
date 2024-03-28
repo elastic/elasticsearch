@@ -25,10 +25,10 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.version.EsqlVersion;
+import org.elasticsearch.xpack.esql.version.EsqlVersionTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -160,8 +160,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
     public void testKnownVersionIsValid() throws IOException {
         for (EsqlVersion version : EsqlVersion.values()) {
-            int suffixLength = randomIntBetween(0, 10);
-            String validVersionString = version.versionStringNoEmoji() + randomAlphaOfLength(suffixLength);
+            String validVersionString = randomBoolean() ? version.versionStringWithoutEmoji() : version.toString();
 
             String json = String.format(Locale.ROOT, """
                 {
@@ -178,20 +177,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         }
     }
 
-    private static String invalidVersionString() {
-        String[] invalidVersionString = new String[1];
-
-        do {
-            int length = randomIntBetween(0, 10);
-            invalidVersionString[0] = randomAlphaOfLength(length);
-        } while (Arrays.stream(EsqlVersion.values())
-            .anyMatch(version -> invalidVersionString[0].startsWith(version.versionStringNoEmoji())));
-
-        return invalidVersionString[0];
-    }
-
     public void testUnknownVersionIsNotValid() throws IOException {
-        String invalidVersionString = invalidVersionString();
+        String invalidVersionString = EsqlVersionTests.invalidVersionString();
 
         String json = String.format(Locale.ROOT, """
             {

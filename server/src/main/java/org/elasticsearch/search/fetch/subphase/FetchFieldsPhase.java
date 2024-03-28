@@ -9,15 +9,19 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -25,14 +29,34 @@ import java.util.Map;
  * and returns them as document fields.
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
+
+    private static final List<FieldAndFormat> METADATA_FIELDS = List.of(
+        new FieldAndFormat(IgnoredFieldMapper.NAME, null),
+        new FieldAndFormat(RoutingFieldMapper.NAME, null),
+        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null),
+        new FieldAndFormat("_size", null)
+    );
+
+    public static boolean isMetadataField(final String field) {
+        return METADATA_FIELDS.stream().map(fieldAndFormat -> fieldAndFormat.field).anyMatch(fieldName -> fieldName.equals(field));
+    }
+
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
-        FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
-        if (fetchFieldsContext == null) {
-            return null;
-        }
+        final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
+        final StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());
+        final List<FieldAndFormat> fetchFields = fetchFieldsContext == null ? Collections.emptyList()
+            : fetchFieldsContext.fields() == null ? Collections.emptyList()
+            : fetchFieldsContext.fields();
+
+        boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
+        final FieldFetcher fieldFetcher = FieldFetcher.create(
+            fetchContext.getSearchExecutionContext(),
+            Stream.concat(fetchFields.stream(), METADATA_FIELDS.stream()).toList(),
+            fetchStoredFields,
+            includeSizeMetadataField(fetchFields)
+        );
 
         return new FetchSubPhaseProcessor() {
             @Override
@@ -47,12 +71,20 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
             @Override
             public void process(HitContext hitContext) throws IOException {
-                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
-                SearchHit hit = hitContext.hit();
-                for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
-                    hit.setDocumentField(entry.getKey(), entry.getValue());
-                }
+                final FieldFetcher.DocAndMetaFields fields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
+                hitContext.hit().addDocumentFields(fields.documentFields(), fields.metadataFields());
             }
         };
+    }
+
+    /**
+     * _size must be excluded from metadata fields returned if the requests filters 'fields' using a wildcard.
+     * Put it another way, _size is returned only if requested explicitly through 'fields' or if the wildcard
+     * filter is used in combination with 'stored_fields'.
+     * @param fields List of fields requested as plain field names or including the wildcard character
+     * @return if we have to include the _size field or not
+     */
+    private static boolean includeSizeMetadataField(final List<FieldAndFormat> fields) {
+        return fields.stream().map(field -> field.field).noneMatch("*"::equals);
     }
 }

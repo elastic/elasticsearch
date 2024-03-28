@@ -51,13 +51,13 @@ public class NestedValueFetcher implements ValueFetcher {
         for (Object entry : nestedValues) {
             // add this one entry only to the stub and use this as source lookup
             stub.put(nestedFieldName, entry);
-            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(
+            FieldFetcher.DocAndMetaFields fetchResult = nestedFieldFetcher.fetch(
                 Source.fromMap(filteredSource, source.sourceContentType()),
                 doc
             );
 
             Map<String, Object> nestedEntry = new HashMap<>();
-            for (DocumentField field : fetchResult.values()) {
+            for (DocumentField field : fetchResult.documentFields().values()) {
                 List<Object> fetchValues = field.getValues();
                 if (fetchValues.isEmpty() == false) {
                     String keyInNestedMap = field.getName().substring(nestedFieldPath.length() + 1);

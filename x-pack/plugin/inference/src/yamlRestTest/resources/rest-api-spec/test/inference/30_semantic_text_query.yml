@@ -232,5 +232,35 @@ setup:
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
 
+---
+"Query a field that has no indexed inference results":
+  - skip:
+      features: [ "headers" ]
 
-# TODO: Test when no docs have been indexed (and therefore the nested mappings are missing)
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 0 }

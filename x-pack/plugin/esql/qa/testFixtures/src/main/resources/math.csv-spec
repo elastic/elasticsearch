@@ -1249,6 +1249,19 @@ i:ul                | c:ul                | f:ul
 1000000000000000000 | 1000000000000000000 | 1000000000000000000
 ;
 
+signum#[skip:-8.13.99,reason:new scalar function added in 8.14]
+// tag::signum[]
+ROW d = 100.0
+| EVAL s = SIGNUM(d)
+// end::signum[]
+;
+
+// tag::signum-result[]
+d: double | s:double
+100   | 1.0
+// end::signum-result[]
+;
+
 sqrt
 // tag::sqrt[]
 ROW d = 100.0

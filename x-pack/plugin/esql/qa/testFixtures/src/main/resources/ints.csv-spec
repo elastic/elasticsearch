@@ -988,3 +988,45 @@ required_feature: esql.agg_values
       [3, 5] | Tech Lead
       [1, 4] | null
 ;
+
+signumOfPositiveInteger
+row i = 100 | eval s = signum(i);
+
+i:integer | s:double
+100       | 1.0
+;
+
+signumOfNegativeInteger
+row i = -100 | eval s = signum(i);
+
+i:integer | s:double
+-100      | -1.0
+;
+
+signumOfZeroInteger
+row i = 0 | eval s = signum(i);
+
+i:integer | s:double
+0         | 0.0
+;
+
+signumOfPositiveLong
+row l = to_long(100) | eval s = signum(l);
+
+l:long | s:double
+100    | 1.0
+;
+
+signumOfNegativeLong
+row l = to_long(-100) | eval s = signum(l);
+
+l:long | s:double
+-100   | -1.0
+;
+
+signumOfZeroLong
+row l = to_long(0) | eval s = signum(l);
+
+l:long | s:double
+0      | 0.0
+;

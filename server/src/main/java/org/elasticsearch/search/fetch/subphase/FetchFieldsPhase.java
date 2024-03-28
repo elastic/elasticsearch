@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -25,33 +27,48 @@ import java.util.Map;
  * and returns them as document fields.
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
+
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
-        if (fetchFieldsContext == null) {
-            return null;
-        }
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());
+        final FieldFetcher fieldFetcher = fetchFieldsContext == null
+            ? null
+            : FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());
+        // TODO do we need to explicitly handle for the case when _ignored is explicitly requested? That's redundant?
+        FieldFetcher fieldFetcherMetadataFields = FieldFetcher.create(
+            fetchContext.getSearchExecutionContext(),
+            Collections.singletonList(new FieldAndFormat(IgnoredFieldMapper.NAME, null))
+        );
 
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
-                fieldFetcher.setNextReader(readerContext);
+                if (fieldFetcher != null) {
+                    fieldFetcher.setNextReader(readerContext);
+                }
+                fieldFetcherMetadataFields.setNextReader(readerContext);
             }
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return fieldFetcher.storedFieldsSpec();
+                if (fieldFetcher != null) {
+                    return fieldFetcher.storedFieldsSpec();
+                }
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override
             public void process(HitContext hitContext) throws IOException {
-                Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
                 SearchHit hit = hitContext.hit();
-                for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
-                    hit.setDocumentField(entry.getKey(), entry.getValue());
+                if (fieldFetcher != null) {
+                    Map<String, DocumentField> documentFields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
+                    for (Map.Entry<String, DocumentField> entry : documentFields.entrySet()) {
+                        hit.setDocumentField(entry.getKey(), entry.getValue());
+                    }
                 }
+                Map<String, DocumentField> metaFields = fieldFetcherMetadataFields.fetch(hitContext.source(), hitContext.docId());
+                hit.addDocumentFields(Collections.emptyMap(), metaFields);
             }
         };
     }

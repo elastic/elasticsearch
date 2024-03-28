@@ -58,6 +58,12 @@ $endif$
     }
 
     @Override
+    public $Type$Block expand() {
+        incRef();
+        return this;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return vector.ramBytesUsed();
     }

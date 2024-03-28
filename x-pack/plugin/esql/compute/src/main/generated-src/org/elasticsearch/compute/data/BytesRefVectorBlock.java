@@ -51,6 +51,12 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public BytesRefBlock expand() {
+        incRef();
+        return this;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return vector.ramBytesUsed();
     }

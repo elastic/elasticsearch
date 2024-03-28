@@ -35,11 +35,12 @@ public class TransformMessages {
     public static final String REST_WARN_NO_TRANSFORM_NODES =
         "Transform requires the transform node role for at least 1 node, found no transform nodes";
 
-    public static final String CANNOT_STOP_FAILED_TRANSFORM = "Unable to stop transform [{0}] as it is in a failed state with reason [{1}]."
-        + " Use force stop to stop the transform.";
-    public static final String CANNOT_START_FAILED_TRANSFORM =
-        "Unable to start transform [{0}] as it is in a failed state with failure: [{1}]. "
-            + "Use force stop and then restart the transform once error is resolved.";
+    public static final String CANNOT_STOP_SINGLE_FAILED_TRANSFORM = "Unable to stop transform [{0}] as it is in a failed state. "
+        + "Use force stop to stop the transform. More details: [{1}]";
+    public static final String CANNOT_STOP_MULTIPLE_FAILED_TRANSFORMS = "Unable to stop transforms. The following transforms are in a "
+        + "failed state [{0}]. Use force stop to stop the transforms. More details: [{1}]";
+    public static final String CANNOT_START_FAILED_TRANSFORM = "Unable to start transform [{0}] as it is in a failed state. "
+        + "Use force stop and then restart the transform once error is resolved. More details: [{1}]";
 
     public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform [{1}]";
     public static final String FAILED_TO_SET_UP_DESTINATION_ALIASES =

@@ -151,7 +151,7 @@ public class TransformTaskTests extends ESTestCase {
             equalTo(
                 "Unable to stop transform ["
                     + transformConfig.getId()
-                    + "] as it is in a failed state with reason [because]. Use force stop to stop the transform."
+                    + "] as it is in a failed state. Use force stop to stop the transform. More details: [because]"
             )
         );
 
@@ -256,7 +256,7 @@ public class TransformTaskTests extends ESTestCase {
             equalTo(
                 "Unable to stop transform ["
                     + transformConfig.getId()
-                    + "] as it is in a failed state with reason [because]. Use force stop to stop the transform."
+                    + "] as it is in a failed state. Use force stop to stop the transform. More details: [because]"
             )
         );
 

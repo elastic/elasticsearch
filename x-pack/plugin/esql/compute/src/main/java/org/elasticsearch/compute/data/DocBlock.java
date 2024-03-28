@@ -49,6 +49,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     }
 
     @Override
+    public DocBlock expand() {
+        incRef();
+        return this;
+    }
+
+    @Override
     public int hashCode() {
         return vector.hashCode();
     }

@@ -17,14 +17,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
-import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
@@ -39,11 +36,11 @@ public class TransportStopTransformActionTests extends ESTestCase {
     public void testTaskStateValidationWithNoTasks() {
         Metadata.Builder metadata = Metadata.builder();
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(metadata);
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
 
         PersistentTasksCustomMetadata.Builder pTasksBuilder = PersistentTasksCustomMetadata.builder();
         csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
     }
 
     public void testTaskStateValidationWithTransformTasks() {
@@ -57,7 +54,7 @@ public class TransportStopTransformActionTests extends ESTestCase {
             );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
 
         // test again with a non failed task but this time it has internal state
         pTasksBuilder.updateTaskState(
@@ -66,8 +63,9 @@ public class TransportStopTransformActionTests extends ESTestCase {
         );
         csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
 
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(csBuilder.build(), List.of("non-failed-task"), false);
 
+        // test again with one failed task
         pTasksBuilder.addTask(
             "failed-task",
             TransformTaskParams.NAME,
@@ -80,20 +78,60 @@ public class TransportStopTransformActionTests extends ESTestCase {
             );
         final ClusterState cs = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build())).build();
 
-        TransportStopTransformAction.validateTaskState(cs, Arrays.asList("non-failed-task", "failed-task"), true);
+        TransportStopTransformAction.validateTaskState(cs, List.of("non-failed-task", "failed-task"), true);
 
-        TransportStopTransformAction.validateTaskState(cs, Collections.singletonList("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(cs, List.of("non-failed-task"), false);
 
         ClusterState.Builder csBuilderFinal = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
         ElasticsearchStatusException ex = expectThrows(
             ElasticsearchStatusException.class,
-            () -> TransportStopTransformAction.validateTaskState(csBuilderFinal.build(), Collections.singletonList("failed-task"), false)
+            () -> TransportStopTransformAction.validateTaskState(csBuilderFinal.build(), List.of("failed-task"), false)
         );
 
         assertThat(ex.status(), equalTo(CONFLICT));
         assertThat(
             ex.getMessage(),
-            equalTo(TransformMessages.getMessage(TransformMessages.CANNOT_STOP_FAILED_TRANSFORM, "failed-task", "task has failed"))
+            equalTo(
+                "Unable to stop transform [failed-task] as it is in a failed state. Use force stop to stop the transform. "
+                    + "More details: [task has failed]"
+            )
+        );
+
+        // test again with two failed tasks
+        pTasksBuilder.addTask(
+            "failed-task-2",
+            TransformTaskParams.NAME,
+            new TransformTaskParams("transform-task-2", TransformConfigVersion.CURRENT, null, false),
+            new PersistentTasksCustomMetadata.Assignment("current-data-node-with-2-tasks", "")
+        )
+            .updateTaskState(
+                "failed-task-2",
+                new TransformState(
+                    TransformTaskState.FAILED,
+                    IndexerState.STOPPED,
+                    null,
+                    0L,
+                    "task has also failed",
+                    null,
+                    null,
+                    false,
+                    null
+                )
+            );
+
+        var csBuilderMultiTask = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
+        ex = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportStopTransformAction.validateTaskState(csBuilderMultiTask.build(), List.of("failed-task", "failed-task-2"), false)
+        );
+
+        assertThat(ex.status(), equalTo(CONFLICT));
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "Unable to stop transforms. The following transforms are in a failed state [failed-task, failed-task-2]. Use force "
+                    + "stop to stop the transforms. More details: [task has failed, task has also failed]"
+            )
         );
     }
 
@@ -106,38 +144,27 @@ public class TransportStopTransformActionTests extends ESTestCase {
         );
         taskOperationFailures.add(new TaskOperationFailure("node", 1, new ElasticsearchStatusException("failure", RestStatus.BAD_REQUEST)));
 
-        assertThat(
-            TransportStopTransformAction.firstNotOKStatus(Collections.emptyList(), Collections.emptyList()),
-            equalTo(RestStatus.INTERNAL_SERVER_ERROR)
-        );
+        assertThat(TransportStopTransformAction.firstNotOKStatus(List.of(), List.of()), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        assertThat(
-            TransportStopTransformAction.firstNotOKStatus(taskOperationFailures, Collections.emptyList()),
-            equalTo(RestStatus.BAD_REQUEST)
-        );
+        assertThat(TransportStopTransformAction.firstNotOKStatus(taskOperationFailures, List.of()), equalTo(RestStatus.BAD_REQUEST));
         assertThat(TransportStopTransformAction.firstNotOKStatus(taskOperationFailures, nodeFailures), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             TransportStopTransformAction.firstNotOKStatus(
                 taskOperationFailures,
-                Collections.singletonList(new ElasticsearchException(new ElasticsearchStatusException("not failure", RestStatus.OK)))
+                List.of(new ElasticsearchException(new ElasticsearchStatusException("not failure", RestStatus.OK)))
             ),
             equalTo(RestStatus.BAD_REQUEST)
         );
 
         assertThat(
             TransportStopTransformAction.firstNotOKStatus(
-                Collections.singletonList(
-                    new TaskOperationFailure("node", 1, new ElasticsearchStatusException("not failure", RestStatus.OK))
-                ),
+                List.of(new TaskOperationFailure("node", 1, new ElasticsearchStatusException("not failure", RestStatus.OK))),
                 nodeFailures
             ),
             equalTo(RestStatus.INTERNAL_SERVER_ERROR)
         );
 
-        assertThat(
-            TransportStopTransformAction.firstNotOKStatus(Collections.emptyList(), nodeFailures),
-            equalTo(RestStatus.INTERNAL_SERVER_ERROR)
-        );
+        assertThat(TransportStopTransformAction.firstNotOKStatus(List.of(), nodeFailures), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
     }
 
     public void testBuildException() {
@@ -160,12 +187,12 @@ public class TransportStopTransformActionTests extends ESTestCase {
         assertThat(statusException.getMessage(), equalTo(taskOperationFailures.get(0).getCause().getMessage()));
         assertThat(statusException.getSuppressed().length, equalTo(1));
 
-        statusException = TransportStopTransformAction.buildException(Collections.emptyList(), nodeFailures, status);
+        statusException = TransportStopTransformAction.buildException(List.of(), nodeFailures, status);
         assertThat(statusException.status(), equalTo(status));
         assertThat(statusException.getMessage(), equalTo(nodeFailures.get(0).getMessage()));
         assertThat(statusException.getSuppressed().length, equalTo(0));
 
-        statusException = TransportStopTransformAction.buildException(taskOperationFailures, Collections.emptyList(), status);
+        statusException = TransportStopTransformAction.buildException(taskOperationFailures, List.of(), status);
         assertThat(statusException.status(), equalTo(status));
         assertThat(statusException.getMessage(), equalTo(taskOperationFailures.get(0).getCause().getMessage()));
         assertThat(statusException.getSuppressed().length, equalTo(0));

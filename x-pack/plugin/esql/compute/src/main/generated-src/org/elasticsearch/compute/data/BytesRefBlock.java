@@ -43,6 +43,9 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     BytesRefBlock filter(int... positions);
 
     @Override
+    BytesRefBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "BytesRefBlock";
     }

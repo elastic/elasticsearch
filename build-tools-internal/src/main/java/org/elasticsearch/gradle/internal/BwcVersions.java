@@ -199,7 +199,7 @@ public class BwcVersions {
 
     public void compareToAuthoritative(List<Version> authoritativeReleasedVersions) {
         Set<Version> notReallyReleased = new HashSet<>(getReleased());
-        notReallyReleased.removeAll(authoritativeReleasedVersions);
+        authoritativeReleasedVersions.forEach(notReallyReleased::remove);
         if (notReallyReleased.isEmpty() == false) {
             throw new IllegalStateException(
                 "out-of-date released versions"

@@ -112,7 +112,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                         }
                     });
                     if (p instanceof RegexExtractExec ree) {
-                        attributes.removeAll(ree.extractedFields());
+                        ree.extractedFields().forEach(attributes::remove);
                     }
                     if (p instanceof MvExpandExec mvee) {
                         attributes.remove(mvee.expanded());

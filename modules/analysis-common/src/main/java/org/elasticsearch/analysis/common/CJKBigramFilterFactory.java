@@ -17,10 +17,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Factory that creates a {@link CJKBigramFilter} to form bigrams of CJK terms
@@ -45,21 +42,19 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
     CJKBigramFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name, settings);
         outputUnigrams = settings.getAsBoolean("output_unigrams", false);
-        final List<String> asArray = settings.getAsList("ignored_scripts");
-        Set<String> scripts = new HashSet<>(Arrays.asList("han", "hiragana", "katakana", "hangul"));
-        if (asArray != null) {
-            scripts.removeAll(asArray);
-        }
-        int flags = 0;
-        for (String script : scripts) {
-            if ("han".equals(script)) {
-                flags |= CJKBigramFilter.HAN;
-            } else if ("hiragana".equals(script)) {
-                flags |= CJKBigramFilter.HIRAGANA;
-            } else if ("katakana".equals(script)) {
-                flags |= CJKBigramFilter.KATAKANA;
-            } else if ("hangul".equals(script)) {
-                flags |= CJKBigramFilter.HANGUL;
+        final List<String> ignoredScripts = settings.getAsList("ignored_scripts");
+        int flags = CJKBigramFilter.HAN | CJKBigramFilter.HIRAGANA | CJKBigramFilter.KATAKANA | CJKBigramFilter.HANGUL;
+        if (ignoredScripts != null) {
+            for (String script : ignoredScripts) {
+                if ("han".equals(script)) {
+                    flags ^= CJKBigramFilter.HAN;
+                } else if ("hiragana".equals(script)) {
+                    flags ^= CJKBigramFilter.HIRAGANA;
+                } else if ("katakana".equals(script)) {
+                    flags ^= CJKBigramFilter.KATAKANA;
+                } else if ("hangul".equals(script)) {
+                    flags ^= CJKBigramFilter.HANGUL;
+                }
             }
         }
         this.flags = flags;

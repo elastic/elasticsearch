@@ -8,22 +8,17 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import com.github.javaparser.GeneratedJavaParserConstants;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.NodeList;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
+import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.NameExpr;
-import com.github.javaparser.ast.observer.ObservableProperty;
-import com.github.javaparser.printer.ConcreteSyntaxModel;
-import com.github.javaparser.printer.concretesyntaxmodel.CsmElement;
 import com.github.javaparser.printer.lexicalpreservation.LexicalPreservingPrinter;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.elasticsearch.gradle.Version;
-import org.gradle.api.DefaultTask;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.TaskAction;
@@ -31,10 +26,7 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.initialization.layout.BuildLayout;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -47,92 +39,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
-import static com.github.javaparser.ast.observer.ObservableProperty.TYPE_PARAMETERS;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmConditional.Condition.FLAG;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.block;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.child;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.comma;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.comment;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.conditional;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.list;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.newline;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.none;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.sequence;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.space;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.string;
-import static com.github.javaparser.printer.concretesyntaxmodel.CsmElement.token;
-
-public class UpdateVersionsTask extends DefaultTask {
-
-    static {
-        replaceDefaultJavaParserClassCsm();
-    }
-
-    /*
-     * The default JavaParser CSM which it uses to format any new declarations added to a class
-     * inserts two newlines after each declaration. Our version classes only have one newline.
-     * In order to get javaparser lexical printer to use our format, we have to completely replace
-     * the statically declared CSM pattern using hacky reflection
-     * to access the static map where these are stored, and insert a replacement that is identical
-     * apart from only one newline at the end of each member declaration, rather than two.
-     */
-    private static void replaceDefaultJavaParserClassCsm() {
-        try {
-            Field classCsms = ConcreteSyntaxModel.class.getDeclaredField("concreteSyntaxModelByClass");
-            classCsms.setAccessible(true);
-            @SuppressWarnings({ "unchecked", "rawtypes" })
-            Map<Class, CsmElement> csms = (Map) classCsms.get(null);
-
-            // copied from the static initializer in ConcreteSyntaxModel
-            csms.put(
-                ClassOrInterfaceDeclaration.class,
-                sequence(
-                    comment(),
-                    list(ObservableProperty.ANNOTATIONS, newline(), none(), newline()),
-                    list(ObservableProperty.MODIFIERS, space(), none(), space()),
-                    conditional(
-                        ObservableProperty.INTERFACE,
-                        FLAG,
-                        token(GeneratedJavaParserConstants.INTERFACE),
-                        token(GeneratedJavaParserConstants.CLASS)
-                    ),
-                    space(),
-                    child(ObservableProperty.NAME),
-                    list(
-                        TYPE_PARAMETERS,
-                        sequence(comma(), space()),
-                        string(GeneratedJavaParserConstants.LT),
-                        string(GeneratedJavaParserConstants.GT)
-                    ),
-                    list(
-                        ObservableProperty.EXTENDED_TYPES,
-                        sequence(string(GeneratedJavaParserConstants.COMMA), space()),
-                        sequence(space(), token(GeneratedJavaParserConstants.EXTENDS), space()),
-                        none()
-                    ),
-                    list(
-                        ObservableProperty.IMPLEMENTED_TYPES,
-                        sequence(string(GeneratedJavaParserConstants.COMMA), space()),
-                        sequence(space(), token(GeneratedJavaParserConstants.IMPLEMENTS), space()),
-                        none()
-                    ),
-                    space(),
-                    block(sequence(newline(), list(ObservableProperty.MEMBERS, sequence(newline()/*, newline()*/), newline(), newline())))
-                )
-            );
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
-    }
+public class UpdateVersionsTask extends AbstractVersionsTask {
 
     private static final Logger LOGGER = Logging.getLogger(UpdateVersionsTask.class);
 
-    static final String SERVER_MODULE_PATH = "server/src/main/java/";
-    static final String VERSION_FILE_PATH = SERVER_MODULE_PATH + "org/elasticsearch/Version.java";
-
     static final Pattern VERSION_FIELD = Pattern.compile("V_(\\d+)_(\\d+)_(\\d+)(?:_(\\w+))?");
-
-    final Path rootDir;
 
     @Nullable
     private Version addVersion;
@@ -140,9 +51,11 @@ public class UpdateVersionsTask extends DefaultTask {
     @Nullable
     private Version removeVersion;
 
+    private boolean incrementVersionIds;
+
     @Inject
     public UpdateVersionsTask(BuildLayout layout) {
-        rootDir = layout.getRootDirectory().toPath();
+        super(layout);
     }
 
     @Option(option = "add-version", description = "Specifies the version to add")
@@ -158,6 +71,11 @@ public class UpdateVersionsTask extends DefaultTask {
     @Option(option = "remove-version", description = "Specifies the version to remove")
     public void removeVersion(String version) {
         this.removeVersion = Version.fromString(version);
+    }
+
+    @Option(option = "increment-version-ids", description = "Increment other version ids in the project")
+    public void incrementVersionIds(boolean increment) {
+        this.incrementVersionIds = true;
     }
 
     static String toVersionField(Version version) {
@@ -185,6 +103,28 @@ public class UpdateVersionsTask extends DefaultTask {
             throw new IllegalArgumentException("Same version specified to add and remove");
         }
 
+        updateVersionJava();
+
+        if (incrementVersionIds) {
+            Path transportVersionJava = rootDir.resolve(TRANSPORT_VERSIONS_FILE_PATH);
+            CompilationUnit tvFile = LexicalPreservingPrinter.setup(StaticJavaParser.parse(transportVersionJava));
+            LOGGER.lifecycle("Adding new version constant to [{}]", transportVersionJava);
+            var modifiedTv = addVersionId(tvFile, addVersion);
+            if (modifiedTv.isPresent()) {
+                writeOutNewContents(transportVersionJava, modifiedTv.get());
+            }
+
+            Path indexVersionJava = rootDir.resolve(INDEX_VERSIONS_FILE_PATH);
+            CompilationUnit ivFile = LexicalPreservingPrinter.setup(StaticJavaParser.parse(indexVersionJava));
+            LOGGER.lifecycle("Adding new version constant to [{}]", indexVersionJava);
+            var modifiedIv = addVersionId(ivFile, addVersion);
+            if (modifiedIv.isPresent()) {
+                writeOutNewContents(indexVersionJava, modifiedIv.get());
+            }
+        }
+    }
+
+    private void updateVersionJava() throws IOException {
         Path versionJava = rootDir.resolve(VERSION_FILE_PATH);
         CompilationUnit file = LexicalPreservingPrinter.setup(StaticJavaParser.parse(versionJava));
 
@@ -213,7 +153,7 @@ public class UpdateVersionsTask extends DefaultTask {
     static Optional<CompilationUnit> addVersionConstant(CompilationUnit versionJava, Version version, boolean updateCurrent) {
         String newFieldName = toVersionField(version);
 
-        ClassOrInterfaceDeclaration versionClass = versionJava.getClassByName("Version").get();
+        TypeDeclaration<?> versionClass = versionJava.getType(0);
         if (versionClass.getFieldByName(newFieldName).isPresent()) {
             LOGGER.lifecycle("New version constant [{}] already present, skipping", newFieldName);
             return Optional.empty();
@@ -235,7 +175,7 @@ public class UpdateVersionsTask extends DefaultTask {
         FieldDeclaration newVersion = createNewVersionConstant(
             previousVersion.getValue(),
             newFieldName,
-            String.format("%d_%02d_%02d_99", version.getMajor(), version.getMinor(), version.getRevision())
+            String.format("new Version(%d_%02d_%02d_99)", version.getMajor(), version.getMinor(), version.getRevision())
         );
         versionClass.getMembers().addAfter(newVersion, previousVersion.getValue());
 
@@ -252,11 +192,7 @@ public class UpdateVersionsTask extends DefaultTask {
     private static FieldDeclaration createNewVersionConstant(FieldDeclaration lastVersion, String newName, String newExpr) {
         return new FieldDeclaration(
             new NodeList<>(lastVersion.getModifiers()),
-            new VariableDeclarator(
-                lastVersion.getCommonType(),
-                newName,
-                StaticJavaParser.parseExpression(String.format("new Version(%s)", newExpr))
-            )
+            new VariableDeclarator(lastVersion.getCommonType(), newName, StaticJavaParser.parseExpression(newExpr))
         );
     }
 
@@ -264,7 +200,7 @@ public class UpdateVersionsTask extends DefaultTask {
     static Optional<CompilationUnit> removeVersionConstant(CompilationUnit versionJava, Version version) {
         String removeFieldName = toVersionField(version);
 
-        ClassOrInterfaceDeclaration versionClass = versionJava.getClassByName("Version").get();
+        TypeDeclaration<?> versionClass = versionJava.getType(0);
         var declaration = versionClass.getFieldByName(removeFieldName);
         if (declaration.isEmpty()) {
             LOGGER.lifecycle("Version constant [{}] not found, skipping", removeFieldName);
@@ -288,10 +224,40 @@ public class UpdateVersionsTask extends DefaultTask {
         return Optional.of(versionJava);
     }
 
-    static void writeOutNewContents(Path file, CompilationUnit unit) throws IOException {
-        if (unit.containsData(LexicalPreservingPrinter.NODE_TEXT_DATA) == false) {
-            throw new IllegalArgumentException("CompilationUnit has no lexical information for output");
+    private static final int VERSION_ADDITION = 1000;
+
+    @VisibleForTesting
+    static Optional<CompilationUnit> addVersionId(CompilationUnit java, Version releaseVersion) {
+        TypeDeclaration<?> type = java.getType(0);
+
+        String newVersionField = "RELEASE_" + releaseVersion.toString().replace('.', '_');
+        if (type.getFieldByName(newVersionField).isPresent()) {
+            LOGGER.lifecycle("New version constant [{}] already present, skipping", newVersionField);
+            return Optional.empty();
         }
-        Files.writeString(file, LexicalPreservingPrinter.print(unit), StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+
+        // find the most recent version id
+        Map.Entry<Integer, FieldDeclaration> versions = type.getFields()
+            .stream()
+            .map(f -> Map.entry(f, findSingleIntegerExpr(f)))
+            .filter(e -> e.getValue().isPresent())
+            .map(e -> Map.entry(e.getValue().getAsInt(), e.getKey()))
+            .max(Map.Entry.comparingByKey())
+            .orElseThrow(() -> new IllegalStateException("Could not find any version constants"));
+
+        int newVersionId = versions.getKey() + VERSION_ADDITION - (versions.getKey() % VERSION_ADDITION);
+        // transform the id into the text format M_NNN_SS_P
+        StringBuilder versionIdText = new StringBuilder(Integer.toString(newVersionId));
+        int len = versionIdText.length();
+        versionIdText.insert(len - 1, '_').insert(len - 3, '_').insert(len - 6, '_');
+
+        FieldDeclaration newVersion = createNewVersionConstant(
+            versions.getValue(),
+            newVersionField,
+            String.format("def(%s)", versionIdText)
+        );
+        type.getMembers().addAfter(newVersion, versions.getValue());
+
+        return Optional.of(java);
     }
 }

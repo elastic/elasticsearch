@@ -173,6 +173,38 @@ public class UpdateVersionsTaskTests {
     }
 
     @Test
+    public void incrementVersion() {
+        final String transportVersionJava = """
+            public class TransportVersions {
+                public static final TransportVersion V_1 = def(1_000_00_0);
+                public static final TransportVersion V_2 = def(1_001_00_0);
+                public static final TransportVersion V_3 = def(1_002_00_0);
+                public static final TransportVersion V_32 = def(1_002_00_2);
+            }""";
+
+        final String updatedTransportVersionJava = """
+            public class TransportVersions {
+
+                public static final TransportVersion V_1 = def(1_000_00_0);
+
+                public static final TransportVersion V_2 = def(1_001_00_0);
+
+                public static final TransportVersion V_3 = def(1_002_00_0);
+
+                public static final TransportVersion V_32 = def(1_002_00_2);
+
+                public static final TransportVersion RELEASE_8_10_1 = def(1_003_00_0);
+            }
+            """;
+
+        CompilationUnit unit = StaticJavaParser.parse(transportVersionJava);
+
+        UpdateVersionsTask.addVersionId(unit, Version.fromString("8.10.1"));
+
+        assertThat(unit, hasToString(updatedTransportVersionJava));
+    }
+
+    @Test
     public void updateVersionFile_addsCorrectly() throws Exception {
         Version newVersion = new Version(50, 10, 20);
         String versionField = UpdateVersionsTask.toVersionField(newVersion);

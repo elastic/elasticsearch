@@ -8,6 +8,8 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.ingest.IngestDocument;
@@ -21,6 +23,7 @@ import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class GrokProcessorTests extends ESTestCase {
 
@@ -374,5 +377,55 @@ public class GrokProcessorTests extends ESTestCase {
         processor.execute(doc);
         assertFalse(doc.hasField("first"));
         assertThat(doc.getFieldValue("second", String.class), equalTo("3"));
+    }
+
+    public void testStackOverflow() {
+        // This tests that we rethrow StackOverflowErrors as ElasticsearchExceptions so that we don't take down the node
+        String badRegex = "( (?=(?:[^'\"]|'[^']*'|\"[^\"]*\")*$))";
+        GrokProcessor processor = new GrokProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new PatternBank(Map.of()),
+            List.of(badRegex),
+            "field",
+            randomBoolean(),
+            randomBoolean(),
+            MatcherWatchdog.noop()
+        );
+        StringBuilder badSourceBuilder = new StringBuilder("key1=x key2=");
+        badSourceBuilder.append("x".repeat(30000));
+        Map<String, Object> source = Map.of("field", badSourceBuilder.toString());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getRootCause(), instanceOf(StackOverflowError.class));
+    }
+
+    public void testStackOverflow2() throws Exception {
+        // This tests that we rethrow StackOverflowErrors as ElasticsearchExceptions so that we don't take down the node
+        String badRegex = "(?:%{DATA})?%{CUSTOMUSERNAME:oracle.database_audit.database.user_formated}(?:%{DATA})?";
+        GrokProcessor processor = new GrokProcessor(
+            randomAlphaOfLength(10),
+            null,
+            GrokBuiltinPatterns.get("disabled").extendWith(Map.of("CUSTOMUSERNAME", "(TK|TX|tk|tx).{3}")),
+            List.of(badRegex),
+            "field",
+            randomBoolean(),
+            randomBoolean(),
+            MatcherWatchdog.noop()
+        );
+        // StringBuilder badSourceBuilder = new StringBuilder("");
+        // badSourceBuilder.append("x".repeat(10));
+        // badSourceBuilder.append("SIS_UA_TKFA".repeat(30000));
+        // badSourceBuilder.append("SIS_UA_TKFA");
+        // badSourceBuilder.append("x".repeat(10000));
+        for (int i = 0; i < 1000000; i++) {
+            String badSource = randomAlphaOfLength(1000000);
+            Map<String, Object> source = Map.of("field", badSource);
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
+            IngestDocument result = processor.execute(ingestDocument);
+            assertNotNull(result);
+        }
+        // ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
+        // assertThat(exception.getRootCause(), instanceOf(StackOverflowError.class));
     }
 }

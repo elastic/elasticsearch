@@ -567,9 +567,9 @@ class DownsampleShardIndexer {
 
             if (dimensions.length == 0) {
                 if (indexShard.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_HASHING)) {
-                    throw new IllegalStateException("downsampling task of indices create in 8.13 or later should specify dimensions");
+                    throw new IllegalStateException("downsampling task of indices created in 8.13 or later should specify dimensions");
                 }
-                // load dimensions from the legacy tsid
+                logger.debug("extracting dimensions from legacy tsid");
                 Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
                 for (Map.Entry<?, ?> e : dimensions.entrySet()) {
                     assert e.getValue() != null;

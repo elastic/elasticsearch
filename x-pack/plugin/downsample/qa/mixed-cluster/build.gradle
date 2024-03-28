@@ -10,12 +10,14 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.bwc-test'
 
 
 dependencies {
   testImplementation project(path: ':test:test-clusters')
+  javaRestTestImplementation project(path: xpackModule('rollup'))
   yamlRestTestImplementation project(path: xpackModule('rollup'))
 }
 
@@ -31,12 +33,18 @@ artifacts {
 
 
 def supportedVersion = bwcVersion -> {
-  return bwcVersion.onOrAfter(Version.fromString("8.10.0"));
+  return bwcVersion.onOrAfter(Version.fromString("8.8.0"));
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+  def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+    classpath = sourceSets.javaRestTest.runtimeClasspath
+  }
+
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
-    usesDefaultDistribution()
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
     testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
@@ -44,8 +52,12 @@ BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseN
   }
 
   tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn yamlRestTest
+    dependsOn javaRestTest, yamlRestTest
   }
+}
+
+tasks.named("javaRestTest") {
+  enabled = false
 }
 
 tasks.named("yamlRestTest") {

@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -53,6 +54,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
@@ -71,6 +73,8 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -78,6 +82,7 @@ import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -203,6 +208,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.MigrateSecurityIndexFieldTaskParams;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -383,7 +389,9 @@ import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
+import org.elasticsearch.xpack.security.support.MigrateSecurityIndexFieldTaskExecutor;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -437,7 +445,8 @@ public class Security extends Plugin
         ExtensiblePlugin,
         SearchPlugin,
         RestServerActionPlugin,
-        ReloadablePlugin {
+        ReloadablePlugin,
+        PersistentTaskPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -576,6 +585,8 @@ public class Security extends Plugin
     private final SetOnce<BulkUpdateApiKeyRequestTranslator> bulkUpdateApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
+
+    private final SetOnce<PersistentTasksService> persistentTasksService = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
     private final SetOnce<OperatorPrivileges.OperatorPrivilegesService> operatorPrivilegesService = new SetOnce<>();
     private final SetOnce<ReservedRoleMappingAction> reservedRoleMappingAction = new SetOnce<>();
@@ -673,7 +684,8 @@ public class Security extends Plugin
                 services.environment(),
                 services.nodeEnvironment().nodeMetadata(),
                 services.indexNameExpressionResolver(),
-                services.telemetryProvider()
+                services.telemetryProvider(),
+                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client())
             );
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
@@ -692,7 +704,8 @@ public class Security extends Plugin
         Environment environment,
         NodeMetadata nodeMetadata,
         IndexNameExpressionResolver expressionResolver,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        PersistentTasksService persistentTasksService
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
         if (enabled == false) {
@@ -705,7 +718,32 @@ public class Security extends Plugin
         // See Plugin#additionalSettings()
         this.settings = environment.settings();
 
+        this.persistentTasksService.set(persistentTasksService);
+
         systemIndices.init(client, clusterService);
+
+        // Add a state listener to see if a migration of metadata is needed after a security index state change
+        // is there a better trigger that can be used?
+        systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
+            // If a migration already happened, do nothing
+            if (systemIndices.getMainIndexManager().isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)
+                && systemIndices.getMainIndexManager().checkSecurityIndexFieldMigrationComplete(clusterService.state()) == false) {
+                persistentTasksService.sendStartRequest(
+                    // The constant id guarantees that this job only runs once
+                    // This could be one per model if we want to split this into several backfills
+                    "migrate-field-task-id", // This can be changed to UUID.randomUUID().toString() to do local testing
+                    MigrateSecurityIndexFieldTaskParams.TASK_NAME,
+                    new MigrateSecurityIndexFieldTaskParams("metadata", "metadata_flattened"),
+                    // 10 hour timeout, probably good to think hard about what this should be
+                    TimeValue.timeValueHours(10),
+                    ActionListener.wrap(
+                        (response) -> { logger.info("Start migration submitted"); },
+                        // This would be nice to track using metrics and also disable query on metadata if the migration fails.
+                        (exception) -> logger.warn("Security Index Field Migration failed: " + exception)
+                    )
+                );
+            }
+        });
 
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
@@ -2152,6 +2190,24 @@ public class Security extends Plugin
             return null;
         }
         return new DlsFlsRequestCacheDifferentiator(getLicenseState(), securityContext, scriptServiceReference);
+    }
+
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
+        return Collections.singletonList(
+            new MigrateSecurityIndexFieldTaskExecutor(
+                MigrateSecurityIndexFieldTaskParams.TASK_NAME,
+                threadPool.generic(), // Need to investigate what works best for this
+                systemIndices,
+                client
+            )
+        );
     }
 
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {

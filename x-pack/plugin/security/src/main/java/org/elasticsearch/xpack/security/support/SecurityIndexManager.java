@@ -26,6 +26,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -34,6 +36,9 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -65,8 +70,10 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Stat
 public class SecurityIndexManager implements ClusterStateListener {
 
     public static final String SECURITY_VERSION_STRING = "security-version";
-
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
+
+    private static final String MIGRATE_SECURITY_INDEX_FIELD_COMPLETED_META_KEY = "migrate-security-index-field-completed";
+    private final MasterServiceTaskQueue<UpdateSecurityIndexFieldMigrationCompleteTask> migrateSecurityIndexFieldCompletedTaskQueue;
 
     /**
      * When checking availability, check for availability of search or availability of all primaries
@@ -84,21 +91,81 @@ public class SecurityIndexManager implements ClusterStateListener {
     private volatile State state;
     private final boolean defensiveCopy;
 
+    static class UpdateSecurityIndexFieldMigrationCompleteTask implements ClusterStateTaskListener {
+        private final ActionListener<Void> listener;
+        private final String targetIndex;
+
+        UpdateSecurityIndexFieldMigrationCompleteTask(String targetIndex, ActionListener<Void> listener) {
+            this.targetIndex = targetIndex;
+            this.listener = listener;
+        }
+
+        ClusterState execute(ClusterState currentState) {
+            IndexMetadata indexMetadata = resolveConcreteIndex(this.targetIndex, currentState.metadata());
+            if (indexMetadata != null) {
+                logger.info("Updating cluster state with security index migration completed for {}", this.targetIndex);
+                IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
+                    MIGRATE_SECURITY_INDEX_FIELD_COMPLETED_META_KEY,
+                    Map.of("completed", "true")
+                ).build();
+                Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
+                return ClusterState.builder(currentState).metadata(metadata).build();
+            }
+            return currentState;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static final SimpleBatchedExecutor<
+        UpdateSecurityIndexFieldMigrationCompleteTask,
+        Void> MIGRATE_SECURITY_INDEX_FIELD_COMPLETED_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Void> executeTask(UpdateSecurityIndexFieldMigrationCompleteTask task, ClusterState clusterState) {
+                return Tuple.tuple(task.execute(clusterState), null);
+            }
+
+            @Override
+            public void taskSucceeded(UpdateSecurityIndexFieldMigrationCompleteTask task, Void unused) {
+                task.listener.onResponse(null);
+            }
+        };
+
     public static SecurityIndexManager buildSecurityIndexManager(
         Client client,
         ClusterService clusterService,
         SystemIndexDescriptor descriptor
     ) {
-        final SecurityIndexManager securityIndexManager = new SecurityIndexManager(client, descriptor, State.UNRECOVERED_STATE, false);
+        final SecurityIndexManager securityIndexManager = new SecurityIndexManager(
+            client,
+            descriptor,
+            State.UNRECOVERED_STATE,
+            false,
+            clusterService.createTaskQueue(
+                "security-index-field-migration-completed-queue",
+                Priority.LOW,
+                MIGRATE_SECURITY_INDEX_FIELD_COMPLETED_TASK_EXECUTOR
+            )
+        );
         clusterService.addListener(securityIndexManager);
         return securityIndexManager;
     }
 
-    private SecurityIndexManager(Client client, SystemIndexDescriptor descriptor, State state, boolean defensiveCopy) {
+    private SecurityIndexManager(
+        Client client,
+        SystemIndexDescriptor descriptor,
+        State state,
+        boolean defensiveCopy,
+        MasterServiceTaskQueue<UpdateSecurityIndexFieldMigrationCompleteTask> migrateSecurityIndexFieldCompletedTaskQueue
+    ) {
         this.client = client;
         this.state = state;
         this.systemIndexDescriptor = descriptor;
         this.defensiveCopy = defensiveCopy;
+        this.migrateSecurityIndexFieldCompletedTaskQueue = migrateSecurityIndexFieldCompletedTaskQueue;
     }
 
     /**
@@ -106,7 +173,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * should be reused for multiple checks in the same workflow.
      */
     public SecurityIndexManager defensiveCopy() {
-        return new SecurityIndexManager(null, systemIndexDescriptor, state, true);
+        return new SecurityIndexManager(null, systemIndexDescriptor, state, true, null);
     }
 
     public String aliasName() {
@@ -345,6 +412,26 @@ public class SecurityIndexManager implements ClusterStateListener {
         Predicate<Version> predicate
     ) {
         return loadIndexMappingVersions(indexName, clusterState, logger).stream().allMatch(predicate);
+    }
+
+    public boolean checkSecurityIndexFieldMigrationComplete(ClusterState clusterState) {
+        IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), clusterState.metadata());
+        if (indexMetadata != null) {
+            Map<String, String> customMetadata = indexMetadata.getCustomData(MIGRATE_SECURITY_INDEX_FIELD_COMPLETED_META_KEY);
+            if (customMetadata != null) {
+                String result = customMetadata.get("migrated");
+                return Boolean.parseBoolean(result);
+            }
+        }
+        return false;
+    }
+
+    public void writeMetadataMigrated(ActionListener<Void> listener) {
+        this.migrateSecurityIndexFieldCompletedTaskQueue.submitTask(
+            "Updating cluster state to show that the security index field migration has been completed",
+            new UpdateSecurityIndexFieldMigrationCompleteTask(systemIndexDescriptor.getAliasName(), listener),
+            TimeValue.timeValueMinutes(5) // Not sure what's reasonable here
+        );
     }
 
     private Version oldestIndexMappingVersion(ClusterState clusterState) {

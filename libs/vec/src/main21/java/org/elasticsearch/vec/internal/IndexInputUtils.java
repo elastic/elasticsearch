@@ -20,17 +20,18 @@ import java.util.Objects;
 
 public final class IndexInputUtils {
 
-    static final Class<?> MSINDEX_CLS;
-    static final VarHandle SEGMENTS_ARRAY, CHUNK_SIZE_POWER, CHUNK_SIZE_MASK;
+    static final Class<?> MSINDEX_CLS, MS_MSINDEX_CLS;
+    static final VarHandle SEGMENTS_ARRAY, CHUNK_SIZE_POWER, CHUNK_SIZE_MASK, MULTI_OFFSET;
 
     static {
         try {
             MSINDEX_CLS = Class.forName("org.apache.lucene.store.MemorySegmentIndexInput");
+            MS_MSINDEX_CLS = Class.forName("org.apache.lucene.store.MemorySegmentIndexInput$MultiSegmentImpl");
             var lookup = privilegedPrivateLookupIn(MSINDEX_CLS, MethodHandles.lookup());
             SEGMENTS_ARRAY = lookup.findVarHandle(MSINDEX_CLS, "segments", MemorySegment[].class);
             CHUNK_SIZE_POWER = lookup.findVarHandle(MSINDEX_CLS, "chunkSizePower", int.class);
             CHUNK_SIZE_MASK = lookup.findVarHandle(MSINDEX_CLS, "chunkSizeMask", long.class);
-
+            MULTI_OFFSET = lookup.findVarHandle(MS_MSINDEX_CLS, "offset", long.class);
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
         } catch (IllegalAccessException e) {
@@ -43,15 +44,20 @@ public final class IndexInputUtils {
     private IndexInputUtils() {}
 
     static MemorySegment segmentSlice(IndexInput input, long pos, int length) {
+        if (MS_MSINDEX_CLS.isAssignableFrom(input.getClass())) {
+            pos += offset(input);
+        }
         final int si = (int) (pos >> chunkSizePower(input));
         final MemorySegment seg = segmentArray(input)[si];
-        try {
-            long offset = pos & chunkSizeMask(input);
-            Objects.checkIndex(offset + length, seg.byteSize() + 1);
+        long offset = pos & chunkSizeMask(input);
+        if (checkIndex(offset + length, seg.byteSize() + 1)) {
             return seg.asSlice(offset, length);
-        } catch (IndexOutOfBoundsException e) {
-            return null;
         }
+        return null;
+    }
+
+    static boolean checkIndex(long index, long length) {
+        return index >= 0 && index < length;
     }
 
     /** Unwraps and returns the input if it's a MemorySegment backed input. Otherwise, null. */
@@ -74,6 +80,11 @@ public final class IndexInputUtils {
     static int chunkSizePower(IndexInput input) {
         return (int) CHUNK_SIZE_POWER.get(input);
     }
+
+    static long offset(IndexInput input) {
+        return (long) MULTI_OFFSET.get(input);
+    }
+
 
     @SuppressWarnings("removal")
     static MethodHandles.Lookup privilegedPrivateLookupIn(Class<?> cls, MethodHandles.Lookup lookup) throws IllegalAccessException {

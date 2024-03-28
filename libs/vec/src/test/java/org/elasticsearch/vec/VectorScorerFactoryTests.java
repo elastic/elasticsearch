@@ -154,6 +154,61 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+
+    public void testRandomSlice() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        testRandomSliceImpl(30, 64, 1, ESTestCase::randomByteArrayOfLength);
+    }
+
+    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, Function<Integer, byte[]> byteArraySupplier) throws IOException {
+        var factory = AbstractVectorTestCase.factory.get();
+
+        try (Directory dir = new MMapDirectory(createTempDir(getTestName()), maxChunkSize)) {
+            for (int times = 0; times < TIMES; times++) {
+                final int size = randomIntBetween(2, 100);
+                final float correction = randomFloat();
+                final byte[][] vectors = new byte[size][];
+                final float[] offsets = new float[size];
+
+                String fileName = getTestName() + "-" + times + "-" + dims;
+                logger.info("Testing " + fileName);
+                try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                    byte[] ba = new byte[initialPadding];
+                    out.writeBytes(ba, 0, ba.length);
+                    for (int i = 0; i < size; i++) {
+                        var vec = byteArraySupplier.apply(dims);
+                        var off = randomFloat();
+                        out.writeBytes(vec, 0, vec.length);
+                        out.writeInt(Float.floatToIntBits(off));
+                        vectors[i] = vec;
+                        offsets[i] = off;
+                    }
+                }
+                try (var outter = dir.openInput(fileName, IOContext.DEFAULT);
+                     var in = outter.slice("slice", initialPadding, outter.length() - initialPadding)) {
+                    int idx0 = randomIntBetween(0, size - 1);
+                    int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
+                    // dot product
+                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
+                    float expected = luceneScore(DOT_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    // max inner product
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
+                    expected = luceneScore(MAXIMUM_INNER_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    // cosine
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
+                    expected = luceneScore(COSINE, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    // euclidean
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
+                    expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    // assertThat(scorer.score(idx0, idx1), equalTo(expected)); // TODO: implement
+                }
+            }
+        }
+    }
+
     static Function<Integer, byte[]> BYTE_ARRAY_MAX_FUNC = size -> {
         byte[] ba = new byte[size];
         Arrays.fill(ba, Byte.MAX_VALUE);

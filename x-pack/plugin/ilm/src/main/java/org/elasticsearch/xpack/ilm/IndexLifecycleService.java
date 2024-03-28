@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -166,9 +169,11 @@ public class IndexLifecycleService
     }
 
     // package private for testing
-    void onMaster(ClusterState clusterState) {
+    void onMaster() {
         maybeScheduleJob();
+    }
 
+    private void onMasterFailOver(ClusterState clusterState) {
         final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentILMMode(clusterState);
@@ -178,8 +183,7 @@ public class IndexLifecycleService
 
             boolean safeToStop = true; // true until proven false by a run policy
 
-            // If we just became master, we need to kick off any async actions that
-            // may have not been run due to master rollover
+            // Doing full inspection of all indices in the cluster state due to Master FailOver
             for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
                 if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
                     String policyName = idxMeta.getLifecyclePolicyName();
@@ -214,7 +218,7 @@ public class IndexLifecycleService
                             logger.warn(
                                 () -> format(
                                     "async action execution failed during master election trigger"
-                                        + " for index [%s] with policy [%s] in step [%s], lifecycle state: [%s]",
+                                        + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
                                     stepKey,
@@ -226,7 +230,7 @@ public class IndexLifecycleService
                             logger.warn(
                                 () -> format(
                                     "async action execution failed during master election trigger"
-                                        + " for index [%s] with policy [%s] in step [%s]",
+                                        + " for index [{}] with policy [{}] in step [{}]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
                                     stepKey
@@ -306,9 +310,13 @@ public class IndexLifecycleService
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
                 // we weren't the master, and now we are
-                onMaster(event.state());
+                onMaster();
             } else {
                 // we were the master, and now we aren't
+                final Exception e = new NotMasterException("no longer master");
+                if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+                    onMasterFailOver(event.state());
+                }
                 cancelJob();
                 policyRegistry.clear();
             }

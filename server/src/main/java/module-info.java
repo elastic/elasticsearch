@@ -435,9 +435,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 
-    provides org.apache.logging.log4j.core.util.ContextDataProvider
-        with
-            org.elasticsearch.common.logging.DynamicContextDataProvider;
+    provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
         to

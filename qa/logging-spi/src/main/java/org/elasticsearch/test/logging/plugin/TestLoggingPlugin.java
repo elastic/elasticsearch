@@ -8,7 +8,6 @@
 
 package org.elasticsearch.test.logging.plugin;
 
-
 import org.elasticsearch.plugins.Plugin;
 
 public class TestLoggingPlugin extends Plugin {

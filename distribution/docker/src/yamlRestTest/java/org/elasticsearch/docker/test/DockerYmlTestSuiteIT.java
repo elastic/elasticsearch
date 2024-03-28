@@ -21,6 +21,7 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -28,6 +29,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    @ClassRule
+    public static final ElasticsearchDockerDistributionTestContainer elasticDistro1 = new ElasticsearchDockerDistributionTestContainer();
+
+    @ClassRule
+    public static final ElasticsearchDockerDistributionTestContainer elasticDistro2 = new ElasticsearchDockerDistributionTestContainer();
 
     private static final String USER = "x_pack_rest_user";
     private static final String PASS = "x-pack-test-password";
@@ -44,12 +51,13 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Override
     protected String getTestRestCluster() {
         String distribution = getDistribution();
-        return new StringBuilder().append("localhost:")
-            .append(getProperty("test.fixtures.elasticsearch-" + distribution + "-1.tcp.9200"))
-            .append(",")
-            .append("localhost:")
-            .append(getProperty("test.fixtures.elasticsearch-" + distribution + "-2.tcp.9200"))
-            .toString();
+        return "localhost:" + elasticDistro1.getMappedPort(9200) + "," + "localhost:" + elasticDistro2.getMappedPort(9200);
+//        return new StringBuilder().append("localhost:")
+//            .append(getProperty("test.fixtures.elasticsearch-" + distribution + "-1.tcp.9200"))
+//            .append(",")
+//            .append("localhost:")
+//            .append(getProperty("test.fixtures.elasticsearch-" + distribution + "-2.tcp.9200"))
+//            .toString();
     }
 
     @Override

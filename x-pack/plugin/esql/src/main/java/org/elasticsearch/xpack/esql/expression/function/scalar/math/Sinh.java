@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -21,13 +22,17 @@ import java.util.List;
  * Sine hyperbolic function.
  */
 public class Sinh extends AbstractTrigonometricFunction {
-    @FunctionInfo(returnType = "double", description = "Returns the hyperbolic sine of a number")
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine].",
+        examples = @Example(file = "floats", tag = "sinh")
+    )
     public Sinh(
         Source source,
         @Param(
             name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "The number to return the hyperbolic sine of"
+            description = "The number to return the hyperbolic sine of. If `null`, the function returns `null`."
         ) Expression n
     ) {
         super(source, n);

@@ -1,0 +1,22 @@
+{
+  "index_patterns": ["traces-*.otel-*"],
+  "priority": 120,
+  "data_stream": {},
+  "composed_of": [
+    "traces@mappings",
+    "traces@settings",
+    "traces@custom",
+    "traces-otel@custom",
+    "otel@mappings",
+    "traces-otel@mappings",
+    "ecs@mappings"
+  ],
+  "ignore_missing_component_templates": ["traces@custom", "traces-otel@custom"],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "default logs template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

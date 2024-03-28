@@ -1,0 +1,40 @@
+{
+  "template": {
+    "mappings": {
+      "date_detection": false,
+      "dynamic": "strict",
+      "properties": {
+        "observed_timestamp": {
+          "type": "date_nanos"
+        },
+        "severity_number": {
+          "type": "byte"
+        },
+        "severity_text": {
+          "type": "keyword"
+        },
+        "body_text": {
+          "type": "match_only_text"
+        },
+        "body_structured": {
+          "type": "flattened"
+        },
+        "trace_flags": {
+          "type": "byte"
+        },
+        "trace_id": {
+          "type": "keyword"
+        },
+        "span_id": {
+          "type": "keyword"
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default mappings for the logs index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

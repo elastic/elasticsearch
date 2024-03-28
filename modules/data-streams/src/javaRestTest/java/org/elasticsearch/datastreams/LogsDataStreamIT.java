@@ -33,7 +33,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     @Before
     public void setup() throws Exception {
         client = client();
-        waitForLogs(client);
+        waitForIndexTemplate(client, "logs");
     }
 
     @After
@@ -765,10 +765,10 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         assertThat(ignored.stream().filter(i -> i.startsWith("field") == false).toList(), empty());
     }
 
-    static void waitForLogs(RestClient client) throws Exception {
+    static void waitForIndexTemplate(RestClient client, String indexTemplate) throws Exception {
         assertBusy(() -> {
             try {
-                Request request = new Request("GET", "_index_template/logs");
+                Request request = new Request("GET", "_index_template/" + indexTemplate);
                 assertOK(client.performRequest(request));
             } catch (ResponseException e) {
                 fail(e.getMessage());
@@ -826,10 +826,15 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     static List<Object> searchDocs(RestClient client, String dataStreamName, String query) throws IOException {
+        Map<String, Object> hits = (Map<String, Object>) search(client, dataStreamName, query).get("hits");
+        return (List<Object>) hits.get("hits");
+    }
+
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> search(RestClient client, String dataStreamName, String query) throws IOException {
         Request request = new Request("GET", "/" + dataStreamName + "/_search");
         request.setJsonEntity(query);
-        Map<String, Object> hits = (Map<String, Object>) entityAsMap(client.performRequest(request)).get("hits");
-        return (List<Object>) hits.get("hits");
+        return entityAsMap(client.performRequest(request));
     }
 
     @SuppressWarnings("unchecked")

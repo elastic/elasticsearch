@@ -27,6 +27,7 @@ public class APMYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("ingest-user-agent")
         .module("lang-mustache")
         .module("mapper-extras")
+        .module("mapper-version")
         .module("wildcard")
         .module("x-pack-analytics")
         .module("x-pack-apm-data")

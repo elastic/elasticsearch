@@ -87,6 +87,26 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String LOGS_INDEX_TEMPLATE_NAME = "logs";
 
     //////////////////////////////////////////////////////////
+    // Logs components (for matching logs-*.otel-* indices)
+    //////////////////////////////////////////////////////////
+    public static final String OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME = "otel@mappings";
+    public static final String LOGS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-otel@mappings";
+    public static final String LOGS_OTEL_INDEX_TEMPLATE_NAME = "logs-otel@template";
+
+    //////////////////////////////////////////////////////////
+    // Base traces components
+    //////////////////////////////////////////////////////////
+    public static final String TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME = "traces@mappings";
+    public static final String TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME = "traces@settings";
+    public static final String TRACES_ILM_POLICY_NAME = "traces@lifecycle";
+
+    //////////////////////////////////////////////////////////
+    // Traces components (for matching traces-*.otel-* indices)
+    //////////////////////////////////////////////////////////
+    public static final String TRACES_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME = "traces-otel@mappings";
+    public static final String TRACES_OTEL_INDEX_TEMPLATE_NAME = "traces-otel@template";
+
+    //////////////////////////////////////////////////////////
     // Metrics components (for matching metric-*-* indices)
     //////////////////////////////////////////////////////////
     public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics@mappings";
@@ -94,6 +114,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics@tsdb-settings";
     public static final String METRICS_ILM_POLICY_NAME = "metrics@lifecycle";
     public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
+
+    //////////////////////////////////////////////////////////
+    // Traces components (for matching metrics-*.otel-* indices)
+    //////////////////////////////////////////////////////////
+    public static final String METRICS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics-otel@mappings";
+    public static final String METRICS_OTEL_INDEX_TEMPLATE_NAME = "metrics-otel@template";
 
     //////////////////////////////////////////////////////////
     // Synthetics components (for matching synthetics-*-* indices)
@@ -144,6 +170,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
         new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(TRACES_ILM_POLICY_NAME, "/traces@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
@@ -182,6 +209,20 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
+                OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/otel@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                LOGS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs-otel@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
                 ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/ecs@mappings.json",
                 REGISTRY_VERSION,
@@ -198,6 +239,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                METRICS_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics-otel@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
@@ -229,6 +277,27 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_OTEL_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces-otel@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
             )
         )) {
             try {
@@ -257,8 +326,22 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             ADDITIONAL_TEMPLATE_VARIABLES
         ),
         new IndexTemplateConfig(
+            LOGS_OTEL_INDEX_TEMPLATE_NAME,
+            "/logs-otel@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
             METRICS_INDEX_TEMPLATE_NAME,
             "/metrics@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
+            METRICS_OTEL_INDEX_TEMPLATE_NAME,
+            "/metrics-otel@template.json",
             REGISTRY_VERSION,
             TEMPLATE_VERSION_VARIABLE,
             ADDITIONAL_TEMPLATE_VARIABLES
@@ -273,6 +356,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
             "/kibana-reporting@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
+            TRACES_OTEL_INDEX_TEMPLATE_NAME,
+            "/traces-otel@template.json",
             REGISTRY_VERSION,
             TEMPLATE_VERSION_VARIABLE,
             ADDITIONAL_TEMPLATE_VARIABLES

@@ -1,0 +1,71 @@
+{
+  "template": {
+    "mappings": {
+      "date_detection": false,
+      "dynamic": "strict",
+      "properties": {
+        "@timestamp": {
+          "type": "date_nanos"
+        },
+        "attributes": {
+          "type": "passthrough",
+          "dynamic": true
+        },
+        "dropped_attributes_count": {
+          "type": "long"
+        },
+        "resource": {
+          "properties": {
+            "schema_url": {
+              "type": "keyword"
+            },
+            "dropped_attributes_count": {
+              "type": "long"
+            },
+            "attributes": {
+              "type": "passthrough",
+              "dynamic": true
+            }
+          }
+        },
+        "scope": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "version": {
+              "type": "version"
+            },
+            "schema_url": {
+              "type": "keyword"
+            },
+            "dropped_attributes_count": {
+              "type": "long"
+            },
+            "attributes": {
+              "type": "passthrough",
+              "dynamic": true
+            }
+          }
+        }
+      },
+      "dynamic_templates": [
+        {
+          "complex_attributes": {
+            "path_match": ["resource.attributes.*", "scope.attributes.*", "attributes.*"],
+            "match_mapping_type": "object",
+            "mapping": {
+              "type": "flattened"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "_meta": {
+    "description": "default mappings for the logs index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

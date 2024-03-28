@@ -156,6 +156,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_L2_NORM_SIMILARITY_ADDED = def(8_616_00_0);
     public static final TransportVersion SEARCH_NODE_LOAD_AUTOSCALING = def(8_617_00_0);
     public static final TransportVersion ESQL_ES_SOURCE_OPTIONS = def(8_618_00_0);
+    public static final TransportVersion ADD_PERSISTENT_TASK_EXCEPTIONS = def(8_619_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

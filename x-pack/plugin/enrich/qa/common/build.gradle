@@ -3,3 +3,7 @@ apply plugin: 'elasticsearch.java'
 dependencies {
   api project(':test:framework')
 }
+
+dependencies {
+  api project(path: ':test:test-clusters')
+}

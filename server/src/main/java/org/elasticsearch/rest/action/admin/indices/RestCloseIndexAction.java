@@ -22,9 +22,12 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -46,7 +49,12 @@ public class RestCloseIndexAction extends BaseRestHandler {
     @Override
     @UpdateForV9
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        Map<String, Object> mapping = request.contentParser().map();
+        String[] allIndices = XContentMapValues.nodeStringArrayValue(mapping.get("index"));
+        if (request.hasParam("index")) {
+            allIndices = Strings.splitStringByCommaToArray(request.param("index"));
+        }
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(allIndices);
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));

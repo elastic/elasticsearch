@@ -36,11 +36,6 @@ final class FieldTypeLookup {
      */
     private final Map<String, Set<String>> fieldToCopiedFields;
 
-    /**
-     * A map from inference model ID to all fields that use the model to generate embeddings.
-     */
-    private final Map<String, String> inferenceIdsForFields;
-
     private final int maxParentPathDots;
 
     FieldTypeLookup(
@@ -53,7 +48,6 @@ final class FieldTypeLookup {
         final Map<String, String> fullSubfieldNameToParentPath = new HashMap<>();
         final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
         final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
-        final Map<String, String> inferenceIdsForFields = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -70,9 +64,6 @@ final class FieldTypeLookup {
                     fieldToCopiedFields.put(targetField, copiedFields);
                 }
                 fieldToCopiedFields.get(targetField).add(fieldName);
-            }
-            if (fieldType instanceof InferenceModelFieldType inferenceModelFieldType) {
-                inferenceIdsForFields.put(fieldName, inferenceModelFieldType.getInferenceId());
             }
         }
 
@@ -106,7 +97,6 @@ final class FieldTypeLookup {
         // make values into more compact immutable sets to save memory
         fieldToCopiedFields.entrySet().forEach(e -> e.setValue(Set.copyOf(e.getValue())));
         this.fieldToCopiedFields = Map.copyOf(fieldToCopiedFields);
-        this.inferenceIdsForFields = Map.copyOf(inferenceIdsForFields);
     }
 
     public static int dotCount(String path) {
@@ -213,10 +203,6 @@ final class FieldTypeLookup {
         }
 
         return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);
-    }
-
-    Map<String, String> getInferenceIdsForFields() {
-        return inferenceIdsForFields;
     }
 
     /**

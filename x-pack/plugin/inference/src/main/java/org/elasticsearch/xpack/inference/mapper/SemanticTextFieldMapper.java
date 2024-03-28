@@ -9,21 +9,23 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.InferenceModelFieldType;
+import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMergeContext;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -49,6 +51,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.CHUNKS;
 import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper.INFERENCE_CHUNKS_RESULTS;
@@ -60,7 +64,7 @@ import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMap
  * This field mapper performs no indexing, as inference results will be included as a different field in the document source, and will
  * be indexed using {@link InferenceMetadataFieldMapper}.
  */
-public class SemanticTextFieldMapper extends FieldMapper {
+public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
 
     public static final String CONTENT_TYPE = "semantic_text";
@@ -75,6 +79,7 @@ public class SemanticTextFieldMapper extends FieldMapper {
     );
 
     private final IndexVersion indexVersionCreated;
+    private final String inferenceId;
     private final SemanticTextModelSettings modelSettings;
     private final NestedObjectMapper subMappers;
 
@@ -83,11 +88,13 @@ public class SemanticTextFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         CopyTo copyTo,
         IndexVersion indexVersionCreated,
+        String inferenceId,
         SemanticTextModelSettings modelSettings,
         NestedObjectMapper subMappers
     ) {
         super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
         this.indexVersionCreated = indexVersionCreated;
+        this.inferenceId = inferenceId;
         this.modelSettings = modelSettings;
         this.subMappers = subMappers;
     }
@@ -120,12 +127,21 @@ public class SemanticTextFieldMapper extends FieldMapper {
         return (SemanticTextFieldType) super.fieldType();
     }
 
+    public String getInferenceId() {
+        return inferenceId;
+    }
+
     public SemanticTextModelSettings getModelSettings() {
         return modelSettings;
     }
 
     public NestedObjectMapper getSubMappers() {
         return subMappers;
+    }
+
+    @Override
+    public InferenceFieldMetadata getMetadata(Set<String> sourcePaths) {
+        return new InferenceFieldMetadata(name(), inferenceId, sourcePaths.toArray(String[]::new));
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -151,11 +167,15 @@ public class SemanticTextFieldMapper extends FieldMapper {
             XContentBuilder::field,
             (m) -> m == null ? "null" : Strings.toString(m)
         ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeModelSettings);
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        private Function<MapperBuilderContext, NestedObjectMapper> subFieldsFunction;
 
         public Builder(String name, IndexVersion indexVersionCreated) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
+            this.subFieldsFunction = c -> createSubFields(c);
         }
 
         public Builder setInferenceId(String id) {
@@ -174,8 +194,37 @@ public class SemanticTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected void merge(FieldMapper mergeWith, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
+            super.merge(mergeWith, conflicts, mapperMergeContext);
+            conflicts.check();
+            SemanticTextFieldMapper semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
+            var childMergeContext = mapperMergeContext.createChildContext(name(), ObjectMapper.Dynamic.FALSE);
+            NestedObjectMapper mergedSubFields = (NestedObjectMapper) semanticMergeWith.getSubMappers()
+                .merge(
+                    subFieldsFunction.apply(childMergeContext.getMapperBuilderContext()),
+                    MapperService.MergeReason.MAPPING_UPDATE,
+                    childMergeContext
+                );
+            subFieldsFunction = c -> mergedSubFields;
+        }
+
+        @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
             final String fullName = context.buildFullName(name());
+            var childContext = context.createChildContext(name(), ObjectMapper.Dynamic.FALSE);
+            final NestedObjectMapper subFields = subFieldsFunction.apply(childContext);
+            return new SemanticTextFieldMapper(
+                name(),
+                new SemanticTextFieldType(fullName, inferenceId.getValue(), modelSettings.getValue(), subFields, meta.getValue()),
+                copyTo,
+                indexVersionCreated,
+                inferenceId.getValue(),
+                modelSettings.getValue(),
+                subFields
+            );
+        }
+
+        private NestedObjectMapper createSubFields(MapperBuilderContext context) {
             NestedObjectMapper.Builder nestedBuilder = new NestedObjectMapper.Builder(CHUNKS, indexVersionCreated);
             nestedBuilder.dynamic(ObjectMapper.Dynamic.FALSE);
             KeywordFieldMapper.Builder textMapperBuilder = new KeywordFieldMapper.Builder(INFERENCE_CHUNKS_TEXT, indexVersionCreated)
@@ -185,20 +234,11 @@ public class SemanticTextFieldMapper extends FieldMapper {
                 nestedBuilder.add(createInferenceMapperBuilder(INFERENCE_CHUNKS_RESULTS, modelSettings.get(), indexVersionCreated));
             }
             nestedBuilder.add(textMapperBuilder);
-            var childContext = context.createChildContext(name(), ObjectMapper.Dynamic.FALSE);
-            var subMappers = nestedBuilder.build(childContext);
-            return new SemanticTextFieldMapper(
-                name(),
-                new SemanticTextFieldType(fullName, inferenceId.getValue(), modelSettings.getValue(), subMappers, meta.getValue()),
-                copyTo,
-                indexVersionCreated,
-                modelSettings.getValue(),
-                subMappers
-            );
+            return nestedBuilder.build(context);
         }
     }
 
-    public static class SemanticTextFieldType extends SimpleMappedFieldType implements InferenceModelFieldType {
+    public static class SemanticTextFieldType extends SimpleMappedFieldType {
         private final String inferenceId;
         private final SemanticTextModelSettings modelSettings;
         private final NestedObjectMapper subMappers;
@@ -221,7 +261,6 @@ public class SemanticTextFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        @Override
         public String getInferenceId() {
             return inferenceId;
         }
@@ -277,11 +316,6 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
             return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Total).boost(boost).queryName(queryName);
         }
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return super.syntheticFieldLoader();
     }
 
     private static Mapper.Builder createInferenceMapperBuilder(

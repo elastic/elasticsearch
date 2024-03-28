@@ -33,10 +33,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             "test",
             client().admin().indices().prepareCreate("test").setMapping("field", "type=semantic_text,inference_id=test_model")
         );
-        assertEquals(
-            indexService.getMetadata().getFieldInferenceMetadata().getFieldInferenceOptions().get("field").inferenceId(),
-            "test_model"
-        );
+        assertEquals(indexService.getMetadata().getInferenceFields().get("field").getInferenceId(), "test_model");
     }
 
     public void testAddSemanticTextField() throws Exception {
@@ -53,10 +50,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        assertEquals(
-            resultingState.metadata().index("test").getFieldInferenceMetadata().getFieldInferenceOptions().get("field").inferenceId(),
-            "test_model"
-        );
+        assertEquals(resultingState.metadata().index("test").getInferenceFields().get("field").getInferenceId(), "test_model");
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

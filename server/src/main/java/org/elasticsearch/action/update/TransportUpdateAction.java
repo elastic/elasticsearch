@@ -40,6 +40,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -184,7 +185,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis);
         switch (result.getResponseResult()) {
             case CREATED -> {
-                IndexRequest upsertRequest = result.action();
+                IndexRequest upsertRequest = removeInferenceMetadataField(indexService, result.action());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 client.bulk(
@@ -226,7 +227,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 );
             }
             case UPDATED -> {
-                IndexRequest indexRequest = result.action();
+                IndexRequest indexRequest = removeInferenceMetadataField(indexService, result.action());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 client.bulk(
@@ -334,5 +335,16 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return;
         }
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
+    }
+
+    private IndexRequest removeInferenceMetadataField(IndexService service, IndexRequest request) {
+        var inferenceMetadata = service.getIndexSettings().getIndexMetadata().getInferenceFields();
+        if (inferenceMetadata.isEmpty()) {
+            return request;
+        }
+        Map<String, Object> docMap = request.sourceAsMap();
+        docMap.remove(InferenceFieldMapper.NAME);
+        request.source(docMap);
+        return request;
     }
 }

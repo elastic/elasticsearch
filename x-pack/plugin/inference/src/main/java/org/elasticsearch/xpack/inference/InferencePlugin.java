@@ -287,12 +287,18 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Map.of(InferenceMetadataFieldMapper.NAME, InferenceMetadataFieldMapper.PARSER);
+        if (SemanticTextFeature.isEnabled()) {
+            return Map.of(InferenceMetadataFieldMapper.NAME, InferenceMetadataFieldMapper.PARSER);
+        }
+        return Map.of();
     }
 
     @Override
     public Collection<ActionFilter> getActionFilters() {
-        return singletonList(shardBulkInferenceActionFilter.get());
+        if (SemanticTextFeature.isEnabled()) {
+            return singletonList(shardBulkInferenceActionFilter.get());
+        }
+        return List.of();
     }
 
     @Override

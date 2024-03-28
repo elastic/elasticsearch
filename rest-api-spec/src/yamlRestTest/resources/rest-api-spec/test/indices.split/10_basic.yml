@@ -95,9 +95,6 @@ setup:
 
 ---
 "Split from 1 to N":
-  - skip:
-      version: " - 6.99.99"
-      reason: automatic preparation for splitting was added in 7.0.0
   - do:
       indices.create:
         index: source_one_shard

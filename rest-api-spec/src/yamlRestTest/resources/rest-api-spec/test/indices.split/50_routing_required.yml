@@ -99,8 +99,8 @@ routing required:
 
 ---
 nested:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: [ "indices_split_routing" ]
       reason: "fixed in 8.5.0"
 
   - do:

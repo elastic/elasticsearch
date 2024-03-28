@@ -1,7 +1,7 @@
 ---
 "Rollover with min_docs condition":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: [ "indices_rollover_conditions" ]
       reason: introduced in 8.4.0
 
   # create index with alias and replica

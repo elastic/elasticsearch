@@ -69,8 +69,8 @@
 
 ---
 "Close index with wait_for_active_shards set to all":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: [ "indices_replicate_closed" ]
       reason:  "closed indices are replicated starting version 7.2.0"
 
   - do:
@@ -124,10 +124,10 @@
 
 ---
 "?wait_for_active_shards=index-setting is deprecated":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: [ "indices_close_wait_deprecated" ]
       reason: "required deprecation warning is only emitted in 8.0 and later"
-      features: ["warnings"]
+      test_runner_features: ["warnings"]
 
   - do:
       indices.create:

@@ -117,6 +117,10 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) throws IOException {
+        if (indexShard.routingEntry().isPromotableToPrimary() == false) {
+            return;
+        }
+
         final ShardId shardId = indexShard.shardId();
         if (indexShard.getActiveOperationsCount() != IndexShard.OPERATIONS_BLOCKED) {
             throw new IllegalStateException("Index shard " + shardId + " is not blocking all operations during closing");

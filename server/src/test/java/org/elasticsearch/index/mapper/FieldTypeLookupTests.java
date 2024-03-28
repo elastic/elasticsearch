@@ -478,7 +478,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         PassThroughObjectMapper attributes = createPassThroughMapper("attributes", Set.of());
 
         MockFieldMapper resourceAttributeField = new MockFieldMapper("resource.attributes.foo");
-        PassThroughObjectMapper resourceAttributes = createPassThroughMapper("resource.attributes", Set.of("attributes"));
+        PassThroughObjectMapper resourceAttributes = createPassThroughMapper("resource.attributes", Set.of());
 
         FieldTypeLookup lookup = new FieldTypeLookup(
             List.of(attributeField, resourceAttributeField),
@@ -487,6 +487,22 @@ public class FieldTypeLookupTests extends ESTestCase {
             List.of()
         );
         assertEquals(attributeField.fieldType(), lookup.get("foo"));
+    }
+
+    public void testAddRootAliasForConflictingPassThroughFieldsSuperseded() {
+        MockFieldMapper attributeField = new MockFieldMapper("attributes.foo");
+        PassThroughObjectMapper attributes = createPassThroughMapper("attributes", Set.of("resource.attributes"));
+
+        MockFieldMapper resourceAttributeField = new MockFieldMapper("resource.attributes.foo");
+        PassThroughObjectMapper resourceAttributes = createPassThroughMapper("resource.attributes", Set.of());
+
+        FieldTypeLookup lookup = new FieldTypeLookup(
+            List.of(attributeField, resourceAttributeField),
+            List.of(),
+            List.of(attributes, resourceAttributes),
+            List.of()
+        );
+        assertEquals(resourceAttributeField.fieldType(), lookup.get("foo"));
     }
 
     public void testNoRootAliasForPassThroughFieldOnConflictingField() {

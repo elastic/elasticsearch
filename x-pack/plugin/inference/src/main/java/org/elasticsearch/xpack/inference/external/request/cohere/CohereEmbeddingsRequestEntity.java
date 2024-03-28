@@ -57,7 +57,7 @@ public record CohereEmbeddingsRequestEntity(
         }
 
         if (embeddingType != null) {
-            builder.field(EMBEDDING_TYPES_FIELD, List.of(embeddingType));
+            builder.field(EMBEDDING_TYPES_FIELD, List.of(embeddingType.toRequestString()));
         }
 
         if (taskSettings.getTruncation() != null) {

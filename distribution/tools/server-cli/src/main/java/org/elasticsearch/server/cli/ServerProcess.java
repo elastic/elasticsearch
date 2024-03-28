@@ -61,16 +61,21 @@ public class ServerProcess {
      */
     public synchronized void detach() throws IOException {
         errorPump.drain();
-        IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream());
-        detached = true;
+        try {
+            IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream(), errorPump);
+        } finally {
+            detached = true;
+        }
     }
 
     /**
      * Waits for the subprocess to exit.
      */
-    public int waitFor() {
+    public int waitFor() throws IOException {
         errorPump.drain();
-        return nonInterruptible(jvmProcess::waitFor);
+        int exitCode = nonInterruptible(jvmProcess::waitFor);
+        errorPump.close();
+        return exitCode;
     }
 
     /**
@@ -81,7 +86,7 @@ public class ServerProcess {
      *
      * <p> Note that if {@link #detach()} has been called, this method is a no-op.
      */
-    public synchronized void stop() {
+    public synchronized void stop() throws IOException {
         if (detached) {
             return;
         }

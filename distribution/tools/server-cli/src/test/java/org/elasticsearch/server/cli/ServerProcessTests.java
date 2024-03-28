@@ -373,7 +373,7 @@ public class ServerProcessTests extends ESTestCase {
         new Thread(() -> {
             // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
             nonInterruptibleVoid(mainReady::await);
-            server.stop();
+            IOUtils.closeWhileHandlingException(server::stop);
         }).start();
         int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));

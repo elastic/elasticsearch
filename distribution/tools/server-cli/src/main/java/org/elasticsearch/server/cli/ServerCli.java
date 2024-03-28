@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -231,7 +232,7 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         if (server != null) {
             server.stop();
         }

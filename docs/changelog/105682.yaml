@@ -2,25 +2,19 @@ pr: 105682
 summary: Introduce global retention in data stream lifecycle.
 area: Data streams
 type: feature
-issues: []
+issues:
+  - 106169
 highlight:
-  title: "[DSL] Introduce data stream global retention - Part 3"
+  title: Add global retention in data stream lifecycle
   body: |-
-    In this PR we introduce the API that will expose the global retention
-    configuration and will allow users to take advantage of it.
+    Data stream lifecycle now supports configuring retention on a cluster level, namely global retention. Global retention 
+    allows us to configure two different retentions:
+    
+    - `default_retention` is applied to all data streams managed by the data stream lifecycle that do not have retention
+    defined on the data stream level.
+    - `max_retention` is applied to all data streams managed by the data stream lifecycle and it allows any data stream 
+    data to be deleted after the `max_retention` has passed.
 
-    These APIs are protected by the dedicated introduced privileges:
-
-    -  `manage_data_stream_global_retention` or higher, which allows all operations on the global retention configuration
-    -  `monitor_data_stream_retention` or higher, which allows the retrieval of the global retention configuration
-
-    This PR is not delivering the complete feature since the global
-    retention is not used yet.
-
-    Relevant documentation: - [Retention
-    Tutorial](https://elasticsearch_bk_105682.docs-preview.app.elstc.co/guide/en/elasticsearch/reference/master/tutorial-manage-data-stream-retention.html)
-    - [Data stream lifecycle
-    page](https://elasticsearch_bk_105682.docs-preview.app.elstc.co/guide/en/elasticsearch/reference/master/data-stream-lifecycle.html)
-    - [Global retention
-    APIs](https://elasticsearch_bk_105682.docs-preview.app.elstc.co/guide/en/elasticsearch/reference/master/data-stream-apis.html)
+    Furthermore, we introduce the term `effective_retention` which is the retention applied at a certain moment to a data
+    stream considering all the available retention configurations.
   notable: true

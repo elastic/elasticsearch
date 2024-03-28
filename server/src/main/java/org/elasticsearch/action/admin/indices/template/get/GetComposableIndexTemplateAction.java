@@ -158,6 +158,10 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             return indexTemplates;
         }
 
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(indexTemplates, StreamOutput::writeWriteable);

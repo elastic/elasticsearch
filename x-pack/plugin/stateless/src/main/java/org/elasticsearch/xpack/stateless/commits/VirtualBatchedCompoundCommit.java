@@ -29,6 +29,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.util.Maps;
@@ -44,6 +46,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -91,7 +94,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     private final NavigableSet<PendingCompoundCommit> pendingCompoundCommits;
     // TODO: the internal files should be added to the corresponding BlobReferences
     private final Map<String, BlobLocation> internalLocations = new ConcurrentHashMap<>();
-    // Maps internal data (pending compound commits' headers and internal files) to their offset in the virtual batched compound commit
+    // Maps internal data (pending compound commits' headers, files, padding) to their offset in the virtual batched compound commit
     private final NavigableMap<Long, InternalDataReader> internalDataReadersByOffset = new ConcurrentSkipListMap<>();
     private final AtomicLong currentOffset = new AtomicLong();
     private final String blobName;
@@ -166,10 +169,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             return false;
         }
 
-        // TODO: align 4KiB
         var internalFiles = computeInternalFiles(reference);
         long compoundCommitFilesSize = internalFiles.stream().mapToLong(StatelessCompoundCommit.InternalFile::length).sum();
         var header = materializeCompoundCommitHeader(reference, internalFiles);
+        long compoundCommitSize = header.length + compoundCommitFilesSize;
 
         // Blocking when adding the new CC and updating relevant fields so that they offer consistent view to other (freezing) threads
         synchronized (this) {
@@ -177,13 +180,28 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 return false;
             }
 
-            final long headerOffset = currentOffset.get();
-            final long startingOffset = headerOffset + header.length;
-            // TODO: get rid of the blob length
-            final long blobLength = startingOffset + compoundCommitFilesSize;
+            // Add padding to the previous CC if it exists
+            if (pendingCompoundCommits.isEmpty() == false) {
+                var lastCompoundCommit = pendingCompoundCommits.last();
+                long lastCompoundCommitSize = lastCompoundCommit.getSizeInBytes();
+                long lastCompoundCommitSizePageAligned = BlobCacheUtils.toPageAlignedSize(lastCompoundCommitSize);
+                int padding = Math.toIntExact(lastCompoundCommitSizePageAligned - lastCompoundCommitSize);
+                lastCompoundCommit.setPadding(padding);
+                long paddingOffset = currentOffset.get();
+                var previousPaddingOffset = internalDataReadersByOffset.put(paddingOffset, new InternalPaddingReader(padding));
+                assert previousPaddingOffset == null;
+                currentOffset.set(paddingOffset + padding);
+            }
 
-            internalDataReadersByOffset.put(headerOffset, new InternalHeaderReader(header));
-            long internalFileOffset = startingOffset;
+            final long headerOffset = currentOffset.get();
+            assert headerOffset == BlobCacheUtils.toPageAlignedSize(headerOffset) : "header offset is not page-aligned: " + headerOffset;
+            var previousHeaderOffset = internalDataReadersByOffset.put(headerOffset, new InternalHeaderReader(header));
+            assert previousHeaderOffset == null;
+            // TODO: get rid of the blob length
+            final long blobLength = headerOffset + compoundCommitSize;
+
+            long internalFileOffset = headerOffset + header.length;
+
             for (var internalFile : internalFiles) {
                 var fileLength = internalFile.length();
                 var previousLocation = internalLocations.put(
@@ -208,6 +226,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             );
             pendingCompoundCommits.add(pendingCompoundCommit);
             logger.debug("appended new CC [{}] to VBCC [{}]", pendingCompoundCommit, primaryTermAndGeneration);
+            assert currentOffset.get() == headerOffset + pendingCompoundCommit.getSizeInBytes()
+                : "current offset "
+                    + currentOffset.get()
+                    + " should be equal to header offset "
+                    + headerOffset
+                    + " plus size of pending compound commit "
+                    + pendingCompoundCommit.getSizeInBytes();
         }
         // The consistency can be asserted outside the blocking code since appendCommit runs single-threaded
         assert assertInternalConsistency();
@@ -240,14 +265,46 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         final var sizeInBytes = pendingCompoundCommits.stream().mapToLong(PendingCompoundCommit::getSizeInBytes).sum();
         assert sizeInBytes == currentOffset.get() : "current offset must be at the end of the VBCC";
-        // Group the internal data readers into 2 groups with boolean keys. True for InternalHeaderReader and False for InternalFileReader
-        final Map<Boolean, List<InternalDataReader>> internalDataReaderGroup = internalDataReadersByOffset.values()
+
+        // Assert that compound commits have padding to be page-aligned, except for the last compound commit
+        var it = pendingCompoundCommits.iterator();
+        while (it.hasNext()) {
+            var pendingCompoundCommit = it.next();
+            assert it.hasNext() == false
+                || pendingCompoundCommit.getSizeInBytes() == BlobCacheUtils.toPageAlignedSize(
+                    pendingCompoundCommit.getStatelessCompoundCommit().sizeInBytes()
+                )
+                : "intermediate statelessCompoundCommit size in bytes "
+                    + pendingCompoundCommit.getStatelessCompoundCommit().sizeInBytes()
+                    + " plus padding length "
+                    + pendingCompoundCommit.padding
+                    + " should be equal to page-aligned size in bytes "
+                    + BlobCacheUtils.toPageAlignedSize(pendingCompoundCommit.getStatelessCompoundCommit().sizeInBytes());
+            assert it.hasNext() || pendingCompoundCommit.padding == 0 : "last pending compound commit should not have padding";
+        }
+
+        // Group the internal data readers by class
+        final Map<Class<?>, List<InternalDataReader>> internalDataReaderGroups = internalDataReadersByOffset.values()
             .stream()
-            .collect(groupingBy(internalHeaderOrFile -> internalHeaderOrFile instanceof InternalHeaderReader));
-        assert internalDataReaderGroup.get(true).size() == pendingCompoundCommits.size() : "all pending CCs must have header offsets";
+            .collect(groupingBy(internalHeaderOrFile -> internalHeaderOrFile.getClass()));
+        assert internalDataReaderGroups.get(InternalHeaderReader.class).size() == pendingCompoundCommits.size()
+            : "all pending CCs must have header offsets";
         assert allInternalFiles.equals(
-            Set.copyOf(internalDataReaderGroup.get(false).stream().map(r -> ((InternalFileReader) r).filename).toList())
+            Set.copyOf(internalDataReaderGroups.get(InternalFileReader.class).stream().map(r -> ((InternalFileReader) r).filename).toList())
         ) : "all internal files must have offsets";
+        if (internalDataReaderGroups.containsKey(InternalPaddingReader.class)) {
+            assert internalDataReaderGroups.get(InternalPaddingReader.class).size() < pendingCompoundCommits.size()
+                : "paddings "
+                    + internalDataReaderGroups.get(InternalPaddingReader.class).size()
+                    + " are more than pending CCs (excluding the last one) "
+                    + (pendingCompoundCommits.size() - 1);
+            internalDataReaderGroups.get(InternalPaddingReader.class).forEach(reader -> {
+                assert reader instanceof InternalPaddingReader;
+                InternalPaddingReader paddingReader = (InternalPaddingReader) reader;
+                assert paddingReader.padding < SharedBytes.PAGE_SIZE
+                    : "padding " + paddingReader.padding + " is more than page size " + SharedBytes.PAGE_SIZE;
+            });
+        }
         return true;
     }
 
@@ -414,9 +471,23 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         private final List<StatelessCompoundCommit.InternalFile> internalFiles;
         private final StatelessCommitRef reference;
         private final StatelessCompoundCommit statelessCompoundCommit;
+        private int padding = 0;
+
+        private static final byte[] PADDING_BYTES;
+        static {
+            byte[] padding = new byte[SharedBytes.PAGE_SIZE];
+            Arrays.fill(padding, (byte) 0);
+            PADDING_BYTES = padding;
+        }
+
+        static void writePadding(OutputStream output, int length) throws IOException {
+            assert 0 <= length && length < SharedBytes.PAGE_SIZE : length;
+            output.write(PADDING_BYTES, 0, length);
+        }
 
         /**
-         * Creates a new pending to upload compound commit
+         * Creates a new pending to upload compound commit. Note that the last pending compound commit should not have padding. The
+         * padding is added to the previous pending compound commit when appending a new pending compound commit.
          * @param header the materialized compound commit header
          * @param reference the lucene commit reference
          * @param statelessCompoundCommit the associated compound commit that will be uploaded
@@ -433,9 +504,18 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             this.statelessCompoundCommit = statelessCompoundCommit;
         }
 
+        void setPadding(int padding) {
+            this.padding = padding;
+            assert padding >= 0 : "padding " + padding + " is negative";
+        }
+
         void writeToStore(OutputStream output) throws IOException {
             output.write(header);
-            StatelessCompoundCommit.writeInternalFilesToStore(output, internalFiles, reference.getDirectory());
+            long writtenBytes = header.length;
+            writtenBytes += StatelessCompoundCommit.writeInternalFilesToStore(output, internalFiles, reference.getDirectory());
+            writePadding(output, padding);
+            writtenBytes += padding;
+            assert writtenBytes == getSizeInBytes() : writtenBytes + " != " + getSizeInBytes();
         }
 
         long getGeneration() {
@@ -447,10 +527,12 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
 
         /**
-         * the size of the compound commit including codec, header, checksums and all files
+         * the size of the compound commit including codec, header, checksums, all files, and padding
+         * Note that the last pending compound commit should not have padding. The padding is added to the previous pending compound commit
+         * when appending a new pending compound commit.
          */
         public long getSizeInBytes() {
-            return statelessCompoundCommit.sizeInBytes();
+            return statelessCompoundCommit.sizeInBytes() + padding;
         }
 
         public StatelessCompoundCommit getStatelessCompoundCommit() {
@@ -515,6 +597,19 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 Streams.copy(new InputStreamIndexInput(input, fileBytesToRead), output, false);
             }
             return fileBytesToRead;
+        }
+    }
+
+    /**
+     * Internal data reader for padding bytes
+     */
+    private record InternalPaddingReader(int padding) implements InternalDataReader {
+        @Override
+        public long read(long offset, long length, OutputStream output) throws IOException {
+            assert offset < padding : "offset [" + offset + "] more than padding length [" + padding + "]";
+            int paddingBytesToRead = BlobCacheUtils.toIntBytes(Math.min(length, padding - offset));
+            PendingCompoundCommit.writePadding(output, paddingBytesToRead);
+            return paddingBytesToRead;
         }
     }
 

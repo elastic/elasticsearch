@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -74,7 +75,10 @@ public class IndexAbstractionResolver {
                     }
                 } else {
                     if (minus) {
-                        finalIndices.removeAll(resolvedIndices);
+                        for (String resolvedIndex : resolvedIndices) {
+                            finalIndices.remove(resolvedIndex);
+                            finalIndices.removeAll(getAliases(metadata, resolvedIndex));
+                        }
                     } else {
                         finalIndices.addAll(resolvedIndices);
                     }
@@ -82,6 +86,7 @@ public class IndexAbstractionResolver {
             } else {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
+                    finalIndices.removeAll(getAliases(metadata, indexAbstraction));
                 } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
                     // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
                     // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
@@ -171,5 +176,13 @@ public class IndexAbstractionResolver {
 
     private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
         return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
+    }
+
+    private static List<String> getAliases(Metadata metadata, String indexName) {
+        IndexMetadata indexMetadata = metadata.index(indexName);
+        if (indexMetadata == null) {
+            return Collections.emptyList();
+        }
+        return indexMetadata.getAliases().values().stream().map(AliasMetadata::getAlias).toList();
     }
 }

@@ -1,0 +1,6 @@
+pr: 102047
+summary: Exclude concrete indices when wildcard targets an alias with multi-target syntax
+area: Search
+type: bug
+issues:
+  - 98077

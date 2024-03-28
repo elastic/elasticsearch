@@ -27,12 +27,12 @@
     },
     "params":{
       "from":{
-        "type":"number",
+        "type":"int",
         "required":false,
         "description":"skips a number of transform stats, defaults to 0"
       },
       "size":{
-        "type":"number",
+        "type":"int",
         "required":false,
         "description":"specifies a max number of transform stats to get, defaults to 100"
       },

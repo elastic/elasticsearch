@@ -248,7 +248,7 @@
             "properties": {
                 "type": {
                     "type": "string",
-                    "pattern": "^list|date|time|string|enum|int|double|long|boolean|number$",
+                    "pattern": "^list|date|time|string|enum|int|double|float|long|boolean$",
                     "title": "The type of the parameter."
                 },
                 "options": {

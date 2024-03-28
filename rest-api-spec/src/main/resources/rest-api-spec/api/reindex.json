@@ -40,7 +40,7 @@
         "description":"Should the request should block until the reindex is complete."
       },
       "requests_per_second":{
-        "type":"number",
+        "type":"float",
         "default":0,
         "description":"The throttle to set on this request in sub-requests per second. -1 means no throttle."
       },
@@ -50,12 +50,12 @@
         "default":"5m"
       },
       "slices":{
-        "type":"number|string",
+        "type":"int|string",
         "default":1,
         "description":"The number of slices this task should be divided into. Defaults to 1, meaning the task isn't sliced into subtasks. Can be set to `auto`."
       },
       "max_docs":{
-        "type":"number",
+        "type":"long",
         "description":"Maximum number of documents to process (default: all documents)"
       }
     },

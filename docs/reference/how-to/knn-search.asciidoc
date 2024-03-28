@@ -66,7 +66,7 @@ least enough RAM to hold the vector data and index structures. To check the
 size of the vector data, you can use the <<indices-disk-usage>> API. As a
 loose rule of thumb, and assuming the default HNSW options, the bytes used will
 be `num_vectors * 4 * (num_dimensions + 12)`. When using the `byte` <<dense-vector-element-type,`element_type`>>
-the space required will be closer to  `num_vectors * (num_dimensions + 12)`. Note that
+the space required will be closer to  `num_vectors * (num_dimensions + 48)`. Note that
 the required RAM is for the filesystem cache, which is separate from the Java
 heap.
 

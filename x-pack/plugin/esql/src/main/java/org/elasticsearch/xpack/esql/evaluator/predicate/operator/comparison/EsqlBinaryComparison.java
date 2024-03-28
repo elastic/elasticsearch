@@ -122,11 +122,6 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             return new TypeResolution(formatIncompatibleTypesMessage());
         }
 
-        if ((DataTypes.isDateTime(leftType) && DataTypes.isString(rightType))
-            || (DataTypes.isString(leftType) && (DataTypes.isDateTime(rightType)))) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-
         if ((leftType.isNumeric() && rightType.isNumeric())
             || (DataTypes.isString(leftType) && DataTypes.isString(rightType))
             || leftType.equals(rightType)

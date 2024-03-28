@@ -39,6 +39,15 @@ public class ByteBufferStreamInput extends StreamInput {
     }
 
     @Override
+    public byte tryReadByte() throws IOException {
+        try {
+            return buffer.get(buffer.position());
+        } catch (BufferUnderflowException ex) {
+            throw newEOFException(ex);
+        }
+    }
+
+    @Override
     public int read(byte[] b, int off, int len) throws IOException {
         if (buffer.hasRemaining() == false) {
             return -1;

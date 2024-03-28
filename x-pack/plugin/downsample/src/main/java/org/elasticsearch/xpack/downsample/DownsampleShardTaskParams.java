@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -87,7 +88,9 @@ public record DownsampleShardTaskParams(
         builder.field(SHARD_ID.getPreferredName(), shardId);
         builder.array(METRICS.getPreferredName(), metrics);
         builder.array(LABELS.getPreferredName(), labels);
-        builder.array(DIMENSIONS.getPreferredName(), dimensions);
+        if (dimensions.length > 0) {
+            builder.array(DIMENSIONS.getPreferredName(), dimensions);
+        }
         return builder.endObject();
     }
 
@@ -112,6 +115,8 @@ public record DownsampleShardTaskParams(
         out.writeStringArray(labels);
         if (out.getTransportVersion().onOrAfter(TransportVersions.DIMENSIONS_SERIALIZATION_PERSISTENT_TASK)) {
             out.writeOptionalStringArray(dimensions);
+        } else if (dimensions.length > 0) {
+            throw new IllegalStateException("can't serialize dimensions to pre 8.13 nodes");
         }
     }
 
@@ -161,7 +166,7 @@ public record DownsampleShardTaskParams(
         ShardId shardId;
         String[] metrics;
         String[] labels;
-        String[] dimensions;
+        String[] dimensions = Strings.EMPTY_ARRAY;
 
         public Builder downsampleConfig(final DownsampleConfig downsampleConfig) {
             this.downsampleConfig = downsampleConfig;
@@ -215,5 +220,10 @@ public record DownsampleShardTaskParams(
                 dimensions
             );
         }
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

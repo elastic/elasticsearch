@@ -33,14 +33,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptySet;
 
 class ESRestTestFeatureService implements TestFeatureService {
-    private final Set<String> clusterStateFeatures;
     private final Set<String> allSupportedFeatures;
     private final Set<String> knownHistoricalFeatureNames;
 
@@ -51,15 +49,11 @@ class ESRestTestFeatureService implements TestFeatureService {
             specs.add(MetadataHolder.HISTORICAL_FEATURES);
         }
         var historicalFeatures = FeatureData.createFromSpecifications(specs).getHistoricalFeatures();
-        this.knownHistoricalFeatureNames = Optional.ofNullable(historicalFeatures.lastEntry()).map(Map.Entry::getValue).orElse(emptySet());
-        this.clusterStateFeatures = clusterStateFeatures;
-        this.allSupportedFeatures = Sets.union(
-            clusterStateFeatures,
-            nodeVersions.stream()
-                .min(Comparator.naturalOrder())
-                .map(v -> Optional.ofNullable(historicalFeatures.floorEntry(v)).map(Map.Entry::getValue).orElse(emptySet()))
-                .orElse(knownHistoricalFeatureNames)
-        );
+        this.knownHistoricalFeatureNames = historicalFeatures.lastEntry().getValue();
+        var minVersion = nodeVersions.stream().min(Comparator.naturalOrder());
+        var supportedHistoricalFeatures = minVersion.map(v -> historicalFeatures.floorEntry(v).getValue())
+            .orElse(knownHistoricalFeatureNames);
+        this.allSupportedFeatures = Sets.union(clusterStateFeatures, supportedHistoricalFeatures);
     }
 
     public static boolean hasFeatureMetadata() {
@@ -80,9 +74,6 @@ class ESRestTestFeatureService implements TestFeatureService {
                 )
             );
         }
-        if (MetadataHolder.FEATURE_NAMES.contains(featureId)) {
-            return clusterStateFeatures.contains(featureId);
-        }
         return allSupportedFeatures.contains(featureId);
     }
 
@@ -92,13 +83,6 @@ class ESRestTestFeatureService implements TestFeatureService {
     }
 
     private static class MetadataHolder {
-        private record HistoricalFeatureSpec(Map<NodeFeature, Version> historicalFeatures) implements FeatureSpecification {
-            @Override
-            public Map<NodeFeature, Version> getHistoricalFeatures() {
-                return historicalFeatures;
-            }
-        }
-
         private static final FeatureSpecification HISTORICAL_FEATURES;
         private static final Set<String> FEATURE_NAMES;
 
@@ -123,7 +107,13 @@ class ESRestTestFeatureService implements TestFeatureService {
                     }
                 });
                 FEATURE_NAMES = Collections.unmodifiableSet(featureNames);
-                HISTORICAL_FEATURES = new HistoricalFeatureSpec(Collections.unmodifiableMap(historicalFeatures));
+                Map<NodeFeature, Version> unmodifiableHistoricalFeatures = Collections.unmodifiableMap(historicalFeatures);
+                HISTORICAL_FEATURES = new FeatureSpecification() {
+                    @Override
+                    public Map<NodeFeature, Version> getHistoricalFeatures() {
+                        return unmodifiableHistoricalFeatures;
+                    }
+                };
             }
         }
 

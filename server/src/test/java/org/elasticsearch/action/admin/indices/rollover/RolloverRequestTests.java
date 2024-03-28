@@ -286,10 +286,7 @@ public class RolloverRequestTests extends ESTestCase {
             ActionRequestValidationException validationException = rolloverRequest.validate();
             assertNotNull(validationException);
             assertEquals(1, validationException.validationErrors().size());
-            assertEquals(
-                "lazily rolling over a failure store is currently not supported",
-                validationException.validationErrors().get(0)
-            );
+            assertEquals("lazily rolling over a failure store is currently not supported", validationException.validationErrors().get(0));
         }
     }
 

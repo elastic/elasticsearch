@@ -2277,6 +2277,32 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             assertThat(metric.attributes().get("primary"), equalTo(true));
             assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
         });
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC);
+            assertFalse("Index recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
+            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
+            assertThat(metric.attributes().get("shardId"), equalTo(0));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
+        });
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC
+            );
+            assertFalse("Translog recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
+            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
+            assertThat(metric.attributes().get("shardId"), equalTo(0));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recoveryType"), equalTo("PEER"));
+        });
     }
 
     public void testRecoveryMetricPublicationOnIndexingShardStartedAndThenRecovered() throws Exception {
@@ -2346,6 +2372,34 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
+            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
+            assertThat(metric.attributes().get("shardId"), equalTo(0));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recoveryType"), equalTo("EXISTING_STORE"));
+        });
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC
+            );
+            assertFalse("Index recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
+            assertThat(metric.attributes().get("indexName"), equalTo(indexName));
+            assertThat(metric.attributes().get("shardId"), equalTo(0));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recoveryType"), equalTo("EXISTING_STORE"));
+        });
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC
+            );
+            assertFalse("Translog recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
             assertThat(metric.attributes().get("indexName"), equalTo(indexName));
             assertThat(metric.attributes().get("shardId"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(true));

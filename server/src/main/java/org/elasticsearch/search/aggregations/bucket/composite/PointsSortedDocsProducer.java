@@ -13,6 +13,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.DocIdSetBuilder;
 
 import java.io.IOException;
@@ -73,9 +74,9 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         final CompositeValuesCollectorQueue queue;
         final DocIdSetBuilder builder;
         final int maxDoc;
-        final int bytesPerDim;
         final long lowerBucket;
         final long upperBucket;
+        final ArrayUtil.ByteArrayComparator comparator;
 
         DocIdSetBuilder bucketDocsBuilder;
         DocIdSetBuilder.BulkAdder adder;
@@ -98,7 +99,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             this.lowerBucket = lowerBucket;
             this.upperBucket = upperBucket;
             this.bucketDocsBuilder = new DocIdSetBuilder(maxDoc);
-            this.bytesPerDim = bytesPerDim;
+            this.comparator = ArrayUtil.getUnsignedComparator(bytesPerDim);
         }
 
         @Override
@@ -142,9 +143,9 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            if ((upperPointQuery != null && Arrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0)
+            if ((upperPointQuery != null && comparator.compare(minPackedValue, 0, upperPointQuery, 0) > 0)
                 || (lowerPointQuery != null
-                    && Arrays.compareUnsigned(maxPackedValue, 0, bytesPerDim, lowerPointQuery, 0, bytesPerDim) < 0)) {
+                    && comparator.compare(maxPackedValue, 0, lowerPointQuery, 0) < 0)) {
                 // does not match the query
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;
             }

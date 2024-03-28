@@ -822,4 +822,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
+    }
 }

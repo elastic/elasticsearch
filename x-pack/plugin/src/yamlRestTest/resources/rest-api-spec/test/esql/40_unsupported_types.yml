@@ -390,3 +390,35 @@ unsupported with sort:
   - match: { values.0.26: xy }
   - match: { values.0.27: "foo bar" }
   - match: { values.0.28: 3 }
+
+---
+spatial types with different precision in 8.12.x:
+  - skip:
+      version: " - 8.11.99, 8.13.0 - "
+      reason: "Elasticsearch 8.12 supported geo_point and cartesian_point with doc-values only and precision differences"
+
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep geo_point, geo_point_alias, point, geo_shape, shape'
+
+  - match: { columns.0.name: geo_point }
+  - match: { columns.0.type: geo_point }
+  - match: { columns.1.name: geo_point_alias }
+  - match: { columns.1.type: geo_point }
+  - match: { columns.2.name: point }
+  - match: { columns.2.type: cartesian_point }
+  - match: { columns.3.name: geo_shape }
+  - match: { columns.3.type: unsupported }
+  - match: { columns.4.name: shape }
+  - match: { columns.4.type: unsupported }
+
+  - length: { values: 1 }
+  - match: { values.0.0: /POINT \(.*/ }
+  - match: { values.0.1: /POINT \(.*/ }
+  - match: { values.0.2: /POINT \(-97\.\d+ 25\.\d+\)/ }
+  - match: { values.0.3: null }
+  - match: { values.0.4: null }
